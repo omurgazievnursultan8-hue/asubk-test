@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-17 · 252/252 PASS
+  SMOKE 2026-10-17 · 268/268 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -68,7 +68,7 @@
      PASS  #57  список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и спрошен тем же швом, пятого шва не понадобилось
      PASS  #58  переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не передаётся и не пополняется — работа окончена (§9)
      PASS  #59  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (426 КБ разметки)
+     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (428 КБ разметки)
      PASS  #61  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
      PASS  #62  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #63  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -165,7 +165,7 @@
      PASS  #154  «📌 на дашборд» — у экрана показа и у вида — только ссылка: «плитка ссылается на этот отчёт (отчёт «Просроченная задолженность по состоянию на 1-е число»); раскладка — в модуле дашборда»; бланк на дашборд не ставится — он об одном объекте
      PASS  #155  провал из итога «Сумма просроченной задолженности» = 10300000: 2 кредита с ненулевым вкладом из 8 строк отчёта, сумма списка 10300000 равна числу — та же дата, тот же снимок
      PASS  #156  провал из подытога уровня даёт объекты узла (Региональное представительство «Ош»: 1); у средней суммы нет — список объектов узла; в число, которого не видно, не проваливаются
-     PASS  #157  рабочий список заводится из провала: 2 объекта провала, состав заморожен; безымянного списка нет; прогресс начинается с «0 из 2»
+     PASS  #157  рабочий список заводится из провала: 2 объекта провала, состав заморожен; безымянного списка нет — имя по умолчанию путь узла «Просроченная задолженность по состоянию на 1-е число · Сумма просроченной задолженности · итог · на 01.08.2026»; прогресс начинается с «0 из 2»
      PASS  #158  отметка «отработан» — с автором, датой и комментарием; над списком «1 из 2»; чужой объект не отмечается, закрытый список отметок не принимает
      PASS  #159  на экране каждое число итога — ссылка (8); щелчок открывает провал с суммой списка и кнопкой «Завести рабочий список» прямо в нём
      PASS  #160  полки: «Мои» — 3 личных отчёта автора, «Общие» — 2 (в т. ч. открытый Осмоновой поимённо), популярные сверху; витрина открывается на «Моих»
@@ -261,6 +261,22 @@
      PASS  #250  решение — новая редакция 2 того же состава (утвердил уполномоченный): ожидание снято, уведомления нет, сдача на 01.10.2026 проходит по ред. 2; сданное по ред. 1 не тронуто (ADR-0285 п. 3–4)
      PASS  #251  экраны: у формы — плашка «ожидает решения по методике», кнопка «Подтвердить новую редакцию» — только уполномоченному; уведомление — на экране подписок
      PASS  #252  пометки волны 41 не сдвинулись: «Кредитов с просрочкой» в «Портфеле к прошлому году» на 01.07.2026 — как было; у «Средней просрочки» до 01.09.2026 версия одна — пометки сравнения нет
+     PASS  #253  ОД-15/16: колонки провала — из записи объекта (подпись «КД-2024/203 от 20.06.2024», Заёмщик · Подразделение · Дней просрочки · Состояние); деньги — по вкладу (51.5 % · 48.5 %), черта «80 % числа» на второй строке; счёт — по весу «Остаток основного долга»
+     PASS  #254  ОД-15: «Колонки ▾» помнится у человека на объект — «Сумма договора» у уполномоченного в двух отчётах, у пользователя нет; поле вне перечня объекта не добавляется
+     PASS  #255  ОД-17: провал «Изменения» 01.06 → 01.08.2026 — объекты на двух датах: КД-2024/203 пришёл 5300000; КД-2025/126 снизилось -400000; сумма разниц 4900000 = изменению узла и колонке «Изменение» сравнения; уход — по причине записи объекта; у средней — отказ
+     PASS  #256  ОД-17, ОД-9: узел по значению разреза на свою дату — КД-2024/203 «перешёл из «действует»» в «просрочен»; строка разреза «промышленность» в сравнении (0 → 5300000) сходится с суммой разниц её провала
+     PASS  #257  ОД-18: доля 16,1 % = 10300000 ÷ 64100000; «в числе» — 2 объекта, сумма = числителю; «вся группа» — 8, сумма = знаменателю, «в числе» помечены 2; у формулы не-доли провала нет
+     PASS  #258  ОД-19: поиск сужает показ, а не итог — «показано 1 из 2 · сумма показанных 5 000 000 из 10 300 000»; сумма списка по-прежнему равна числу
+     PASS  #259  ОД-20: рабочий список — показанный состав (поиском — 1 объект), в «Изменении» — с переходом; имя по умолчанию — путь узла, у вопроса от плитки — её путь «Главная · Просрочено»; список у отчётности
+     PASS  #260  ОД-21: выгрузка показанного списка — предварительный выпуск ВП-105 (xlsx, метка, строка журнала, паспорт «показано 1 из 2»); выше порога statRows — отказ соседа и задание статистики ЗС-1, своего выпуска нет
+     PASS  #261  ОД-22: контекст карточки — отчёт, узел, вклад 5300000 (51.5 %), «1 из 2», соседи, возврат «к отчёту» или «к дашборду»; плашку рисует карточка
+     PASS  #262  ОД-23: «крупнейшие 3» — КД-2025/088 31900000; КД-2024/259 9900000; КД-2024/117 7400000; остальные 14900000; итог 64100000 = итогу; у счёта — по весу; у средней — отказ; провал «остальных» — их 5 объектов, сумма 14900000
+     PASS  #263  ОД-24: ряд по разрезу «период начала» на 24 концах месяца — дерево на каждую дату; 4 даты «снимка нет», конец июля 2025 г. «в легаси не собиралось», без подстановки; на 01.08.2026 сумма когорт = итогу (2)
+     PASS  #264  ОД-2, ОД-25: reportAnswer «ответ» = окну отчёта (10300000); «объекты на двух датах» — все 8 объектов с переходом и значением разреза на обе даты, Переходам новой формы не нужно; дашборд спрашивает тем же швом; чужой отчёт — отказ по правам
+     PASS  #265  ОД-26: соавтор — роль: держатели читаются на момент правки — Осмонова правит, пока держит роль, и перестаёт сразу после снятия; Асанов правит как держатель
+     PASS  #266  ОД-27: снятие роли с владельца отчёта с соавтором-ролью — уход владельца: «Просрочка по подразделениям — к планёрке» → Асанов А. (старший держатель); версии не порождает, полка называет прежнего владельца
+     PASS  #267  ОД-28: предложение открывает личный отчёт держателям роли (делопроизводителю — нет); «похожий уже есть» — «Погашения и портфель за период»; принятие — копия t-cat-1: владелец Асанов А., соавтор — роль, автор в круге; личный остаётся у автора; «принять на найденный» копии не делает
+     PASS  #268  экраны: «Крупнейшие 3» и ссылки «Изменения» у сравнения; панель провала «Изменения» с переходами, поиском, «Колонки ▾» и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли; номеров решений в интерфейсе нет
 -->
 <style>
 :root{
@@ -499,6 +515,8 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 .totals{ display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 2px; }
 a.drill{ color:var(--text-link); text-decoration:none; border-bottom:1px dashed currentColor; }
 a.drill:hover{ border-bottom-style:solid; }
+.vbar{ display:inline-block; height:6px; min-width:2px; max-width:100px; border-radius:3px; background:var(--asubk-blue); vertical-align:middle; }
+tr.cut80 td{ border-bottom:2px dashed var(--asubk-amber); }
 .prog{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
 .prog .bar{ display:inline-block; width:90px; height:6px; border-radius:3px; background:var(--asubk-gray-200); overflow:hidden; }
 .prog .bar span{ display:block; height:100%; background:var(--asubk-green); }
@@ -1327,7 +1345,7 @@ const SEAM = {
     const all = applyCut(OBJECTS.filter(o => o.type === objType && snap[o.id]).map(o => {
       const s = snap[o.id] || {};
       return {id:o.id, no:o.no, borrower:o.borrower, dept:o.dept, sum:o.sum,
-              issued:o.issued, guarantor:o.guarantor,
+              issued:o.issued, guarantor:o.guarantor, start: startOf(o.issued),
               debt_main:s.debt_main, days:s.days, status:s.status, closed:o.closed};
     }), cut);
     const vis = all.filter(o => scope.indexOf(o.dept) !== -1);
@@ -2231,6 +2249,10 @@ function seed(){
     migrations: [{id: MIGRATION.id, of: null, at: MIGRATION.at, by: MIGRATION.by, why:'перенос при запуске',
       periods: Object.keys(legacyPeriods())}], rewrites: [],
     worklists: [], wseq: 0,
+    /* Волна 43: держатели ролей — зеркало модуля пользователей; предложения в
+       каталог дашборда; «Колонки ▾» провала — у человека на объект; задания
+       статистики на выгрузку списков выше порога.                            */
+    roleHolders: clone(ROLE_HOLDERS0), proposals: [], colPrefs: {}, statJobs: [],
     views: [], vseq: 0, fseq: 0,                /* личные виды — восьмая сущность (§2.8) */
     subs: [], notices: [], notes: [], subSeq: 0, /* подписки и сигналы (§2.9), заметки (§2.10) */
     log: [],
@@ -2381,6 +2403,8 @@ RP.visibleTemplates = () => {
     const pub = pubEd(t);
     if(pub) return t.circle.indexOf(v.dept) !== -1 || v.scope.length === ALL_DEPTS.length;
     if(t.owner === v.who) return true;
+    /* Предложенный в каталог личный отчёт видят держатели роли, пока предложение ждёт. */
+    if((RP.state.proposals || []).some(p => p.tpl === t.id && p.state === 'ждёт') && holdsRole(CATALOG_ROLE, v.who)) return true;
     return !!t.asked && RP.isAuth();
   }).map(t => t.id);
 };
@@ -4048,7 +4072,7 @@ RP.setReportFlex = (tid, flex) => {
     'утверждённой редакции: свой режим и фильтр держат в виде поверх него'};
   const ed = lv === 'общий' ? verEd(t) : draftEd(t);
   if(lv === 'личный' && t.owner !== RP.who()) return {ok:false, why:'личный отчёт правит его автор'};
-  if(lv === 'общий' && t.owner !== RP.who() && (t.coauthors || []).indexOf(RP.who()) === -1)
+  if(lv === 'общий' && !mayEditShared(t, RP.who()))
     return {ok:false, why:'общий отчёт правят владелец и соавторы'};
   const bad = flexCheck(t, ed, flex); if(bad) return {ok:false, why: bad};
   ed.flex = {time: clone((flex || {}).time || null), filter: clone((flex || {}).filter || null)};
@@ -4131,7 +4155,9 @@ const SEAMS_OUT = [
   {id:'reportObligations', q:'что за подразделением к сроку',           to:'задачи и руководитель'},
   {id:'reportTemplate',    q:'пригоден ли отчёт для обзора, какая редакция текущая', to:'анализ'},
   {id:'reportForms',       q:'что я вообще могу отсюда напечатать',
-    to:'карточка объекта', keys:['объект']}
+    to:'карточка объекта', keys:['объект']},
+  {id:'reportAnswer',      q:'что отвечает этот отчёт или вид на эти значения параметров — тем же вычислителем, что окно',
+    to:'дашборд', keys:['ответ', 'провал', 'объекты на двух датах']}
 ];
 const NO_SEAM_OUT = {
   reportRows:    'строк ответа шов не отдаёт: за строками ходят в выпуск, где рядом стоит его '+
@@ -4152,6 +4178,8 @@ const CONSUMERS = [
   {module:'задачи',        may:['reportObligations'], note:'обязательство — основание задачи; '+
     'поручает человек (ИО-13)'},
   {module:'руководитель',  may:['reportObligations'], note:'календарь своего подразделения'},
+  {module:'дашборд',       may:['reportAnswer'], note:'плитка — ещё один смотрящий отчёта: ответ, провал узла в любом '+
+    'режиме полосы, объекты на двух датах; список, его поиск, рабочий список и выгрузка — у отчётности'},
   {module:'анализ',        may:['reportTemplate'],    note:'обзор ссылается на отчёт и на выпуск, '+
     'своего снимка не заводит (ИО-16)'},
   {module:'статистика',    may:[], why:'отчётность статистике не отдаёт ничего швом: список '+
@@ -4221,6 +4249,7 @@ RP.callSeamOut = (module, seam, arg) => {
     return {ok:true, key, data: bySubj ? RP.issuesToSubject(arg.subject) : RP.reportIssues(arg)};
   }
   if(seam === 'reportForms') return RP.reportForms(arg);
+  if(seam === 'reportAnswer') return RP.reportAnswer(arg);
   const data = seam === 'reportObligations' ? RP.reportObligations(arg) : RP.reportTemplate(arg);
   return {ok:true, data};
 };
@@ -4240,7 +4269,7 @@ RP.addFormula = (tid, f) => {
     'или уполномоченный объявит производную колонку (ADR-0281 п. 2, ОГ-В1)'};
   const ed = lv === 'общий' ? verEd(t) : draftEd(t);
   if(lv === 'личный' && t.owner !== RP.who()) return {ok:false, why:'личный отчёт правит его автор'};
-  if(lv === 'общий' && t.owner !== RP.who() && (t.coauthors || []).indexOf(RP.who()) === -1)
+  if(lv === 'общий' && !mayEditShared(t, RP.who()))
     return {ok:false, why:'общий отчёт правят владелец и соавторы'};
   const bad = formulaCheck(f, ed.mode); if(bad) return {ok:false, why: bad};
   const nf = Object.assign({id:'ф-'+(++RP.state.fseq)}, clone(f));
@@ -4516,6 +4545,87 @@ RP.worklistShown = (tid, params, twist, name) => {
     ': состав заморожен паспортом, а не кнопкой. '+wl.note};
 };
 
+/* Запись объекта в реестре статистики — ЗЕРКАЛО соседа, а не знание
+   отчётности: подпись объекта на дату, колонки списка, вес (денежная величина
+   для порядка счётного списка) и причины ухода со старшинством. Отчётность
+   печатает и применяет то, что объявлено; своих колонок и причин не заводит. */
+const OBJECT_REG = {
+  credit: {label: r => (r.no || r.id)+(r.issued ? ' от '+fmt(r.issued) : ''),
+    cols:['borrower', 'dept', 'days', 'status'], weight:'debt_main',
+    /* Старшинство: первая подошедшая причина. «Просрочка погашена» — у
+       показателей просрочки кредит остаётся, а вклад уходит в ноль
+       (допущение стенда: запись кредита её объявляет).                       */
+    reasons:[{why:'списан',            test:(a, b) => !!b && b.status === 'списан'},
+             {why:'реструктурирован',  test:(a, b) => !!b && b.status === 'реструктурирован'},
+             {why:'погасил',           test:(a, b) => !b || b.status === 'закрыт' || b.debt_main === 0},
+             {why:'просрочка погашена', test:(a, b) => !!a && a.days > 0 && !!b && b.days === 0}]}
+};
+SEAM.objectMeta = type => { const r = OBJECT_REG[type]; return r ? {cols: r.cols.slice(), weight: r.weight,
+  weightName: (FIELD(type, r.weight) || {}).name || null, reasons: r.reasons.map(x => x.why)} : null; };
+/* Разрезы ответа шире разрезов экрана: «период начала» объявлен у кредита в
+   реестре статистики (квартал выдачи) — для ряда по разрезу (Когорты).      */
+const ANSWER_CUTS = Object.assign({start:'период начала'}, CUT_NAMES);
+function startOf(iso){ return iso ? ['I', 'II', 'III', 'IV'][Math.floor((+iso.slice(5, 7) - 1) / 3)]+' кв. '+iso.slice(0, 4) : null; }
+const fieldShow = (fid, r) => { const v = r ? r[fid] : null;
+  if(v == null || v === '') return '—';
+  if(fid === 'dept') return deptName(v);
+  if(fid === 'issued' || fid === 'closed') return fmt(v);
+  return typeof v === 'number' ? money(v) : String(v); };
+const fieldName = (obj, fid) => (FIELD(obj, fid) || {}).name || cutName(fid);
+
+/* Узел дерева на дату: вклад каждого объекта считает статистика (уровень
+   «id» под путём узла), строки объектов — тот же снимок.                     */
+function nodeParts(sid, path, asOf, cut, scope){
+  const tree = SEAM.statSlice(sid, path.map(p => p.by).concat('id'), cut, asOf, scope);
+  if(tree.why) return {why: tree.why};
+  let level = tree.groups, cell = tree.value, found = true;
+  for(const p of path){ const g = (level || []).find(x => x.key === p.key);
+    if(!g){ found = false; level = []; cell = 0; break; }
+    cell = g.value; level = g.children || []; }
+  const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
+  const rows = {}; src.rows.forEach(r => { rows[r.id] = r; });
+  const parts = {}; (level || []).forEach(g => { parts[g.key] = g.value; });
+  return {cell, parts, rows, found, hidden: tree.hidden || 0, asOf: tree.passport ? tree.passport.asOf : null};
+}
+/* Колонки списка: объявленные записью объекта, без закреплённых путём узла,
+   плюс разрезы вида, путём не закреплённые, плюс выбор человека «Колонки ▾»
+   (помнится у человека на объект, а не на отчёт).                           */
+function drillCols(obj, path, twist){
+  const reg = OBJECT_REG[obj] || {cols:[]}, fixed = path.map(p => p.by);
+  const extra = ((RP.state.colPrefs || {})[RP.who()] || {})[obj] || [];
+  return uniq(reg.cols.concat((twist && twist.cuts) || [], extra)).filter(c => fixed.indexOf(c) === -1 && c !== 'no');
+}
+/* Порядок: у денег — по вкладу, с долей и чертой «80 % числа»; у счёта «1» не
+   печатается — порядок по весу; у доли и средней — по весу; без веса — по
+   подписи.                                                                   */
+function drillDress(items, unit, obj, cols, key){
+  const reg = OBJECT_REG[obj] || {label: r => r.id, weight:null};
+  const k = key || 'part';
+  items.forEach(x => { x.label = reg.label(x.row || {id: x.id});
+    x.weight = reg.weight && x.row ? x.row[reg.weight] : null;
+    x.cells = {}; cols.forEach(c => { x.cells[c] = fieldShow(c, x.row); }); });
+  const byLabel = (a, b) => a.label.localeCompare(b.label);
+  if(unit === 'сом') items.sort((a, b) => Math.abs(b[k]) - Math.abs(a[k]) || byLabel(a, b));
+  else items.sort((a, b) => (b.weight == null ? -1 : b.weight) - (a.weight == null ? -1 : a.weight) || byLabel(a, b));
+  if(unit === 'сом' && k === 'part'){
+    const tot = items.reduce((s, x) => s + x.part, 0); let acc = 0, marked = false;
+    items.forEach(x => { x.share = tot ? Math.round(x.part / tot * 1000) / 10 : null; acc += x.part;
+      if(!marked && tot && acc / tot >= 0.8){ x.cut80 = true; marked = true; } });
+  }
+}
+/* Поиск сужает ПОКАЗ, а не итог: «показано k из n · сумма показанных X из Y». */
+function drillSearch(d, q){ const s = String(q || '').trim().toLowerCase();
+  const key = d.form === 'изменение' ? 'diff' : 'part';
+  d.q = s; d.shown = !s ? d.items.slice() : d.items.filter(x => (x.label+' '+Object.values(x.cells).join(' ')).toLowerCase().indexOf(s) !== -1);
+  d.sumShown = d.additive ? d.shown.reduce((a, x) => a + x[key], 0) : null;
+  d.shownText = 'показано '+d.shown.length+' из '+d.items.length+(d.additive
+    ? ' · сумма показанных '+money(d.sumShown)+' из '+money(d.form === 'изменение' ? d.sumDiff : d.sum) : '');
+  return d; }
+const ROWS_MAX = {statRows: 5000};             /* порог statRows — полный список или отказ (ADR-0178) */
+const overLimit = n => n > ROWS_MAX.statRows ? {ok:false, refused:true, n,
+  why:'statRows: '+n+' строк больше порога '+ROWS_MAX.statRows+' — статистика отвечает полным списком или отказом; '+
+    'выгрузку такого списка делает она сама заданием'} : null;
+
 /* ======================= ПРОВАЛ ИЗ ЛЮБОЙ ЦИФРЫ =========================
    Клик по итогу, подытогу или ячейке даёт объекты, из которых число
    сложилось, — на ту же дату и из того же снимка. Узел спрашивается тем же
@@ -4524,54 +4634,329 @@ RP.worklistShown = (tid, params, twist, name) => {
    ячейке по устройству. У денежного показателя и счёта в список идут только
    объекты с ненулевым вкладом: у «Просрочено» — кредиты с просрочкой, а не
    все по фильтру отчёта. Доля и средняя не складываются — у них список
-   объектов узла без суммы.                                                  */
-RP.drill = (tid, params, twist, node) => {
+   объектов узла без суммы. У своей формулы-доли «a ÷ b» — два ключа: «в
+   числе» (объекты a) и «вся группа» (объекты b с признаком «в числе»).      */
+RP.drill = (tid, params, twist, node, opt) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
   if(t.kind !== 'отчёт') return {ok:false, why:'провал бывает у числа отчёта: бланк говорит об одном объекте'};
   const ed = liveEd(t) || draftEd(t); if(!ed) return {ok:false, why:'у отчёта нет действующей редакции'};
   const chk = twistCheck(ed, twist || null); if(!chk.ok) return chk;
+  const o = opt || {};
+  const path = ((node && node.path) || []).slice();
+  const v = RP.viewer(), scope = v.scope.slice(), pr = params || {};
+  const asOf = ed.mode === 'на дату' ? pr.asOf : null;
+  const cut = {dept: pr.dept || null, ids: pr.ids || null};
+  const cols = drillCols(ed.object, path, chk.twist);
+  const nodeName = (node && node.name) || path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог';
+  const base = {ok:true, tpl: tid, tplName: t.name, form:'на дату', node: nodeName, path, mode: ed.mode,
+    obj: ed.object, cols, colNames: cols.map(c => fieldName(ed.object, c)),
+    params: clone(pr), twist: twist ? clone(twist) : null, from: o.from || 'окно отчёта', tilePath: o.tilePath || null};
+  /* --- доля своей формулы: «в числе | вся группа» --- */
+  if(node && node.formula){
+    const f = (chk.twist.formulas || []).find(x => x.id === node.formula);
+    if(!f) return {ok:false, why:'своей формулы на экране нет: проваливаются в то число, которое видно'};
+    const ma = SEAM.statMeta(f.a), mb = SEAM.statMeta(f.b);
+    const addU = u => u === 'сом' || u === 'ед.';
+    if(f.op !== '÷' || !addU(ma.unit) || !addU(mb.unit)) return {ok:false, why:'провал своей формулы — у доли '+
+      '«a ÷ b» двух складывающихся показателей: у прочих формул число не складывается из объектов'};
+    const A = nodeParts(f.a, path, asOf, cut, scope), B = nodeParts(f.b, path, asOf, cut, scope);
+    if(A.why || B.why) return {ok:false, why: A.why || B.why};
+    const side = o.side === 'группа' ? 'группа' : 'в числе';
+    const src = side === 'в числе' ? A : B;
+    let items = Object.keys(src.parts).map(id => ({id, row: src.rows[id] || A.rows[id], part: src.parts[id],
+      inNum: (A.parts[id] || 0) !== 0})).filter(x => x.part !== 0);
+    const lim = overLimit(items.length); if(lim) return lim;
+    items.forEach(x => { const r = x.row || {}; x.no = r.no; x.borrower = r.borrower; x.dept = r.dept; });
+    drillDress(items, side === 'в числе' ? ma.unit : mb.unit, ed.object, cols);
+    const sum = items.reduce((a, x) => a + x.part, 0);
+    const share = roundTo(formulaOf(f, sid => sid === f.a ? A.cell : B.cell), f.dp == null ? 1 : f.dp);
+    return drillSearch(Object.assign(base, {form:'доля', side, formula: f.id, statName: f.name, unit: f.unit || '',
+      additive:true, numName: ma.name, denName: mb.name, num: A.cell, den: B.cell, share, cell: side === 'в числе' ? A.cell : B.cell,
+      sum, equal: sum === (side === 'в числе' ? A.cell : B.cell), inNum: items.filter(x => x.inNum).length,
+      items, asOf: A.asOf, hidden: A.hidden}), o.q);
+  }
   const sid = node && node.stat, meta = SEAM.statMeta(sid);
   if(!meta) return {ok:false, why:'провал спрашивают у числа показателя, а показатель не назван'};
   if(chk.twist.stats.indexOf(sid) === -1) return {ok:false, why:'«'+meta.name+'» в показе нет: '+
     'проваливаются в то число, которое видно'};
-  const path = (node.path || []).slice();
-  const v = RP.viewer(), scope = v.scope.slice(), pr = params || {};
-  const asOf = ed.mode === 'на дату' ? pr.asOf : null;
-  const cut = {dept: pr.dept || null, ids: pr.ids || null};
-  const tree = SEAM.statSlice(sid, path.map(p => p.by).concat('id'), cut, asOf, scope);
-  if(tree.why) return {ok:false, why: tree.why};
-  let level = tree.groups, cell = tree.value;
-  for(const p of path){ const g = (level || []).find(x => x.key === p.key);
-    if(!g) return {ok:false, why:'узла «'+levelName(p.by, p.key)+'» в ответе нет'};
-    cell = g.value; level = g.children || []; }
-  const src = asOf ? SEAM.statRows(ed.object, asOf, cut, scope) : SEAM.objectRows(ed.object, cut, scope);
+  const N = nodeParts(sid, path, asOf, cut, scope);
+  if(N.why) return {ok:false, why: N.why};
+  if(!N.found) return {ok:false, why:'узла «'+nodeName+'» в ответе нет'};
   const additive = meta.unit === 'сом' || meta.unit === 'ед.';
-  let items = (level || []).map(g => { const r = src.rows.find(x => x.id === g.key) || {};
-    return {id: g.key, no: r.no, borrower: r.borrower, dept: r.dept, part: g.value}; });
+  let items = Object.keys(N.parts).map(id => { const r = N.rows[id] || {};
+    return {id, no: r.no, borrower: r.borrower, dept: r.dept, part: N.parts[id], row: N.rows[id]}; });
   if(additive) items = items.filter(x => x.part !== 0);
+  const lim = overLimit(items.length); if(lim) return lim;
+  drillDress(items, meta.unit, ed.object, cols);
   const sum = additive ? items.reduce((a, x) => a + x.part, 0) : null;
-  return {ok:true, tpl: tid, stat: sid, statName: meta.name, unit: meta.unit, additive,
-    node: path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог',
-    path, asOf: tree.passport ? tree.passport.asOf : null, mode: ed.mode,
-    cell, sum, equal: additive ? sum === cell : null, items,
-    hidden: tree.hidden || 0, params: clone(pr), twist: twist ? clone(twist) : null};
+  return drillSearch(Object.assign(base, {stat: sid, statName: meta.name, unit: meta.unit, additive,
+    count: meta.unit === 'ед.', weightName: SEAM.objectMeta(ed.object) ? SEAM.objectMeta(ed.object).weightName : null,
+    asOf: N.asOf, cell: N.cell, sum, equal: additive ? sum === N.cell : null, items, hidden: N.hidden}), o.q);
 };
+/* Провал в «Изменении» — форма «объекты на двух датах». Узел на каждой дате —
+   по значению разреза на эту дату (ОД-9); в списке — объекты, бывшие в узле
+   хотя бы на одной из дат; разница — вклад сейчас минус вклад на базу; сумма
+   разниц равна изменению узла. Переход: пришёл · ушёл по причине записи
+   объекта · выросло / снизилось · перешёл из соседнего значения / в соседнее. */
+RP.drillChange = (tid, params, twist, node, opt) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(t.kind !== 'отчёт') return {ok:false, why:'провал бывает у числа отчёта'};
+  const ed = liveEd(t) || draftEd(t); if(!ed) return {ok:false, why:'у отчёта нет действующей редакции'};
+  const chk = twistCheck(ed, twist || null); if(!chk.ok) return chk;
+  const o = opt || {}, a = o.a, b = o.b;
+  const bad = snapDateWhy(a) || snapDateWhy(b); if(bad) return {ok:false, why: bad};
+  if(a === b) return {ok:false, why:'изменение — между двумя РАЗНЫМИ датами'};
+  const sid = node && node.stat, meta = SEAM.statMeta(sid);
+  if(!meta) return {ok:false, why:'провал спрашивают у числа показателя, а показатель не назван'};
+  if(meta.unit !== 'сом' && meta.unit !== 'ед.') return {ok:false, why:'«'+meta.name+'» не складывается из '+
+    'объектов: изменение доли и средней разницами объектов не объясняется — провал на каждую дату отдельно'};
+  const path = ((node && node.path) || []).slice();
+  const v = RP.viewer(), scope = v.scope.slice(), pr = params || {};
+  const cut = {dept: pr.dept || null, ids: pr.ids || null};
+  const A = nodeParts(sid, path, a, cut, scope), B = nodeParts(sid, path, b, cut, scope);
+  if(A.why || B.why) return {ok:false, why: A.why || B.why};
+  const reg = OBJECT_REG[ed.object] || {reasons:[]};
+  const elsewhere = r => r ? path.find(p => r[p.by] !== p.key) : null;
+  const ids = uniq(Object.keys(A.parts).concat(Object.keys(B.parts)));
+  let items = ids.map(id => {
+    const was = A.parts[id] || 0, now = B.parts[id] || 0, ra = A.rows[id], rb = B.rows[id];
+    let how;
+    if(!was && now){ const e = elsewhere(ra); how = e && ra ? 'перешёл из «'+levelName(e.by, ra[e.by])+'»' : 'пришёл'; }
+    else if(was && !now){ const e = elsewhere(rb);
+      if(e && rb) how = 'перешёл в «'+levelName(e.by, rb[e.by])+'»';
+      else { const rs = reg.reasons.find(x => x.test(ra, rb)); how = 'ушёл: '+(rs ? rs.why : 'прочее'); } }
+    else how = now > was ? 'выросло' : now < was ? 'снизилось' : 'без изменений';
+    return {id, row: rb || ra, base: was, now, diff: now - was, how};
+  });
+  if(!o.all) items = items.filter(x => x.diff !== 0);
+  const lim = overLimit(items.length); if(lim) return lim;
+  const cols = drillCols(ed.object, path, chk.twist);
+  drillDress(items, meta.unit, ed.object, cols, 'diff');
+  items.forEach(x => { const r = x.row || {}; x.no = r.no; x.borrower = r.borrower; x.dept = r.dept; });
+  const sumDiff = items.reduce((s, x) => s + x.diff, 0), change = B.cell - A.cell;
+  return drillSearch({ok:true, tpl: tid, tplName: t.name, form:'изменение', stat: sid, statName: meta.name, unit: meta.unit,
+    additive:true, count: meta.unit === 'ед.', obj: ed.object, cols, colNames: cols.map(c => fieldName(ed.object, c)),
+    node: path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог', path, dates:[a, b], a, b,
+    baseCell: A.cell, cell: B.cell, change, sumDiff, equal: sumDiff === change, items,
+    hidden: Math.max(A.hidden, B.hidden), params: clone(pr), twist: twist ? clone(twist) : null,
+    from: o.from || 'окно отчёта', tilePath: o.tilePath || null}, o.q);
+};
+/* Имя рабочего списка по умолчанию — путь: «отчёт · узел · на дату»; у
+   вопроса от плитки — путь плитки, который передал смотрящий.               */
+const drillPathName = d => d.tilePath || (d.tplName+' · '+(d.statName || '')+' · '+d.node+
+  (d.form === 'изменение' ? ' · '+fmt(d.a)+' → '+fmt(d.b) : (d.asOf ? ' · на '+fmt(d.asOf) : ' · сейчас'))+
+  (d.form === 'доля' ? ' · '+d.side : ''));
+const drillOf = (tid, params, twist, node, opt) => opt && opt.a && opt.b
+  ? RP.drillChange(tid, params, twist, node, opt) : RP.drill(tid, params, twist, node, opt);
 /* Рабочий список из провала: тот же замороженный состав, отобранный не
-   выпуском, а щелчком по числу. Объекты — те, что в списке провала. */
-RP.worklistFromDrill = (tid, params, twist, node, name) => {
-  const nm = String(name || '').trim();
-  if(!nm) return {ok:false, why:'список называется при создании: безымянный список нельзя передать '+
-    'и нельзя спросить «чем кончилось»'};
-  const d = RP.drill(tid, params, twist, node); if(!d.ok) return d;
-  if(!d.items.length) return {ok:false, why:'в провале нет объектов: замораживать нечего'};
+   выпуском, а щелчком по числу. Объекты — ПОКАЗАННЫЕ: с поиском — только
+   совпавшие строки; в «Изменении» — объекты двух дат с переходом.          */
+RP.worklistFromDrill = (tid, params, twist, node, name, opt) => {
+  const d = drillOf(tid, params, twist, node, opt); if(!d.ok) return d;
+  if(!d.shown.length) return {ok:false, why:'в провале нет объектов: замораживать нечего'};
+  const nm = String(name || '').trim() || drillPathName(d);
   const id = 'РС-' + (++RP.state.wseq);
   RP.state.worklists.push({id, name: nm, from:'провал', fromName: TPL(tid).name+' · '+d.statName+
-    ' · '+d.node+(d.asOf ? ' на '+fmt(d.asOf) : ''),
+    ' · '+d.node+(d.form === 'изменение' ? ' · '+fmt(d.a)+' → '+fmt(d.b) : (d.asOf ? ' на '+fmt(d.asOf) : ''))+
+    ' · '+(d.from === 'окно отчёта' ? 'окно отчёта' : 'плитка «'+d.from+'»')+(d.q ? ' · поиск «'+d.q+'»' : ''),
     at: RP.state.today, by: RP.who(), dept: null, state:'открыт', closed:null, why:null,
-    objects: d.items.map(x => x.id), marks:{}});
-  log('рабочий список «'+nm+'» заведён провалом, объектов: '+d.items.length);
-  return {ok:true, id, note:'список «'+nm+'» заведён из провала: '+objWord(d.items.length)+
-    ', состав заморожен; отметки «отработан» ставятся у каждого объекта'};
+    objects: d.shown.map(x => x.id), moves: d.form === 'изменение' ? d.shown.reduce((m, x) => (m[x.id] = x.how, m), {}) : null,
+    marks:{}});
+  log('рабочий список «'+nm+'» заведён провалом, объектов: '+d.shown.length);
+  return {ok:true, id, name: nm, note:'список «'+nm+'» заведён из провала: '+objWord(d.shown.length)+
+    (d.q ? ' (показанные поиском «'+d.q+'» — '+d.shownText+')' : '')+', состав заморожен; отметки «отработан» ставятся у каждого объекта'};
+};
+/* Выгрузка показанного списка — предварительный выпуск ключом «провал»: паспорт
+   узла, метка «НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ», строка журнала выпусков. Выше порога
+   statRows — отказ соседа с предложением задания статистики на выгрузку:
+   своего фонового выпуска списков отчётность не заводит (ADR-0178).          */
+RP.exportDrill = (tid, params, twist, node, opt) => {
+  const d = drillOf(tid, params, twist, node, opt);
+  if(!d.ok) return d.refused ? Object.assign({}, d, {offer:'задание статистики на выгрузку списка'}) : d;
+  const res = RP.issue(tid, {params: clone(params || {}), kind:'предварительный', twist: twist || null});
+  if(!res.ok) return res;
+  const i = ISS(res.id);
+  i.passport.drill = {form: d.form, node: d.node, stat: d.statName, asOf: d.asOf || null, dates: d.dates || null,
+    side: d.side || null, q: d.q || null, shown: d.shown.length, of: d.items.length, text: d.shownText,
+    from: d.from, objects: d.shown.map(x => x.id)};
+  i.passport.label = 'НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ · список провала: '+drillPathName(d);
+  const ex = RP.exportIssue(res.id, 'xlsx'); if(!ex.ok) return ex;
+  log('список провала выгружен выпуском '+res.id+': '+d.shownText);
+  return {ok:true, id: res.id, fmt:'xlsx', label: i.passport.label, drill: clone(i.passport.drill),
+    note:'выгрузка списка — выпуск '+res.id+' (предварительный): строка в журнале, паспорт узла и '+d.shownText};
+};
+RP.statExportJob = (tid, params, twist, node, opt) => {
+  const d = drillOf(tid, params, twist, node, opt);
+  if(!d.refused) return {ok:false, why:'список в пределах порога — выгружается сразу'};
+  RP.state.statJobs = RP.state.statJobs || [];
+  const id = 'ЗС-'+(RP.state.statJobs.length + 1);
+  RP.state.statJobs.push({id, by: RP.who(), at: RP.state.today, n: d.n, owner:'статистика', state:'принято'});
+  return {ok:true, id, note:'задание '+id+' принято статистикой: выгрузку '+d.n+' строк делает владелец строк, файл придёт его уведомлением'};
+};
+/* Контекст провала для карточки модуля-владельца: плашку «в отчёте было на
+   дату» рисует карточка, отчётность отдаёт только контекст.                 */
+RP.cardContext = (d, idx) => { if(!d || !d.ok || !d.shown[idx]) return null;
+  const x = d.shown[idx];
+  return {obj: x.id, label: x.label, report: d.tplName, node: d.node, stat: d.statName, form: d.form,
+    asOf: d.asOf || null, dates: d.dates || null,
+    value: d.form === 'изменение' ? {base: x.base, now: x.now, diff: x.diff, how: x.how} : {part: x.part, share: x.share == null ? null : x.share},
+    pos: idx + 1, of: d.shown.length, prev: idx > 0 ? d.shown[idx - 1].id : null,
+    next: idx < d.shown.length - 1 ? d.shown[idx + 1].id : null,
+    back: d.from === 'окно отчёта' ? '← к отчёту' : '← к дашборду'};
+};
+RP.setDrillCols = (obj, fields) => { const list = (SEAM.fieldList(obj) || {fields:[]}).fields.map(f => f.id);
+  const bad = (fields || []).filter(f => list.indexOf(f) === -1);
+  if(bad.length) return {ok:false, why:'поля «'+bad.join(', ')+'» в перечне объекта нет'};
+  RP.state.colPrefs = RP.state.colPrefs || {};
+  RP.state.colPrefs[RP.who()] = RP.state.colPrefs[RP.who()] || {};
+  RP.state.colPrefs[RP.who()][obj] = fields.slice();
+  return {ok:true, note:'колонки запомнены для объекта «'+(SEAM.fieldList(obj) || {}).name+'» — в любом провале'}; };
+
+/* ======== «КРУПНЕЙШИЕ N» — РАЗРЕЗ ОТВЕТА (ОД-23) ========
+   N объектов по вкладу на дату (у счёта — по весу) и строка «остальные M»;
+   итог равен сумме строк и итогу узла. Только у складывающегося показателя.
+   Ранжирует статистика — здесь её зеркало.                                  */
+function topAnswer(sid, asOf, cut, scope, n){
+  const meta = SEAM.statMeta(sid);
+  if(!meta || (meta.unit !== 'сом' && meta.unit !== 'ед.')) return {ok:false, why:'«крупнейшие» — у складывающегося '+
+    'показателя: у «'+(meta ? meta.name : sid)+'» итог не равен сумме строк'};
+  const N = nodeParts(sid, [], asOf, cut, scope); if(N.why) return {ok:false, why: N.why};
+  const items = Object.keys(N.parts).filter(id => N.parts[id] !== 0).map(id => ({id, row: N.rows[id], part: N.parts[id]}));
+  drillDress(items, meta.unit, 'credit', []);
+  const top = items.slice(0, n), rest = items.slice(n);
+  const rows = top.map(x => ({key: x.id, name: x.label, value: x.part, weight: x.weight}))
+    .concat(rest.length ? [{key:'остальные', name:'остальные '+rest.length, count: rest.length,
+      value: rest.reduce((s, x) => s + x.part, 0), ids: rest.map(x => x.id)}] : []);
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  return {ok:true, stat: sid, statName: meta.name, unit: meta.unit, n, asOf: N.asOf, rows, total, value: N.cell,
+    equal: total === N.cell, by: meta.unit === 'ед.' ? 'по весу' : 'по вкладу'};
+}
+RP.topAnswer = (tid, params, sid, n) => { const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t) || draftEd(t), pr = params || {};
+  return topAnswer(sid, ed.mode === 'на дату' ? pr.asOf : null, {dept: pr.dept || null}, RP.viewer().scope.slice(), n || 3); };
+
+/* ======== ШОВ НАРУЖУ reportAnswer — ОДИН ВЫЧИСЛИТЕЛЬ С ОКНОМ (ОД-2) ========
+   Три формы вопроса — ключи, а не швы: «ответ» (дерево уровней на одну или
+   несколько дат, с разрезом «крупнейшие» и разрезом «период начала»),
+   «провал» (на дату, в «Изменении», «в числе | вся группа»), «объекты на двух
+   датах» (Движение). С правами спрашивающего; с ответом едут паспорт, версия
+   отчёта и ставшее невозможным.                                             */
+RP.reportAnswer = spec => {
+  const s = spec || {}, t = TPL(s.tpl); if(!t) return {ok:false, why:'отчёта нет'};
+  if(!RP.maySee(s.tpl)) return {ok:false, why:'«'+t.name+'» вам не виден: ответ — с правами спрашивающего'};
+  const ed = liveEd(t) || draftEd(t), pr = s.params || {};
+  const ver = {n: ed.n, changed: ed.changed || null};
+  if(s.form === 'провал') return Object.assign(drillOf(s.tpl, pr, s.twist || null, s.node, s), {version: ver});
+  if(s.form === 'объекты на двух датах') return Object.assign(RP.drillChange(s.tpl, pr, s.twist || null, s.node,
+    Object.assign({}, s, {all: true})), {version: ver});
+  if(s.form !== 'ответ') return {ok:false, why:'формы «'+s.form+'» нет: ответ · провал · объекты на двух датах'};
+  const scope = RP.viewer().scope.slice(), cut = {dept: pr.dept || null};
+  const dates = (s.dates && s.dates.length) ? s.dates.slice() : [ed.mode === 'на дату' ? pr.asOf : null];
+  const by = (s.by || []).slice(), badBy = by.filter(c => !ANSWER_CUTS[c]);
+  if(badBy.length) return {ok:false, why:'разреза «'+badBy[0]+'» в ответе нет: '+Object.values(ANSWER_CUTS).join(' · ')};
+  const chk = twistCheck(ed, s.twist || null); if(!chk.ok) return chk;
+  const stats = (s.stats || chk.twist.stats).slice();
+  const answers = dates.map(d => {
+    const gap = d && HIST_DATES.indexOf(d) === -1 ? (legacyNoTotal(d) ? 'в легаси не собиралось' : 'снимка нет') : null;
+    return {asOf: d, gap, stats: stats.map(sid => {
+      if(gap) return {id: sid, value: null, groups: [], gap};
+      if(s.top) { const r = topAnswer(sid, d, cut, scope, s.top); return r.ok ? {id: sid, value: r.value, top: r} : {id: sid, why: r.why}; }
+      const tr = SEAM.statSlice(sid, by, cut, d, scope);
+      return {id: sid, value: tr.value, groups: tr.groups, why: tr.why || null}; })}; });
+  return {ok:true, form:'ответ', tpl: s.tpl, dates, by, top: s.top || null, answers, version: ver,
+    passport:{seam:'reportAnswer · ответ', who: RP.who(), scope: scope.map(deptName), dates,
+      by: by.map(c => ANSWER_CUTS[c]), text: (s.top ? 'крупнейшие '+s.top+' · ' : '')+(by.length ? 'по разрезу «'+by.map(c => ANSWER_CUTS[c]).join(' → ')+'» · ' : '')+
+        dates.length+' '+plural(dates.length, 'дата', 'даты', 'дат')}};
+};
+/* 24 конца месяца — ряд Когорт: даты без снимка пусты с причиной, без подстановки. */
+RP.monthEnds = (to, n) => { const out = []; let d = to;
+  for(let i = 0; i < n; i++){ out.unshift(d); const y = +d.slice(0, 4), m = +d.slice(5, 7);
+    d = (m === 1 ? (y - 1)+'-12' : y+'-'+String(m - 1).padStart(2, '0'))+'-01'; }
+  return out; };
+
+/* ===== СОАВТОР — ЧЕЛОВЕК ИЛИ РОЛЬ; ПРИНЯТИЕ В КАТАЛОГ — КОПИЯ (ОД-26…ОД-28) =====
+   Держателей роли ведёт модуль пользователей и ролей — здесь его зеркало:
+   отчётность читает их при каждой правке и не копирует.                    */
+const ROLE_HOLDERS0 = {'Администратор дашборда':[{who:'Бекова Н.', since:'2026-01-15'}, {who:'Асанов А.', since:'2026-04-01'}]};
+const CATALOG_ROLE = 'Администратор дашборда';
+const roleHolders = role => ((RP.state.roleHolders || {})[role] || []).slice().sort((a, b) => a.since.localeCompare(b.since));
+SEAM.roleHolders = role => clone(roleHolders(role));
+const isRoleRef = c => typeof c === 'string' && c.indexOf('роль:') === 0;
+const mayEditShared = (t, who) => t.owner === who || (t.coauthors || []).some(c => c === who ||
+  (isRoleRef(c) && roleHolders(c.slice(5)).some(h => h.who === who)));
+const coauthorText = c => isRoleRef(c) ? 'роль «'+c.slice(5)+'» ('+(roleHolders(c.slice(5)).map(h => h.who).join(', ') || 'держателей нет')+')' : c;
+RP.mayEditShared = tid => { const t = TPL(tid); return !!t && mayEditShared(t, RP.who()); };
+RP.coauthorsText = tid => { const t = TPL(tid); return t ? (t.coauthors || []).map(coauthorText) : []; };
+const headOf = dept => (ROLES.find(r => r.id === 'head' && r.dept === dept) || {}).who || null;
+const deptOfWho = who => (ROLES.find(r => r.who === who) || {}).dept || null;
+RP.setCoauthors = (tid, list) => { const t = TPL(tid); if(!t || levelOf(t) !== 'общий') return {ok:false, why:'соавторы — у общего отчёта'};
+  if(t.owner !== RP.who()) return {ok:false, why:'соавторов называет владелец ('+t.owner+')'};
+  t.coauthors = (list || []).slice();
+  return {ok:true, note:'соавторы: '+(t.coauthors.map(coauthorText).join('; ') || 'нет')}; };
+RP.grantRole = (role, who, since) => { RP.state.roleHolders[role] = (RP.state.roleHolders[role] || []).filter(h => h.who !== who)
+  .concat({who, since: since || RP.state.today}); return {ok:true, note:'роль «'+role+'» у '+who}; };
+/* Событие модуля пользователей «роль снята». Соавторство по роли кончается
+   само; у общего отчёта с соавтором-ролью снятие роли с владельца — уход
+   владельца: старший держатель роли, нет держателей — ADR-0279 п. 6.        */
+RP.revokeRole = (role, who) => {
+  const had = (RP.state.roleHolders[role] || []).some(h => h.who === who);
+  if(!had) return {ok:false, why:who+' не держит роль «'+role+'»'};
+  RP.state.roleHolders[role] = RP.state.roleHolders[role].filter(h => h.who !== who);
+  const moved = [];
+  RP.state.templates.filter(t => levelOf(t) === 'общий' && t.owner === who &&
+      (t.coauthors || []).indexOf('роль:'+role) !== -1 && (t.coauthors || []).indexOf(who) === -1).forEach(t => {
+    const h = roleHolders(role)[0];
+    const person = (t.coauthors || []).filter(c => !isRoleRef(c))[0];
+    const to = h ? h.who : (person || headOf(deptOfWho(who)));
+    /* Руководитель подразделения и есть снятый владелец — передавать некому: владелец остаётся, след пишется. */
+    t.owner = to;
+    /* Смена владельца — не правка состава: версии не порождает, пишется в след отчёта. */
+    (t.ownerLog = t.ownerLog || []).push({at: RP.state.today, from: who, to, why:'снята роль «'+role+'»'});
+    moved.push({tpl: t.id, name: t.name, to, by: h ? 'старший держатель роли' : (person ? 'соавтор' : (to === who ? 'передать некому — владелец прежний' : 'руководитель подразделения'))});
+    log('«'+t.name+'»: владелец '+who+' → '+to+' (снята роль «'+role+'»)'); });
+  return {ok:true, moved, note:'роль «'+role+'» снята с '+who+(moved.length ? '; владение передано: '+
+    moved.map(m => '«'+m.name+'» → '+m.to+' ('+m.by+')').join('; ') : '')};
+};
+/* Предложение в каталог открывает держателям роли чтение личного отчёта
+   автора, пока предложение ждёт.                                            */
+RP.proposeToCatalog = tid => { const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(t.kind !== 'отчёт' || levelOf(t) !== 'личный') return {ok:false, why:'в каталог предлагают личный отчёт плитки'};
+  if(t.owner !== RP.who()) return {ok:false, why:'предлагает автор ('+t.owner+')'};
+  RP.state.proposals = RP.state.proposals || [];
+  if(RP.state.proposals.some(p => p.tpl === tid && p.state === 'ждёт')) return {ok:false, why:'предложение уже ждёт'};
+  const id = 'ПК-'+(RP.state.proposals.length + 1);
+  RP.state.proposals.push({id, tpl: tid, by: RP.who(), at: RP.state.today, state:'ждёт'});
+  return {ok:true, id, note:'«'+t.name+'» предложен в каталог; держатели роли «'+CATALOG_ROLE+'» видят его, пока предложение ждёт'}; };
+RP.proposals = () => clone(RP.state.proposals || []);
+const holdsRole = (role, who) => roleHolders(role).some(h => h.who === who);
+/* «Принять»: копия личного в НОВЫЙ общий — владелец принявший, соавтор — роль,
+   круг названный плюс автор, отметка источника; дальше копии не связаны.
+   «Похожий уже есть» срабатывает и тут: принять плитку на найденный общий.   */
+RP.acceptToCatalog = (pid, opts) => {
+  const p = (RP.state.proposals || []).find(x => x.id === pid); if(!p) return {ok:false, why:'предложения нет'};
+  if(p.state !== 'ждёт') return {ok:false, why:'предложение уже '+p.state};
+  const v = RP.viewer(), o = opts || {};
+  if(!holdsRole(CATALOG_ROLE, v.who)) return {ok:false, why:'принимает держатель роли «'+CATALOG_ROLE+'»'};
+  const src = TPL(p.tpl);
+  if(o.onto){ const tg = TPL(o.onto); if(!tg || levelOf(tg) === 'личный') return {ok:false, why:'принять можно на общий или официальный отчёт'};
+    p.state = 'принято'; p.onto = o.onto;
+    return {ok:true, onto: o.onto, note:'плитка принята на «'+tg.name+'» — копии не сделано'}; }
+  const sim = RP.similarTo(p.tpl);
+  if(sim.length && !o.force) return {ok:false, hint:true, similar: sim,
+    why:'похожий уже есть: «'+sim[0].name+'» ('+sim[0].level+', '+sim[0].owner+') — примите плитку на него или копируйте всё равно'};
+  const ed = clone(draftEd(src) || liveEd(src));
+  const depts = (o.depts && o.depts.length) ? o.depts.slice() : [v.dept];
+  const id = 't-cat-'+(RP.state.proposals.filter(x => x.copy).length + 1);
+  Object.assign(ed, {n:1, state:'версия', since: RP.state.today, by: v.who, at: RP.state.today,
+    changed:'из личного отчёта '+p.by+' '+fmt(p.at)+' — принят в каталог '+fmt(RP.state.today)+' ('+v.who+')'});
+  RP.state.templates.push({id, kind:'отчёт', level:'общий', name: src.name, owner: v.who,
+    coauthors:['роль:'+CATALOG_ROLE], share:{depts, people:[p.by]}, users:1, lastOpen: RP.state.today, asked:false,
+    basis:null, circle: depts, forReview:false, fullCoverage:false, schedule:null,
+    origin:{tpl: src.id, author: p.by, at: RP.state.today}, editions:[ed]});
+  p.state = 'принято'; p.copy = id;
+  log('«'+src.name+'» принят в каталог копией '+id+' (владелец '+v.who+')');
+  return {ok:true, id, note:'копия «'+src.name+'» — общий отчёт '+id+': владелец '+v.who+', соавтор — роль «'+CATALOG_ROLE+
+    '», круг — '+depts.map(deptName).join('; ')+' и '+p.by+'; личный отчёт остаётся у автора'};
 };
 /* Отметка «отработан» — пометка «по этому прошёлся», а не факт работы: звонок
    и претензия записываются в модуле-владельце, список на них ссылается.    */
@@ -4928,6 +5313,7 @@ RP.shelves = q => {
   const shared = vis.map(TPL).filter(t => levelOf(t) === 'общий')
     .map(t => ({id:t.id, name:t.name, owner:t.owner, coauthors:(t.coauthors || []).slice(),
       users:t.users || 0, lastOpen:t.lastOpen || null, version: verEd(t).n, changed: verEd(t).changed || null,
+      ownerNote: (t.ownerLog || []).length ? (l => 'владелец с '+fmt(l.at)+', прежде — '+l.from+' ('+l.why+')')(t.ownerLog[t.ownerLog.length - 1]) : null,
       circle: t.circle.map(deptName).concat((t.share && t.share.people) || []), compo: compoText(t)}))
     .filter(r => matchQ(q, r.name, r.compo))
     .sort((a, b) => b.users - a.users || a.name.localeCompare(b.name));
@@ -4980,6 +5366,33 @@ RP.uiViewOver = tid => { const sel = RP.state.sel, src = sel.similar ? TPL(sel.s
   sel.viewName = src ? src.name : ''; render(); };
 RP.uiOpenPersonal = tid => { RP.state.sel.draft = tid; RP.state.view = 'builder'; render(); };
 
+/* Очередь «Предложить в каталог» — держателям роли «Администратор дашборда».
+   «Принять» копирует личный отчёт автора в новый общий; «похожий уже есть»
+   предлагает принять плитку на найденный отчёт.                            */
+function proposalsBox(){
+  const v = RP.viewer(); if(!holdsRole(CATALOG_ROLE, v.who)) return '';
+  const wait = (RP.state.proposals || []).filter(p => p.state === 'ждёт');
+  if(!wait.length) return '';
+  const sel = RP.state.sel;
+  return '<div class="card"><h3>Предложены в каталог дашборда</h3>'+wait.map(p => { const t = TPL(p.tpl);
+    const hint = sel.propHint && sel.propHint.id === p.id ? sel.propHint : null;
+    return '<div class="seam"><b>«'+esc(t.name)+'»</b> — личный отчёт '+esc(p.by)+', предложен '+fmt(p.at)+
+      '<div class="small">'+esc(compoText(t))+'</div>'+
+      (hint ? '<div class="banner info">Похожий уже есть: «'+esc(hint.similar[0].name)+'» ('+esc(hint.similar[0].level)+')</div>' : '')+
+      '<div class="btn-row" style="margin:6px 0 0">'+
+      (hint ? '<button class="btn btn-primary btn-sm" onclick="RP.uiAccept(\''+p.id+'\',\'onto\')">Принять на «'+esc(hint.similar[0].name)+'»</button>'+
+              '<button class="btn btn-secondary btn-sm" onclick="RP.uiAccept(\''+p.id+'\',\'force\')">Копировать всё равно</button>'
+            : '<button class="btn btn-primary btn-sm" onclick="RP.uiAccept(\''+p.id+'\')">Принять — копия в общий</button>')+
+      '</div></div>'; }).join('')+
+    '<div class="small muted">Соавторы отчётов каталога — держатели роли «'+esc(CATALOG_ROLE)+'»: '+
+      esc(roleHolders(CATALOG_ROLE).map(h => h.who).join(', '))+'.</div></div>';
+}
+RP.uiPropose = tid => act(RP.proposeToCatalog(tid));
+RP.uiAccept = (pid, how) => { const sel = RP.state.sel, hint = sel.propHint && sel.propHint.id === pid ? sel.propHint : null;
+  const r = RP.acceptToCatalog(pid, how === 'onto' && hint ? {onto: hint.similar[0].id} : {force: how === 'force'});
+  sel.propHint = r.hint ? {id: pid, similar: r.similar} : null;
+  if(r.hint){ render(); return; }
+  act(r); };
 function scShowcase(){
   const sel = RP.state.sel, sc = RP.showcase();
   const all = sc.must.concat(sc.rest);
@@ -5026,11 +5439,15 @@ function scShowcase(){
         '<td class="act">'+(r.kind === 'вид'
           ? '<button class="btn btn-secondary btn-sm" onclick="RP.openViewOf(\''+r.id+'\')">Открыть видом</button>'
           : '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenPersonal(\''+r.id+'\')">Открыть</button> '+
-            '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenToCircle(\''+r.id+'\')">Открыть кругу</button>')+
+            '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenToCircle(\''+r.id+'\')">Открыть кругу</button> '+
+            ((RP.state.proposals || []).some(p => p.tpl === r.id && p.state === 'ждёт')
+              ? '<span class="small muted">предложен в каталог · ждёт</span>'
+              : '<button class="btn btn-secondary btn-sm" onclick="RP.uiPropose(\''+r.id+'\')">Предложить в каталог</button>'))+
         '</td></tr>').join('')+'</tbody></table></div>';
   }
 
   if(tab === 'общие'){
+    h += proposalsBox();
     if(!shAll.shared.length) return h + '<div class="banner ok">Общих отчётов в вашем круге нет.</div>';
     if(!sh.shared.length) return h + '<div class="banner warn">Под отбор не попало ничего.</div>';
     return h + '<div class="tblwrap"><table class="cgrid">'+
@@ -5038,8 +5455,8 @@ function scShowcase(){
       '<thead><tr><th>Отчёт</th><th>Круг</th><th>Пользуются</th><th>Последнее открытие</th><th></th></tr></thead><tbody>'+
       sh.shared.map(r => '<tr><td><div class="fname">'+esc(r.name)+'</div>'+
         '<div class="fmeta"><span class="tag">общий, не официальный</span><span class="to">'+esc(r.owner)+
-          (r.coauthors.length ? ' · соавторы: '+esc(r.coauthors.join(', ')) : '')+'</span></div>'+
-        '<div class="small muted">версия '+r.version+(r.changed ? ' · '+esc(r.changed) : '')+'</div></td>'+
+          (r.coauthors.length ? ' · соавторы: '+esc(r.coauthors.map(coauthorText).join(', ')) : '')+'</span></div>'+
+        '<div class="small muted">версия '+r.version+(r.changed ? ' · '+esc(r.changed) : '')+(r.ownerNote ? ' · '+esc(r.ownerNote) : '')+'</div></td>'+
         '<td class="small">'+esc(r.circle.join('; '))+'</td>'+
         '<td class="num">'+r.users+'</td><td class="small">'+fmt(r.lastOpen)+'</td>'+
         '<td class="act"><button class="btn btn-primary btn-sm" onclick="RP.uiOpenShared(\''+r.id+'\')">Открыть</button></td>'+
@@ -5506,7 +5923,7 @@ function scIssue(){
   h += '</tbody></table>';
   h += '<div class="totals">'+d.totals.map(x => '<div class="tot'+(x.own ? ' own-f' : '')+'"><div class="tn">'+esc(x.name)+
       (x.own ? ' <span class="own" title="'+esc(x.expr)+'">ƒ своя формула</span>' : '')+'</div>'+
-    '<div class="tv">'+(x.shown == null ? '—' : (x.own ? esc(ownNum(x)) : drillLink(esc(money(x.shown)), {path:[], stat:x.id})))+
+    '<div class="tv">'+(x.shown == null ? '—' : (x.own ? drillLink(esc(ownNum(x)), {path:[], formula:x.id}) : drillLink(esc(money(x.shown)), {path:[], stat:x.id})))+
     ' <span class="small">'+esc(x.unit)+'</span></div>'+
     '<div class="tp">'+esc(x.why || 'считается по видимым строкам')+'</div></div>').join('')+'</div>';
   h += '<div class="small muted">Щёлкните число итога — провал покажет объекты, из которых оно сложилось.</div>';
@@ -5604,42 +6021,98 @@ function scIssue(){
   return h;
 }
 function drillPanel(d){
-  let h = '<div class="card drillp"><h3>Провал: '+esc(d.statName)+' · '+esc(d.node)+
-    (d.asOf ? ' · на '+fmt(d.asOf) : ' · сейчас')+'</h3>';
-  h += '<div class="small">'+(d.additive
+  const sel = RP.state.sel;
+  const head = d.form === 'изменение' ? 'Изменение: '+esc(d.statName)+' · '+esc(d.node)+' · '+fmt(d.a)+' → '+fmt(d.b)
+    : 'Провал: '+esc(d.statName)+' · '+esc(d.node)+(d.asOf ? ' · на '+fmt(d.asOf) : ' · сейчас');
+  let h = '<div class="card drillp"><h3>'+head+'</h3>';
+  if(d.form === 'изменение') h += '<div class="small">Изменение узла <b>'+esc(money(d.baseCell))+' → '+esc(money(d.cell))+
+    ' = '+esc((d.change > 0 ? '+' : '')+money(d.change))+' '+esc(d.unit)+'</b>; сумма разниц объектов — <b>'+esc(money(d.sumDiff))+'</b> '+
+    (d.equal ? pill('равна изменению','ok') : pill('не равна изменению','err'))+'. Объекты — бывшие в узле на любой из двух дат.</div>';
+  else if(d.form === 'доля') h += '<div class="small">«'+esc(d.statName)+'» = '+esc(String(d.share).replace('.', ','))+' '+esc(d.unit)+
+    ' — «'+esc(d.numName)+'» '+esc(money(d.num))+' ÷ «'+esc(d.denName)+'» '+esc(money(d.den))+'. '+
+    '<span class="btn-row" style="display:inline-flex;margin:0 0 0 6px">'+['в числе', 'группа'].map(s =>
+      '<button class="btn btn-sm '+(d.side === s ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.uiDrillSide(\''+s+'\')">'+
+      (s === 'в числе' ? 'в числе' : 'вся группа')+'</button>').join('')+'</span> Сумма списка — <b>'+esc(money(d.sum))+'</b> '+
+    (d.equal ? pill(d.side === 'в числе' ? 'равна числителю' : 'равна знаменателю','ok') : pill('не сходится','err'))+
+    (d.side === 'группа' ? ' · в числе — '+esc(objWord(d.inNum)) : '')+'.</div>';
+  else h += '<div class="small">'+(d.additive
     ? 'В числе <b>'+esc(money(d.cell))+' '+esc(d.unit)+'</b> — '+objWord(d.items.length)+
       ' с ненулевым вкладом; сумма списка — <b>'+esc(money(d.sum))+'</b> '+
-      (d.equal ? pill('равна числу','ok') : pill('не равна числу','err'))
+      (d.equal ? pill('равна числу','ok') : pill('не равна числу','err'))+(d.count && d.weightName ? '; порядок — по весу: «'+esc(d.weightName)+'»' : '')
     : 'Величина не складывается из объектов — список объектов узла без суммы: '+objWord(d.items.length))+
     '. Тот же снимок, та же дата.</div>';
-  h += '<table class="cgrid" style="margin-top:8px"><thead><tr><th>Кредит</th><th>Заёмщик</th>'+
-    '<th>Подразделение</th><th class="num">'+esc(d.statName)+'</th></tr></thead><tbody>'+
-    d.items.map(x => '<tr><td class="mono">'+esc(x.no || x.id)+'</td><td>'+esc(x.borrower || '—')+'</td>'+
-      '<td class="small">'+esc(x.dept ? deptName(x.dept) : '—')+'</td>'+
-      '<td class="num">'+esc(money(x.part))+'</td></tr>').join('')+
-    (d.additive ? '<tr class="gtot"><td colspan="3">Сумма списка</td><td class="num"><b>'+
-      esc(money(d.sum))+'</b></td></tr>' : '')+'</tbody></table>';
+  const list = (SEAM.fieldList(d.obj) || {fields:[]}).fields.filter(f => f.id !== 'no' && d.cols.indexOf(f.id) === -1);
+  h += '<div class="form-row" style="margin-top:8px"><div class="fld"><label>Поиск в списке</label>'+
+    '<input id="drillQ" value="'+esc(sel.drillQ || '')+'" onchange="RP.uiDrillQ(this.value)" placeholder="номер, заёмщик, подразделение"></div>'+
+    '<div class="fld"><label>Колонки ▾</label><select onchange="RP.uiDrillCol(this.value)"><option value="">добавить поле…</option>'+
+    list.map(f => '<option value="'+f.id+'">'+esc(f.name)+'</option>').join('')+'</select></div>'+
+    '<div class="fld"><label>&nbsp;</label><span class="small">'+esc(d.shownText)+'</span></div></div>';
+  const key = d.form === 'изменение' ? 'diff' : 'part';
+  h += '<div class="tw"><table class="cgrid"><thead><tr><th>Объект</th>'+d.colNames.map(n => '<th>'+esc(n)+'</th>').join('')+
+    (d.form === 'изменение' ? '<th class="num">На '+fmt(d.a)+'</th><th class="num">На '+fmt(d.b)+'</th><th class="num">Разница</th><th>Как изменился</th>'
+      : (d.form === 'доля' && d.side === 'группа' ? '<th>В числе</th>' : '')+
+        (d.count ? '<th class="num">'+esc(d.weightName || 'Вес')+'</th>' : '<th class="num">'+esc(d.form === 'доля' ? (d.side === 'в числе' ? d.numName : d.denName) : d.statName)+'</th>')+
+        (d.unit === 'сом' || d.form === 'доля' ? '<th>Доля вклада</th>' : ''))+'</tr></thead><tbody>'+
+    d.shown.map((x, i) => '<tr'+(x.cut80 ? ' class="cut80" title="на этой строке набирается 80 % числа"' : '')+'>'+
+      '<td class="mono"><a href="#" onclick="RP.uiDrillCard('+i+');return false">'+esc(x.label)+'</a></td>'+
+      d.cols.map(c => '<td class="small">'+esc(x.cells[c])+'</td>').join('')+
+      (d.form === 'изменение' ? '<td class="num">'+esc(money(x.base))+'</td><td class="num">'+esc(money(x.now))+'</td><td class="num">'+
+          esc((x.diff > 0 ? '+' : '')+money(x.diff))+'</td><td class="small">'+esc(x.how)+'</td>'
+        : (d.form === 'доля' && d.side === 'группа' ? '<td>'+(x.inNum ? pill('в числе','warn') : '<span class="muted small">нет</span>')+'</td>' : '')+
+          (d.count ? '<td class="num">'+esc(money(x.weight))+'</td>' : '<td class="num">'+esc(d.additive ? money(x.part) : money(x.part))+'</td>')+
+          (d.unit === 'сом' || d.form === 'доля' ? '<td><span class="vbar" style="width:'+Math.round(x.share || (d.sum ? x.part / d.sum * 100 : 0))+
+            'px"></span> <span class="small">'+esc(String(x.share != null ? x.share : (d.sum ? Math.round(x.part / d.sum * 1000) / 10 : 0)).replace('.', ','))+' %</span>'+
+            (x.cut80 ? ' <span class="small muted">— 80 % числа</span>' : '')+'</td>' : ''))+'</tr>').join('')+
+    (d.additive && !d.count ? '<tr class="gtot"><td colspan="'+(1 + d.cols.length + (d.form === 'изменение' ? 2 : (d.form === 'доля' && d.side === 'группа' ? 1 : 0)))+'">'+
+      (d.q ? 'Сумма показанных' : 'Сумма списка')+'</td><td class="num"><b>'+esc(money(d.sumShown))+'</b></td>'+
+      (d.form === 'изменение' ? '<td></td>' : (d.unit === 'сом' || d.form === 'доля' ? '<td></td>' : ''))+'</tr>' : '')+
+    '</tbody></table></div>';
   if(d.hidden) h += '<div class="small muted">'+objWord(d.hidden)+' скрыто областью видимости — '+
     'в провал не входят, как и в число.</div>';
+  if(sel.drillCard != null){ const c = RP.cardContext(d, sel.drillCard);
+    if(c) h += '<div class="seam" style="margin-top:8px"><b>Карточка кредита '+esc(c.label)+'</b> <span class="small muted">(экран модуля кредитов)</span>'+
+      '<div class="banner info" style="margin:6px 0">В карточке — состояние сейчас; в отчёте «'+esc(c.report)+'» '+
+      (c.form === 'изменение' ? fmt(c.dates[0])+' → '+fmt(c.dates[1])+': было '+esc(money(c.value.base))+', стало '+esc(money(c.value.now))+' ('+esc(c.value.how)+')'
+        : (c.asOf ? 'на '+fmt(c.asOf) : 'сейчас')+': «'+esc(c.stat)+'» — '+esc(money(c.value.part))+(c.value.share != null ? ' ('+String(c.value.share).replace('.', ',')+' % числа)' : ''))+
+      ' · узел «'+esc(c.node)+'»</div><div class="btn-row" style="margin:0">'+
+      '<button class="btn btn-secondary btn-sm"'+(c.prev ? ' onclick="RP.uiDrillCard('+(c.pos - 2)+')"' : ' disabled')+'>‹</button>'+
+      '<span class="small">'+c.pos+' из '+c.of+'</span>'+
+      '<button class="btn btn-secondary btn-sm"'+(c.next ? ' onclick="RP.uiDrillCard('+c.pos+')"' : ' disabled')+'>›</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.uiDrillCard(null)">'+esc(c.back)+'</button></div></div>'; }
   h += '<div class="form-row"><div class="fld"><label>Название рабочего списка</label>'+
-    '<input id="drillWl" value="'+esc(RP.state.sel.drillWlName || '')+'" '+
-    'onchange="RP.state.sel.drillWlName=this.value" placeholder="обзвон: '+esc(d.node)+'"></div>'+
+    '<input id="drillWl" value="'+esc(sel.drillWlName || '')+'" '+
+    'onchange="RP.state.sel.drillWlName=this.value" placeholder="'+esc(drillPathName(d))+'"></div>'+
     '<div class="fld"><label>&nbsp;</label><button class="btn btn-primary btn-sm" '+
     'onclick="RP.uiWorklistFromDrill()">Завести рабочий список</button></div>'+
     '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary btn-sm" '+
-    'onclick="RP.state.sel.drillRes=null;render()">Закрыть провал</button></div></div></div>';
+    'onclick="RP.uiDrillExport()">Выгрузить список · xlsx</button></div>'+
+    '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary btn-sm" '+
+    'onclick="RP.state.sel.drillRes=null;RP.state.sel.drillCard=null;render()">Закрыть провал</button></div></div></div>';
   return h;
 }
-RP.uiDrill = i => { const n = DRILL_NODES[i]; if(!n) return;
+function drillRerun(){ const sel = RP.state.sel, n = sel.drillNode; if(!n) return;
   const a = shownArgs();
-  const r = RP.drill(a.tid, a.params, a.twist, n);
+  const params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
+  const r = drillOf(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ});
   if(!r.ok) return act(r);
-  RP.state.sel.drillRes = r; render(); };
-RP.uiWorklistFromDrill = () => { const d = RP.state.sel.drillRes; if(!d) return;
-  const inp = $('#drillWl'); const nm = inp ? inp.value : RP.state.sel.drillWlName;
-  const r = RP.worklistFromDrill(d.tpl, d.params, d.twist, {path: d.path, stat: d.stat}, nm);
-  if(r.ok){ RP.state.sel.wl = r.id; RP.state.sel.drillRes = null; RP.state.sel.drillWlName = ''; }
+  sel.drillRes = r; render(); }
+RP.uiDrill = i => { const n = DRILL_NODES[i]; if(!n) return; const sel = RP.state.sel;
+  sel.drillNode = n; sel.drillQ = ''; sel.drillSide = 'в числе'; sel.drillCard = null; drillRerun(); };
+RP.uiDrillQ = v => { RP.state.sel.drillQ = v; RP.state.sel.drillCard = null; drillRerun(); };
+RP.uiDrillSide = s => { RP.state.sel.drillSide = s; RP.state.sel.drillCard = null; drillRerun(); };
+RP.uiDrillCol = f => { if(!f) return; const d = RP.state.sel.drillRes; if(!d) return;
+  const cur = ((RP.state.colPrefs || {})[RP.who()] || {})[d.obj] || [];
+  const r = RP.setDrillCols(d.obj, uniq(cur.concat(f))); if(!r.ok) return act(r); drillRerun(); };
+RP.uiDrillCard = i => { RP.state.sel.drillCard = i; render(); };
+RP.uiWorklistFromDrill = () => { const sel = RP.state.sel, d = sel.drillRes, n = sel.drillNode; if(!d || !n) return;
+  const inp = $('#drillWl'); const nm = inp ? inp.value : sel.drillWlName;
+  const a = shownArgs(), params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
+  const r = RP.worklistFromDrill(a.tid, params, a.twist, n, nm, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ});
+  if(r.ok){ sel.wl = r.id; sel.drillRes = null; sel.drillWlName = ''; }
   act(r); };
+RP.uiDrillExport = () => { const sel = RP.state.sel, n = sel.drillNode; if(!n) return;
+  const a = shownArgs(), params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
+  act(RP.exportDrill(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ})); };
 RP.doPin = () => { const sel = RP.state.sel;
   act(RP.pinToDashboard(sel.tpl, sel.view || null, {asOf: sel.params.asOf, dept: sel.params.dept})); };
 RP.selTpl = id => { const sel = RP.state.sel;
@@ -7839,27 +8312,67 @@ function timeTableBox(tt){
     tt.rows.filter(r => r.method).map(r => '<div class="small"><sup>м</sup> «'+esc(r.name)+'»: '+esc(r.method)+'.</div>').join('')+
     (tt.open.length ? '<div class="small muted">Не закрыты: '+esc(tt.open.join(', '))+' — окончательно форма не сдаётся.</div>' : '');
 }
+/* «Крупнейшие 3» — разрез ответа: три объекта и «остальные», итог = сумме строк. */
+function topBox(tid, params){
+  const sh = RP.show(tid, params, RP.state.sel.twist || null);
+  const sid = sh.ok ? (sh.twist.stats.find(x => { const m = SEAM.statMeta(x); return m && (m.unit === 'сом' || m.unit === 'ед.'); })) : null;
+  if(!sid) return '<div class="banner warn">«Крупнейшие» — у складывающегося показателя: в показе такого нет.</div>';
+  const r = RP.topAnswer(tid, params, sid, 3);
+  if(!r.ok) return '<div class="banner warn">'+esc(r.why)+'</div>';
+  return '<div class="small" style="margin-top:8px">Крупнейшие 3 — «'+esc(r.statName)+'» '+esc(r.by)+(r.asOf ? ' на '+fmt(r.asOf) : '')+'</div>'+
+    '<div class="tw"><table class="cgrid"><thead><tr><th>Объект</th><th class="num">'+esc(r.statName)+'</th></tr></thead><tbody>'+
+    r.rows.map(x => '<tr><td>'+esc(x.name)+'</td><td class="num">'+drillLink(esc(money(x.value)), {path:[], stat: sid, ids: x.ids || [x.key], name: x.name})+'</td></tr>').join('')+
+    '<tr class="gtot"><td>Итог</td><td class="num"><b>'+esc(money(r.total))+'</b></td></tr></tbody></table></div>';
+}
+RP.toggleTop = () => { RP.state.sel.top = !RP.state.sel.top; render(); };
+RP.toggleDynBy = () => { RP.state.sel.dynBy = !RP.state.sel.dynBy; render(); };
 function flexCard(tid, params){
   const sel = RP.state.sel, t = TPL(tid);
   const fx = RP.flexOf(tid, sel.view) || {}, ed0 = liveEd(t) || draftEd(t);
   const timeSpec = sel.time ? TIME_PRESETS[sel.time] : (fx.time ? fx.time.spec : null);
   const filterSpec = sel.filter ? FILTER_PRESETS[sel.filter].f : (fx.filter ? fx.filter.f : null);
-  const mayFlex = levelOf(t) !== 'официальный' && (t.owner === RP.who() || (t.coauthors || []).indexOf(RP.who()) !== -1);
+  const mayFlex = levelOf(t) !== 'официальный' && (levelOf(t) === 'общий' ? mayEditShared(t, RP.who()) : t.owner === RP.who());
   let h = '<div class="card"><h3>Время, фильтр, график, заметки</h3><div class="btn-row">'+
     ['', 'сравнение', 'динамика', 'за период'].map(k => '<button class="btn btn-sm '+((sel.time || '') === k ? 'btn-primary' : 'btn-secondary')+
       '" onclick="RP.setTime(\''+k+'\')">'+(k ? esc(k[0].toUpperCase()+k.slice(1)) : (fx.time ? 'Как сохранено' : 'Режим отчёта'))+'</button>').join('')+
-    '<button class="btn btn-sm btn-secondary" onclick="RP.toggleChart()">'+(sel.chart ? 'Скрыть график' : 'График рядом с таблицей')+'</button></div>';
+    '<button class="btn btn-sm btn-secondary" onclick="RP.toggleChart()">'+(sel.chart ? 'Скрыть график' : 'График рядом с таблицей')+'</button>'+
+    (timeSpec && timeSpec.mode === 'динамика' ? '<button class="btn btn-sm '+(sel.dynBy ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.toggleDynBy()">По периоду начала</button>' : '')+
+    '<button class="btn btn-sm '+(sel.top ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.toggleTop()">Крупнейшие 3</button></div>';
+  if(sel.top) h += topBox(tid, params);
   if(!sel.time && fx.time) h += '<div class="small">Режим времени из '+esc(flexSrc(fx.time.from))+': <b>'+esc(fx.time.text)+'</b></div>';
   if(timeSpec){
     const r = RP.timeAnswer(tid, timeSpec, params);
     if(!r.ok) h += '<div class="banner warn">'+esc(r.why)+'</div>';
     else {
       h += '<div class="small">Паспорт: '+esc(r.passport.text)+' · шов '+esc(r.passport.seam)+'</div><div class="tw"><table class="cgrid">';
-      if(r.mode === 'сравнение') h += '<thead><tr><th>Показатель</th><th>'+fmt(r.dates[0])+'</th><th>'+fmt(r.dates[1])+'</th><th>Изменение</th><th>%</th></tr></thead><tbody>'+
-        r.rows.map(x => '<tr><td>'+esc(x.name)+'</td><td class="num">'+money(x.a)+'</td><td class="num">'+money(x.b)+'</td><td class="num">'+
-          money(x.abs)+'</td><td class="num">'+(x.pct == null ? '—' : String(x.pct).replace('.', ','))+'</td></tr>').join('')+'</tbody>';
-      else if(r.mode === 'динамика') h += '<thead><tr><th>Показатель</th>'+r.dates.map(d => '<th>'+esc(monthLabel(d))+'</th>').join('')+'</tr></thead><tbody>'+
-        r.tracks.map(x => '<tr><td>'+esc(x.name)+'</td>'+x.points.map(p => '<td class="num">'+(p.gap ? '<span class="muted">'+esc(p.gap)+'</span>' : money(p.value))+'</td>').join('')+'</tr>').join('')+'</tbody>';
+      /* «Изменение» — число со своим провалом: объекты на двух датах, сумма
+         разниц равна изменению; строки разреза — по значению на свою дату.   */
+      if(r.mode === 'сравнение'){ const addU = u => u === 'сом' || u === 'ед.';
+        const by = RP.reportAnswer({tpl: tid, form:'ответ', params, dates: r.dates, by:['dept'], stats: r.rows.filter(x => addU(x.unit)).map(x => x.id)});
+        const chg = (txt, node) => drillLink(esc(txt), Object.assign({a: r.dates[0], b: r.dates[1]}, node));
+        h += '<thead><tr><th>Показатель</th><th>'+fmt(r.dates[0])+'</th><th>'+fmt(r.dates[1])+'</th><th>Изменение</th><th>%</th></tr></thead><tbody>'+
+        r.rows.map(x => { let out = '<tr><td>'+esc(x.name)+'</td><td class="num">'+money(x.a)+'</td><td class="num">'+money(x.b)+'</td><td class="num">'+
+          (addU(x.unit) && x.abs != null ? chg(money(x.abs), {path:[], stat: x.id}) : money(x.abs))+'</td><td class="num">'+(x.pct == null ? '—' : String(x.pct).replace('.', ','))+'</td></tr>';
+          if(by.ok && addU(x.unit)){ const A = by.answers[0].stats.find(y => y.id === x.id), B = by.answers[1].stats.find(y => y.id === x.id);
+            const keys = uniq(((A && A.groups) || []).concat((B && B.groups) || []).map(g => g.key));
+            out += keys.map(k => { const va = ((A.groups || []).find(g => g.key === k) || {value:0}).value,
+              vb = ((B.groups || []).find(g => g.key === k) || {value:0}).value;
+              return '<tr class="small"><td>&nbsp;&nbsp;'+esc(deptName(k))+'</td><td class="num">'+money(va)+'</td><td class="num">'+money(vb)+'</td><td class="num">'+
+                (vb - va ? chg(money(vb - va), {path:[{by:'dept', key:k}], stat: x.id}) : '0')+'</td><td></td></tr>'; }).join(''); }
+          return out; }).join('')+'</tbody>'; }
+      else if(r.mode === 'динамика'){
+        /* Ряд по разрезу «период начала» — тот же ответ на каждой дате (Когорты): строки
+           когорт идут под своим показателем.                                       */
+        const cohort = x => { if(!sel.dynBy) return '';
+          const rb = RP.reportAnswer({tpl: tid, form:'ответ', params, dates: r.dates, by:['start'], stats:[x.id]});
+          if(!rb.ok) return '';
+          const keys = uniq([].concat(...rb.answers.map(a2 => ((a2.stats[0] || {}).groups || []).map(g => g.key))))
+            .sort((p1, p2) => p1.slice(-4).localeCompare(p2.slice(-4)) || p1.localeCompare(p2));
+          return keys.map(k => '<tr class="small"><td>&nbsp;&nbsp;выданы в '+esc(k)+'</td>'+rb.answers.map(a2 => { const g = ((a2.stats[0] || {}).groups || []).find(y => y.key === k);
+            return '<td class="num">'+(a2.gap ? '<span class="muted">'+esc(a2.gap)+'</span>' : (g ? money(g.value) : '<span class="muted">—</span>'))+'</td>'; }).join('')+'</tr>').join(''); };
+        h += '<thead><tr><th>Показатель</th>'+r.dates.map(d => '<th>'+esc(monthLabel(d))+'</th>').join('')+'</tr></thead><tbody>'+
+        r.tracks.map(x => '<tr><td>'+esc(x.name)+'</td>'+x.points.map(p => '<td class="num">'+(p.gap ? '<span class="muted">'+esc(p.gap)+'</span>' : money(p.value))+'</td>').join('')+'</tr>'+cohort(x)).join('')+
+        '</tbody>'; }
       else h += '<thead><tr><th>Оборот</th><th>Значение</th></tr></thead><tbody>'+r.rows.map(x => '<tr><td>'+esc(x.name)+'</td><td class="num">'+money(x.value)+'</td></tr>').join('')+'</tbody>';
       h += '</table></div>'+(r.rows || r.tracks || []).filter(x => x.method).map(x =>
         '<div class="banner warn">«'+esc(x.name)+'»: '+esc(x.method)+'</div>').join('')+

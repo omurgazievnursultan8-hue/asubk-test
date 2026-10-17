@@ -22,6 +22,10 @@
 // Волна 42 (блок LL, #247–#252): майский взнос КД-2024/203 (pm-9) и сверка «остаток ↔ события» по снимкам; смена
 // методики официальной формы после утверждения — уведомление, «ожидает решения», отказ окончательной сдачи на даты
 // новой версии, подтверждение новой редакцией (ADR-0285 п. 3).
+// Волна 43 (блок MM, #253–#268): входящие от дашборда (ADR-0314) — провал объясняет число в любом режиме: колонки, подпись
+// и вес из записи объекта, «Изменение» объектами на двух датах, «в числе | вся группа», поиск, рабочий список и выгрузка
+// показанного, контекст карточки; «крупнейшие» и ряд по разрезу «период начала» — ответ reportAnswer; соавтор-роль, снятие
+// роли с владельца, принятие в каталог копией.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -1518,16 +1522,19 @@ const DEV = 'изменено — не утверждённый состав';
   const noName = RP.worklistFromDrill('t-overdue', p, null, node, '');
   const wl = RP.worklistFromDrill('t-overdue', p, null, node, 'Обзвон по просрочке, август');
   const w = RP.WL(wl.id);
-  ok(157, !noName.ok && wl.ok && w.from === 'провал' && w.objects.length === d.items.length &&
+  /* Волна 43 (ОД-20): безымянного списка по-прежнему нет — имя по умолчанию путь узла. */
+  ok(157, noName.ok && RP.WL(noName.id).name === 'Просроченная задолженность по состоянию на 1-е число · Сумма просроченной задолженности · итог · на 01.08.2026' &&
+        wl.ok && w.from === 'провал' && w.objects.length === d.items.length &&
         w.objects.every(id => d.items.some(x => x.id === id)) && has(w.fromName, 'на 01.08.2026') &&
         RP.worklistProgress(wl.id).done === 0 && RP.worklistProgress(wl.id).total === 2,
     `рабочий список заводится из провала: ${w.objects.length} объекта провала, состав заморожен; ` +
-    `безымянного списка нет; прогресс начинается с «0 из ${w.objects.length}»`);
+    `безымянного списка нет — имя по умолчанию путь узла «${RP.WL(noName.id).name}»; прогресс начинается с «0 из ${w.objects.length}»`);
 
   const m1 = RP.markWorked(wl.id, w.objects[0], 'дозвонились, обещал до 05.09');
   const alien = RP.markWorked(wl.id, 'kr-1', '');
   const pr = RP.worklistProgress(wl.id);
   const mk = RP.WL(wl.id).marks[w.objects[0]];
+  RP.state.sel.wl = wl.id;
   const scr = win.VIEWS.worklists.fn();
   RP.closeWorklist(wl.id, 'обзвон окончен');
   const late = RP.markWorked(wl.id, w.objects[1], '');
@@ -2795,6 +2802,193 @@ const DEV = 'изменено — не утверждённый состав';
         RP.formColumns('t-pay04', '2026-08-01').methods.length === 0,
     `пометки волны 41 не сдвинулись: «Кредитов с просрочкой» в «Портфеле к прошлому году» на 01.07.2026 — как было; ` +
     `у «Средней просрочки» до 01.09.2026 версия одна — пометки сравнения нет`);
+})();
+
+/* ---- MM. Входящие от дашборда, волна 43: провал объясняет число в любом режиме, «крупнейшие» и
+        ряд по разрезу — ответ отчёта, соавтор-роль и принятие в каталог (ОД-15…ОД-28, ADR-0314) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const p = { asOf:'2026-08-01', dept:null }, tot = { path:[], stat:'s-overdue-sum' };
+  const d = RP.drill('t-overdue', p, null, tot);
+  const c = RP.drill('t-overdue', p, null, { path:[], stat:'s-overdue-cnt' });
+  ok(253, d.ok && JSON.stringify(d.colNames) === JSON.stringify(['Заёмщик', 'Подразделение', 'Дней просрочки', 'Состояние']) &&
+        d.items[0].label === 'КД-2024/203 от 20.06.2024' && d.items[0].part === 5300000 && d.items[0].share === 51.5 &&
+        d.items[1].share === 48.5 && d.items[1].cut80 === true && !d.items[0].cut80 &&
+        c.ok && c.count && c.weightName === 'Остаток основного долга' && c.items.map(x => x.weight).join() === '5300000,5000000',
+    `ОД-15/16: колонки провала — из записи объекта (подпись «${d.items[0].label}», ${d.colNames.join(' · ')}); деньги — по ` +
+    `вкладу (${d.items.map(x => x.share).join(' % · ')} %), черта «80 % числа» на второй строке; счёт — по весу «${c.weightName}»`);
+
+  const r1 = RP.setDrillCols('credit', ['sum']);
+  const withSum = RP.drill('t-overdue', p, null, tot), otherRep = RP.drill('t-sh-plan', p, null, tot);
+  const bad = RP.setDrillCols('credit', ['curator']);
+  as('user'); const u = RP.drill('t-overdue', p, null, tot); as('auth');
+  ok(254, r1.ok && withSum.cols.indexOf('sum') !== -1 && otherRep.ok && otherRep.cols.indexOf('sum') !== -1 &&
+        u.cols.indexOf('sum') === -1 && !bad.ok && has(bad.why, 'в перечне объекта нет'),
+    `ОД-15: «Колонки ▾» помнится у человека на объект — «Сумма договора» у уполномоченного в двух отчётах, у ` +
+    `пользователя нет; поле вне перечня объекта не добавляется`);
+
+  const ch = RP.drillChange('t-overdue', {}, null, tot, { a:'2026-06-01', b:'2026-08-01' });
+  const cmp = RP.timeAnswer('t-overdue', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, {});
+  const prom = RP.drillChange('t-overdue', {}, null, { path:[{ by:'dept', key:'dep-prom' }], stat:'s-overdue-sum' }, { a:'2025-09-01', b:'2025-10-01' });
+  const port = RP.drillChange('t-overdue', {}, null, { path:[], stat:'s-portfolio' }, { a:'2026-02-01', b:'2026-03-01' });
+  const avg = RP.drillChange('t-overdue', {}, { stats:['s-overdue-sum', 's-avg-late'] }, { path:[], stat:'s-avg-late' }, { a:'2026-06-01', b:'2026-08-01' });
+  const hw = id => (ch.items.find(x => x.id === id) || {});
+  ok(255, ch.ok && ch.baseCell === 5400000 && ch.cell === 10300000 && ch.change === 4900000 && ch.sumDiff === ch.change &&
+        ch.change === cmp.rows.find(r => r.id === 's-overdue-sum').abs &&
+        hw('kr-2').how === 'пришёл' && hw('kr-2').diff === 5300000 && hw('kr-6').how === 'снизилось' && hw('kr-6').diff === -400000 &&
+        prom.ok && prom.items.length === 1 && prom.items[0].how === 'ушёл: просрочка погашена' && prom.sumDiff === prom.change && prom.change === -7300000 &&
+        port.ok && port.sumDiff === port.change && port.items.find(x => x.id === 'kr-7').how === 'пришёл' &&
+        !avg.ok && has(avg.why, 'не складывается'),
+    `ОД-17: провал «Изменения» 01.06 → 01.08.2026 — объекты на двух датах: ${ch.items.map(x => x.label.split(' ')[0]+' '+x.how+' '+x.diff).join('; ')}; ` +
+    `сумма разниц ${ch.sumDiff} = изменению узла и колонке «Изменение» сравнения; уход — по причине записи объекта; у средней — отказ`);
+
+  const st = RP.drillChange('t-overdue', {}, { cuts:['status'] }, { path:[{ by:'status', key:'просрочен' }], stat:'s-portfolio' },
+    { a:'2026-06-01', b:'2026-08-01' });
+  const byDept = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-06-01', '2026-08-01'], by:['dept'], stats:['s-overdue-sum'] });
+  const gv = (i, k) => ((byDept.answers[i].stats[0].groups || []).find(g => g.key === k) || { value:0 }).value;
+  const promCh = RP.drillChange('t-overdue', {}, null, { path:[{ by:'dept', key:'dep-prom' }], stat:'s-overdue-sum' }, { a:'2026-06-01', b:'2026-08-01' });
+  ok(256, st.ok && st.items.find(x => x.id === 'kr-2').how === 'перешёл из «действует»' && st.sumDiff === st.change &&
+        byDept.ok && promCh.change === gv(1, 'dep-prom') - gv(0, 'dep-prom') && promCh.sumDiff === promCh.change,
+    `ОД-17, ОД-9: узел по значению разреза на свою дату — КД-2024/203 «перешёл из «действует»» в «просрочен»; строка ` +
+    `разреза «промышленность» в сравнении (${gv(0, 'dep-prom')} → ${gv(1, 'dep-prom')}) сходится с суммой разниц её провала`);
+
+  const tw = { formulas:[{ id:'ф-1', name:'Доля просрочки в портфеле', a:'s-overdue-sum', op:'÷', b:'s-portfolio', k:100, unit:'%', dp:1 }] };
+  const sn = RP.drill('t-overdue', p, tw, { path:[], formula:'ф-1' });
+  const sg = RP.drill('t-overdue', p, tw, { path:[], formula:'ф-1' }, { side:'группа' });
+  const tw2 = { formulas:[{ id:'ф-2', name:'Разница', a:'s-portfolio', op:'−', b:'s-overdue-sum', k:1, unit:'сом', dp:0 }] };
+  const minus = RP.drill('t-overdue', p, tw2, { path:[], formula:'ф-2' });
+  ok(257, sn.ok && sn.share === 16.1 && sn.num === 10300000 && sn.den === 64100000 && sn.sum === sn.num && sn.items.length === 2 &&
+        sg.ok && sg.sum === sg.den && sg.items.length === 8 && sg.inNum === 2 && sg.items.filter(x => x.inNum).length === 2 &&
+        !minus.ok && has(minus.why, 'a ÷ b'),
+    `ОД-18: доля ${String(sn.share).replace('.', ',')} % = ${sn.num} ÷ ${sn.den}; «в числе» — ${sn.items.length} объекта, сумма = числителю; ` +
+    `«вся группа» — ${sg.items.length}, сумма = знаменателю, «в числе» помечены ${sg.inNum}; у формулы не-доли провала нет`);
+
+  const q = RP.drill('t-overdue', p, null, tot, { q:'ош-текстиль' });
+  ok(258, q.ok && q.shown.length === 1 && q.items.length === 2 && q.sumShown === 5000000 && q.sum === 10300000 && q.equal === true &&
+        q.shownText === 'показано 1 из 2 · сумма показанных 5 000 000 из 10 300 000',
+    `ОД-19: поиск сужает показ, а не итог — «${q.shownText}»; сумма списка по-прежнему равна числу`);
+
+  const w1 = RP.worklistFromDrill('t-overdue', p, null, tot, '', { q:'ош-текстиль' });
+  const w2 = RP.worklistFromDrill('t-overdue', {}, null, tot, '', { a:'2026-06-01', b:'2026-08-01' });
+  const fromTile = RP.reportAnswer({ tpl:'t-overdue', form:'провал', params:p, node:tot, from:'Главная', tilePath:'Главная · Просрочено' });
+  const w3 = RP.worklistFromDrill('t-overdue', p, null, tot, '', { from:'Главная', tilePath:'Главная · Просрочено' });
+  const W1 = RP.WL(w1.id), W2 = RP.WL(w2.id), W3 = RP.WL(w3.id);
+  ok(259, w1.ok && JSON.stringify(W1.objects) === '["kr-6"]' && has(W1.fromName, 'поиск «ош-текстиль»') &&
+        has(W1.name, 'на 01.08.2026') && W2.objects.length === 2 && W2.moves['kr-2'] === 'пришёл' && has(W2.name, '01.06.2026 → 01.08.2026') &&
+        fromTile.ok && fromTile.version && W3.name === 'Главная · Просрочено' && has(W3.fromName, 'плитка «Главная»'),
+    `ОД-20: рабочий список — показанный состав (поиском — 1 объект), в «Изменении» — с переходом; имя по умолчанию — путь ` +
+    `узла, у вопроса от плитки — её путь «${W3.name}»; список у отчётности`);
+
+  const before = RP.state.issues.length;
+  const ex = RP.exportDrill('t-overdue', p, null, tot, { q:'ош-текстиль' });
+  const rec = RP.state.issues.find(i => i.id === ex.id);
+  const ev = c2 => vm.runInContext(c2, sandbox);
+  ev('ROWS_MAX.statRows = 1');
+  const big = RP.drill('t-overdue', p, null, tot), bigEx = RP.exportDrill('t-overdue', p, null, tot), job = RP.statExportJob('t-overdue', p, null, tot);
+  ev('ROWS_MAX.statRows = 5000');
+  ok(260, ex.ok && ex.fmt === 'xlsx' && RP.state.issues.length === before + 1 && rec.kind === 'предварительный' &&
+        rec.passport.drill.shown === 1 && rec.passport.drill.of === 2 && rec.passport.drill.q === 'ош-текстиль' &&
+        has(rec.passport.label, 'НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ') &&
+        !big.ok && big.refused && !bigEx.ok && bigEx.offer === 'задание статистики на выгрузку списка' &&
+        job.ok && RP.state.statJobs.length === 1 && RP.state.issues.length === before + 1,
+    `ОД-21: выгрузка показанного списка — предварительный выпуск ${ex.id} (xlsx, метка, строка журнала, паспорт «показано 1 из 2»); ` +
+    `выше порога statRows — отказ соседа и задание статистики ${job.id}, своего выпуска нет`);
+
+  const cx = RP.cardContext(d, 0), cx2 = RP.cardContext(d, 1);
+  const tileD = RP.drill('t-overdue', p, null, tot, { from:'Главная' });
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.drillNode = tot; RP.state.sel.drillRes = d; RP.state.sel.drillCard = 0;
+  const scr = win.VIEWS.issue.fn();
+  ok(261, cx.pos === 1 && cx.of === 2 && cx.prev === null && cx.next === 'kr-6' && cx.back === '← к отчёту' &&
+        cx.value.part === 5300000 && cx.value.share === 51.5 && cx2.prev === 'kr-2' && RP.cardContext(tileD, 0).back === '← к дашборду' &&
+        has(scr, '1 из 2') && has(scr, 'В карточке — состояние сейчас') && has(scr, '← к отчёту'),
+    `ОД-22: контекст карточки — отчёт, узел, вклад ${cx.value.part} (${cx.value.share} %), «${cx.pos} из ${cx.of}», соседи, ` +
+    `возврат «к отчёту» или «к дашборду»; плашку рисует карточка`);
+
+  const top = RP.topAnswer('t-overdue', p, 's-portfolio', 3), topc = RP.topAnswer('t-overdue', p, 's-overdue-cnt', 1);
+  const topAvg = RP.topAnswer('t-overdue', p, 's-avg-late', 3);
+  const rest = top.rows.find(r => r.key === 'остальные');
+  const restD = RP.drill('t-overdue', Object.assign({}, p, { ids: rest.ids }), { stats:['s-portfolio'] }, { path:[], stat:'s-portfolio' });
+  ok(262, top.ok && top.rows.length === 4 && top.rows[0].name === 'КД-2025/088 от 15.04.2025' && rest.name === 'остальные 5' &&
+        top.total === top.value && top.value === 64100000 && topc.ok && topc.rows[0].key === 'kr-2' && topc.by === 'по весу' &&
+        !topAvg.ok && has(topAvg.why, 'складывающегося') && restD.ok && restD.items.length === 5 && restD.sum === rest.value,
+    `ОД-23: «крупнейшие 3» — ${top.rows.map(r => r.name.split(' ')[0]+' '+r.value).join('; ')}; итог ${top.total} = итогу; ` +
+    `у счёта — по весу; у средней — отказ; провал «остальных» — их ${restD.items.length} объектов, сумма ${restD.sum}`);
+
+  const ends = RP.monthEnds('2026-08-01', 24);
+  const co = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:p, dates: ends, by:['start'], stats:['s-overdue-cnt'] });
+  const at = d2 => co.answers.find(a => a.asOf === d2);
+  const g8 = at('2026-08-01').stats[0].groups, sum8 = g8.reduce((s2, g) => s2 + g.value, 0);
+  ok(263, ends.length === 24 && ends[0] === '2024-09-01' && co.ok && co.answers.filter(a => a.gap === 'снимка нет').length === 4 &&
+        at('2025-08-01').gap === 'в легаси не собиралось' && g8.find(g => g.key === 'II кв. 2024').value === 1 &&
+        g8.find(g => g.key === 'III кв. 2025').value === 1 && sum8 === at('2026-08-01').stats[0].value &&
+        has(co.passport.text, 'по разрезу «период начала»'),
+    `ОД-24: ряд по разрезу «период начала» на 24 концах месяца — дерево на каждую дату; 4 даты «снимка нет», конец июля ` +
+    `2025 г. «в легаси не собиралось», без подстановки; на 01.08.2026 сумма когорт = итогу (${sum8})`);
+
+  const win1 = RP.show('t-overdue', p, null).data.totals.find(x => x.id === 's-overdue-sum').value;
+  const ans = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:p });
+  const mv = RP.reportAnswer({ tpl:'t-overdue', form:'объекты на двух датах', params:{}, node:{ path:[], stat:'s-portfolio' }, a:'2026-06-01', b:'2026-08-01' });
+  as('clerk'); const alien = RP.reportAnswer({ tpl:'t-avg', form:'ответ', params:p }); as('auth');
+  const viaSeam = RP.callSeamOut('дашборд', 'reportAnswer', { tpl:'t-overdue', form:'ответ', params:p });
+  ok(264, ans.ok && viaSeam.ok && viaSeam.answers[0].stats[0].value === ans.answers[0].stats[0].value && ans.answers[0].stats.find(x => x.id === 's-overdue-sum').value === win1 && mv.ok && mv.items.length === 8 &&
+        mv.items.every(x => x.row && x.row.status) && mv.sumDiff === mv.change && !alien.ok && has(alien.why, 'с правами спрашивающего'),
+    `ОД-2, ОД-25: reportAnswer «ответ» = окну отчёта (${win1}); «объекты на двух датах» — все ${mv.items.length} объектов с ` +
+    `переходом и значением разреза на обе даты, Переходам новой формы не нужно; дашборд спрашивает тем же швом; чужой отчёт — отказ по правам`);
+
+  RP.seed(); as('buh');
+  const sc = RP.setCoauthors('t-sh-plan', ['роль:Администратор дашборда']);
+  as('user'); const before2 = RP.mayEditShared('t-sh-plan');
+  RP.grantRole('Администратор дашборда', 'Осмонова Г.', '2026-08-24'); const granted = RP.mayEditShared('t-sh-plan');
+  RP.revokeRole('Администратор дашборда', 'Осмонова Г.'); const after2 = RP.mayEditShared('t-sh-plan');
+  as('head'); const headEd = RP.mayEditShared('t-sh-plan');
+  ok(265, sc.ok && has(sc.note, 'роль «Администратор дашборда» (Бекова Н., Асанов А.)') && !before2 && granted && !after2 && headEd,
+    `ОД-26: соавтор — роль: держатели читаются на момент правки — Осмонова правит, пока держит роль, и перестаёт сразу ` +
+    `после снятия; Асанов правит как держатель`);
+
+  const rv = RP.revokeRole('Администратор дашборда', 'Бекова Н.');
+  const t1 = RP.TPL('t-sh-plan'), big2 = RP.TPL('t-sh-big');
+  as('auth'); const sh2 = RP.shelves('').shared.find(r => r.id === 't-sh-plan');
+  ok(266, rv.ok && t1.owner === 'Асанов А.' && rv.moved.length === 1 && rv.moved[0].by === 'старший держатель роли' &&
+        big2.owner === 'Асанов А.' && t1.editions.length === 1 && has(sh2.ownerNote, 'прежде — Бекова Н. (снята роль'),
+    `ОД-27: снятие роли с владельца отчёта с соавтором-ролью — уход владельца: «${t1.name}» → ${t1.owner} (старший ` +
+    `держатель); версии не порождает, полка называет прежнего владельца`);
+
+  RP.seed(); as('user');
+  const prp = RP.proposeToCatalog('t-avg'), again = RP.proposeToCatalog('t-avg');
+  as('clerk'); const clerkSees = RP.maySee('t-avg');
+  as('head'); const headSees = RP.maySee('t-avg');
+  const hint = RP.acceptToCatalog(prp.id), acc = RP.acceptToCatalog(prp.id, { force:true });
+  const cp = RP.TPL(acc.id), src = RP.TPL('t-avg');
+  as('user'); const authorSees = RP.maySee(acc.id), authorEdit = RP.mayEditShared(acc.id), cpLevel = RP.levelOf(acc.id);
+  RP.seed(); as('user'); const prp2 = RP.proposeToCatalog('t-avg'); as('buh');
+  const onto = RP.acceptToCatalog(prp2.id, { onto:'t-pay04' });
+  ok(267, prp.ok && !again.ok && !clerkSees && headSees && !hint.ok && hint.hint && hint.similar[0].id === 't-pay04' &&
+        acc.ok && cpLevel === 'общий' && cp.owner === 'Асанов А.' && JSON.stringify(cp.coauthors) === '["роль:Администратор дашборда"]' &&
+        cp.share.people.indexOf('Осмонова Г.') !== -1 && has(cp.editions[0].changed, 'из личного отчёта Осмонова Г.') &&
+        RP.levelOf('t-avg') === 'личный' && src.owner === 'Осмонова Г.' && authorSees && !authorEdit &&
+        onto.ok && RP.state.templates.filter(t => t.id.indexOf('t-cat-') === 0).length === 0,
+    `ОД-28: предложение открывает личный отчёт держателям роли (делопроизводителю — нет); «похожий уже есть» — ` +
+    `«${hint.similar[0].name}»; принятие — копия ${acc.id}: владелец ${cp.owner}, соавтор — роль, автор в круге; личный ` +
+    `остаётся у автора; «принять на найденный» копии не делает`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = { stats:['s-portfolio', 's-overdue-sum'] }; RP.state.sel.chart = false; RP.state.sel.time = 'сравнение'; RP.state.sel.top = true;
+  const s1 = win.VIEWS.issue.fn();
+  const iChg = ev('DRILL_NODES').findIndex(n => n.a && n.stat === 's-overdue-sum' && !n.path.length);
+  RP.uiDrill(iChg); const s2 = win.VIEWS.issue.fn();
+  RP.state.sel.time = 'динамика'; RP.state.sel.dynBy = true; RP.state.sel.top = false; RP.state.sel.drillRes = null;
+  const s3 = win.VIEWS.issue.fn();
+  as('user'); RP.proposeToCatalog('t-avg'); as('buh'); RP.state.view = 'showcase'; RP.state.sel.scTab = 'общие';
+  const s4 = win.VIEWS.showcase.fn();
+  const clean = [s1, s2, s3, s4].every(x => !/ОД-\d|ADR-031\d|ИО-6[01]/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
+  ok(268, iChg !== -1 && has(s1, 'Крупнейшие 3 — «') && has(s1, 'остальные 5') && has(s2, 'Изменение: ') && has(s2, 'равна изменению') &&
+        has(s2, 'Как изменился') && has(s2, 'Колонки ▾') && has(s2, 'показано 2 из 2') && has(s2, 'Выгрузить список · xlsx') &&
+        has(s3, 'По периоду начала') && has(s3, 'выданы в II кв. 2024') && has(s4, 'Предложены в каталог дашборда') &&
+        has(s4, 'Принять — копия в общий') && clean,
+    `экраны: «Крупнейшие 3» и ссылки «Изменения» у сравнения; панель провала «Изменения» с переходами, поиском, «Колонки ▾» ` +
+    `и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли; номеров решений в интерфейсе нет`);
 })();
 
 /* ---- отчёт ---- */
