@@ -1587,12 +1587,17 @@ ind('asset.days',     { obj:'asset', name:'Наибольший срок на у
 // down — модули-владельцы, ещё не объявившие объекты статистике (готовность соседей; волны — только прогноз порядка); reportsReady — модуль
 // отчётности и отчёты каталога: предусловие всего дашборда. partDown — статистика ответила на вид полосы не целиком (часть — «—»); baseDown —
 // нет ответа на дату базы; fresh, dataAt — версия данных (сколько раз «пришли новые данные») и её время; overload — отчётность перегружена
-// (вопросы ждут в очереди); slow — медленная отчётность (части полосы приходят с задержкой)
+// (вопросы ждут в очереди); slow — медленная отчётность (части полосы приходят с задержкой); dayEnd — ответ «сегодня» на конец закрытого дня
+// (снимок полосы и списка, открытых по ссылке другого дня); linkNextDay — ссылку открыли на следующий день: стенд живёт одним днём, поэтому
+// ссылка считается скопированной вчера (10.10) в то же время
 const STAND = { down:{}, reportsReady:true, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
-  partDown:false, baseDown:false, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{} };
+  partDown:false, baseDown:false, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{}, dayEnd:null, linkNextDay:false };
 const STAND_SEED = JSON.stringify(STAND);
 // время данных стенда: «сегодня» заморожено, пришедшие новые данные сдвигают время расчёта на 5 минут
-const nowTime = ()=>STAND.dataAt || TODAY.time;
+// dayEnd — ответ на конец закрытого дня (ссылка, открытая на другой день): время данных — «конец 10.10»
+const dayLabel = d=>String(d).padStart(2, '0')+'.'+TODAY.iso.slice(5, 7);
+const nowTime = ()=>STAND.dayEnd ? 'конец '+dayLabel(STAND.dayEnd) : STAND.dataAt || TODAY.time;
+const todayIs = ()=>STAND.dayEnd ? 'на '+nowTime() : 'сегодня', todayTo = ()=>STAND.dayEnd ? dayLabel(STAND.dayEnd) : 'сегодня';   // «сегодня» в подписях видов
 const REPORTS_WAIT = 'модуль отчётности и отчёты каталога ещё не готовы — плитка дашборда ссылается на отчёт';
 const timePlus = min=>{ const [h, m] = TODAY.time.split(':').map(Number), t = h*60 + m + min; return String(Math.floor(t/60)).padStart(2, '0')+':'+String(t%60).padStart(2, '0'); };
 
@@ -1631,6 +1636,7 @@ function scen(row, field){ const up = (STAND.overdueUp && (field==='overdue' || 
   if(!STAND.fresh || (field!=='overdue' && field!=='balance')) return up; const paid = freshPaid(row); if(!paid) return up;
   return field==='overdue' ? up*(row.overdue - paid)/row.overdue : (row.balance - paid)/row.balance; }
 function stockAt(row, I, pt){
+  if(STAND.dayEnd && pt.m===0 && !pt.day) pt = { m:0, day:STAND.dayEnd };   // ответ на конец закрытого дня — его строка, а не сегодняшняя
   if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
   if(!exists(row, pt.m)) return null;
   if(!pt.day && noAnswerAt(row, pt.m)) return null;           // источник не ответил по строке на эту дату — пусто, а не ноль
@@ -1648,16 +1654,16 @@ function stockAt(row, I, pt){
 function monthFlow(row, field, m){ return flows(row, m) ? (row[field]||0)*jitter(row, 'f'+m+field, 0.12) : 0; }
 function flowIn(row, I, period){
   if(I.where && !I.where(row)) return null;
-  const P = PERIODS[period]; let s = 0, any = false;
+  const P = PERIODS[period], D = STAND.dayEnd || TODAY.day; let s = 0, any = false;   // D — последний день текущего месяца в ответе
   for(const m of P.months){
     if(I.kind==='event'){
       const at = I.atField ? row[I.atField] : row.at; if(at!==m) continue;
       const day = (I.dayField ? row[I.dayField] : row.day) || (1 + hash(row.id)%28);
-      if(m===0 && (P.today ? day!==(P.day || TODAY.day) : day>TODAY.day)) continue;   // day — один день текущего месяца (вчера у отказа ночного источника)
+      if(m===0 && (P.today ? day!==(P.day || D) : day>D)) continue;   // day — один день текущего месяца (вчера у отказа ночного источника)
       any = true; s += I.agg==='count' ? 1 : (row[I.field]||0);
     } else {
       if(!flows(row, m)) continue;
-      let v = monthFlow(row, I.field, m); if(m===0) v = P.today ? v/TODAY.daysInMonth : v*TODAY.day/TODAY.daysInMonth;
+      let v = monthFlow(row, I.field, m); if(m===0) v = P.today ? v/TODAY.daysInMonth : v*D/TODAY.daysInMonth;
       if(v){ any = true; s += v; }
     }
   }
@@ -1860,17 +1866,17 @@ function passportOf(q, visible, opts){
   const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
   if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
     parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
-  else if(ctx.period){ const P = PERIODS[ctx.period];
-    if(ctx.period==='today') parts.push('сегодня, на '+at+lag+' · день не закрыт');
-    else if(ctx.period==='curMonth') parts.push('01.10 → '+at+' · идёт '+TODAY.day+'-й день · не закрыт');
+  else if(ctx.period){ const P = PERIODS[ctx.period], de = STAND.dayEnd;   // de — ответ на конец закрытого дня (ссылка другого дня)
+    if(ctx.period==='today') parts.push(de ? dayLabel(de)+' · день закрыт' : 'сегодня, на '+at+lag+' · день не закрыт');
+    else if(ctx.period==='curMonth') parts.push('01.10 → '+at+(de ? '' : ' · идёт '+TODAY.day+'-й день')+' · не закрыт');
     else if(ctx.period==='prevMonth') parts.push(monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт'));
     else if(ctx.period==='ytd') parts.push('01.01 → '+at+' · не закрыт');
     else { const cl = P.months.filter(monthClosed).length; parts.push(P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')); } }
   else { const pt = ctx.point;
-    if(pt.m===0 && !pt.day) parts.push('на '+at+lag+' · день не закрыт');
+    if(pt.m===0 && !pt.day) parts.push(STAND.dayEnd ? 'на '+at+' · день закрыт' : 'на '+at+lag+' · день не закрыт');
     else if(pt.day) parts.push(STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт');
     else parts.push('на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт')); }
-  if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? '11.10' : '30.09'));
+  if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? (STAND.dayEnd ? dayLabel(STAND.dayEnd) : '11.10') : '30.09'));
   parts.push('видно '+nbsp(visible));
   if(opts && opts.panelApplied && opts.panelApplied.length) parts.push('фильтр: '+opts.panelText);
   if(opts && opts.panelSkipped && opts.panelSkipped.length) parts.push('без фильтра');
@@ -2243,7 +2249,7 @@ function seriesOf(q, rows0, rowsAt){
     if(m===e-n){ prev = any ? vals[0] : null; continue; }
     // разница к прошлой точке — по первой линии; незакрытый месяц (текущий) подписан, у потока он не сравнивается
     const p = { m, label:monthShort(m), closed:monthClosed(m), vals };
-    if(m===0){ p.open = true; p.openLabel = flow ? '1–'+TODAY.day : 'на '+nowTime(); }
+    if(m===0){ p.open = true; p.openLabel = flow ? '1–'+(STAND.dayEnd || TODAY.day) : 'на '+nowTime(); }
     if(m===0 && flow) Object.assign(p, { base:null, delta:null, pct:null, none:OPEN_MONTH });
     else if(prev===null) Object.assign(p, { base:null, delta:null, pct:null }); else setDiff(p, vals[0], prev, unit);
     prev = vals[0]; out.points.push(p);
@@ -2347,7 +2353,7 @@ function mvOtherOf(row, I, M, tf){
   return at(M) - at(M - 1) - fl(I.flows.inc) + fl(I.flows.dec);
 }
 const mvFlowOf = (row, I, key, M, tf)=>key==='other' ? mvOtherOf(row, I, M, tf) : rowFlow(row, key, M);
-const mvWhen = M=>M===0 ? 'сегодня' : 'на '+monthEndLabel(M);
+const mvWhen = M=>M===0 ? todayIs() : 'на '+monthEndLabel(M);
 // «прочее» денежного Движения больше четверти изменения и больше 1 % начала — «большое необъяснённое» (warn), ниже — тихо, серым (quiet);
 // share — доля «прочего» в изменении (изменения нет — null). Порог — здесь, в одном месте
 const MV_BIG = { share:0.25, start:0.01 };
@@ -2629,10 +2635,10 @@ function nodeText(q, node){
   if(!node) return '';
   if(mvNode(node)){ const dir = node.from!==undefined ? 'from' : 'to'; return dimLabel(node.d, node.v)+' · '+mvNodeName(node.fd || node.d, dir, node[dir]); }
   if(node.flow){ const M = node.mv || 0;   // строка Движения: «новые в просрочке · с 30.09 по сегодня»
-    return mvRowName(q, node.flow, M)+' · с '+monthEndLabel(M - 1)+' по '+(M===0 ? 'сегодня' : monthEndLabel(M)); }
+    return mvRowName(q, node.flow, M)+' · с '+monthEndLabel(M - 1)+' по '+(M===0 ? todayTo() : monthEndLabel(M)); }
   if(node.tr){ const [a, b] = node.tr, nm = v=>dimLabel(node.d, v); return a===null ? 'новые → '+nm(b) : b===null ? nm(a)+' → ушли' : nm(a)+' → '+nm(b); }
   if(node.m!==undefined) return (node.coh ? cohortLabel(node.coh.s, node.coh.len===1 ? 'm' : 'q')+' · '+(node.m - node.coh.s + 1)+' мес. с начала · ' : '')
-    +(IND[q.inds[0]].kind==='stock' ? (node.m===0 ? 'на сегодня' : 'на конец '+monthEndLabel(node.m)) : 'за '+monthName(node.m));
+    +(IND[q.inds[0]].kind==='stock' ? (node.m===0 ? 'на '+(STAND.dayEnd ? nowTime() : 'сегодня') : 'на конец '+monthEndLabel(node.m)) : 'за '+monthName(node.m));
   if(node.vs && node.fk!==undefined && DIMS[node.d].funnel) return 'дошли до этапа «'+DIMS[node.d].funnel[node.fk].stage+'»';
   return [node.d && dimLabel(node.d, node.v), node.d2 && dimLabel(node.d2, node.v2)].filter(Boolean).join(' × ');
 }
@@ -2758,15 +2764,19 @@ function goneWhy(I, r, M){ const Md = mvModel(I); if(!Md || !Md.loss || Md.noFlo
 // изменению узла. grp — у доли: знаменатель («вся группа»), иначе — числитель. pts — точка Ряда: { b:месяц базы, n:месяц точки }
 function chgRows(t, u, roleId, panel, node, path, grp, pts){
   const res = ask(t, u, roleId, panel, path); if(!res.rows) return { refused:true, msg:res.msg || 'нет ответа' };
-  const q = userConds(numQ(t, path, node && node.of), u), I = IND[q.inds[0]];
-  const ctx = pts ? { point:{ m:pts.n }, tf:ctxOf(q).tf } : ctxOf(q), cm = ctxMonth(ctx);
+  const q = userConds(numQ(t, path, node && node.of), u), I = IND[q.inds[0]], stock = I.kind==='stock';
+  // точка Ряда остатка — концы двух месяцев; точка Ряда потока — месяц точки и прошлый месяц (периоды на время ответа)
+  const pk = pts && !stock ? ['__c'+pts.n, '__c'+pts.b] : null;
+  if(pk){ PERIODS[pk[0]] = { months:[pts.n], partial:pts.n===0 }; PERIODS[pk[1]] = { months:[pts.b], partial:false }; }
+  try {
+  const tf = ctxOf(q).tf, ctx = pts ? (stock ? { point:{ m:pts.n }, tf } : { period:pk[0], tf }) : ctxOf(q), cm = ctxMonth(ctx);
   let B;
-  if(pts) B = { ctx:{ point:{ m:pts.b }, tf:ctx.tf }, label:'к '+monthEndLabel(pts.b), done:()=>{} };
+  if(pts) B = { ctx:stock ? { point:{ m:pts.b }, tf } : { period:pk[1], tf }, label:stock ? 'к '+monthEndLabel(pts.b) : 'к '+MONTHS_GEN[monthOf(pts.b).mi].replace(/я$/,'ю').replace(/а$/,'у'), done:()=>{} };
   else { const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return { refused:true, msg:'у плитки нет базы сдвига — «Изменения» нет' }; B = diffBase(ctx, key); }
   if(B.none) return { refused:true, msg:B.none };
   try {
     const bm = ctxMonth(B.ctx), env = { base:rowsFor(u, roleId, I.obj), user:u, roleId, panel };
-    const rowsN = pts && pts.n ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, cm) : res.rows;
+    const rowsN = stock && pts && pts.n ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, cm) : res.rows;
     const rowsB = B.ctx.point ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, bm) : res.rows;
     const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));
     const sh = q.share && !own, spec = IND[sh ? (grp ? q.share[1] : q.share[0]) : q.inds[(node && node.line) || 0]];
@@ -2779,13 +2789,17 @@ function chgRows(t, u, roleId, panel, node, path, grp, pts){
       if(Math.abs(diff) < (spec.agg==='count' ? 1 : 0.5)) continue;
       let how;
       if(a===null){ const ov = otherVal(rowsB, r, bm); how = ov!==undefined && ov!==null && ov!==node.v ? 'пришёл из «'+dimLabel(node.d, ov)+'»' : 'новый'; }
-      else if(n===null){ const ov = otherVal(rowsN, r, cm); how = ov!==undefined && ov!==null && ov!==node.v && contributes(spec, valueOf(r, spec, ctx)) ? 'перешёл в «'+dimLabel(node.d, ov)+'»' : bm===cm - 1 ? goneWhy(I, r, cm) : 'ушёл'; }
+      else if(n===null){ const ov = otherVal(rowsN, r, cm); how = ov!==undefined && ov!==null && ov!==node.v && contributes(spec, valueOf(r, spec, ctx)) ? 'перешёл в «'+dimLabel(node.d, ov)+'»' : stock && bm===cm - 1 ? goneWhy(I, r, cm) : 'ушёл'; }
       else how = diff > 0 ? 'вырос' : 'снизился';
       list.push({ r, a, n, v:diff, how }); }
     if(list.length > STAND.N) return { refused:true, count:list.length, msg:nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
     const sum = list.reduce((s, x)=>s + x.v, 0);
-    return { refused:false, list, sum, unit:spec.unit, agg:spec.agg, obj:I.obj, passport:res.passport, baseLabel:B.label, bm, cm, grp:!!grp }; }
+    // колонки двух дат: у остатка — «на 30.09 · сейчас», у потока — его периоды («за август · за сентябрь»)
+    const mn = m=>monthName(m)+(monthOf(m).y!==2026 ? ' '+monthOf(m).y : ''), span = c=>{ const ms = PERIODS[c.period].months; return 'за '+(ms.length===1 ? mn(ms[0]) : monthShort(ms[0])+' – '+monthShort(ms[ms.length - 1])); };
+    const dates = stock ? ['на '+monthEndLabel(bm), cm===0 ? (STAND.dayEnd ? 'на '+nowTime() : 'сейчас') : 'на '+monthEndLabel(cm)] : [span(B.ctx), span(ctx)];
+    return { refused:false, list, sum, unit:spec.unit, agg:spec.agg, obj:I.obj, passport:res.passport, baseLabel:B.label, bm, cm, grp:!!grp, dates }; }
   finally { B.done(); } }
+  finally { if(pk) pk.forEach(k=>{ delete PERIODS[k]; }); } }
 // число, с которым сходится список «Изменения»: разница узла в том же виде, что рисует полоса (у доли — числителя или знаменателя)
 function chgNumber(t, u, roleId, panel, node, path, grp, pts){
   const q = numQ(t, path, node && node.of); if(!q) return null; const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));
@@ -2805,17 +2819,27 @@ function chgNumber(t, u, roleId, panel, node, path, grp, pts){
     const agg = (rs, c, m, i)=>aggregate(i===0 ? numRows(qq, rs, u, m) : rs, IND[qq.share[i]], c).value || 0, i = grp ? 1 : 0;
     return agg(r.rows || [], ctxOf(qq), ctxMonth(ctxOf(qq)), i) - agg(rowsB, B.ctx, ctxMonth(B.ctx), i); }
   finally { B.done(); } }
-// режим списка: «Изменение» — у числа, строки и ячейки, у точки Ряда остатка; у Движения, переходов, Когорт и Переходов вид сам сравнивает — список на дату
-const chgNode = node=>!node || (!node.flow && !mvNode(node) && !node.tr && !node.coh && !node.fk && !bigNode(node));
+// режим списка: «Изменение» — у числа, строки и ячейки (и у строки «крупнейших»), у точки Ряда остатка и потока; у Движения, переходов, Когорт и
+// Переходов вид сам сравнивает — список на дату
+const chgNode = node=>!node || (!node.flow && !mvNode(node) && !node.tr && !node.coh && !node.fk);
+// «разница за период» строки Ряда по разрезу (у итога — сумма строк: каждый объект на каждой дате — в одной строке); у доли — числителя или знаменателя
+function spanNumber(span, node, k){ const ls = node.d ? span.lines.filter(l=>l.v===node.v) : span.lines; let s = 0;
+  for(const l of ls){ const xs = l[k] || [], a = xs[0], z = xs[xs.length - 1]; if(a===null || a===undefined || z===null || z===undefined) return null; s += z - a; }
+  return s; }
 // модель панели: шапка, сходимость, колонки, строки, доля и черта «80 %», показанное после поиска, выходы
 // opt: { mode:'sum'|'change', share:'num'|'group', q:'', sort:{ k, dir }, viewDims:[…] }
 function whoList(tileId, u, roleId, panel, node, path, opt){
   opt = opt || {}; path = path || [];
   const t = typeof tileId==='string' ? tileById(tileId) : tileId, q0 = t && numQ(t, path, node && node.of);
   if(!q0) return { refused:true, msg:t ? reportBroken(t) : 'Плитки нет', exits:[] };
+  // строка «крупнейших» — объект или «остальные N» по ранжированию вида; на обе даты состав строки один
+  if(bigNode(node) && !BIG) return withBig(bigOf(t, u, roleId, panel, path, node.bn), ()=>whoList(t, u, roleId, panel, node, path, opt));
   const own = node && (node.all || (q0.numFilter || []).some(c=>c.f===node.d || c.f===node.d2)), isShare = !!q0.share && !own;
   const grp = isShare && opt.share==='group';
-  const pts = node && node.m!==undefined && !node.coh && IND[q0.inds[0]].kind==='stock' ? { b:node.m - 1, n:node.m } : null;
+  // точка Ряда: в «Изменении» — точка и прошлая точка; у потока незакрытый месяц не сравнивается (как в Ряде) — список на дату
+  // строка и итог Ряда по разрезу (span) — первая точка и дата плитки: «разница за период», напечатанная в строке
+  const span = node && node.sp && opt.span ? opt.span : null, stockQ = IND[q0.inds[0]].kind==='stock';
+  const pts = span ? { b:span.b, n:span.n } : node && node.m!==undefined && !node.coh && (stockQ || node.m < 0) ? { b:node.m - 1, n:node.m } : null;
   const chg = opt.mode==='change' && chgNode(node) && (!node || node.m===undefined || pts) && (!!pts || !changeOff(t, u, roleId, panel, path));   // «Изменение» погашено — список на дату
   const nd = node ? Object.assign({}, node, grp ? { grp:true } : {}) : grp ? { grp:true } : null;
   const sr = chg ? chgRows(t, u, roleId, panel, node, path, grp, pts) : drill(t, u, roleId, panel, nd, path);
@@ -2866,10 +2890,10 @@ function whoList(tileId, u, roleId, panel, node, path, opt){
   if(!chg && !signed && !qs && sort.dir==='desc' && (sort.k==='v' || sort.k==='w' || sort.k==='pct') && tot > 0 && rows.length > 1){ let acc = 0;
     for(let i=0; i<rows.length; i++){ acc += rows[i].pct || 0; if(acc >= 80 - 1e-9){ if(i < rows.length - 1) cut = { after:i, n:i + 1 }; break; } } }
   // сходимость: список целиком = числу рядом (у счётного — числом объектов), показанное — своей суммой
-  const n = rows.length, sum = sr.sum, number = chg ? chgNumber(t, u, roleId, panel, node, path, grp, pts) : sr.number;
+  const n = rows.length, sum = sr.sum, number = chg ? (span ? spanNumber(span, node, isShare ? (grp ? 'dens' : 'nums') : 'vals') : chgNumber(t, u, roleId, panel, node, path, grp, pts)) : sr.number;
   const matches = number!==null && number!==undefined && Math.abs(sum - number) < (node && node.flow && !mvTransitions(I) ? 3 : 0.5);
   const fv = v=>signed ? mvSum(v, spec.unit) : fmtVal(v, spec.unit);
-  const where = !node ? 'на плитке' : node.flow || mvNode(node) ? 'строки' : node.m!==undefined && !node.coh ? 'точки' : node.d2 || node.tr || node.coh ? 'ячейки' : node.d ? 'строки' : 'на плитке';
+  const where = !node ? 'на плитке' : node.flow || mvNode(node) || node.sp ? 'строки' : node.m!==undefined && !node.coh ? 'точки' : node.d2 || node.tr || node.coh ? 'ячейки' : node.d ? 'строки' : 'на плитке';
   const eq = grp ? (chg ? '= изменению знаменателя' : '= знаменателю') : chg ? '= изменению '+(where==='на плитке' ? 'числа' : where) : where==='на плитке' ? '= числу на плитке' : '= числу '+where;
   const objs = n+' '+plural(n, 'объект', 'объекта', 'объектов');
   const conv = { n, sum, number, matches,
@@ -2877,7 +2901,7 @@ function whoList(tileId, u, roleId, panel, node, path, opt){
       : cnt ? objs+(matches ? ' '+eq : ' · '+fmtVal(number, 'pcs')+' в числе') : objs+' · '+fv(sum)+' '+(matches ? eq : '· '+where+' '+fv(number)) };
   const shSum = shown.reduce((s, x)=>s + x.v, 0);
   const shownText = qs ? 'показано '+shown.length+' из '+n+(cnt && !chg ? '' : ' · сумма показанных '+fv(shSum)+' из '+fv(sum)+(matches ? ' = '+(chg ? 'изменению' : 'числу') : '')) : '';
-  const valCols = chg ? [['a', 'на '+monthEndLabel(sr.bm)], ['n', ld===0 ? 'сейчас' : 'на '+monthEndLabel(ld)], ['v', 'разница'], ['how', 'как изменился'], ...(wt ? [['w', wt.name]] : [])]
+  const valCols = chg ? [['a', sr.dates[0]], ['n', sr.dates[1]], ['v', 'разница'], ['how', 'как изменился'], ...(wt ? [['w', wt.name]] : [])]
     : wt ? [['w', wt.name]] : cnt ? [] : node && (node.flow || mvNode(node)) ? [['was', 'было → стало'], ['v', 'вклад']] : [['v', 'Значение']];
   if(valCols.some(c=>c[0]==='was') && !rows.some(x=>x.was)) valCols.splice(valCols.findIndex(c=>c[0]==='was'), 1);
   if(grp && !chg) valCols.push(['inNum', 'в числе']);
@@ -4780,6 +4804,9 @@ function stripOps(k, r){
     all:n=>n===undefined || n===null ? '' : `<button class="ls quiet${n ? '' : ' zero'}${on(null)}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt('${id}')">☰ ${nbsp(n)}</button>`,   // «☰ N» итога — список самого узла полосы
     ls:(d, v, d2, v2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}${on({ d, v, d2, v2 })}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt(${a(d, v, d2, v2)})">☰ ${nbsp(n)}</button>`,
     month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})`,
+    // строка и итог Ряда по разрезу: в «Сумме» — список на дату плитки, в «Изменении» — разница за период строки (от первой точки)
+    spGo:(d, v)=>`DB.whoSpan('${id}'${d ? `,'${d}','${esc(v)}'` : ''})`,
+    sp:(d, v, n)=>n===undefined || n===null ? '' : `<button class="ls${d ? '' : ' quiet'}${n ? '' : ' zero'}${on(Object.assign(d ? { d, v } : {}, { sp:true }))}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoSpan('${id}'${d ? `,'${d}','${esc(v)}'` : ''})">☰ ${nbsp(n)}</button>`,
     // Когорты: ячейка — объекты когорты на конец месяца; Переходы: «было × стало» (null — новые / ушли); воронка: дошли до этапа k
     cohGo:(s, len, m)=>`DB.whoCohort('${id}',${s},${len},${m})`,
     coh:(s, len, m, n)=>`<button class="ls${on({ m, coh:{ s, len } })}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoCohort('${id}',${s},${len},${m})">☰ ${nbsp(n)}</button>`,
@@ -4862,9 +4889,11 @@ function stripNum(t, b, root, pass){
 // снимок полосы: числа, списки и путь открытой полосы — из одного снимка данных («на 14:15»); плитка над ней — из того же. Пришли данные новее —
 // в строке «есть данные на 14:20 · Обновить»; «Обновить» берёт новые, путь и вид остаются
 const snapNow = ()=>({ fresh:STAND.fresh, at:nowTime() });
-function atSnap(snap, fn){ if(!snap || snap.fresh===STAND.fresh) return fn();
-  const f = STAND.fresh, a = STAND.dataAt; STAND.fresh = snap.fresh; STAND.dataAt = snap.fresh ? snap.at : null;
-  try { return fn(); } finally { STAND.fresh = f; STAND.dataAt = a; } }
+// снимок закрытого дня (ссылка другого дня): статистика держит конец дня (day), внутридневной версии у него нет
+const snapDay = d=>({ fresh:0, at:'конец '+dayLabel(d), day:d });
+function atSnap(snap, fn){ if(!snap || (snap.fresh===STAND.fresh && (snap.day || null)===STAND.dayEnd)) return fn();
+  const f = STAND.fresh, a = STAND.dataAt, de = STAND.dayEnd; STAND.fresh = snap.fresh; STAND.dataAt = snap.fresh ? snap.at : null; STAND.dayEnd = snap.day || null;
+  try { return fn(); } finally { STAND.fresh = f; STAND.dataAt = a; STAND.dayEnd = de; } }
 const inSnap = (id, fn)=>atSnap((S.open[id] || {}).snap, fn);
 // медленная отчётность (стенд): части ответа полосы приходят с задержкой — «Сумма» через 1,5 с, база разницы через 3 с, Движение (переходы объектов
 // на двух датах) — через 12 с; дольше 10 с — «считается дольше обычного · Отменить». Вопрос — вид, выбор (без «Сумма | Изменение»), путь и снимок;
@@ -4909,7 +4938,7 @@ let qPos = 0, loadWake = null, loadTimer = null;   // место в очеред
 function stripHTML(k, u, roleId, sc, place){
   const o = S.open[k], t = tileById(k); if(!o || !t || S.arrange || t.state==='withdrawn') return '';
   pinFresh(sc);
-  const newer = o.snap && o.snap.fresh < STAND.fresh ? nowTime() : null;
+  const newer = o.snap && !o.snap.day && o.snap.fresh < STAND.fresh ? nowTime() : null;   // у конца закрытого дня новых данных не бывает
   return atSnap(o.snap, ()=>stripIn(k, o, t, u, roleId, place, newer));
 }
 function stripIn(k, o, t, u, roleId, place, newer){
@@ -4940,9 +4969,11 @@ function stripIn(k, o, t, u, roleId, place, newer){
   // пять видов кнопками; Когорты открыты из «⋯» — нажатой пилюлей сразу за пятью, клик по любой из пяти возвращает
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('')
     + (kind==='cohort' ? `<button class="on sl-coh" aria-pressed="true" data-tip="Когорты открыты из «⋯»; другой вид — кнопкой слева">${VIEW_NAMES.cohort}</button>` : '');
-  // открыта по ссылке на прошлую дату данных: дата ссылки — только у этой полосы и её списка; «на сегодня» берёт новые данные
-  const fresh = newer && o.byLink ? `<span class="sl-fresh sl-link" role="status">на ${esc(o.snap.at)} · по ссылке<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">на сегодня</button></span>`
-    : newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '';
+  // открыта по ссылке: другого дня — на конец дня ссылки и «на сегодня» (дата ссылки — только у этой полосы и её списка); того же дня — «сегодня»
+  // с моментом отправителя. Пришли данные новее снимка полосы — «есть данные · Обновить»
+  const lk = o.link, linkTxt = lk && lk.day ? `<span class="sl-fresh sl-link" role="status">на конец ${esc(lk.day)} · по ссылке<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">на сегодня</button></span>`
+    : lk && lk.from ? `<span class="sl-fresh sl-link" role="status">по ссылке от ${esc(lk.from)}<span class="sep">·</span>сейчас ${esc(o.snap.at)}</span>` : '';
+  const fresh = linkTxt+(newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '');
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free, r)}
     <span class="sl-sp"></span>${fresh}${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
     ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}"${whoOn(k, null) ? ' data-on="1"' : ''} onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
@@ -5118,7 +5149,7 @@ const mvTipLines = (mv, u)=>mvParts(mv).map(p=>p.name+': ☰ '+nbsp(p.cnt)+', '+
 // шкала — по самой большой строке. «☰ N» строки — её объекты (начало — cnt0, конец — res.cnt); клик по строке — их список (DB.whoFlowAt).
 // Под строками — цепочка-пояснение «начало ± строки = конец»; галочки нет: у переходов сумма сходится по построению
 function mvBody(res, q, ops){
-  const m = res.move, I = IND[q.inds[0]], u = res.unit, M = m.M, id = esc(res.tileId), from = monthEndLabel(M - 1), to = M===0 ? 'сегодня' : monthEndLabel(M), when = 'с '+from+' по '+to;
+  const m = res.move, I = IND[q.inds[0]], u = res.unit, M = m.M, id = esc(res.tileId), from = monthEndLabel(M - 1), to = M===0 ? todayTo() : monthEndLabel(M), when = 'с '+from+' по '+to;
   const clock = M===0 ? (/^на (\d{1,2}:\d{2})/.exec(res.passport || '') || [])[1] : '';
   // серые: «прочее» (остаток денежных, у Просрочено — ушла без причины), «нет ответа» и охват; события и потоки — по направлению показателя
   const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' || f.kind==='scope' }, f));
@@ -5140,7 +5171,7 @@ function mvBody(res, q, ops){
   const chain = mvChain([{ sg:'', v:m.start }].concat(flows.filter(f=>f.v).map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);   // нулевые строки в цепочку не идут
   const startLs = ls(m.cnt0, ops && ops.month(M - 1), true, 'на '+from);
   return `<div class="mv-cap"><b>${esc(when)}</b>; вправо — пришло, влево — ушло</div>`
-    +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? 'на сегодня'+(clock ? ', '+clock : '') : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
+    +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? (STAND.dayEnd ? 'на '+nowTime() : 'на сегодня'+(clock ? ', '+clock : '')) : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
     +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — в одной единице, той же, что у конца; малые строки — с двумя знаками')}>${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
@@ -5185,7 +5216,7 @@ function coBody(res, q, ops){
   const pc = x=>(Math.round(x*10)/10).toString().replace('.', ',')+' %';
   const vol = r=>c.volSum ? fmtVal(r.vol.sum, 'sum') : nbsp(r.vol.n), volTip = r=>r.label+': '+(c.volSum ? 'выдано '+fmtVal(r.vol.sum, 'sum')+' · '+nbsp(r.vol.n)+' '+plural(r.vol.n, 'кредит', 'кредита', 'кредитов') : c.vol+' '+nbsp(r.vol.n));
   const cell = (r, a, x)=>{ if(!x) return `<td class="co-y"${tipAttr(r.label+': ещё не прошло '+a+' мес. с начала')}></td>`;
-    const when = x.m===0 ? 'сегодня' : 'на '+monthEndLabel(x.m), empty = !x.cnt && !x.v;
+    const when = x.m===0 ? todayIs() : 'на '+monthEndLabel(x.m), empty = !x.cnt && !x.v;
     const tip = [r.label+' · '+a+' мес. с начала ('+when+'): '+fmtVal(x.v, unit)+(c.volSum && unit==='sum' && r.vol.sum ? ' · '+pc(x.v / r.vol.sum * 100)+' выданного' : ''),
       x.closed ? '' : 'месяц не закрыт', 'Кто в этом числе: '+nbsp(x.cnt || 0)+' стр.'].filter(Boolean).join('\n');
     const go = ops && ops.coh ? ` onclick="event.stopPropagation();${ops.cohGo(r.s, c.len, x.m)}"` : '';
@@ -5203,7 +5234,7 @@ function coBody(res, q, ops){
 function trBody(res, q, ops){
   const tr = res.trans, unit = res.unit, vs = tr.vals, d = tr.d, has = v=>v!==null && v!==undefined;
   const nums = [...tr.cells.flat().map(c=>c.base), ...tr.gone.map(c=>c.base), ...tr.neu.map(c=>c.now), ...tr.rowTot.map(x=>x.value), ...tr.colTot.map(x=>x.value), tr.now, tr.base].filter(v=>v!==null && v!==undefined);
-  const sc = serScale(res, nums), bl = monthEndLabel(tr.bm), nl = tr.cm===0 ? 'сегодня' : 'на '+monthEndLabel(tr.cm), lab = v=>String(dimLabel(d, v));
+  const sc = serScale(res, nums), bl = monthEndLabel(tr.bm), nl = tr.cm===0 ? todayIs() : 'на '+monthEndLabel(tr.cm), lab = v=>String(dimLabel(d, v));
   const mx = xs=>Math.max(1e-9, ...xs.map(Math.abs)), offMax = mx(tr.cells.flatMap((row, i)=>row.filter((c, j)=>i!==j).map(c=>c.base))), dgMax = mx(tr.cells.map((row, i)=>row[i].base)), edMax = mx([...tr.gone.map(c=>c.base), ...tr.neu.map(c=>c.now)]);
   const lv = (v, m)=>{ const k = Math.abs(v) / m; return k>=.6 ? 3 : k>=.3 ? 2 : 1; };
   const sCls = (v, m)=>{ const k = Math.abs(v) / m; return k<.15 ? 'hm-s1' : k<.3 ? 'hm-s2' : k<.5 ? 'hm-s3' : k<.7 ? 'hm-s4' : k<.85 ? 'hm-s5' : 'hm-s6'; };
@@ -5287,8 +5318,8 @@ function srByBody(t, res, ops){
     const x = has(dl) ? rzDelta(ind, res, dl) : null, h = x && x.dir!=='flat' && x.dir!=='none' ? Math.max(1, Math.round(Math.abs(dl) / maxD * 16)) : 0;
     return `<span class="sb-p${lt ? ' lt' : ''}"${tipAttr(tip)}>${h ? `<span class="sb-b ${x.tone}${dl<0 ? ' dn' : ''}" style="height:${h}px"></span>` : ''}</span>`; }).join('');
   const chgCell = l=>{ const x = has(l.change) ? rzDelta(ind, res, l.change) : null; return `<span class="rz-d ${x ? x.tone : 'flat'}">${x ? x.text : '—'}</span>`; };
-  const go = l=>!ops || l.more || l.tot ? '' : d==='big' ? `DB.whoAt('${id}','big','${esc(l.v)}')` : `DB.deeper('${id}','${d}','${esc(l.v)}')`;
-  const cnt = l=>l.tot ? (ops ? ops.all(res.cnt) : '') : l.more ? `<span class="st">☰ ${nbsp(l.cnt)}</span>` : ops ? ops.ls(d, l.v, null, null, l.cnt) : '';
+  const go = l=>!ops || l.more || l.tot ? '' : d==='big' ? ops.spGo('big', l.v) : `DB.deeper('${id}','${d}','${esc(l.v)}')`;
+  const cnt = l=>l.tot ? (ops ? ops.sp(null, null, res.cnt) : '') : l.more ? `<span class="st">☰ ${nbsp(l.cnt)}</span>` : ops ? ops.sp(d, l.v, l.cnt) : '';
   const row = l=>l.down ? `<div class="sb-r dn"${tipAttr(l.down)}><span class="rz-nm">${esc(l.label)}${DN_TAG}</span><span class="rz-v dn">—</span><span class="sb-ps"></span><span class="rz-d flat">—</span><span class="rz-c"></span></div>`
     : `<div class="sb-r${l.more ? ' sb-more' : ''}${l.tot ? ' sb-tot' : ''}"${go(l) ? ` onclick="event.stopPropagation();${go(l)}"` : ''}${l.tot || l.more ? '' : tipAttr(l.label+': '+fmtVal(l.last, u)+(d==='big' ? '\nКлик — кто в этом числе' : '\nКлик — Ряд этого узла'))}><span class="rz-nm">${esc(l.tot ? 'итог' : l.label)}</span>`
     +`<span class="rz-v">${fmtVal(l.last, u)}</span><span class="sb-ps${chg ? ' chg' : ''}">${l.tot ? '' : bars(l)}</span>${chgCell(l)}<span class="rz-c">${cnt(l)}</span></div>`;
@@ -5597,19 +5628,23 @@ function openWho(tileId, node, path, from){
 }
 // узел — ключ для подсветки строки полосы, чей список открыт: только то, что выбирает узел (путь и выбор вида — у полосы)
 const nodeKey = n=>!n ? '[]' : JSON.stringify([n.d || null, n.v===undefined ? null : n.v, n.d2 || null, n.v2===undefined ? null : n.v2, n.m===undefined ? null : n.m, n.flow || null,
-  n.coh ? [n.coh.s, n.coh.len] : null, n.tr || null, n.fk===undefined ? null : n.fk, n.from===undefined ? '-' : n.from, n.to===undefined ? '-' : n.to]);
+  n.coh ? [n.coh.s, n.coh.len] : null, n.tr || null, n.fk===undefined ? null : n.fk, n.from===undefined ? '-' : n.from, n.to===undefined ? '-' : n.to, n.sp ? 1 : null]);
 const whoOn = (k, n)=>!!S.who && S.who.tile===k && S.who.nk===nodeKey(n);
 function closeWho(){ S.who = null; render(); return null; }
 // режим и разрезы вида — у полосы, с которой связан список: «Сумма | Изменение» полосы меняет список
 function whoOpt(w){ const o = w.fromStrip && S.open[w.tile], t = tileById(w.tile); let mode = 'sum', vd = [];
   if(o && t){ const s = viewSel(t, o.kind, o.sel, user(), o.path || [], S.panel); mode = ['slice', 'table', 'series', 'map'].includes(o.kind) && !(o.kind==='map' && s.axes==='trans') ? modeOf(o.sel) : 'sum';
     vd = o.kind==='slice' || o.kind==='table' ? [s.dim] : o.kind==='map' && s.axes!=='trans' ? (s.dims || []) : o.kind==='series' && s.by ? [s.by] : []; }
-  return { mode, share:w.share, q:w.q, sort:w.sort, viewDims:vd.filter(d=>d && d!=='big') }; }
+  // строка Ряда по разрезу в «Изменении»: «разница за период» — от первой точки до даты плитки; числа строк — из того же ответа, что рисует полоса
+  let span = null;
+  if(o && t && o.kind==='series' && mode==='change' && w.node && w.node.sp){ const r = cachedView(t, 'series', o.sel, o.path || [], user(), w.role!==undefined ? w.role : curRole(), S.panel), S0 = r && r.series;
+    if(S0 && S0.by && S0.points.length) span = { b:S0.points[0].m, n:S0.points[S0.points.length - 1].m, lines:S0.by.lines }; }
+  return { mode, share:w.share, q:w.q, sort:w.sort, viewDims:vd.filter(d=>d && d!=='big'), span }; }
 // модель панели — из снимка полосы (или ссылки), с правами смотрящего
 function whoModel(){ const w = S.who; if(!w || !tileById(w.tile)) return null; const o = S.open[w.tile];
   const snap = w.fromStrip && o ? o.snap : w.snap;
   return atSnap(snap, ()=>{ const m = whoList(tileById(w.tile), user(), w.role!==undefined ? w.role : curRole(), S.panel, w.node, w.path, whoOpt(w));
-    m.snapAt = snap ? snap.at : nowTime(); m.byLink = !!(w.link || (o && o.byLink)); return m; }); }
+    m.snapAt = snap ? snap.at : nowTime(); m.link = (w.fromStrip && o ? o.link : w.link) || null; return m; }); }
 // полоска доли: в «Сумме» — от левого края; в «Изменении» и у вклада со знаком — от середины, «+» вправо, «−» влево, цвет — по направлению показателя
 const wlBar = (pct, two, dir, v)=>{ if(pct===null || pct===undefined) return '';
   const w = Math.min(100, Math.abs(pct)), up = (v===undefined ? pct : v) >= 0, tone = dir==='up_bad' ? (up ? 'bad' : 'good') : dir==='up_good' ? (up ? 'good' : 'bad') : 'neu';
@@ -5623,7 +5658,7 @@ function whoPanelHTML(m){
   const crumbs = path.map((c, i)=>i===last && !m.head.node ? `<b>${esc(c)}</b>` : esc(c)).join('<span class="sep">›</span>')+(m.head.node ? '<span class="sep">›</span><b>'+esc(m.head.node)+'</b>' : '');
   const head = `<div class="wp-h"><div class="wp-tt"><h3 id="wp-t">${esc(m.head.title)}</h3><div class="wp-path">${crumbs}</div></div>
     <button class="sl-icon" aria-label="Действия панели" data-tip="Действия панели" onclick="DB.whoMenu(event)">${ICON_DOTS}</button><button class="sl-icon wp-x" aria-label="Закрыть" data-tip="Закрыть · Esc" onclick="DB.whoClose()">${ICON_X}</button></div>`;
-  const when = (m.byLink ? 'на '+m.snapAt+' · по ссылке' : '');
+  const lk = m.link, when = lk && lk.day ? 'по ссылке' : lk && lk.from ? 'по ссылке от '+lk.from : '';   // дата и момент ответа — в паспорте рядом
   const seen = w && w.seen && w.seen.mine!==null && w.seen.theirs!==null && w.seen.mine < w.seen.theirs ? `<div class="banner info wp-seen">У вас видно ${nbsp(w.seen.mine)} из ${nbsp(w.seen.theirs)}: ссылка открыта с вашими правами — строки вне вашего охвата не показаны</div>` : '';
   const exitBtn = ([k, n])=>`<button class="btn sm" onclick="DB.whoExit('${k}')">${esc(n)}</button>`;
   if(m.refused) return head+`<div class="wp-conv"><b>${esc(sentence(m.msg))}</b><span class="wp-meta">${esc([when, m.passport].filter(Boolean).join(' · '))}</span></div>${seen}
@@ -5636,7 +5671,7 @@ function whoPanelHTML(m){
   const sortSel = `<label class="wp-sort">Порядок <select aria-label="Порядок списка" onchange="DB.whoSort(this.value)">${sortOpts.map(([k, n])=>`<option value="${k}"${m.sort.k===k ? ' selected' : ''}>${esc(n)}${m.sort.k===k ? (m.sort.dir==='asc' ? ' ↑' : ' ↓') : ''}</option>`).join('')}</select></label>`;
   const tools = `<div class="wp-tools"><input type="search" class="wp-q" aria-label="Найти в списке" placeholder="Найти в списке…" value="${esc(w ? w.q : '')}" oninput="DB.whoSearch(this.value)">${fields}${shareSw}${sortSel}</div>`;
   const exits = `<div class="wp-exits">${m.exits.map(exitBtn).join('')}</div>`;
-  const today = m.byLink ? ` <button class="linky" onclick="${w && w.fromStrip ? `DB.stripRefresh('${esc(w.tile)}')` : 'DB.whoToday()'}">на сегодня</button>` : '';
+  const today = lk && lk.day ? ` <button class="linky" onclick="${w && w.fromStrip ? `DB.stripRefresh('${esc(w.tile)}')` : 'DB.whoToday()'}">на сегодня</button>` : '';
   const conv = `<div class="wp-conv"><b>${esc(m.conv.text)}</b><span class="wp-meta">${esc([when, m.passport].filter(Boolean).join(' · '))}${today}</span></div>`;
   // таблица: заголовки — порядок по колонке (повторный клик — обратный); значение и доля — справа
   const all = [...m.cols.map((c, i)=>[c.k, c.name, c.num, i>0]), ...m.valCols.map(([k, n])=>[k, n, !['how', 'was', 'inNum'].includes(k)]), ['pct', m.mode==='change' ? 'доля изменения' : 'доля в числе', true]];
@@ -5746,21 +5781,24 @@ function linkCount(st, u, roleId){ if(!st.who || !st.tile || !tileById(st.tile))
 function copyLink(id){ const st = stateOf(id ? { tile:id } : null); st.n = linkCount(st, user(), curRole()); const link = '#st='+encodeURIComponent(JSON.stringify(st));
   const url = HAS_DOM ? location.href.split('#')[0]+link : link;
   if(HAS_DOM && navigator.clipboard) navigator.clipboard.writeText(url).catch(()=>{});
-  toast('Ссылка скопирована: откроет то же место на '+(st.snap ? st.snap.at : nowTime())+' — у получателя со своими правами'); return link; }
+  toast('Ссылка скопирована: то же место от '+(st.snap ? st.snap.at : nowTime())+' — у получателя со своими правами; в другой день — на конец этого дня'); return link; }
 // открыть ссылку: своя такая же вкладка — она; полоса — тем же видом, путём и режимом; список — со своими правами; дата ссылки — только у полосы и списка
 function openLink(link){ let st; try { st = JSON.parse(decodeURIComponent(String(link).replace(/^.*#st=/, ''))); } catch(e){ return { error:'Ссылка не читается' }; }
   const u = user(), t = st.tile && tileById(st.tile); if(st.tile && !t) return { error:'Плитки по ссылке нет' };
   const tabOk = st.tab && (st.tab.kind==='role' ? u.roles.includes(st.tab.id) : !!screenById(st.tab.id));
   if(tabOk){ S.tab = { kind:st.tab.kind, id:st.tab.id }; S.lastTab[u.id] = S.tab; S.panel = st.panel || {}; }
   view = 'home'; S.open = {}; S.who = null; S.card = null;
-  const old = st.snap && st.snap.fresh < STAND.fresh, snap = old ? st.snap : snapNow();
+  // другой день — на конец дня ссылки: закрытый день статистика держит; тот же день — «сегодня» с моментом отправителя: внутридневного снимка
+  // у статистики нет. Стенд живёт одним днём: «открыли на следующий день» — ссылка скопирована вчера в то же время
+  const day = (st.snap && st.snap.day) || (STAND.linkNextDay ? TODAY.day - 1 : null), later = !day && !!st.snap && st.snap.fresh < STAND.fresh;
+  const snap = day ? snapDay(day) : snapNow(), lk = day ? { day:dayLabel(day) } : later ? { from:st.snap.at } : null;
   const onScreen = !!t && tabOk && homeItems().includes(st.tile);
-  if(onScreen && st.kind){ const o = placeStrip(st.tile, st.kind, JSON.parse(JSON.stringify(st.sel || {}))); o.path = JSON.parse(JSON.stringify(st.path || [])); o.snap = snap; if(old) o.byLink = true; }
+  if(onScreen && st.kind){ const o = placeStrip(st.tile, st.kind, JSON.parse(JSON.stringify(st.sel || {}))); o.path = JSON.parse(JSON.stringify(st.path || [])); o.snap = snap; if(lk) o.link = lk; }
   if(st.who && t){ const obj = IND[numQ(t, st.path || []).inds[0]].obj, roleId = tabOk && st.tab.kind==='role' ? st.tab.id : u.roles.find(r=>hasRight(r, obj)) || null;
     S.who = { tile:st.tile, node:st.who.node || null, path:st.path || [], nk:nodeKey(st.who.node), q:st.who.q || '', sort:st.who.sort || null, share:st.who.share || 'num',
-      fromStrip:onScreen && !!st.kind, role:onScreen ? curRole() : roleId, snap:onScreen || !old ? null : snap, link:old, seen:null };
-    const mine = linkCount(st, u, S.who.role); S.who.seen = { mine, theirs:st.n===undefined ? null : st.n }; }
-  S.link = { at:snap.at, old, tabOk, onScreen };
+      fromStrip:onScreen && !!st.kind, role:onScreen ? curRole() : roleId, snap:(onScreen && st.kind) || !day ? null : snap, link:lk, seen:null };   // список без полосы — свой снимок дня
+    const mine = linkCount(Object.assign({}, st, { snap }), u, S.who.role); S.who.seen = { mine, theirs:st.n===undefined ? null : st.n }; }
+  S.link = { at:snap.at, day:!!day, later, tabOk, onScreen };
   if(st.card && S.who){ const m = whoModel(); const i = m && !m.refused ? m.shown.findIndex(x=>x.id===st.card) : -1; if(i>=0) openCard(i); else render(); }
   else render();
   if(!tabOk && st.tab) toast('Вкладки «'+(st.tab.kind==='role' ? roleName(st.tab.id) : 'экран')+'» у вас нет — список открыт с вашими правами');
@@ -6170,7 +6208,9 @@ function renderStand(){
     <div class="form-step"><h4>Ночной прогон и начало дня</h4><button class="btn" onclick="DB.nightCheckRun()">Ночной прогон: снимок, сигналы, прогрев</button> <button class="btn" onclick="DB.morning()">Наступило утро</button>
       <div class="why">${S.warm ? `Прогрето ${S.warm.n} ${plural(S.warm.n, 'ответ', 'ответа', 'ответов')} для ${S.warm.m} ${plural(S.warm.m, 'держателя', 'держателей', 'держателей')} (в ${esc(S.warm.at)}) — закрытые даты плиток объявленных раскладок ролей: база сдвига, вчера, прошлый месяц; в кэше до следующего прогона.` : 'Ночного прогрева ещё не было.'}
         ${S.dawn ? `Утро: к отчётности ушло ${S.dawn.requests} ${plural(S.dawn.requests, 'запрос', 'запроса', 'запросов')}${S.dawn.warm ? ` — только «сегодня»; без прогрева было бы ${S.dawn.today + S.dawn.closed}` : ` — «сегодня» ${S.dawn.today} и закрытые даты ${S.dawn.closed}; с ночным прогревом было бы ${S.dawn.today}`}.` : ''}</div>
-      <div class="why">Прогрев — только объявленные раскладки ролей в охвате каждого держателя; личные плитки, свои экраны и полоса — по требованию, общий кэш тот же. Утром раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся.</div></div>
+      <div class="why">Прогрев — только объявленные раскладки ролей в охвате каждого держателя; личные плитки, свои экраны и полоса — по требованию, общий кэш тот же. Утром раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся.</div>
+      <div style="margin-top:8px">${chk('linkNextDay','ссылку открыли на следующий день: стенд живёт одним днём (11.10), поэтому ссылка считается скопированной вчера, 10.10, в то же время')}</div>
+      <div class="why">Ссылка другого дня открывает полосу и её список на конец дня ссылки — «на конец 10.10 · по ссылке» и «на сегодня»: закрытый день статистика держит. Ссылка того же дня отвечает «сегодня»: внутридневного снимка у статистики нет; пришли данные новее момента отправителя — «по ссылке от 14:15 · сейчас 14:20». Остальной экран — всегда сегодня.</div></div>
     <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')} ${chk('noAnswer','источник не ответил по нескольким кредитам на одну из дат')} ${chk('bigOther','комиссии без потоков: у части кредитов крупное начисление комиссий, Остаток получает большое «прочее»')}
       <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
       <div class="why">Кэш: попаданий ${S.cacheHits}, расчётов ${S.cacheMiss}. Ключ — «вопрос + охват», охваты не смешиваются.</div></div>`;
@@ -6249,10 +6289,10 @@ const api = {
   // «Обновить» в шапке — человек сам попросил: числа запрошены заново, открытые полосы берут новые данные (путь и вид остаются)
   refresh:()=>{ S.cache.clear(); Object.values(S.open).forEach(o=>{ o.snap = snapNow(); }); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
   // «Обновить» на плашке полосы: снимок — на сейчас, путь, вид и выбор остаются
-  stripRefresh:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; o.snap = snapNow(); delete o.byLink; if(S.who && S.who.tile===id) S.who.link = false; loadOf(o); render(); return { ok:true, at:o.snap.at, path:o.path.slice(), kind:o.kind }; },
+  stripRefresh:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; o.snap = snapNow(); delete o.link; if(S.who && S.who.tile===id) S.who.link = null; loadOf(o); render(); return { ok:true, at:o.snap.at, path:o.path.slice(), kind:o.kind }; },
   // панель «Кто в этом числе»: модель и разметка, поиск, порядок, доля, колонки, выходы; карточка из списка; ссылка на состояние
   whoPanel:()=>whoModel(), whoHTML:()=>whoPanelHTML(whoModel()), whoClose:()=>closeWho(), whoMenu:(e)=>whoMenu(e),
-  whoToday:()=>{ if(!S.who) return null; S.who.snap = null; S.who.link = false; render(); return whoModel(); },   // список по ссылке без полосы — «на сегодня»
+  whoToday:()=>{ if(!S.who) return null; S.who.snap = null; S.who.link = null; render(); return whoModel(); },   // список по ссылке без полосы — «на сегодня»
   whoSearch:(q)=>{ if(!S.who) return null; S.who.q = String(q || ''); renderWho(); return whoModel(); },
   whoSort:(k)=>{ if(!S.who) return null; const m = whoModel(), cur = m && m.sort; S.who.sort = cur && cur.k===k ? { k, dir:cur.dir==='asc' ? 'desc' : 'asc' } : { k, dir:k==='label' || k==='how' || (m && m.cols.some(c=>c.k===k && !c.num)) ? 'asc' : 'desc' }; renderWho(); return whoModel(); },
   whoShare:(k)=>{ if(!S.who) return null; S.who.share = k==='group' ? 'group' : 'num'; renderWho(); return whoModel(); },
@@ -6311,6 +6351,9 @@ const api = {
     return openWho(id, Object.keys(node).length ? node : null, (o || {}).path); }),
   // «☰ N» в строке полосы: главное число узла на дату плитки (то же, что число рядом), каким бы ни был вид
   whoNode:(id)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id]; return openWho(id, null, (o || {}).path); }),
+  // «☰» строки и итога Ряда по разрезу (и клик по строке «крупнейших»): список строки, в «Изменении» — разница за период
+  whoSpan:(id,d,v)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), d ? { d, v } : {}, { sp:true });
+    return openWho(id, node, (o || {}).path); }),
   whoMonthAt:(id,m,line)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], b = stripNode(tileById(id), o, user(), S.panel);
     return openWho(id, Object.assign({ m }, line ? { line } : {}, b.of ? { of:b.of } : {}), (o || {}).path); }),
   // поток Движения открытой полосы (key — ключ потока из res.move, 'other' — «прочее»; mv — месяц движения, по умолчанию выбранный в полосе): кто в этом потоке
