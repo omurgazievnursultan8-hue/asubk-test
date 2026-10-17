@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–17, 11–17.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–18, 11–17.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-256, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-259, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -135,6 +135,11 @@
 //      дня), «на сегодня», остальной экран сегодня, ссылка с такой полосы несёт день; панель на окне до 1100 px — экран целиком. Переписаны по смыслу
 //      ДБ-253 без ослабления: 393 (ссылка того же дня после новых данных — «сегодня» с меткой «по ссылке от 14:15 · сейчас 14:20», не снимок 14:15),
 //      400 («на сегодня» у списка без полосы — у ссылки другого дня). 407 — находка ревью: список по ссылке другого дня без полосы — на конец дня ссылки.
+//   AE волна 18 (17.10.2026), ДБ-257…ДБ-259, ДБ-Д71…ДБ-Д73: метаданные списка — на его дату, той же формой, что паспорт плитки (точка Ряда остатка и
+//      потока, ячейка Когорт; точка 30.09 = паспорту плитки «на 30.09», месяц потока = плитке «прошлый / текущий месяц»); у двух дат — «база → число» с
+//      закрытием и курсом каждой («Изменение» строки, точки Ряда, строки Ряда по разрезу; строка Движения, «пришли из», ячейка Переходов — те же даты,
+//      что у плиток «на 30.09» и «сегодня»); штамп «Выгрузить список», журнал выгрузок и журнал действий — тот же паспорт; ссылка другого дня —
+//      конец дня ссылки у «сегодня», точка 31.08 остаётся 31.08; плашка карточки — дата списка; курс — на дату паспорта, у периода — на его конец.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -4681,6 +4686,99 @@ const asUser = id => { DB.state.userId = id; };
   lead(); DB.who('lead-claims'); const lnT = DB.copyLink(); DB.stand('linkNextDay', true); const onT = DB.openLink(lnT), wTl = W(); DB.stand('linkNextDay', false);
   ok(407, onT.onScreen && !onT.open && wTl.link && wTl.link.day === '10.10' && /^на конец 10\.10 · день закрыт/.test(wTl.passport) && wTl.conv.matches,
     `ревью волны 17: список «Во взыскании» по ссылке другого дня без полосы, плитка у получателя на экране — «${wTl.conv.text}», «${wTl.passport.split(' · ').slice(0, 2).join(' · ')}» (ДБ-253, ДБ-254)`);
+  DB.seed();
+})();
+
+/* ---------- AE. Волна 18: шапка и штамп списка на его дату (ДБ-257…ДБ-259, ДБ-Д71); плашка карточки (ДБ-Д72), курс на дату паспорта (ДБ-Д73) ---------- */
+(() => {
+  const u1 = U('u1'), lead = () => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); };
+  const W = () => DB.whoPanel(), mln = v => DB.fmtVal(v, 'sum');
+  const strip = (id, kind, sets) => { DB.openView(id, kind); (sets || []).forEach(([k, v]) => DB.viewSet(id, k, v)); };
+  const OSH = [{ dim:'region', v:'Ошская' }], TUR = [{ dim:'program', v:'tur' }];
+  const meta = () => (/<span class="wp-meta">([^<]*)/.exec(DB.whoHTML()) || [])[1] || '';
+  // паспорт по частям: дата с закрытием · курс · охват и фильтр; две даты — «база → число» у даты и у курса, охват один раз
+  const parts = p => { const i = p.indexOf(' · сом, курс '), j = p.indexOf(' · видно'); return { d:p.slice(0, i), c:p.slice(i + 13, j), tail:p.slice(j) }; };
+  const two = (a, b) => { const A = parts(a), B = parts(b); return A.d + ' → ' + B.d + ' · сом, курс ' + A.c + ' → ' + B.c + B.tail; };
+  const at = (id, p, path) => DB.ask(withParams(T(id), p), u1, 'lead', {}, path).passport;
+  const mEnd = m => 'на ' + DB.monthEndLabel(m) + ' · месяц ' + (DB.monthClosed(m) ? 'закрыт' : 'не закрыт');
+
+  // ДБ-257: список на другую дату — метаданные на его дату той же формой, что паспорт плитки: точка Ряда остатка на конец 30.09 = паспорту плитки
+  // «на 30.09», точка 31.08 — своя дата и курс; точка потока за сентябрь = плитке «прошлый месяц», за октябрь = плитке «текущий месяц», за август —
+  // свой месяц; ячейка Когорт на конец 30.09 = плитке «на 30.09»; список на дату плитки — паспорт плитки, как прежде
+  lead(); const pToday = at('lead-od', {}, OSH), pPme = at('lead-od', { date:'prevMonthEnd' }, OSH);
+  strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice();
+  DB.whoMonthAt('lead-od', -2); const s2 = W(), h2 = meta(); DB.whoMonthAt('lead-od', -1); const s1 = W();
+  lead(); strip('lead-od', 'cohort'); DB.state.open['lead-od'].path = OSH.slice(); DB.whoCohort('lead-od', -9, 3, -1); const ch = W();
+  lead(); const pPrev = at('lead-paid', {}, TUR), pCur = at('lead-paid', { period:'curMonth' }, TUR);
+  strip('lead-paid', 'series'); DB.state.open['lead-paid'].path = TUR.slice();
+  DB.whoMonthAt('lead-paid', -2); const f2 = W(); DB.whoMonthAt('lead-paid', -1); const f1 = W(); DB.whoMonthAt('lead-paid', 0); const f0 = W();
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); const sm = W();
+  const p2 = mEnd(-2) + ' · сом, курс ' + DB.monthEndLabel(-2) + parts(pToday).tail;
+  ok(408, s2.passport === p2 && h2 === p2 && !/14:15/.test(s2.passport) && s2.head.node === 'на конец 31.08' && s2.conv.matches && s1.passport === pPme
+    && ch.passport === pPme && /на конец 30\.09$/.test(ch.head.node) && f2.passport === 'август · месяц закрыт · сом, курс 31.08' + parts(pPrev).tail && f2.conv.matches
+    && f1.passport === pPrev && f0.passport === pCur && sm.passport === pToday,
+    `метаданные списка на его дату: точка Ряда Ошской «на конец 31.08» — «${s2.passport}» (${s2.conv.text}), прежде — паспорт плитки «${parts(pToday).d}»; точка 30.09 и ячейка Когорт — как у плитки «на 30.09»; «Поступило» › Туризм за август — «${parts(f2.passport).d} · курс ${parts(f2.passport).c}», за сентябрь и октябрь — как у плиток «прошлый месяц» и «текущий месяц»; «Сумма» на дату плитки — паспорт плитки (ДБ-257, ДБ-Д71)`);
+
+  // ДБ-258: у списка двух дат — обе: база → число, у каждой своё закрытие и курс; «Изменение» строки, точки Ряда (остатка и потока), строки Ряда по
+  // разрезу; по умолчанию — строка Движения, «пришли из» и ячейка Переходов; первая дата — та же, что у колонки «на 30.09» / «за июль»
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.mode('lead-od', 'change'); DB.whoAt('lead-od', 'region', 'Ошская'); const cO = W(), hO = meta();
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.mode('lead-od', 'change'); DB.whoMonthAt('lead-od', -2); const cP = W();
+  lead(); strip('lead-paid', 'series'); DB.state.open['lead-paid'].path = TUR.slice(); DB.mode('lead-paid', 'change'); DB.whoMonthAt('lead-paid', -2); const cF = W();
+  lead(); strip('lead-paid', 'slice', [['dim', 'program']]); DB.mode('lead-paid', 'change'); DB.whoAt('lead-paid', 'program', 'tur'); const cS = W();
+  lead(); strip('lead-od', 'series', [['of', 'main'], ['by', 'region']]); DB.mode('lead-od', 'change');
+  const m0 = DB.view('lead-od', 'series', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}).series.points[0].m; DB.whoSpan('lead-od', 'region', 'Ошская'); const cR = W();
+  lead(); const pAll = at('lead-od', {}, []), pAllB = at('lead-od', { date:'prevMonthEnd' }, []);
+  strip('lead-od', 'move'); DB.whoFlowAt('lead-od', 'down'); const cM = W();
+  lead(); strip('lead-od', 'map', [['axes', 'trans']]); DB.whoTrans('lead-od', 'bucket', '31–90', '91–180'); const cT = W();
+  const cI = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'bucket', v:'91–180', from:'31–90' }, [], {});
+  ok(409, cO.passport === two(pPme, pToday) && hO === cO.passport && cO.valCols[0][1] === 'на 30.09' && cO.passport.startsWith(cO.valCols[0][1] + ' · ') && cO.conv.matches
+    && cP.passport === mEnd(-3) + ' → ' + mEnd(-2) + ' · сом, курс ' + DB.monthEndLabel(-3) + ' → ' + DB.monthEndLabel(-2) + parts(pToday).tail && cP.conv.matches
+    && cF.passport === 'июль · месяц закрыт → август · месяц закрыт · сом, курс 31.07 → 31.08' + parts(pPrev).tail && cF.valCols[0][1] === 'за июль' && cF.conv.matches
+    && cS.passport === 'август · месяц закрыт → ' + parts(pPrev).d + ' · сом, курс 31.08 → ' + parts(pPrev).c + parts(pPrev).tail
+    && cR.passport === mEnd(m0) + ' → ' + parts(pToday).d + ' · сом, курс ' + DB.monthEndLabel(m0) + ' → ' + parts(pToday).c + parts(pToday).tail && cR.conv.matches
+    && cM.passport === two(pAllB, pAll) && cT.passport === two(pAllB, pAll) && cI.passport === two(pAllB, pAll) && cM.conv.matches && cT.conv.matches && cI.conv.matches,
+    `две даты — база → число: Ошская в «Изменении» — «${cO.passport}» (${cO.conv.text}); точка Ряда 31.08 — «${parts(cP.passport).d}»; «Поступило» › Туризм за август — «${parts(cF.passport).d} · курс ${parts(cF.passport).c}», Разрез Туризма — «${parts(cS.passport).d}»; строка Ряда по разрезу — «${parts(cR.passport).d}»; строка Движения, «пришли из 31–90» и ячейка Переходов — те же две даты, что у плиток «на 30.09» и «сегодня» (ДБ-258)`);
+
+  // ДБ-259: «Выгрузить список» — в штампе паспорт списка слово в слово (у точки — её дата, у «Изменения» — обе), строка «Список» с узлом; журнал выгрузок
+  // и журнал действий несут тот же паспорт; даты плитки «на 14:15 · день не закрыт» в штампе списка точки нет
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2);
+  const eP = DB.whoExit('export'), wP = W(), lgP = DB.state.exportLog[0], jP = DB.state.journal[0];
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.mode('lead-od', 'change'); DB.whoAt('lead-od', 'region', 'Ошская'); const eC = DB.whoExit('export'), wC = W(), lgC = DB.state.exportLog[0];
+  const pass = e => e.stamp.filter(s => /^Паспорт: /.test(s));
+  ok(410, pass(eP).length === 1 && pass(eP)[0] === 'Паспорт: ' + wP.passport && eP.stamp.includes('Список: Просрочено › Ошская › на конец 31.08') && !eP.stamp.some(s => /день не закрыт/.test(s))
+    && lgP.list.passport === wP.passport && jP.action === 'выгрузил список' && jP.detail.endsWith(' · ' + wP.passport) && eP.csv.includes('# Паспорт: ' + wP.passport)
+    && pass(eC).length === 1 && pass(eC)[0] === 'Паспорт: ' + wC.passport && / → /.test(wC.passport) && eC.stamp.includes('Список: Просрочено › Ошская · изменение к 30.09') && lgC.list.passport === wC.passport,
+    `штамп выгрузки списка — с той же датой, что шапка: точка 31.08 — «${pass(eP)[0]}», «Список: Просрочено › Ошская › на конец 31.08»; «Изменение» Ошской — «${pass(eC)[0]}»; строка журнала выгрузок — тот же паспорт (ДБ-259, ИДБ-10)`);
+
+  // ссылка другого дня и того же дня (ДБ-253, ДБ-254) на списке не на дату плитки: «Изменение» — база 30.09 и конец дня ссылки, курс 30.09 → 10.10, «на
+  // сегодня» возвращает обе даты сегодняшнего дня; точка 31.08 по ссылке остаётся 31.08, точка «сегодня» — конец 10.10; тот же день — момент
+  // отправителя меткой, дата списка — своя
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.mode('lead-od', 'change'); DB.whoAt('lead-od', 'region', 'Ошская'); const lnC = DB.copyLink(); DB.stand('linkNextDay', true); DB.openLink(lnC);
+  const lC = W(), lH = DB.whoHTML(), lE = DB.whoExit('export'); DB.stand('linkNextDay', false); DB.stripRefresh('lead-od'); const lR = W();
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2); const lnP = DB.copyLink(); DB.stand('linkNextDay', true); DB.openLink(lnP); const lP = W(); DB.stand('linkNextDay', false);
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', 0); const lnZ = DB.copyLink(); DB.stand('linkNextDay', true); DB.openLink(lnZ); const lZ = W(); DB.stand('linkNextDay', false);
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2); const lnS = DB.copyLink(); DB.standFresh(); DB.openLink(lnS); const lS = W(), lSh = DB.whoHTML();
+  ok(411, lC.link && lC.link.day === '10.10' && /^на 30\.09 · месяц не закрыт → на конец 10\.10 · день закрыт · сом, курс 30\.09 → 10\.10 · видно /.test(lC.passport) && lC.conv.matches
+    && lH.includes('<span class="wp-meta">по ссылке · ' + lC.passport + ' <button class="linky" onclick="DB.stripRefresh(\'lead-od\')">на сегодня</button>') && lE.stamp.includes('Паспорт: ' + lC.passport)
+    && !lR.link && lR.passport === cO.passport && lP.passport === p2 && lZ.passport.startsWith('на конец 10.10 · день закрыт · сом, курс 10.10 · видно ') && lZ.head.node === 'на конец 10.10'
+    && lS.link && lS.link.from === '14:15' && lS.passport === p2 && lSh.includes('<span class="wp-meta">по ссылке от 14:15 · ' + p2),
+    `по ссылке на следующий день: «Изменение» Ошской — «${lC.passport}», штамп — тот же; «на сегодня» — «${parts(lR.passport).d}»; точка 31.08 по ссылке — «${parts(lP.passport).d}», точка «сегодня» — «${parts(lZ.passport).d}»; ссылка того же дня с новыми данными — «по ссылке от 14:15 · ${parts(lS.passport).d}» (ДБ-258, ДБ-253, ДБ-254)`);
+
+  // ДБ-Д72: плашка карточки — та же дата, что у списка: узел точки, ячейки Когорт и строки Движения называет её сам — «на 14:15» не дописывается;
+  // в «Изменении» — и база. ДБ-Д73: курс — на дату паспорта, у периода — на его конец: закрытый день — 10.10 (при сбое прогона — 09.10), текущий
+  // месяц и с начала года — 11.10, прошлый год — 31.12.2025; сегодня и прошлый месяц — как были
+  lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2); const kP = DB.openCard(0); DB.cardBack();
+  DB.mode('lead-od', 'change'); DB.whoMonthAt('lead-od', -2); const kPc = DB.openCard(0); DB.cardBack();
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.mode('lead-od', 'change'); DB.whoAt('lead-od', 'region', 'Ошская'); const kC = DB.openCard(0); DB.cardBack();
+  lead(); strip('lead-od', 'move'); DB.whoFlowAt('lead-od', 'down'); const kM = DB.openCard(0); DB.cardBack();
+  lead(); const fxOf = p => parts(p).c, bal = p => DB.ask(withParams(T('lead-bal'), p), u1, 'lead', {}).passport, paid = p => DB.ask(withParams(T('lead-paid'), p), u1, 'lead', {}).passport;
+  const cd = bal({ date:'closedDay' }); DB.STAND.nightRunFailed = true; const cdF = bal({ date:'closedDay' }); DB.STAND.nightRunFailed = false;
+  ok(412, /^Из дашборда: Просрочено › Ошская › на конец 31\.08 — вклад [^;]+; в карточке сейчас /.test(kP.plate) && !/14:15/.test(kP.plate)
+    && /^Из дашборда: Просрочено › Ошская › на конец 31\.08 — изменение к 31\.07 [^;]+;/.test(kPc.plate) && /^Из дашборда: Просрочено › Ошская на 14:15 — изменение к 30\.09 [^;]+;/.test(kC.plate)
+    && /с 30\.09 по сегодня — вклад /.test(kM.plate) && !/сегодня на 14:15/.test(kM.plate)
+    && fxOf(cd) === '10.10' && /^на 10\.10 \(вчера\)/.test(cd) && fxOf(cdF) === '09.10' && /^на 09\.10/.test(cdF) && fxOf(bal({})) === '11.10' && fxOf(bal({ date:'prevMonthEnd' })) === '30.09'
+    && fxOf(paid({ period:'curMonth' })) === '11.10' && fxOf(paid({ period:'ytd' })) === '11.10' && fxOf(paid({})) === '30.09' && fxOf(paid({ period:'prevYear' })) === '31.12.2025',
+    `плашка карточки — дата списка: «${kP.plate.split(' — ')[0]}», в «Изменении» — «${kPc.plate.split(';')[0]}»; курс на дату паспорта: «последний закрытый день» — ${fxOf(cd)} (при сбое прогона ${fxOf(cdF)}), «текущий месяц» и «с начала года» — ${fxOf(paid({ period:'curMonth' }))}, «прошлый год» — ${fxOf(paid({ period:'prevYear' }))} (ДБ-Д72, ДБ-Д73, ДБ-59)`);
   DB.seed();
 })();
 

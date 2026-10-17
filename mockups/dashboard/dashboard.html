@@ -1860,23 +1860,41 @@ function staleOf(q){
   if(!live && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — последний закрытый день 09.10';
   return null;
 }
-function passportOf(q, visible, opts){
-  const ctx = ctxOf(q); const parts = [], night = nightOnlyOf(q);
+// дата ответа словами и закрыта ли она: у плитки — по её вопросу, у списка — на его дату (точка Ряда, ячейка Когорт, база «Изменения»);
+// период без своего имени — месяц списка или база разницы
+function asOfText(q, ctx){
+  const night = nightOnlyOf(q);
   const at = night ? (STAND.nightRunFailed ? '02:00 10.10 · ночной прогон 11.10 не прошёл' : '02:00 · только ночью') : nowTime();   // на какое время число «сегодня»
   const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
-  if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
-    parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
-  else if(ctx.period){ const P = PERIODS[ctx.period], de = STAND.dayEnd;   // de — ответ на конец закрытого дня (ссылка другого дня)
-    if(ctx.period==='today') parts.push(de ? dayLabel(de)+' · день закрыт' : 'сегодня, на '+at+lag+' · день не закрыт');
-    else if(ctx.period==='curMonth') parts.push('01.10 → '+at+(de ? '' : ' · идёт '+TODAY.day+'-й день')+' · не закрыт');
-    else if(ctx.period==='prevMonth') parts.push(monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт'));
-    else if(ctx.period==='ytd') parts.push('01.01 → '+at+' · не закрыт');
-    else { const cl = P.months.filter(monthClosed).length; parts.push(P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')); } }
-  else { const pt = ctx.point;
-    if(pt.m===0 && !pt.day) parts.push(STAND.dayEnd ? 'на '+at+' · день закрыт' : 'на '+at+lag+' · день не закрыт');
-    else if(pt.day) parts.push(STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт');
-    else parts.push('на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт')); }
-  if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? (STAND.dayEnd ? dayLabel(STAND.dayEnd) : '11.10') : '30.09'));
+  if(ctx.period){ const P = PERIODS[ctx.period], de = STAND.dayEnd, own = !!P.label && P.label!=='база';   // de — ответ на конец закрытого дня (ссылка другого дня)
+    const cur = ()=>'01.10 → '+at+(de ? '' : ' · идёт '+TODAY.day+'-й день')+' · не закрыт', cl = P.months.filter(monthClosed).length;
+    if(ctx.period==='today') return de ? dayLabel(de)+' · день закрыт' : 'сегодня, на '+at+lag+' · день не закрыт';
+    if(ctx.period==='curMonth') return cur();
+    if(ctx.period==='prevMonth') return monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт');
+    if(ctx.period==='ytd') return '01.01 → '+at+' · не закрыт';
+    if(own) return P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто');
+    if(P.months.length===1){ const m = P.months[0]; if(m===0) return cur();
+      return monthName(m)+(monthOf(m).y!==2026 ? ' '+monthOf(m).y : '')+' · '+(monthClosed(m)?'месяц закрыт':'месяц не закрыт'); }
+    return monthShort(P.months[0])+' – '+monthShort(P.months[P.months.length - 1])+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто'); }
+  const pt = ctx.point;
+  if(pt.m===0 && !pt.day) return STAND.dayEnd ? 'на '+at+' · день закрыт' : 'на '+at+lag+' · день не закрыт';
+  if(pt.day) return STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт';
+  return 'на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт'); }
+// курс пересчёта в сомы — на дату ответа, у периода — на его конец: сегодня и незакрытый период — 11.10 (по ссылке другого дня — её день),
+// закрытый день — его дата, конец месяца и закончившийся период — конец месяца
+function fxOf(ctx){
+  const today = ()=>STAND.dayEnd ? dayLabel(STAND.dayEnd) : '11.10';
+  if(ctx.point){ const pt = ctx.point; if(pt.day) return STAND.nightRunFailed ? '09.10' : dayLabel(pt.day); return pt.m ? monthEndLabel(pt.m) : today(); }
+  const P = PERIODS[ctx.period], last = P.months[P.months.length - 1]; return last < 0 ? monthEndLabel(last) : today(); }
+// паспорт ответа: дата и закрытие, курс, охват, фильтр панели; opts.at — даты списка вместо даты плитки: одна или две (база → число)
+function passportOf(q, visible, opts){
+  const parts = [], at = opts && opts.at;
+  if(at){ parts.push(at.map(c=>asOfText(q, c)).join(' → ')); if(opts.fx) parts.push('сом, курс '+[...new Set(at.map(fxOf))].join(' → ')); }
+  else { const ctx = ctxOf(q);
+    if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
+      parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
+    else parts.push(asOfText(q, ctx));
+    if(opts && opts.fx) parts.push('сом, курс '+fxOf(ctx)); }
   parts.push('видно '+nbsp(visible));
   if(opts && opts.panelApplied && opts.panelApplied.length) parts.push('фильтр: '+opts.panelText);
   if(opts && opts.panelSkipped && opts.panelSkipped.length) parts.push('без фильтра');
@@ -2826,6 +2844,24 @@ const chgNode = node=>!node || (!node.flow && !mvNode(node) && !node.tr && !node
 function spanNumber(span, node, k){ const ls = node.d ? span.lines.filter(l=>l.v===node.v) : span.lines; let s = 0;
   for(const l of ls){ const xs = l[k] || [], a = xs[0], z = xs[xs.length - 1]; if(a===null || a===undefined || z===null || z===undefined) return null; s += z - a; }
   return s; }
+// метаданные списка на его дату: у точки Ряда и ячейки Когорт — их месяц; у «Изменения» (и у точки и строки Ряда в нём), строки Движения,
+// «пришли из / ушли в» и ячейки Переходов — обе даты, база → число; курс — на каждую дату; охват и фильтр — как у плитки.
+// null — список на дату плитки: его метаданные — паспорт плитки
+function listPassport(t, u, roleId, panel, node, path, chg, pts){
+  const q = userConds(numQ(t, path, node && node.of), u), I = IND[q.inds[0]], c0 = ctxOf(q), tmp = [];
+  const at = m=>{ if(I.kind==='stock') return { point:{ m }, tf:c0.tf }; const k = '__l'+tmp.length+':'+m; PERIODS[k] = { months:[m], partial:m===0 }; tmp.push(k); return { period:k, tf:c0.tf }; };
+  if(!chg && !(node && (mvNode(node) || node.tr || node.flow || node.m!==undefined))) return null;
+  const r = baseOf(t, u, roleId, panel, path); if(r.visible===undefined) return null;   // охват и фильтр — до временных периодов: ответ снимает свою базу
+  let B = null, ctxs = null;
+  try {
+    if(chg && pts) ctxs = [at(pts.b), at(pts.n)];
+    else if(chg || mvNode(node) || (node && node.tr)){ const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return null;
+      B = diffBase(c0, key); if(!B.none) ctxs = [B.ctx, c0]; }
+    else if(node && node.flow){ const M = node.mv || 0; ctxs = [at(M - 1), at(M)]; }
+    else if(node && node.m!==undefined) ctxs = [at(node.m)];
+    if(!ctxs) return null;
+    return passportOf(q, r.visible, { fx:I.unit==='sum', panelApplied:r.panelApplied, panelSkipped:r.panelSkipped, panelText:r.panelText, at:ctxs }); }
+  finally { if(B && B.done) B.done(); tmp.forEach(k=>{ delete PERIODS[k]; }); } }
 // модель панели: шапка, сходимость, колонки, строки, доля и черта «80 %», показанное после поиска, выходы
 // opt: { mode:'sum'|'change', share:'num'|'group', q:'', sort:{ k, dir }, viewDims:[…] }
 function whoList(tileId, u, roleId, panel, node, path, opt){
@@ -2849,7 +2885,9 @@ function whoList(tileId, u, roleId, panel, node, path, opt){
   const shareSw = isShare ? { on:grp ? 'group' : 'num' } : null;
   const exits = [['registry', 'Работать со списком'], ['worklist', 'Завести рабочий список'], ['export', 'Выгрузить список']];
   const base = { head, share:shareSw, mode:chg ? 'change' : 'sum', obj, unit:spec.unit, dir:spec.dir, tileId:t.id, node:node || null, path:path.slice(), exits };
-  if(sr.refused) return Object.assign(base, { refused:true, msg:sr.msg, count:sr.count, passport:sr.passport, exits:[['registry', 'Работать со списком'], ['slice', 'Открыть Разрез'], ['task', 'Выгрузка строк (задание статистики)']] });
+  // метаданные — на дату списка (у двух дат — обе), а не плитки: шапка и штамп выгрузки называют ту же дату, что и числа списка
+  const passport = listPassport(t, u, roleId, panel, node, path, chg, pts) || sr.passport;
+  if(sr.refused) return Object.assign(base, { refused:true, msg:sr.msg, count:sr.count, passport, exits:[['registry', 'Работать со списком'], ['slice', 'Открыть Разрез'], ['task', 'Выгрузка строк (задание статистики)']] });
   // дата строк списка: у точки Ряда и ячейки Когорт — их месяц, иначе — дата среза числа
   const ld = node && node.m!==undefined ? node.m : chg ? sr.cm : ctxMonth(ctxOf(userConds(q0, u)));
   const fixed = [...path.map(x=>x.dim), node && node.d, node && node.d2, node && node.fd, node && node.tr ? node.d : null];
@@ -2906,7 +2944,7 @@ function whoList(tileId, u, roleId, panel, node, path, opt){
   if(valCols.some(c=>c[0]==='was') && !rows.some(x=>x.was)) valCols.splice(valCols.findIndex(c=>c[0]==='was'), 1);
   if(grp && !chg) valCols.push(['inNum', 'в числе']);
   const shareNums = isShare ? shareCounts(t, u, roleId, panel, node, path) : null;
-  return Object.assign(base, { refused:false, cols, valCols, rows, shown, cut, conv, shownText, sort, q:qRaw, ld, passport:sr.passport, signed, weight:wt ? wt.name : null,
+  return Object.assign(base, { refused:false, cols, valCols, rows, shown, cut, conv, shownText, sort, q:qRaw, ld, passport, signed, weight:wt ? wt.name : null,
     count:cnt, shareNums, number, sum, matches, total:tot, baseLabel:sr.baseLabel || null, extraFields:listFieldsOf(obj).map(f=>Object.assign(f, { on:listExtraOf(u.id, obj).includes(f.dim) })) });
 }
 // «в числе 435 | вся группа 903» — счёт числителя и знаменателя доли на дату узла
@@ -5731,8 +5769,8 @@ function exportList(){ const m = whoModel(); if(!m || m.refused) return { refuse
   const rows = [all.map(x=>x[1]), ...m.shown.map(x=>all.map(([k])=>cell(x, k)))];
   const csv = [...stamp.map(s=>'# '+s), ...rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';'))].join('\n');
   S.lastExport = { stamp, rows, csv, kind:'xlsx' };
-  S.exportLog.unshift({ at:TODAY.label, who:S.userId, tile:t.id, kind:'xlsx', list:{ node:m.node, path:m.path, n:m.shown.length } });
-  journal('выгрузил список', whoNameOf(m)+' · строк: '+m.shown.length);
+  S.exportLog.unshift({ at:TODAY.label, who:S.userId, tile:t.id, kind:'xlsx', list:{ node:m.node, path:m.path, n:m.shown.length, passport:m.passport } });   // журнал — с той же датой, что штамп
+  journal('выгрузил список', whoNameOf(m)+' · строк: '+m.shown.length+' · '+m.passport);
   if(HAS_DOM) downloadCSV(); toast('Список выгружен: '+m.shown.length+' '+plural(m.shown.length, 'строка', 'строки', 'строк')+', штамп внутри файла');
   return S.lastExport; }
 // строка списка → карточка модуля-владельца на месте дашборда; плашка — контекст провала, шаги по списку в его порядке (с поиском)
@@ -5756,7 +5794,9 @@ function cardModel(){ const c = S.card, w = S.who; if(!c || !w) return null; con
   const contrib = !x ? null : m.mode==='change' ? x.v : m.count && x.w!==undefined ? x.w : x.v;
   const nowTxt = m.count && L.weight ? fmtVal(L.weight.f(r, 0), 'sum') : nowV===null ? 'нет в числе' : fmtVal(nowV, I.unit);
   const vTxt = contrib===null ? '—' : m.mode==='change' || m.signed ? mvSum(contrib, m.unit) : fmtVal(contrib, m.count ? 'sum' : m.unit);
-  const plate = 'Из дашборда: '+whoNameOf(m)+' на '+(m.snapAt || nowTime())+' — '+(m.mode==='change' ? 'изменение ' : m.count ? (L.weight ? L.weight.name.toLowerCase()+' ' : '') : 'вклад ')+vTxt+'; в карточке сейчас '+nowTxt;
+  // дата — как у списка: узел точки Ряда, ячейки Когорт и строки Движения называет её сам; в «Изменении» — и база
+  const dated = !!m.node && (m.node.m!==undefined || !!m.node.flow);
+  const plate = 'Из дашборда: '+whoNameOf(m)+(dated ? '' : ' на '+(m.snapAt || nowTime()))+' — '+(m.mode==='change' ? 'изменение '+(m.baseLabel ? m.baseLabel+' ' : '') : m.count ? (L.weight ? L.weight.name.toLowerCase()+' ' : '') : 'вклад ')+vTxt+'; в карточке сейчас '+nowTxt;
   const fields = [['Подпись', objLabel(obj, r, 0)], ...L.cols.map(cl=>[cl.name, cl.num && typeof cl.f(r, 0)==='number' ? fmtVal(cl.f(r, 0), cl.unit || 'pcs') : cl.f(r, 0)]), ...(L.weight ? [[L.weight.name, fmtVal(L.weight.f(r, 0), 'sum')]] : [])];
   return { id:c.id, obj, owner:OBJECTS[obj].owner, name:OBJECTS[obj].name, title:objLabel(obj, r, 0), plate, i:c.i, n:c.ids.length, step:(c.i + 1)+' из '+c.ids.length, fields, contrib, nowTxt }; }
 function cardHTML(){ const k = cardModel(); if(!k) return '<p class="muted">Карточки нет.</p>';
