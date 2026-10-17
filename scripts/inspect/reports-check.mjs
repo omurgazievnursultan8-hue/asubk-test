@@ -7,6 +7,12 @@
 // витрина потребителя и справочник форм (обязательная форма без шаблона — строка без кнопки).
 // Волна 36 (блок FF, #200–#210): колонки-даты официальной формы и их замки на сдаче, режим
 // времени и фильтр в виде и отчёте, заметки к строке и ячейке, линия динамики.
+// Волна 37 (блок GG, #211–#218): месяцы до запуска закрыты переносом «из легаси» (ОГ-Д11,
+// ADR-0307): календарь, сдача ФО-04, источник в паспорте и сноске, «в легаси не собиралось»,
+// не перенесённый месяц, нет действия «открыть».
+// Волна 38 (блок HH, #219–#227): месяц из легаси без итога (ОГ-Д12, ADR-0309) — пустые клетки
+// остатков, сдача законна, ИО-8 не срабатывает, остаток не восстанавливается, декабрь 2025 без итога
+// не перенесён; правка периода из легаси новой версией миграции с меткой выпусков (ADR-0307 п. 6).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -2057,16 +2063,19 @@ const DEV = 'изменено — не утверждённый состав';
     `(${jan.shown}), поток с начала года = событиям платежа (${ytd}), прошлый год — ${cell('pay-sum', 'c-ly').value}; ` +
     `остаток за период и поток на дату — пустая клетка с причиной, а не ноль (ОГ-35, ADR-0282 п. 3–4)`);
 
+  /* Волна 37: месяцы 2025 г. закрыты переносом «из легаси» (ADR-0307) — чтобы
+     показать отказ поимённо, стенд «теряет» два месяца, которых перенос не дал. */
   const pre = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
   const preRec = RP.ISS ? RP.ISS(pre.id) : RP.state.issues.find(i => i.id === pre.id);
+  delete RP.state.periods['январь 2025']; delete RP.state.periods['июль 2025'];
   const fin = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
   ok(201, pre.ok && preRec.passport.dates.length === 5 && has(preRec.passport.seams.join(), 'statRows (платёж)') &&
         !fin.ok && has(fin.why, 'закрыты все периоды формы') && has(fin.why, 'январь 2025') && has(fin.why, 'июль 2025') &&
         has(fin.why, '«С начала года — прошлый год»') && !has(fin.why, '2026'),
     `паспорт выпуска перечисляет каждую дату формы (${preRec.passport.dates.length}); окончательная сдача отказана ` +
-    `поимённо — не закрыты месяцы прошлого года колонки «аналогичный период»: «${fin.why.slice(0, 90)}…» (ОГ-35)`);
+    `поимённо, если месяц прошлого года колонки «аналогичный период» не закрыт: «${fin.why.slice(0, 90)}…» (ОГ-35)`);
 
-  ['январь','февраль','март','апрель','май','июнь','июль'].forEach(m => { RP.state.periods[m + ' 2025'] = { state:'закрыт' }; });
+  RP.seed(); as('auth');
   const fin2 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
   const rec2 = RP.state.issues.find(i => i.id === fin2.id);
   as('buh'); RP.reopenPeriod('июль 2026', 'правка платежа задним числом'); as('auth');
@@ -2081,8 +2090,8 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   const scr = RP.timeAnswer('t-pay04', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, { asOf:'2026-08-01', dept:'' });
   const old = RP.timeAnswer('t-overdue', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, { asOf:'2026-08-01', dept:'' });
-  ok(203, scr.ok && !scr.issuable.ok && has(scr.issuable.why, 'в сдачу идёт не режим экрана, а колонки-даты формы на 01.08.2026') &&
-        has(scr.issuable.why, 'январь 2025') && !old.issuable.ok && has(old.issuable.why, 'колонок-дат нет'),
+  ok(203, scr.ok && scr.issuable.ok && has(scr.issuable.why, 'в сдачу идёт не режим экрана, а колонки-даты формы на 01.08.2026') &&
+        has(scr.issuable.why, 'С начала года — прошлый год') && !old.issuable.ok && has(old.issuable.why, 'колонок-дат нет'),
     `сдача в режимах времени: у формы с колонками-датами сдаётся не режим экрана, а её объявленные даты от отчётной; ` +
     `у формы без них — по-прежнему «колонок-дат нет» (ОГ-35, ИО-21)`);
 
@@ -2179,9 +2188,243 @@ const DEV = 'изменено — не утверждённый состав';
   ok(210, has(s1, 'class="noted"') && has(s1, 'заметка к ячейке') && has(s1, 'Режим времени из вида «моя динамика»') &&
         has(s1, '<svg class="chart line"') && has(s1, 'Заметка к строке') && has(s1, 'к ячейке') &&
         has(s2, 'Колонки-даты формы — от отчётной даты 01.08.2026') && has(s2, 'С начала года — прошлый год') &&
-        has(s2, '2 400 000') && has(s2, 'колонки-даты') && has(s2, 'не закрыты январь 2025'),
+        has(s2, '2 400 000') && has(s2, 'колонки-даты') && !has(s2, 'Не закрыты:'),
     `экраны: на показе — значок заметки у строки и ячейки, режим из вида, линия динамики; у формы с колонками-датами — ` +
-    `таблица «строки × даты», даты в паспорте и названный отказ окончательной сдачи`);
+    `таблица «строки × даты», даты в паспорте; все месяцы колонок закрыты — строки «не закрыты» нет`);
+})();
+
+/* ---- GG. Месяц до запуска закрыт переносом «из легаси» (ОГ-Д11, ADR-0307, ИО-59, волна 37) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const P = RP.periods();
+  const lg = Object.keys(P).filter(m => P[m].origin === 'легаси');
+  const m25 = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'].map(m => m + ' 2025');
+  ok(211, lg.length === 13 && lg[0] === 'декабрь 2024' && lg[12] === 'декабрь 2025' && m25.every(m => lg.indexOf(m) !== -1) &&
+        lg.every(m => P[m].state === 'закрыт' && P[m].release === 'М-1' && P[m].by === 'Бекова Н.' &&
+          P[m].latches['учёт'] === 'закрыт' && P[m].latches['классификация'] === 'закрыт' && P[m].latches['статистика'] === 'закрыт') &&
+        !P['ноябрь 2024'] && P['январь 2026'].state === 'закрыт' && !P['январь 2026'].origin &&
+        SEAM.periodSource('май 2025').origin === 'легаси' && SEAM.periodSource('май 2025').events === true &&
+        SEAM.periodSource('январь 2026') === null,
+    `месяцы до запуска (${lg[0]} … ${lg[12]}, ${lg.length}) закрыты выпуском миграции М-1 один раз во всех колонках-защёлках ` +
+    `календаря (учёт · классификация · статистика), origin «легаси», актор — утвердивший выпуск; с января 2026 г. — свои ` +
+    `(ADR-0307 п. 1, 3)`);
+
+  const run = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec = RP.state.issues.find(i => i.id === run.id);
+  const tt = rec && rec.snapshot && rec.snapshot.timeTable;
+  ok(212, run.ok && run.kind === 'окончательный' && rec.passport.frozen && tt && tt.cols.length === 5 &&
+        tt.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ly').value === 2400000 &&
+        tt.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-y0').value === 77000000,
+    `прогон RP.issue('t-pay04', {params:{asOf:'2026-08-01'}, kind:'окончательный', recipient:'a-mf'}), отказывавший в волне 36 ` +
+    `«не закрыты январь 2025 … июль 2025», проходит: ${run.id}, снимок морозит 5 колонок, прошлый год — 2 400 000 (ОГ-35 без исключений)`);
+
+  const ps = rec.passport.sources || [];
+  const fc = RP.formColumns('t-pay04', '2026-08-01');
+  const col = id => fc.cols.find(c => c.id === id);
+  ok(213, ps.length === 2 && has(ps[0], '«На начало года»: из легаси — перенос, выпуск миграции М-1 от 30.12.2025') &&
+        has(ps[1], '«С начала года — прошлый год»: из легаси') && !ps.some(x => has(x, '«С начала года»:')) &&
+        col('c-ly').legacy.length === 7 && col('c-ytd').source === null && col('c-now').source === null &&
+        has(col('c-y0').source, 'утвердил Бекова Н.'),
+    `паспорт у колонки, касающейся месяцев до запуска, печатает источник: ${ps.map(x => x.split(':')[0]).join(', ')}; ` +
+    `у своих колонок — нет; у клетки отдельной пометки нет — источник свойство месяца (ADR-0307 п. 5)`);
+
+  const cAvg = fc.rows.find(r => r.id === 's-avg-late').cells;
+  const jan = RP.show('t-pay04', { asOf:'2026-01-01', dept:'' }, null).data.totals.find(x => x.id === 's-avg-late');
+  ok(214, cAvg.find(c => c.col === 'c-y0').value === null && cAvg.find(c => c.col === 'c-y0').gap === 'в легаси не собиралось' &&
+        cAvg.find(c => c.col === 'c-now').value !== null && (rec.passport.legacyGaps || []).length === 1 &&
+        has(rec.passport.legacyGaps[0], 'Средняя просрочка × «На начало года» — в легаси не собиралось') &&
+        rec.kind === 'окончательный' && !RP.show('t-pay04', { asOf:'2026-08-01', dept:'' }, null).data.soft.some(x => has(x, 'легаси')) &&
+        jan.value == null && jan.shown == null,
+    `месяц перенесён, а величины в легаси не собирали — клетка пустая «в легаси не собиралось», а не ноль; паспорт ` +
+    `перечисляет такую клетку, сдаче она не мешает; показ на 01.01.2026 тоже не печатает ноль (ADR-0307 п. 7)`);
+
+  delete RP.state.periods['март 2025'];
+  const lost = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const lostPre = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'предварительный' });
+  RP.seed(); as('auth');
+  const y25 = RP.formColumns('t-pay04', '2026-01-01');
+  const ly25 = y25.cols.find(c => c.id === 'c-ly');
+  ok(215, !lost.ok && has(lost.why, 'март 2025 — до запуска системы, переносом не закрыт (колонка «С начала года — прошлый год»)') &&
+        lostPre.ok && has(y25.why, 'январь 2024') && has(y25.why, 'переносом не закрыт') &&
+        has(ly25.source, 'состав: из легаси (декабрь 2024)') && has(ly25.source, 'до запуска, переносом не закрыты — январь 2024 — ноябрь 2024'),
+    `месяц, который перенос не дал, закрытым не объявлен: окончательная сдача отказывает поимённо — «${lost.why.slice(lost.why.indexOf('март'), lost.why.indexOf('март') + 60)}…», ` +
+    `предварительный выпуск законен; колонка поперёк границы переноса печатает состав (ADR-0307 п. 5, 7)`);
+
+  as('buh');
+  const rLeg = RP.reopenPeriod('май 2025', 'правка'), rDec = RP.reopenPeriod('декабрь 2025', 'правка');
+  const aLeg = RP.periodActions('май 2025'), aOwn = RP.periodActions('июль 2026');
+  const night = RP.nightRun('2026-01-01');
+  as('auth');
+  ok(216, !rLeg.ok && has(rLeg.why, 'действия «открыть» у него нет') && has(rLeg.why, 'ADR-0207 п. 4') &&
+        !rDec.ok && RP.periods()['декабрь 2025'].state === 'закрыт' && aLeg.actions.length === 0 && aLeg.origin === 'легаси' &&
+        aOwn.actions.join() === 'открыть заново' && !night.ok && has(night.why, 'загружен переносом из легаси'),
+    `период из легаси не переоткрывается даже главным бухгалтером: действий у него нет, у своего — «открыть заново»; ` +
+    `своего прогона по снимку переноса нет (ADR-0207 п. 4, ADR-0307 п. 4, 6)`);
+
+  vm.runInContext("LEGACY.months['май 2025'].events = false", sandbox);
+  const nf = RP.formColumns('t-pay04', '2026-08-01');
+  const nfFin = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  vm.runInContext("LEGACY.months['май 2025'].events = true", sandbox);
+  const lyPay = nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ly');
+  ok(217, lyPay.value === null && lyPay.gap === 'события в легаси не перенесены (май 2025)' &&
+        nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ytd').value === 400000 && nfFin.ok,
+    `поток за месяц без перенесённых событий — пустая клетка «${lyPay.gap}», а не «платежей не было»; месяц закрыт — ` +
+    `сдаче не мешает (ADR-0307 п. 7)`);
+
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s1 = win.VIEWS.issue.fn(), jr = win.VIEWS.journal.fn(), sb = win.VIEWS.subs.fn();
+  ok(218, has(s1, '<sup class="fn">1</sup>') && has(s1, '<sup class="fn">2</sup>') &&
+        has(s1, '«На начало года»: из легаси — перенос, выпуск миграции М-1') && has(s1, 'в легаси не собиралось') &&
+        has(s1, 'источник колонок') && has(s1, 'нет в легаси') &&
+        has(jr, 'Учётные периоды') && has(jr, 'декабрь 2024 — декабрь 2025') && has(jr, 'открыть нельзя') &&
+        (jr.match(/открыть заново — главный бухгалтер/g) || []).length === 3 &&
+        !has(sb, "RP.doNight('2026-01-01')") && has(sb, "RP.doNight('2026-08-01')"),
+    `экраны: форма — сноска у колонки «из легаси» и пустая клетка с причиной, паспорт — источник колонок; журнал — ` +
+    `строка периодов из легаси без кнопки «открыть»; подписки — нет ночного прогона по снимку переноса`);
+})();
+
+/* ---- HH. Месяц из легаси без итога (ОГ-Д12, ADR-0309) и правка периода из легаси новой версией
+        миграции (ADR-0307 п. 6), волна 38 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const P = RP.periods(), jul = SEAM.periodSource('июль 2025');
+  const cr = SEAM.statRows('credit', '2025-08-01', {}, RP.viewer().scope);
+  const pm = SEAM.statRows('payment', '2026-08-01', {}, RP.viewer().scope);
+  const sl = SEAM.statSlice('s-portfolio', null, {}, '2025-08-01', RP.viewer().scope);
+  ok(219, P['июль 2025'].state === 'закрыт' && P['июль 2025'].origin === 'легаси' && jul.totals === false &&
+        jul.events === true && SEAM.periodSource('июнь 2025').totals === true && !RP.hasSnapshot('2025-08-01') &&
+        cr.missing && cr.never && cr.substituted === null && has(cr.why, 'в легаси не собиралось') &&
+        pm.rows.some(r => r.id === 'pm-5' && r.date === '2025-07-12') && sl.value === null && sl.never && sl.why === 'в легаси не собиралось',
+    `июль 2025 г. перенесён одними событиями, без итога, и закрыт переносом, как остальные месяцы; шов на его конец ` +
+    `отвечает «нет навсегда» с признаком «из легаси» («${cr.why}»); событие июля (pm-5) перенесено (ADR-0309 п. 1–2)`);
+
+  const fc = RP.formColumns('t-port-ly', '2026-08-01');
+  const cell = (rid, cid) => fc.rows.find(r => r.id === rid).cells.find(c => c.col === cid);
+  const julPays = pm.rows.filter(p => p.date >= '2025-07-01' && p.date < '2025-08-01');
+  ok(220, fc.ok && fc.why === null && cell('s-portfolio', 'c-nly').value === null &&
+        cell('s-portfolio', 'c-nly').gap === 'в легаси не собиралось' && cell('s-overdue-cnt', 'c-nly').gap === 'в легаси не собиралось' &&
+        cell('s-portfolio', 'c-now').value === 64100000 && cell('pay-sum', 'c-mly').value === 1200000 &&
+        julPays.reduce((a, p) => a + p.amount, 0) === 1200000 && cell('pay-cnt', 'c-mly').value === 1 &&
+        fc.legacyGaps.length === 2 && fc.legacyGaps.every(g => has(g, '× «На отчётную дату — прошлый год» — в легаси не собиралось: итог месяца не перенесён (июль 2025)')) &&
+        fc.gaps.length === 0,
+    `форма «Портфель к прошлому году» на 01.08.2026: остатки на 01.08.2025 — пустые клетки «в легаси не собиралось», ` +
+    `паспорт перечисляет ${fc.legacyGaps.length}; поток за июль 2025 — из перенесённых событий (${cell('pay-sum', 'c-mly').value}, ` +
+    `платежей ${cell('pay-cnt', 'c-mly').value}) (ADR-0309 п. 1)`);
+
+  const fin = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec = RP.state.issues.find(i => i.id === fin.id);
+  /* «ещё нет»: системный месяц без снимка (июнь 2026 — снимка на 01.07.2026 в стенде на время проверки нет)
+     по-прежнему делает выпуск предварительным; колонка месяца из легаси без итога — нет. */
+  vm.runInContext("delete HIST['2026-07-01']; HIST_DATES.splice(HIST_DATES.indexOf('2026-07-01'), 1)", sandbox);
+  RP.TPL('t-port-ly').editions[0].timeCols.push({ id:'c-ms', kind:'на дату', at:'начало месяца', name:'На начало месяца' });
+  const soft = RP.show('t-port-ly', { asOf:'2026-08-01', dept:'' }, null).data.soft;
+  const pre = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const preRec = RP.state.issues.find(i => i.id === pre.id);
+  vm.runInContext("HIST['2026-07-01'] = clone(HIST0['2026-07-01']); HIST_DATES.splice(2, 0, '2026-07-01')", sandbox);
+  RP.seed(); as('auth');
+  ok(221, fin.ok && rec.kind === 'окончательный' && rec.passport.frozen && rec.passport.legacyGaps.length === 2 &&
+        rec.snapshot.timeTable.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').value === null &&
+        pre.ok && preRec.kind === 'предварительный' && has(preRec.note, 'снимка на 01.07.2026 нет') && has(preRec.note, 'ИО-8') &&
+        soft.length === 1 && !soft.some(x => has(x, 'прошлый год')) && RP.hasSnapshot('2026-07-01'),
+    `окончательная сдача проходит (${fin.id}): пустота морозится с причиной; ИО-8 у месяца из легаси не срабатывает, ` +
+    `а у системного месяца без снимка — по-прежнему: «${preRec.note.slice(0, 80)}…» (ADR-0309 п. 2)`);
+
+  /* Восстановления нет: даже если рядом лежит итог июня 2025 (вкладывается на время проверки), конец июля
+     не подставляется соседним снимком и не выводится из него и событий; ноль не ставится. */
+  vm.runInContext("HIST['2025-07-01'] = clone(HIST['2026-01-01']); HIST_DATES.push('2025-07-01')", sandbox);
+  const nb = SEAM.statSlice('s-portfolio', null, {}, '2025-08-01', RP.viewer().scope);
+  const nbRows = SEAM.statRows('credit', '2025-08-01', {}, RP.viewer().scope);
+  const nbCell = RP.formColumns('t-port-ly', '2026-08-01').rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly');
+  vm.runInContext("delete HIST['2025-07-01']; HIST_DATES.pop()", sandbox);
+  ok(222, nb.value === null && nb.never && nbRows.substituted === null && nbRows.rows.length === 0 &&
+        nbCell.value === null && nbCell.gap === 'в легаси не собиралось' &&
+        !RP.hasSnapshot('2025-07-01'),
+    `остаток на конец месяца без итога не восстанавливается: соседний итог на 01.07.2025 есть, а конец июля — пусто ` +
+    `«в легаси не собиралось», не подстановка соседнего снимка, не итог плюс события и не ноль (ADR-0309 п. 3)`);
+
+  const comp = RP.legacyComposition(); comp.months['декабрь 2025'].totals = false;
+  const cal = RP.migrationCalendar(comp);
+  const keep = RP.state.periods;
+  RP.state.periods = Object.assign(cal.periods, Object.keys(keep).filter(m => !keep[m].origin)
+    .reduce((a, m) => Object.assign(a, { [m]: keep[m] }), {}));
+  const decFin = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const decPre = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'предварительный' });
+  RP.seed(); as('auth');
+  ok(223, !cal.periods['декабрь 2025'] && cal.periods['ноябрь 2025'] && cal.notMigrated.length === 1 &&
+        cal.notMigrated[0].month === 'декабрь 2025' && has(cal.notMigrated[0].why, 'входящий остаток') &&
+        !decFin.ok && has(decFin.why, 'декабрь 2025 — до запуска системы, переносом не закрыт (колонка «На начало года»)') &&
+        decPre.ok && RP.periods()['декабрь 2025'].state === 'закрыт' && RP.legacyComposition().months['декабрь 2025'].totals === true &&
+        RP.migrationCalendar().notMigrated.length === 0,
+    `перенос без итога декабря 2025 (состав на копии): месяц перед запуском не перенесён и закрытым не объявлен — ` +
+    `«${cal.notMigrated[0].why.slice(0, 60)}…»; ФО-04 на 01.08.2026 отказывает поимённо, предварительный законен; ` +
+    `данные стенда не тронуты (ADR-0309 п. 4)`);
+
+  const f4 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const fOv = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
+  const fPre = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'предварительный' });
+  const fLy = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const n0 = RP.state.issues.length;
+  const noRole = RP.migrationRevision({ period:'декабрь 2025', why:'x', totals:{ 'kr-6':{ debt_main:6300000 } } });
+  as('buh');
+  const noWhy = RP.migrationRevision({ period:'декабрь 2025', totals:{ 'kr-6':{ debt_main:6300000 } } });
+  const own = RP.migrationRevision({ period:'июль 2026', why:'x', totals:{ 'kr-6':{ debt_main:1 } } });
+  const lostM = RP.migrationRevision({ period:'ноябрь 2024', why:'x', totals:{ 'kr-6':{ debt_main:1 } } });
+  const addT = RP.migrationRevision({ period:'июль 2025', why:'x', totals:{ 'kr-1':{ debt_main:1 } } });
+  const was01 = SEAM.statSlice('s-portfolio', null, {}, '2026-01-01', RP.viewer().scope).value;
+  const rev = RP.migrationRevision({ period:'декабрь 2025', why:'перенос М-1 взял остаток КД-2025/126 до последней проводки декабря',
+    totals:{ 'kr-6':{ debt_main:6300000 } } });
+  const now01 = SEAM.statSlice('s-portfolio', null, {}, '2026-01-01', RP.viewer().scope).value;
+  const same = RP.migrationRevision({ period:'декабрь 2025', why:'повтор', totals:{ 'kr-6':{ debt_main:6300000 } } });
+  const log = RP.rewriteLog();
+  ok(224, !noRole.ok && has(noRole.why, 'утверждает человек') && !noWhy.ok && has(noWhy.why, 'без основания') &&
+        !own.ok && has(own.why, 'открытием периода') && !lostM.ok && has(lostM.why, 'перенос не дал') &&
+        !addT.ok && has(addT.why, 'ОГ-Д13') && !same.ok && has(same.why, 'версия без замен') &&
+        rev.ok && rev.release === 'М-2' && log.length === 1 && log[0].by === 'Бекова Н.' && log[0].release === 'М-2' &&
+        log[0].was === 6100000 && log[0].now === 6300000 && has(log[0].what, 'итог на 01.01.2026 · КД-2025/126') &&
+        was01 === 77000000 && now01 === 77200000 && RP.migrations().length === 2 && RP.migrations()[1].of === 'М-1',
+    `правка периода из легаси — новая версия миграции ${rev.release}: утверждает человек (${log[0].by}), основание обязательно, ` +
+    `строка журнала перезаписи «было → стало» (${log[0].was} → ${log[0].now}); итог на 01.01.2026 ${was01} → ${now01}; ` +
+    `свой период, не перенесённый месяц, итог месяцу без итога и версия без замен — отказы (ADR-0307 п. 6)`);
+
+  const I = id => RP.state.issues.find(i => i.id === id);
+  const rc = RP.recompute(f4.id);
+  const lyBefore = I(fLy.id).diverged, n1 = RP.state.issues.length;
+  const evRev = RP.migrationRevision({ period:'июль 2025', why:'событие pm-5 перенесено с ошибкой суммы',
+    events:{ 'pm-5':{ amount:1150000 } } });
+  ok(225, rev.marked.join() === f4.id && I(f4.id).diverged && has(I(f4.id).divergedWhy, 'числа изменились после сдачи: новая версия миграции М-2') &&
+        rc.diffs.length === 1 && rc.diffs[0].name === 'Остаток основного долга, всего × «На начало года»' &&
+        !I(fOv.id).diverged && !I(fPre.id).diverged && !lyBefore && n1 === n0 && RP.state.issues.length === n0 &&
+        I(f4.id).kind === 'окончательный' && !I(f4.id).correctedBy &&
+        evRev.ok && evRev.release === 'М-3' && evRev.marked.indexOf(fLy.id) !== -1 && evRev.marked.indexOf(f4.id) !== -1 &&
+        has(I(fLy.id).divergedWhy, 'М-3 (июль 2025)') && has(I(f4.id).divergedWhy, '; затем новая версия миграции М-3'),
+    `выпуски на прежних числах метятся «числа изменились после сдачи», как при перезакрытии (ИО-34): ${f4.id} — через ` +
+    `колонку «На начало года»; выпуск без этой колонки и предварительный не метятся; новых выпусков нет — не ` +
+    `переиздаются; правка события июля 2025 (месяц без итога) — версия ${evRev.release}, метит ${evRev.marked.join(', ')}, ` +
+    `причины у выпуска копятся`);
+
+  const act = RP.periodActions('декабрь 2025'), re = RP.reopenPeriod('декабрь 2025', 'правка');
+  RP.state.view = 'journal'; const jr = win.VIEWS.journal.fn();
+  as('auth');
+  ok(226, act.actions.length === 0 && act.origin === 'легаси' && act.release === 'М-2' && !re.ok &&
+        has(re.why, 'действия «открыть» у него нет') && RP.periods()['декабрь 2025'].state === 'закрыт' &&
+        RP.periods()['июль 2025'].revisions.join() === 'М-3' &&
+        has(jr, 'Журнал перезаписи') && has(jr, 'итог на 01.01.2026 · КД-2025/126 · остаток основного долга') &&
+        has(jr, '6 100 000 → 6 300 000') && has(jr, 'числа изменились после сдачи: новая версия миграции М-2') &&
+        has(jr, 'декабрь 2025 — правка версией М-2') && has(jr, 'Новая версия миграции') && !has(jr, 'RP.reopenPeriod(\'декабрь 2025'),
+    `после правки период по-прежнему закрыт из легаси и действия «открыть» у него нет; журнал выпусков печатает ` +
+    `журнал перезаписи, версию у периода и метку у выпуска (ADR-0207 п. 4, ADR-0307 п. 6)`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s1 = win.VIEWS.issue.fn();
+  const sc = win.VIEWS.showcase.fn();
+  ok(227, has(s1, 'На отчётную дату — прошлый год') && (s1.match(/>в легаси не собиралось</g) || []).length === 2 &&
+        has(s1, 'итог месяца не перенесён (июль 2025)') && has(s1, 'нет в легаси') && has(s1, '1 200 000') &&
+        !has(s1, 'Не закрыты:') && has(sc, 'Портфель к прошлому году'),
+    `экраны: форма «Портфель к прошлому году» — две пустые клетки «в легаси не собиралось» и поток июля 2025 из ` +
+    `событий, паспорт называет клетки; форма стоит в витрине`);
 })();
 
 /* ---- отчёт ---- */
