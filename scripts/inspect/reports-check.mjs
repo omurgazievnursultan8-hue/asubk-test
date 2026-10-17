@@ -19,6 +19,9 @@
 // месяца из легаси находит снимок, выпуск не предварительный; шов платежей внутри 2025 г. отвечает событиями.
 // Волна 41 (блок KK, #240–#246): хвост ОГ-Д6 — снимки своих месяцев 01.02…01.05.2026; смена методики показателя
 // между датами колонок, сравнения и динамики (ADR-0285 п. 2, 4); подписка на вид; сигнал по фильтру и «в любой строке».
+// Волна 42 (блок LL, #247–#252): майский взнос КД-2024/203 (pm-9) и сверка «остаток ↔ события» по снимкам; смена
+// методики официальной формы после утверждения — уведомление, «ожидает решения», отказ окончательной сдачи на даты
+// новой версии, подтверждение новой редакцией (ADR-0285 п. 3).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -1728,7 +1731,7 @@ const DEV = 'изменено — не утверждённый состав';
   const live = SEAM.objectRows('payment', { of:'kr-2' }, RP.viewer().scope.slice()).rows;
   const pm3 = rp.rows.find(x => x.id === 'pm-3') || {};
   ok(173, rp.seam === 'statRows' && rp.asOf === '2026-01-01' && rp.rows.length === 4 && pm3.amount === 500000 &&
-        !rp.rows.some(x => x.id === 'pm-8') && live.length === 5 && live.find(x => x.id === 'pm-3').amount === 550000 &&
+        !rp.rows.some(x => x.id === 'pm-8') && live.length === 6 && live.find(x => x.id === 'pm-3').amount === 550000 &&
         at.data.passport.repeats[0].seam === 'statRows',
     `акт сверки на 01.01.2026 — тело из того же снимка, что шапка: ${rp.rows.length} строки statRows, pm-3 — ` +
     `${pm3.amount} (исправлен 10.02 на 550 000 — в акт не попадает), pm-8 от 15.03.2026 в снимке нет; ` +
@@ -1801,11 +1804,11 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('clerk');
   const f2 = RP.pdfFill('t-bankform', 'kr-2'), f6 = RP.pdfFill('t-bankform', 'kr-6');
   const fin = RP.issue('t-bankform', { params:{ obj:'kr-2' }, kind:'окончательный' });
-  ok(180, f2.ok && f2.continuation === 2 && f2.inForm === 3 && f2.pages === 2 && f2.baked &&
+  ok(180, f2.ok && f2.continuation === 3 && f2.inForm === 3 && f2.pages === 2 && f2.baked &&
         f2.fields.find(x => x.name === 'chkGuarantee').value === '☐' && f6.fields.find(x => x.name === 'chkGuarantee').value === '☒' &&
         f2.fields.find(x => x.name === 'BankNote').how === 'оставлено пустым' &&
         has(f2.fields.find(x => x.name === 'DebtAmount').value, 'пять миллионов сто тысяч') &&
-        fin.ok && fin.rec.pdf && fin.rec.pdf.pages === 2 && fin.rec.pdf.continuation === 2 &&
+        fin.ok && fin.rec.pdf && fin.rec.pdf.pages === 2 && fin.rec.pdf.continuation === 3 &&
         RP.state.issues.filter(i => i.tpl === 't-bankform').length === 1,
     `PDF-форма заполняется своим кодом: поля запечены, флажок — условием (☐ у КД-2024/203, ☒ у КД-2025/126), ` +
     `«оставить пустым» — явный выбор; 5 платежей — 3 в форме и 2 на листе продолжения того же PDF: один выпуск (ADR-0297 п. 7–8)`);
@@ -1968,10 +1971,10 @@ const DEV = 'изменено — не утверждённый состав';
   const stock = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01' }, P);
   const turn = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01', turnover:true }, P);
   ok(192, !stock.ok && has(stock.why, 'остаток: за период он не складывается') &&
-        turn.ok && turn.rows[0].value === 400000 && turn.lines.map(l => l.id).join() === 'pm-8' &&
+        turn.ok && turn.rows[0].value === 900000 && turn.lines.map(l => l.id).join() === 'pm-8,pm-9' &&
         turn.passport.seam === 'statRows (платёж)',
     `«за период» — обороты событий: остаток за период не складывается (отказ с путём «сравнение»), платежи ` +
-    `01.01–01.08.2026 — 400 000 сом из снимка статистики (pm-8)`);
+    `01.01–01.08.2026 — 900 000 сом из снимка статистики (pm-8, pm-9)`);
 
   const orF = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]] };
   const or = RP.filterAnswer('t-overdue', P, orF);
@@ -2069,7 +2072,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(200, fc.ok && fc.cols.length === 5 && fc.dates.length === 5 &&
         has(fc.dates.join(), 'На начало года — на 01.01.2026') && has(fc.dates.join(), '01.01.2025 — 31.07.2025') &&
         cell('s-portfolio', 'c-now').value === now.shown && cell('s-portfolio', 'c-y0').value === jan.shown &&
-        cell('pay-sum', 'c-ytd').value === ytd && ytd === 400000 && cell('pay-sum', 'c-ly').value === 2400000 &&
+        cell('pay-sum', 'c-ytd').value === ytd && ytd === 900000 && cell('pay-sum', 'c-ly').value === 2400000 &&
         cell('pay-cnt', 'c-ly').value === 3 && cell('pay-sum', 'c-m').value === 0 &&
         cell('s-portfolio', 'c-m').value === null && has(cell('s-portfolio', 'c-m').gap, 'не складывается') &&
         cell('pay-sum', 'c-now').value === null && has(cell('pay-sum', 'c-now').gap, 'за период'),
@@ -2283,7 +2286,7 @@ const DEV = 'изменено — не утверждённый состав';
   vm.runInContext("LEGACY.months['май 2025'].events = true", sandbox);
   const lyPay = nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ly');
   ok(217, lyPay.value === null && lyPay.gap === 'события в легаси не перенесены (май 2025)' &&
-        nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ytd').value === 400000 && nfFin.ok,
+        nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ytd').value === 900000 && nfFin.ok,
     `поток за месяц без перенесённых событий — пустая клетка «${lyPay.gap}», а не «платежей не было»; месяц закрыт — ` +
     `сдаче не мешает (ADR-0307 п. 7)`);
 
@@ -2705,6 +2708,91 @@ const DEV = 'изменено — не утверждённый состав';
         has(subsScr, 'Региональное представительство «Ош» — 5 550 000'),
     `экраны: форма на 01.07.2026 — пометка «м» у строки и сноска о смене методики, паспорт — строка «методика»; ` +
     `подписки — уведомление сигнала по строке`);
+})();
+
+/* ---- LL. Майский взнос и сверка «остаток ↔ события»; смена методики после утверждения формы
+        (ADR-0285 п. 3), волна 42 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c => vm.runInContext(c, sandbox);
+  const H = ev('HIST'), D = ev('HIST_DATES.slice()'), O = ev('OBJECTS');
+  const pays = O.filter(o => o.type === 'payment' && o.kind === 'основной долг');
+  /* Сверка: изменение остатка между соседними снимками против основных платежей между ними
+     (сумма — как её знал поздний снимок). */
+  const gaps = [];
+  for (let i = 1; i < D.length; i++) { const a = D[i - 1], b = D[i];
+    Object.keys(H[b]).forEach(id => { if (!H[a][id]) return;
+      const delta = H[a][id].debt_main - H[b][id].debt_main;
+      const evs = pays.filter(p => p.credit === id && p.date >= a && p.date < b)
+        .reduce((x, p) => x + (p.was && b < p.was.until ? p.was.amount : p.amount), 0);
+      if (delta !== evs) gaps.push({ id, a, b, delta, evs }); }); }
+  const kr2 = gaps.filter(g => g.id === 'kr-2'), kr1 = gaps.filter(g => g.id === 'kr-1');
+  const f6 = RP.formColumns('t-pay04', '2026-06-01');
+  const may = f6.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-m');
+  ok(247, kr2.length === 2 && kr2.every(g => g.a >= '2026-06-01') && kr1.every(g => g.a >= '2026-01-01') &&
+        !gaps.some(g => g.a === '2026-05-01' && g.id === 'kr-2') && gaps.every(g => g.delta > 0 && g.evs === 0) &&
+        may.value === 500000 && f6.rows.find(r => r.id === 'pay-cnt').cells.find(c => c.col === 'c-m').value === 1,
+    `майский взнос КД-2024/203 (pm-9, 500 000) закрыл разрыв 01.05 → 01.06.2026: поток за май — ${may.value}; сверка ` +
+    `«остаток ↔ события»: КД-2024/203 сходится по 01.06.2026, КД-2024/117 — весь 2025 г.; остальные ${gaps.length} ` +
+    `снижений остатка — погашения по графику без событий (допущение стенда), роста без события нет`);
+
+  const pend = RP.methodPending('t-pay04'), auth = RP.notices().filter(n => n.kind === 'методика');
+  as('user'); const userN = RP.notices().filter(n => n.kind === 'методика'); as('auth');
+  ok(248, pend.length === 1 && pend[0].stat === 's-avg-late' && pend[0].n === 2 && pend[0].declared === '2026-08-22' &&
+        RP.methodPending('t-port-ly').length === 0 && RP.methodPending('t-overdue').length === 0 &&
+        auth.length === 1 && has(auth[0].text, '«Погашения и портфель за период»: показатель формы изменился — «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
+        has(auth[0].text, 'Подтвердите новую редакцию') && userN.length === 0,
+    `версия «Средней просрочки», объявленная 22.08.2026 после утверждения формы (20.08), ставит форму в «ожидает ` +
+    `решения»; уполномоченный получает уведомление, пользователь — нет; версия «Кредитов с просрочкой» с запуска ` +
+    `(раньше утверждения) решения не ждёт (ADR-0285 п. 3)`);
+
+  const f8 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec8 = RP.state.issues.find(i => i.id === f8.id);
+  /* Даты новой версии: снимок 01.10.2026 (состояние на 30.09) и закрытые август, сентябрь — на время проверки. */
+  ev("HIST['2026-10-01'] = clone(HIST['2026-08-01']); HIST_DATES.push('2026-10-01')");
+  RP.state.periods['август 2026'] = { state:'закрыт' }; RP.state.periods['сентябрь 2026'] = { state:'закрыт' };
+  const f9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'окончательный', recipient:'a-mf' });
+  const p9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'предварительный' });
+  const recP9 = RP.state.issues.find(i => i.id === p9.id);
+  ok(249, f8.ok && rec8.kind === 'окончательный' && !rec8.passport.awaiting &&
+        !f9.ok && has(f9.why, 'форма ожидает решения по методике: «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
+        p9.ok && recP9.passport.awaiting.length === 1,
+    `окончательная сдача на 01.08.2026 (все даты — прежней версии) проходит без пометки; на 01.10.2026 — отказ ` +
+    `«${String(f9.why).slice(0, 70)}…»; предварительный выпуск законен и несёт пометку в паспорте (ADR-0285 п. 3)`);
+
+  as('user'); const noRole = RP.confirmMethod('t-pay04'); as('auth');
+  const conf = RP.confirmMethod('t-pay04');
+  const t4 = RP.TPL('t-pay04'), ed2 = t4.editions.find(e => e.n === 2);
+  const g9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec9 = RP.state.issues.find(i => i.id === g9.id);
+  const again = RP.confirmMethod('t-pay04');
+  ok(250, !noRole.ok && has(noRole.why, 'утверждает уполномоченный') && conf.ok && conf.edition === 2 &&
+        ed2.state === 'утверждена' && JSON.stringify(ed2.stats) === JSON.stringify(t4.editions[0].stats) &&
+        has(ed2.changed, '«Средняя просрочка» версия 2 с 01.09.2026') && RP.methodPending('t-pay04').length === 0 &&
+        RP.notices().filter(n => n.kind === 'методика').length === 0 && g9.ok && rec9.ed === 2 && !rec9.passport.awaiting &&
+        RP.state.issues.find(i => i.id === f8.id).ed === 1 && RP.state.issues.find(i => i.id === f8.id).kind === 'окончательный' &&
+        !again.ok && has(again.why, 'не ждёт'),
+    `решение — новая редакция ${conf.edition} того же состава (утвердил уполномоченный): ожидание снято, ` +
+    `уведомления нет, сдача на 01.10.2026 проходит по ред. 2; сданное по ред. 1 не тронуто (ADR-0285 п. 3–4)`);
+  ev("delete HIST['2026-10-01']; HIST_DATES.pop()");
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s8 = win.VIEWS.issue.fn(), sub = win.VIEWS.subs.fn();
+  as('user'); const s8u = win.VIEWS.issue.fn(); as('auth');
+  ok(251, has(s8, 'Ожидает решения по методике.') && has(s8, 'RP.doConfirmMethod(\'t-pay04\')') &&
+        has(s8u, 'Ожидает решения по методике.') && !has(s8u, 'RP.doConfirmMethod') &&
+        has(sub, 'показатель формы изменился'),
+    `экраны: у формы — плашка «ожидает решения по методике», кнопка «Подтвердить новую редакцию» — только ` +
+    `уполномоченному; уведомление — на экране подписок`);
+
+  RP.seed(); as('auth');
+  const fc7 = RP.formColumns('t-port-ly', '2026-07-01');
+  ok(252, fc7.methods.length === 1 && RP.methodPending('t-port-ly').length === 0 &&
+        RP.formColumns('t-pay04', '2026-08-01').methods.length === 0,
+    `пометки волны 41 не сдвинулись: «Кредитов с просрочкой» в «Портфеле к прошлому году» на 01.07.2026 — как было; ` +
+    `у «Средней просрочки» до 01.09.2026 версия одна — пометки сравнения нет`);
 })();
 
 /* ---- отчёт ---- */
