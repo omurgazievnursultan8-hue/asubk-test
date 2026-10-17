@@ -53,19 +53,19 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   as('user');
   const pub = RP.publish('t-osh');
-  ok(2, !pub.ok && has(pub.why, 'публикует уполномоченный') && has(pub.why, 'ИО-1'),
+  ok(2, !pub.ok && has(pub.why, 'утверждает уполномоченный') && has(pub.why, 'ИО-1'),
     `пользователь опубликовать не может: «${pub.why.slice(0, 70)}…»`);
 
   as('auth');
   const st0 = RP.tplState('t-osh');
   const pub2 = RP.publish('t-osh');
   const st1 = RP.tplState('t-osh');
-  ok(3, st0.state === 'черновик' && pub2.ok && st1.state === 'опубликован',
+  ok(3, st0.state === 'черновик' && pub2.ok && st1.state === 'утверждён',
     `состояние шаблона СЧИТАЕТСЯ, а не хранится: «${st0.state}» → «${st1.state}» после публикации`);
 
   as('auth');
   const iss = RP.issue('t-avg', { params:{}, kind:'предварительный' });
-  ok(4, !iss.ok && has(iss.why, 'только опубликованную редакцию'),
+  ok(4, !iss.ok && has(iss.why, 'только утверждённую редакцию'),
     `выпуск личного черновика отклонён: «${iss.why.slice(0, 60)}…»`);
 })();
 
@@ -78,7 +78,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const bas = ref.find(c => c.check === 'основание');
   ok(5, sub && has(sub.why, 'в макете ${Кредит.ОстатокОсн}') && has(sub.why, 'такого поля не объявляет'),
     `подстановка не из перечня названа дословно: «${sub ? sub.why : '—'}»`);
-  ok(6, bas && has(bas.why, 'сослаться на пункт нормы может только публикующий'),
+  ok(6, bas && has(bas.why, 'сослаться на пункт нормы может только утверждающий'),
     `норму называет публикующий, а не автор черновика: «${bas ? bas.why.slice(0, 70) : '—'}…»`);
 
   const npl = RP.publishChecks('t-npl');
@@ -312,13 +312,20 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   /* Сдаёт разрез тот, за кем обязательство: уполномоченный его показывает, а
      окончательно выпускает Осмонова Г. — ИО-25, проверка 106.               */
+  /* Закрывает выпуск ОБЪЯВЛЕННОМУ получателю (ADR-0306): сданное Комитету —
+     выпуск, но срок перед Минфином он не закрывает.                         */
   as('user');
-  const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+  const other = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
     kind:'окончательный', recipient:'a-kab' });
+  const mid = RP.obligations().find(o => o.id === late[0].id);
+  const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+    kind:'окончательный', recipient:'a-mf' });
   as('auth');
   const now = RP.obligations().find(o => o.id === late[0].id);
-  ok(39, fin.ok && now.state === 'сдано с опозданием' && now.issue === fin.id,
-    `окончательный выпуск с получателем закрыл обязательство ${now.id.split('/').pop()} — ИО-12`);
+  ok(39, other.ok && mid.state === 'просрочено' && mid.stray.length === 1 &&
+        fin.ok && now.state === 'сдано с опозданием' && now.issue === fin.id && now.toKind === 'адресат сдачи',
+    `выпуск Комитету срок не закрыл (${mid.state}, «выпущено другому получателю»), выпуск Минфину закрыл ` +
+    `обязательство ${now.id.split('/').slice(2).join('/')} — ИО-12, ADR-0306`);
 })();
 
 /* ---------- J. Круг и расписание правятся без новой редакции (§2.1) ---------- */
@@ -329,7 +336,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const eds = t.editions.length;
   const c = RP.setCircle('t-portfolio', ['dep-prom']);
   const s = RP.setSchedule('t-portfolio', { freq:'ежемесячно', dueDay:15, since:'2026-05-01',
-    asOfRule:'первое число месяца, следующего за отчётным', text:'ежемесячно, к 15-му' });
+    asOfRule:'первое число месяца, следующего за отчётным', text:'ежемесячно, к 15-му',
+    recipients:[{ kind:'адресат сдачи', ref:'a-mf' }] });
   ok(40, c.ok && s.ok && t.editions.length === eds && has(c.note, 'круг — не часть вопроса'),
     `круг и расписание изменены, редакций по-прежнему ${t.editions.length}: они не меняют вопроса`);
 
@@ -346,7 +354,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const st = RP.tplState('t-overdue');
   const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
   ok(42, r.ok && r.broken.length === 9 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
-        st.state === 'неисполним' && !iss.ok && has(iss.why, 'шаблон неисполним'),
+        st.state === 'неисполним' && !iss.ok && has(iss.why, 'неисполним'),
     `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
     `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
 
@@ -376,7 +384,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `карточка объекта видит зеркалом, что по кредиту уходило наружу: выпуск и документ ${dRow.doc}; ` +
     `номер (${card2.data[0].number}) появляется, когда документооборот его зарегистрирует`);
   ok(45, !rows.ok && has(rows.why, 'число без паспорта не показывается') &&
-        !draft.ok && has(draft.why, 'читается как шаблон') &&
+        !draft.ok && has(draft.why, 'читается как отчёт') &&
         !wrong.ok && has(wrong.why, 'шов «reportTemplate» не спрашивает'),
     `наружу нет ни строк ответа, ни черновиков; лишний шов лишнему потребителю не отдаётся`);
   ok(46, has(tpl.note, 'своего снимка не заводит') && RP.consumers().find(c => c.module === 'статистика').may.length === 0,
@@ -506,8 +514,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     try { const html = VIEWS[v].fn(); total += html.length;
       if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(60, bad.length === 0 && names.length === 11,
-    `одиннадцать экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(60, bad.length === 0 && names.length === 12,
+    `двенадцать экранов × все роли = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
@@ -855,7 +863,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   const sc = RP.showcase();
   const all = sc.must.concat(sc.rest);
-  const drafts = RP.state.templates.filter(t => !t.editions.some(e => e.state === 'опубликована'));
+  const drafts = RP.state.templates.filter(t => !t.editions.some(e => e.state === 'утверждена'));
   ok(100, sc.must.length > 0 && sc.rest.length > 0 && drafts.length > 0 &&
         all.filter(r => r.kind === 'шаблон').length === RP.state.templates.length - drafts.length &&
         !all.some(r => drafts.some(d => d.id === r.id)),
@@ -875,7 +883,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(102, forms.length === 15 && forms.filter(f => f.obligatory).length === 12 &&
         gaps.length === 2 && gaps.filter(g => g.nowhere).length === 0 &&
         norms.length === gaps.length &&
-        norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
+        norms.every(r => r.state === 'не заведён' && !r.obligation && !r.schedule) &&
         has(norms[0].why, 'выпуск предъявляет редакцию, а редакции нет'),
     `обязательная форма без шаблона видна как НЕИСПОЛНЯЕМАЯ НОРМА: обязательных ` +
     `${forms.filter(f => f.obligatory).length}, шаблон заведён у ${forms.filter(f => f.obligatory).length - gaps.length}, ` +
@@ -887,7 +895,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(103, !has(showH, "RP.openForm('" + norms[0].id) &&
         has(showH, 'Завести — ' + RP.formsOwner()) &&
         norms.every(r => r.goTo === RP.formsOwner()) &&
-        has(showH, 'шаблон не заведён') && has(showH, 'срока нет') &&
+        has(showH, 'не заведён · Завести') && has(showH, 'срока нет') &&
         norms.every(r => has(showH, r.basis.point) && has(showH, docShort(r.basis.doc))),
     `у неисполняемой нормы нет кнопки, но названы основание и тот, к кому идти: «${RP.formsOwner()}» — ` +
     `справочник ведёт тот же, кто публикует редакции; срока у неё нет — он живёт расписанием ` +
@@ -910,7 +918,7 @@ const DEV = 'изменено — не утверждённый состав';
         has(dup.why, 'ОЧ-39') && has(dup.why, 'кладётся параметром редакции'),
     `одна форма — не более одного шаблона, и отказ НАЗЫВАЕТ первый вслух: «${dup.why.slice(0, 70)}…» ` +
     `— защита от легаси-копирования устройством, а не дисциплиной (ИО-24)`);
-  ok(106, !alien.ok && has(alien.why, 'вид объявляет форма, шаблон её реализует') &&
+  ok(106, !alien.ok && has(alien.why, 'вид объявляет форма, отчёт или бланк её реализует') &&
         !noform.ok && has(noform.why, 'согласованным перечнем'),
     `вид объявляет форма, а не шаблон; справочник наполняется согласованным перечнем, а не всеми ` +
     `строками каталога — «${noform.why.slice(0, 60)}…»`);
@@ -935,7 +943,7 @@ const DEV = 'изменено — не утверждённый состав';
     `чужой разрез окончательно не сдаётся: «${alien.why.slice(0, 74)}…» — посмотреть и выгрузить ` +
     `предварительно вправе всякий в круге`);
   ok(109, whole.ok && whole.whole === true && free.ok && free.free === true &&
-        has(free.note, 'обязательства у шаблона нет'),
+        has(free.note, 'обязательства нет'),
     `свод по всему кругу сдаёт тот, кто ведёт шаблон (обязательство перед получателем его); ` +
     `где обязательства нет вовсе — окончательно выпускает всякий в круге`);
 
@@ -1116,10 +1124,11 @@ const DEV = 'изменено — не утверждённый состав';
   const flat = groups.flatMap(g => g.items);
   const uniq = [...new Set(flat)];
   const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
-  ok(125, flat.length === 11 && uniq.length === 11 && missing.length === 0 &&
-        groups.map(g => g.items.length).join('/') === '4/4/1/2' && flat.indexOf('dash') === -1,
-    `перегруппировка ничего не потеряла и не задвоила: все 11 экранов ровно по разу, ` +
-    `раскладка 4 / 4 / 1 / 2 — экрана «Дашборд» в модуле нет, дашборд — свой модуль`);
+  ok(125, flat.length === 12 && uniq.length === 12 && missing.length === 0 &&
+        groups.map(g => g.items.length).join('/') === '5/4/1/2' && flat.indexOf('dash') === -1 &&
+        groups[0].items.indexOf('subs') !== -1,
+    `перегруппировка ничего не потеряла и не задвоила: все 12 экранов ровно по разу, ` +
+    `раскладка 5 / 4 / 1 / 2 — «Подписки и сигналы» на столе «Смотреть и сдавать»; экрана «Дашборд» в модуле нет`);
 
   // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
   const nastr = groups[1].items;
@@ -1148,7 +1157,7 @@ const DEV = 'изменено — не утверждённый состав';
   const eventish = sched.filter(t => /рабочих дн|со дня|с момента|до даты платежа/.test(
     (t.schedule.text || '') + ' ' + (t.schedule.asOfRule || '')));
 
-  ok(128, keys.every(k => ['freq','dueDay','dueMonth','since','asOfRule','text'].indexOf(k) !== -1) &&
+  ok(128, keys.every(k => ['freq','dueDay','dueMonth','since','asOfRule','text','recipients'].indexOf(k) !== -1) &&
         sched.every(t => typeof t.schedule.freq === 'string' && typeof t.schedule.dueDay === 'number') &&
         sched.every(t => t.schedule.freq !== 'ежегодно' || typeof t.schedule.dueMonth === 'number') &&
         eventish.length === 0,
@@ -1350,7 +1359,7 @@ const DEV = 'изменено — не утверждённый состав';
   const noUnit = RP.publishChecks('t-memo-dpo').find(c => c.check === 'адресат бланка');
   ed.addressee = {kind:'канцелярия'};
   const noKind = RP.publishChecks('t-memo-dpo').find(c => c.check === 'адресат бланка');
-  ed.addressee = keep; ed.state = 'опубликована';
+  ed.addressee = keep; ed.state = 'утверждена';
   ok(146, !!noUnit && has(noUnit.why, 'в оргструктуре нет') && has(noUnit.why, 'не пополняет') &&
         !!noKind && has(noKind.why, 'вида получателя «канцелярия» не бывает'),
     `проверяются оба: ВИД объявляет редакция, ЗНАЧЕНИЕ ведёт сосед — подразделения «dep-hr» в ` +
@@ -1865,6 +1874,164 @@ const DEV = 'изменено — не утверждённый состав';
   ok(186, sv2.ok && RP.viewDiff(sv2.id).addFormulas.length === 1 && ap2.ok &&
         ap2.dropped.some(x => has(x, 'своя формула «Доля просрочки» больше не считается')) && ap2.twist.formulas.length === 0,
     `своя формула живёт в виде отличием; показатель под ней выведен — формула отваливается с пометкой, остальное работает`);
+})();
+
+/* ---- DD. Обязательство несёт получателя из расписания (ADR-0306, ОГ-Д10, волна 35) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const P = { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный' };
+  const before = RP.obligations().filter(o => o.tpl === 't-overdue' && o.asOf === '2026-08-01' && o.state === 'просрочено');
+  const legal = RP.issue('t-overdue', { ...P, recipient:'unit:dep-legal' });
+  const after = before.map(o => RP.obligations().find(x => x.id === o.id));
+  const seam = RP.reportObligations(before[0].dept).find(x => x.key === before[0].id);
+  ok(187, before.length === 2 && legal.ok && after.every(o => o.state === 'просрочено' && o.stray.length === 1 &&
+        o.stray[0].kind === 'подразделение') &&
+        seam && /\/a-mf$/.test(seam.key) && seam.to === 'Министерство финансов Кыргызской Республики' &&
+        seam.state === 'просрочено' && seam.stray.length === 1,
+    `сдача формы в ДПО (служебная записка) больше не закрывает обязательство перед Минфином: ` +
+    `${after.length} июльских остались «просрочено» с пометкой «выпущено другому получателю»; ключ шва — ${seam && seam.key} (ОГ-Д10)`);
+
+  const no = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule, { recipients:[] }));
+  const subjBad = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule,
+    { recipients:[{ kind:'субъект объекта', role:'заёмщик' }] }));
+  const asAddr = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule,
+    { recipients:[{ kind:'адресат сдачи', ref:'dep-legal' }] }));
+  ok(188, !no.ok && has(no.why, 'расписание объявляет получателя') &&
+        !subjBad.ok && has(subjBad.why, 'у бланка с полнотой по объектам') &&
+        !asAddr.ok && has(asAddr.why, 'справочник адресатов держит только внешние') &&
+        RP.scheduleRecipients('t-recon')[0].kind === 'субъект объекта',
+    `расписание без получателя не принимается; «субъект объекта» — только у бланка с полнотой по объектам; ` +
+    `подразделение адресатом сдачи не объявляется (ADR-0306 п. 1–2)`);
+
+  RP.seed(); as('auth');
+  const n0 = RP.obligations().filter(o => o.tpl === 't-overdue').length;
+  const two = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule,
+    { recipients:[{ kind:'адресат сдачи', ref:'a-mf' }, { kind:'подразделение', ref:'dep-legal' }] }));
+  const all = RP.obligations().filter(o => o.tpl === 't-overdue');
+  const may = all.filter(o => o.period === 'май 2026');
+  RP.issue('t-overdue', { params:{ asOf:'2026-06-01', dept:'' }, kind:'окончательный', recipient:'unit:dep-legal', at:'2026-06-20' });
+  const may2 = RP.obligations().filter(o => o.tpl === 't-overdue' && o.period === 'май 2026');
+  const byTo = to => may2.filter(o => o.to === to);
+  ok(189, two.ok && all.length === 2 * n0 &&
+        may.filter(o => o.to === 'a-mf').every(o => o.state === 'сдано') &&
+        may.filter(o => o.to === 'unit:dep-legal').every(o => o.state === 'просрочено') &&
+        byTo('unit:dep-legal').every(o => o.state === 'сдано с опозданием') && byTo('a-mf').every(o => o.state === 'сдано') &&
+        byTo('a-mf').every(o => o.stray.length === 0),
+    `два получателя к одному сроку — два обязательства (${n0} → ${all.length}): майская сдача Минфину ` +
+    `закрыла своё, перед ДПО срок висел, пока не ушла служебная записка 20.06 (ADR-0306 п. 4)`);
+})();
+
+/* ---- EE. Гибкость показа: режимы времени, фильтр, график, подписки, заметки (ОГ-Д6, волна 35) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const P = { asOf:'2026-08-01', dept:'' };
+  const cmp = RP.timeAnswer('t-overdue', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, P);
+  const mid = RP.timeAnswer('t-overdue', { mode:'сравнение', a:'2026-06-15', b:'2026-08-01' }, P);
+  const sum = cmp.ok && cmp.rows.find(r => r.id === 's-overdue-sum');
+  ok(190, cmp.ok && sum.a === 5400000 && sum.b === 10300000 && sum.abs === 4900000 && sum.pct === 90.7 &&
+        cmp.passport.dates.join() === '2026-06-01,2026-08-01' && !cmp.issuable.ok && has(cmp.issuable.why, 'колонок-дат нет') &&
+        !mid.ok && has(mid.why, 'ближайшие 01.06.2026 и 01.07.2026'),
+    `сравнение двух дат: просрочка 5 400 000 → 10 300 000 (+90,7 %), паспорт перечисляет обе даты; дата внутри ` +
+    `закрытого месяца — честный отказ с ближайшими снимками; сдать сравнение нельзя — колонок-дат в форме нет (ОГ-6, ОГ-35)`);
+
+  const dyn = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2026-01-01', to:'2026-08-01' }, P);
+  const long = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2023-01-01', to:'2026-08-01' }, P);
+  const q = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2023-01-01', to:'2026-08-01', step:'квартал' }, P);
+  const pts = dyn.ok ? dyn.tracks[0].points : [];
+  ok(191, dyn.ok && pts.length === 8 && pts[6].value === 10800000 && pts[1].gap === 'снимка нет' &&
+        dyn.passport.seam === 'statSeries' && !long.ok && has(long.why, 'длиннее 36') && q.ok && q.dates.length === 15,
+    `динамика — ряд statSeries по месяцам (8 точек, июль — 10 800 000, без снимка — «снимка нет», а не ноль); ` +
+    `44 месяца — отказ «длиннее 36», по кварталам — ${q.ok ? q.dates.length : '?'} точек (ОГ-6)`);
+
+  const stock = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01' }, P);
+  const turn = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01', turnover:true }, P);
+  ok(192, !stock.ok && has(stock.why, 'остаток: за период он не складывается') &&
+        turn.ok && turn.rows[0].value === 400000 && turn.lines.map(l => l.id).join() === 'pm-8' &&
+        turn.passport.seam === 'statRows (платёж)',
+    `«за период» — обороты событий: остаток за период не складывается (отказ с путём «сравнение»), платежи ` +
+    `01.01–01.08.2026 — 400 000 сом из снимка статистики (pm-8)`);
+
+  const orF = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]] };
+  const or = RP.filterAnswer('t-overdue', P, orF);
+  ok(193, or.ok && or.matched === 2 && or.from === 8 && or.data.rows.map(r => r.no).sort().join() === 'КД-2025/014,КД-2025/126' &&
+        or.data.totals.find(x => x.id === 's-overdue-sum').value === 5000000 &&
+        has(or.data.passport.filter, 'ИЛИ Подразделение равно Региональное представительство «Ош»') &&
+        or.executedBy === 'статистика (группы)',
+    `группы «ИЛИ» из «И»: «${or.filter}» — отобрано ${or.matched} из ${or.from}; итог после отбора пришёл швом ` +
+    `(5 000 000), фильтр напечатан в паспорте (ОГ-9, ADR-0289)`);
+
+  const top = RP.filterAnswer('t-overdue', P, { top:{ n:3, by:'debt_main' } });
+  const badOp = RP.filterAnswer('t-overdue', P, { groups:[[{ field:'borrower', op:'больше', value:3 }]] });
+  const nest = RP.filterAnswer('t-overdue', P, { groups:[[[{ field:'days', op:'больше', value:3 }]]] });
+  const frm = RP.filterAnswer('t-overdue', P, { formula:{ id:'ф-ф', name:'Доля просрочки', a:'s-overdue-sum', op:'÷',
+    b:'s-portfolio', k:100, cmp:'больше', value:50 } });
+  ok(194, top.ok && top.data.rows.map(r => r.debt_main).join() === '31900000,9900000,7400000' &&
+        !badOp.ok && has(badOp.why, 'оператор «больше» не применяется') && !nest.ok && has(nest.why, 'произвольных скобок нет') &&
+        frm.ok && frm.matched === 2,
+    `топ-3 по остатку досчитан на строках; к строке «больше» не применяется — операторы по типу величины; ` +
+    `скобок в скобках нет; условие по своей формуле сравнило два показателя у ${frm.ok ? frm.matched : '?'} строк`);
+
+  const ch = RP.chartOf('t-overdue', P, null);
+  const shown = RP.show('t-overdue', P, null);
+  ok(195, ch.ok && ch.by === 'подразделение' && ch.bars.length === shown.data.groups.length &&
+        ch.bars.every(b => b.value === statOf(shown, b.key)),
+    `график рядом с таблицей рисуется по тем же клеткам: ${ch.bars.length} столбца по подразделениям, значения ` +
+    `совпадают с уровнями таблицы (ОГ-10)`);
+  function statOf(r, key){ const g = r.data.groups.find(x => x.key === key);
+    const t = (g.totals || []).find(x => x.id === 's-overdue-sum'); return t ? t.value : (g.rows || []).reduce((a, x) => a + (x.days > 0 ? x.debt_main : 0), 0); }
+
+  RP.seed(); as('user');
+  const sub = RP.subscribe('t-overdue', { freq:'ежемесячно' });
+  const file = RP.subscribe('t-overdue', { freq:'ежемесячно', mail:'файл' });
+  as('auth');
+  const sub2 = RP.subscribe('t-overdue', { freq:'ежемесячно' });
+  const night = RP.nightRun('2026-07-01');
+  const all = RP.state.notices;
+  const mine = all.find(n => n.to === 'Осмонова Г.'), his = all.find(n => n.to === 'Тентимишев К.');
+  ok(196, sub.ok && !file.ok && has(file.why, 'на почту уходит только ссылка') && sub2.ok && night.ok &&
+        mine && mine.scope.join() === 'Отраслевой департамент промышленности' && has(mine.text, '5 600 000') &&
+        his && his.scope.length === 3 && has(his.text, '10 800 000') && has(mine.mail, 'без чисел'),
+    `подписка считается с правами подписчика: Осмоновой — по своему подразделению (5 600 000), уполномоченному — ` +
+    `по всем (10 800 000); на почту — ссылка без чисел, файла нет (ОГ-18, ADR-0287)`);
+
+  RP.seed(); as('auth');
+  const sig = RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:10000000 });
+  const task = RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:1, task:true });
+  const runs = ['2026-06-01', '2026-07-01', '2026-08-01'].map(d => RP.nightRun(d).fired.length);
+  const hist = RP.mySubs().find(x => x.id === sig.id).history.map(x => x.met);
+  ok(197, sig.ok && runs.join() === '0,1,0' && hist.join() === 'false,true,true' &&
+        !task.ok && has(task.why, '«посмотри», а не «сделай»') && RP.notices().filter(n => n.kind === 'сигнал').length === 1,
+    `сигнал «просрочка больше 10 млн» пришёл один раз — на переходе 01.07 (история ${hist.join(' → ')}), ` +
+    `01.08 условие всё ещё выполняется, но повтора нет; задачу сигнал не ставит (ОГ-19, ИО-13)`);
+
+  RP.seed(); as('user');
+  const own = RP.addNote('t-avg', { asOf:'2026-07-01', text:'личная пометка' });
+  const pub = RP.addNote('t-overdue', { asOf:'2026-07-01', text:'kr-2 вышел на просрочку' });
+  const noDate = RP.addNote('t-overdue', { text:'без даты' });
+  const concl = RP.addNote('t-overdue', { asOf:'2026-07-01', text:'вывод', conclusion:true });
+  const replyOwn = RP.replyNote(own.id, 'сам себе');
+  as('auth');
+  const seenAug = RP.notesFor('t-overdue', '2026-08-01'), seenJul = RP.notesFor('t-overdue', '2026-07-01');
+  const hidden = RP.notesFor('t-avg', '2026-07-01');
+  const rep = RP.replyNote(pub.id, 'проверим');
+  ok(198, own.ok && pub.ok && !noDate.ok && has(noDate.why, 'привязана к дате данных') &&
+        !concl.ok && has(concl.why, 'аналитический обзор') && !replyOwn.ok &&
+        seenAug.length === 1 && seenAug[0].past && has(seenAug[0].label, 'к прошлой дате') && !seenJul[0].past &&
+        hidden.length === 0 && rep.ok && RP.notesFor('t-overdue', '2026-07-01')[0].replies.length === 1,
+    `заметка привязана к дате данных: на 01.08 видна «к прошлой дате», на 01.07 — «к данным»; личную видит только ` +
+    `автор, в официальном отвечают; заметка — не вывод (ОГ-31, ADR-0153)`);
+
+  RP.seed(); as('auth');
+  RP.subscribe('t-overdue', { freq:'ежемесячно' }); RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:10000000 });
+  RP.nightRun('2026-07-01');
+  const subsScr = win.VIEWS.subs.fn();
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.time = 'динамика'; RP.state.sel.filter = 'или'; RP.state.sel.chart = true;
+  const iss = win.VIEWS.issue.fn();
+  ok(199, has(subsScr, 'Мои подписки и условия') && has(subsScr, 'стало выполняться на 01.07.2026') &&
+        has(subsScr, 'на почту: ссылка') && has(iss, 'Время, фильтр, график, заметки') && has(iss, 'динамика по месяцам') &&
+        has(iss, 'Фильтр в паспорте') && has(iss, '<svg class="chart"'),
+    `экраны: «Подписки и сигналы» — подписки, условия, история и уведомления; на показе — режимы времени, фильтр ` +
+    `с паспортом, график рядом с таблицей, заметки`);
 })();
 
 /* ---- отчёт ---- */
