@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-17 · 227/227 PASS
+  SMOKE 2026-10-17 · 233/233 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -68,7 +68,7 @@
      PASS  #57  список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и спрошен тем же швом, пятого шва не понадобилось
      PASS  #58  переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не передаётся и не пополняется — работа окончена (§9)
      PASS  #59  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (415 КБ разметки)
+     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (416 КБ разметки)
      PASS  #61  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
      PASS  #62  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #63  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -232,10 +232,16 @@
      PASS  #221  окончательная сдача проходит (ВП-105): пустота морозится с причиной; ИО-8 у месяца из легаси не срабатывает, а у системного месяца без снимка — по-прежнему: «выпуск сделан предварительным: колонка «На начало месяца»: снимка на 01.07.2026 …» (ADR-0309 п. 2)
      PASS  #222  остаток на конец месяца без итога не восстанавливается: соседний итог на 01.07.2025 есть, а конец июля — пусто «в легаси не собиралось», не подстановка соседнего снимка, не итог плюс события и не ноль (ADR-0309 п. 3)
      PASS  #223  перенос без итога декабря 2025 (состав на копии): месяц перед запуском не перенесён и закрытым не объявлен — «итог месяца перед запуском не перенесён — это входящий остат…»; ФО-04 на 01.08.2026 отказывает поимённо, предварительный законен; данные стенда не тронуты (ADR-0309 п. 4)
-     PASS  #224  правка периода из легаси — новая версия миграции М-2: утверждает человек (Бекова Н.), основание обязательно, строка журнала перезаписи «было → стало» (6100000 → 6300000); итог на 01.01.2026 77000000 → 77200000; свой период, не перенесённый месяц, итог месяцу без итога и версия без замен — отказы (ADR-0307 п. 6)
+     PASS  #224  правка периода из легаси — новая версия миграции М-2: утверждает человек (Бекова Н.), основание обязательно, строка журнала перезаписи «было → стало» (6100000 → 6300000); итог на 01.01.2026 77000000 → 77200000; свой период, не перенесённый месяц, частичный итог месяцу без итога и версия без замен — отказы (ADR-0307 п. 6, ADR-0311 п. 4)
      PASS  #225  выпуски на прежних числах метятся «числа изменились после сдачи», как при перезакрытии (ИО-34): ВП-105 — через колонку «На начало года»; выпуск без этой колонки и предварительный не метятся; новых выпусков нет — не переиздаются; правка события июля 2025 (месяц без итога) — версия М-3, метит ВП-105, ВП-108, причины у выпуска копятся
      PASS  #226  после правки период по-прежнему закрыт из легаси и действия «открыть» у него нет; журнал выпусков печатает журнал перезаписи, версию у периода и метку у выпуска (ADR-0207 п. 4, ADR-0307 п. 6)
      PASS  #227  экраны: форма «Портфель к прошлому году» — две пустые клетки «в легаси не собиралось» и поток июля 2025 из событий, паспорт называет клетки; форма стоит в витрине
+     PASS  #228  итог дополняется только целиком и только человеком: частичный — «итог за июль 2025 дополняется целиком: не хватает строк КД-2025/088, КД-2025/126 — остаток…»; строка договора, которого тогда не было, и строка без величины — отказ; стенд не тронут (ADR-0311 п. 4)
+     PASS  #229  новая версия миграции М-2 дала итог июлю 2025 г.: 7 строк журнала «было: нет → стало», шов на 01.08.2025 отдаёт 7 строк, портфель 85950000; месяц по-прежнему закрыт из легаси, «открыть» нет (ADR-0311 п. 1–2)
+     PASS  #230  сданная пустота стала расхождением: ВП-105 помечен «числа изменились после сдачи: новая версия миграции М-2 (июль 2025: итог дополнен)», клеток изменилось 2 (было пусто → число); ФО-04 (поток июля не менялся) и предварительный выпуск не помечены; сданный снимок не переписан, новых выпусков нет (ИО-34, ADR-0311 п. 3)
+     PASS  #231  форма на 01.08.2026: «На отчётную дату — прошлый год» — 85950000 и просроченных 1, пустых клеток нет; паспорт колонки называет версию; уточнение — корректирующим выпуском ВП-108 по решению человека (ADR-0311 п. 3)
+     PASS  #232  после дополнения месяц правится как любой перенесённый (М-3: замена, а не дополнение), повтор архива — «версия без замен»; журнал выпусков печатает добавленные строки и кнопку демо, форма — числа вместо пустых клеток
+     PASS  #233  затравка возвращает стенд: снимка на 01.08.2025 нет, июль 2025 снова без итога, пустых клеток 2; заглушки «модель пока не решила» в макете нет
 -->
 <style>
 :root{
@@ -1113,6 +1119,15 @@ LEGACY.months['декабрь 2025'].notCollected = ['s-avg-late'];
    не «ещё нет»: ИО-8 у такого месяца не срабатывает, остаток не восстанавливается
    ни из соседнего итога и событий, ни нулём (ADR-0309 п. 1–3, ОГ-Д12).          */
 LEGACY.months['июль 2025'].totals = false;
+/* Найденный позже архив сальдо: итог на конец июля 2025 г. по каждому договору,
+   действовавшему на 01.08.2025 (допущение стенда). В систему он попадает только
+   новой версией миграции, утверждённой человеком, — и тогда целиком: остаток
+   по части договоров выдал бы себя за итог месяца (ADR-0311 п. 1, 4).         */
+const LEGACY_ARCHIVE = {'июль 2025': {
+  'kr-1':{debt_main:10800000, days:0,  status:'действует'}, 'kr-2':{debt_main:7350000, days:18, status:'просрочен'},
+  'kr-3':{debt_main:2700000,  days:0,  status:'действует'}, 'kr-4':{debt_main:40200000,days:0,  status:'действует'},
+  'kr-5':{debt_main:5100000,  days:0,  status:'действует'}, 'kr-6':{debt_main:6200000, days:0,  status:'действует'},
+  'kr-8':{debt_main:13600000, days:0,  status:'действует'}}};
 const legacyMonth = m => LEGACY.months[m] || null;
 /* Итога на эту дату нет навсегда: дата — конец месяца из легаси, перенесённого
    без итога. Шов отвечает «нет» с признаком «из легаси», а не «снимка ещё нет». */
@@ -2066,11 +2081,16 @@ const FORMS_OWNER = 'Тентимишев К. (уполномоченный по
    статистика вывела показатель, открытие периода поправило снимок). Затравка
    их возвращает — иначе проверки потекли бы одна в другую.                   */
 const FIELDS0 = clone(FIELDS), STATS0 = clone(STATS), HIST0 = clone(HIST),
-      OBJECTS0 = clone(OBJECTS);
+      OBJECTS0 = clone(OBJECTS), LEGACY0 = clone(LEGACY);
 function restoreMirrors(){
   Object.keys(FIELDS0).forEach(k => { FIELDS[k] = clone(FIELDS0[k]); });
   STATS.length = 0; clone(STATS0).forEach(s => STATS.push(s));
+  /* Версия миграции может ДОБАВИТЬ снимок (итог месяцу без итога): затравка
+     убирает добавленное и возвращает состав переноса.                        */
+  Object.keys(HIST).forEach(k => { if(!HIST0[k]) delete HIST[k]; });
   Object.keys(HIST0).forEach(k => { HIST[k] = clone(HIST0[k]); });
+  HIST_DATES.length = 0; Object.keys(HIST0).forEach(k => HIST_DATES.push(k));
+  LEGACY.months = clone(LEGACY0.months);
   OBJECTS.length = 0; clone(OBJECTS0).forEach(o => OBJECTS.push(o));
 }
 
@@ -3067,24 +3087,44 @@ RP.migrationRevision = spec => {
   const tot = s.totals || {}, evs = s.events || {};
   if(!Object.keys(tot).length && !Object.keys(evs).length) return {ok:false, why:'менять нечего: версия миграции '+
     'называет заменяемые итоги или события'};
-  if(Object.keys(tot).length && !(lm && lm.totals)) return {ok:false, why:'итог за '+period+' перенос не давал: дополнить '+
-    'перенос итогом новой версией модель пока не решила (ОГ-Д13, к гриллингу)'};
-  if(Object.keys(tot).length && !HIST[end]) return {ok:false, why:'итога на '+fmt(end)+' в стенде нет — править нечего'};
-  for(const id of Object.keys(tot)) if(!HIST[end][id]) return {ok:false, why:'в итоге на '+fmt(end)+' строки «'+id+'» нет'};
+  /* Итог месяцу, который перенос дал одними событиями, — дополнение состава
+     новой версией (ADR-0311 п. 1, 4): только целиком, по каждому договору,
+     действовавшему на конец месяца, со всеми величинами итога.               */
+  const adding = Object.keys(tot).length > 0 && !!lm && !lm.totals;
+  if(adding){
+    const need = CREDITS().filter(o => o.issued.localeCompare(end) === -1 && (!o.closed || o.closed.localeCompare(end) !== -1));
+    const lack = need.filter(o => !tot[o.id]);
+    if(lack.length) return {ok:false, why:'итог за '+period+' дополняется целиком: не хватает строк '+
+      lack.map(o => o.no).join(', ')+' — остаток по части договоров выдал бы себя за итог месяца'};
+    const extra = Object.keys(tot).filter(id => !need.some(o => o.id === id));
+    if(extra.length) return {ok:false, why:'строк '+extra.map(id => (OBJ(id) || {no:id}).no).join(', ')+' в итоге на '+
+      fmt(end)+' быть не может: договор тогда не действовал'};
+    for(const id of Object.keys(tot)){ const f = ['debt_main', 'days', 'status'].find(k => tot[id][k] == null);
+      if(f) return {ok:false, why:'в строке '+OBJ(id).no+' нет величины «'+REWRITE_FIELD[f]+'»: итог дополняется '+
+        'всеми величинами, которые перенос даёт в итоге'}; }
+  }
+  if(!adding && Object.keys(tot).length && !HIST[end]) return {ok:false, why:'итога на '+fmt(end)+' в стенде нет — править нечего'};
+  if(!adding) for(const id of Object.keys(tot)) if(!HIST[end][id]) return {ok:false, why:'в итоге на '+fmt(end)+' строки «'+id+'» нет'};
   for(const id of Object.keys(evs)){ const o = OBJECTS.find(x => x.id === id && x.type === 'payment');
     if(!o || o.date.localeCompare(monthIso(period)) === -1 || o.date.localeCompare(end) !== -1)
       return {ok:false, why:'событие «'+id+'» не из месяца «'+period+'»'}; }
   const ver = migVersion(), at = RP.state.today, by = RP.who(), rows = [];
   /* В журнал ложится только настоящая замена: версия, не меняющая ни одного
      числа, — не версия.                                                      */
-  Object.keys(tot).forEach(id => Object.keys(tot[id]).forEach(f => { if(HIST[end][id][f] === tot[id][f]) return;
+  /* Добавление — строкой на договор «было: нет → стало» (ADR-0311 п. 1).     */
+  if(adding) Object.keys(tot).forEach(id => rows.push({release: ver, period, at, by, why: s.why,
+    what:'итог на '+fmt(end)+' · '+OBJ(id).no+' · строка итога добавлена', was: null,
+    now: money(tot[id].debt_main)+' · '+tot[id].days+' дн. · '+tot[id].status}));
+  if(adding){ const add = clone(tot); rows[0].apply = () => { HIST[end] = add;
+    HIST_DATES.push(end); HIST_DATES.sort(); lm.totals = true; lm.totalsBy = ver; }; }
+  else Object.keys(tot).forEach(id => Object.keys(tot[id]).forEach(f => { if(HIST[end][id][f] === tot[id][f]) return;
     rows.push({release: ver, period, at, by, why: s.why, what:'итог на '+fmt(end)+' · '+(OBJ(id) || {no:id}).no+' · '+(REWRITE_FIELD[f] || f),
       was: HIST[end][id][f], now: tot[id][f], apply: () => { HIST[end][id][f] = tot[id][f]; }}); }));
   Object.keys(evs).forEach(id => { const o = OBJECTS.find(x => x.id === id);
     Object.keys(evs[id]).forEach(f => { if(o[f] === evs[id][f]) return; rows.push({release: ver, period, at, by, why: s.why,
       what:'событие '+id+' от '+fmt(o.date)+' · '+(REWRITE_FIELD[f] || f), was: o[f], now: evs[id][f], apply: () => { o[f] = evs[id][f]; }}); }); });
   if(!rows.length) return {ok:false, why:'менять нечего: в переносе уже эти числа — версия без замен не выпускается'};
-  rows.forEach(r => { r.apply(); delete r.apply; });
+  rows.forEach(r => { if(r.apply) r.apply(); delete r.apply; });
   RP.state.migrations.push({id: ver, of: MIGRATION.id, at, by, why: s.why, periods:[period]});
   RP.state.rewrites = RP.state.rewrites.concat(rows);
   p.release = ver; p.revisions = (p.revisions || []).concat(ver);
@@ -3095,10 +3135,13 @@ RP.migrationRevision = spec => {
   RP.state.issues.forEach(i => { if(!i.snapshot || !touches(i)) return;
     const r = RP.recompute(i.id);
     if(r && r.changed){ i.diverged = true; i.divergedAt = at;
-      i.divergedWhy = divergedWhy(i, 'новая версия миграции '+ver+' ('+period+')'); marked.push(i.id); } });
+      i.divergedWhy = divergedWhy(i, 'новая версия миграции '+ver+' ('+period+(adding ? ': итог дополнен' : '')+')');
+      marked.push(i.id); } });
   log('новая версия миграции '+ver+': '+period+' — замен '+rows.length+'; '+s.why);
   return {ok:true, release: ver, period, rewrites: rows.length, marked,
-    note:'версия '+ver+' записана, замен в журнале перезаписи: '+rows.length+'; выпусков на прежних числах помечено: '+
+    added: adding ? Object.keys(tot).length : 0,
+    note:'версия '+ver+' записана, '+(adding ? 'итог за '+period+' дополнен, строк' : 'замен')+' в журнале перезаписи: '+
+      rows.length+'; выпусков на прежних числах помечено: '+
       marked.length+' — они не переиздаются, уточнить можно корректирующим выпуском'};
 };
 RP.rewriteLog = () => clone(RP.state.rewrites);
@@ -3669,6 +3712,11 @@ function timeTable(ed, asOf, cut, scope){
       : c.legacy.length === c.months.length ? 'из легаси — перенос, '+MIGRATION.text
       : 'состав: из легаси ('+monthSpan(c.legacy)+') — перенос, '+MIGRATION.text+
         (own.length ? '; свои — '+monthSpan(own) : '')+(lost.length ? '; до запуска, переносом не закрыты — '+monthSpan(lost) : '');
+    /* Состав месяца — по последней версии миграции: паспорт называет версии,
+       которые правили или дополнили месяцы колонки (ADR-0311 п. 1).          */
+    const revs = c.legacy.filter(m => (RP.state.periods[m].revisions || []).length);
+    if(c.source && revs.length) c.source += '; новые версии: '+revs.map(m => m+' — '+RP.state.periods[m].revisions
+      .map(v => v === legacyMonth(m).totalsBy ? v+' (итог дополнен)' : v).join(', ')).join('; ');
     /* Поток за месяц, по которому перенос событий не дал, — не ноль. */
     c.noEvents = c.months.filter(m => { const ps = SEAM.periodSource(m); return ps && !ps.events; });
     /* Остаток на конец месяца, который перенос дал одними событиями, без итога. */
@@ -5561,7 +5609,7 @@ function scJournal(){
     (lgs.length ? '<tr><td>'+esc(monthSpan(lgs))+' <span class="small muted">('+lgs.length+' мес.)</span></td><td>'+
       pill('закрыт', 'neutral')+' '+pill('из легаси', 'info')+'</td><td class="small">перенос, '+esc(MIGRATION.text)+
       lgs.filter(m => RP.state.periods[m].revisions).map(m => '<div>'+esc(m)+' — правка версией '+
-        esc(RP.state.periods[m].revisions.join(', '))+'</div>').join('')+
+        esc(RP.state.periods[m].revisions.map(v => v === (legacyMonth(m) || {}).totalsBy ? v+' (итог дополнен)' : v).join(', '))+'</div>').join('')+
       '</td><td class="small muted">открыть нельзя — переспрашивать некого; правка — новой версией миграции (ADR-0207 п. 4)</td></tr>' : '')+
     owns.map(m => { const a = RP.periodActions(m);
       return '<tr><td>'+esc(m)+'</td><td>'+pill(a.state, a.state === 'закрыт' ? 'neutral' : 'warn')+'</td><td class="small">прогон системы</td><td>'+
@@ -5571,7 +5619,9 @@ function scJournal(){
     /* Правка периода из легаси — версией миграции; журнал перезаписи читается,
        выпуски на прежних числах метятся, но сами не переиздаются.            */
     '<div class="btn-row"><button class="btn btn-secondary btn-sm" style="white-space:normal;text-align:left" '+
-      'onclick="RP.doMigrationRevision()">Новая версия миграции: правка итога декабря 2025 (КД-2025/126)</button></div>'+
+      'onclick="RP.doMigrationRevision()">Новая версия миграции: правка итога декабря 2025 (КД-2025/126)</button>'+
+      '<button class="btn btn-secondary btn-sm" style="white-space:normal;text-align:left" '+
+      'onclick="RP.doMigrationTotals()">Новая версия миграции: итог июля 2025 по найденному архиву сальдо</button></div>'+
     (RP.state.rewrites.length ? '<h4 style="margin-top:12px">Журнал перезаписи</h4><div class="tw"><table class="cgrid"><thead><tr>'+
       '<th>Версия</th><th>Период</th><th>Что</th><th>Было → стало</th><th>Кто, когда, почему</th></tr></thead><tbody>'+
       RP.state.rewrites.map(w => '<tr><td class="mono">'+esc(w.release)+'</td><td>'+esc(w.period)+'</td><td class="small">'+
@@ -5595,9 +5645,12 @@ RP.doSheetIssue = id => act(RP.setSheetOnIssue(id, {orient:'альбомная'}
 RP.doExport = (id, f) => act(RP.exportIssue(id, f));
 RP.doDelete = id => act(RP.deleteIssue(id));
 RP.doCorrective = id => { const r = RP.corrective(id); if(r.ok) RP.state.sel.issue = r.id; act(r, r.note); };
-const rwVal = v => typeof v === 'number' ? money(v) : esc(v);
+const rwVal = v => v == null ? 'нет (итог не перенесён)' : typeof v === 'number' ? money(v) : esc(v);
 RP.doMigrationRevision = () => { const r = RP.migrationRevision({period:'декабрь 2025',
   why:'перенос М-1 взял остаток КД-2025/126 до последней проводки декабря', totals:{'kr-6':{debt_main: 6300000}}});
+  act(r, r.note); };
+RP.doMigrationTotals = () => { const r = RP.migrationRevision({period:'июль 2025',
+  why:'найден архив сальдо за июль 2025 г.: итог месяца, которого перенос М-1 не дал', totals: clone(LEGACY_ARCHIVE['июль 2025'])});
   act(r, r.note); };
 RP.doReopen = () => act(RP.reopenPeriod('июль 2026',
   'сторнирован ошибочно отражённый платёж по КД-2024/259'), 'период открыт заново');
