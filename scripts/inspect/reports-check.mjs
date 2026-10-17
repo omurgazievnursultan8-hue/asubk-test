@@ -5,6 +5,8 @@
 // выпуска, снимок и расхождение со сданным, серии и номера, обязательства из правила,
 // четыре шва внутрь и три наружу, названные отказы вместо отсутствующих кнопок,
 // витрина потребителя и справочник форм (обязательная форма без шаблона — строка без кнопки).
+// Волна 36 (блок FF, #200–#210): колонки-даты официальной формы и их замки на сдаче, режим
+// времени и фильтр в виде и отчёте, заметки к строке и ячейке, линия динамики.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -353,7 +355,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const r = RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
   const st = RP.tplState('t-overdue');
   const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
-  ok(42, r.ok && r.broken.length === 9 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
+  ok(42, r.ok && r.broken.length === 10 && r.broken.some(b => b.id === 't-pay04') && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
         st.state === 'неисполним' && !iss.ok && has(iss.why, 'неисполним'),
     `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
     `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
@@ -361,7 +363,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.seed();
   as('auth');
   const w = RP.withdrawStat('s-overdue-sum');
-  ok(43, w.ok && w.breaking.length === 3 && w.breaking.some(b => b.id === 't-overdue') &&
+  ok(43, w.ok && w.breaking.length === 4 && w.breaking.some(b => b.id === 't-pay04') && w.breaking.some(b => b.id === 't-overdue') &&
         w.breaking.some(b => b.id === 't-sh-plan'),
     `владельцу реестра показан список ломающихся шаблонов до вывода показателя: ${w.breaking.map(b => b.id).join(', ')} — ADR-0159`);
 })();
@@ -880,7 +882,7 @@ const DEV = 'изменено — не утверждённый состав';
   const gaps = RP.formGaps();
   const norms = sc.must.filter(r => r.kind === 'норма');
   const forms = RP.forms();
-  ok(102, forms.length === 15 && forms.filter(f => f.obligatory).length === 12 &&
+  ok(102, forms.length === 16 && forms.filter(f => f.obligatory).length === 12 &&
         gaps.length === 2 && gaps.filter(g => g.nowhere).length === 0 &&
         norms.length === gaps.length &&
         norms.every(r => r.state === 'не заведён' && !r.obligation && !r.schedule) &&
@@ -2029,9 +2031,157 @@ const DEV = 'изменено — не утверждённый состав';
   const iss = win.VIEWS.issue.fn();
   ok(199, has(subsScr, 'Мои подписки и условия') && has(subsScr, 'стало выполняться на 01.07.2026') &&
         has(subsScr, 'на почту: ссылка') && has(iss, 'Время, фильтр, график, заметки') && has(iss, 'динамика по месяцам') &&
-        has(iss, 'Фильтр в паспорте') && has(iss, '<svg class="chart"'),
+        has(iss, 'Фильтр в паспорте') && has(iss, '<svg class="chart line"'),
     `экраны: «Подписки и сигналы» — подписки, условия, история и уведомления; на показе — режимы времени, фильтр ` +
     `с паспортом, график рядом с таблицей, заметки`);
+})();
+
+/* ---- FF. Остаток гибкости: колонки-даты официальной формы, режим и фильтр в виде и отчёте,
+        заметки к строке и ячейке, линия динамики (ОГ-Д6, ОГ-35, ADR-0282 п. 4, волна 36) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const fc = RP.formColumns('t-pay04', '2026-08-01');
+  const cell = (rid, cid) => fc.rows.find(r => r.id === rid).cells.find(c => c.col === cid);
+  const jan = RP.show('t-pay04', { asOf:'2026-01-01', dept:'' }, null).data.totals.find(x => x.id === 's-portfolio');
+  const now = RP.show('t-pay04', { asOf:'2026-08-01', dept:'' }, null).data.totals.find(x => x.id === 's-portfolio');
+  const pays = SEAM.statRows('payment', '2026-08-01', {}, RP.viewer().scope).rows;
+  const ytd = pays.filter(p => p.date >= '2026-01-01' && p.date < '2026-08-01').reduce((a, p) => a + p.amount, 0);
+  ok(200, fc.ok && fc.cols.length === 5 && fc.dates.length === 5 &&
+        has(fc.dates.join(), 'На начало года — на 01.01.2026') && has(fc.dates.join(), '01.01.2025 — 31.07.2025') &&
+        cell('s-portfolio', 'c-now').value === now.shown && cell('s-portfolio', 'c-y0').value === jan.shown &&
+        cell('pay-sum', 'c-ytd').value === ytd && ytd === 400000 && cell('pay-sum', 'c-ly').value === 2400000 &&
+        cell('pay-cnt', 'c-ly').value === 3 && cell('pay-sum', 'c-m').value === 0 &&
+        cell('s-portfolio', 'c-m').value === null && has(cell('s-portfolio', 'c-m').gap, 'не складывается') &&
+        cell('pay-sum', 'c-now').value === null && has(cell('pay-sum', 'c-now').gap, 'за период'),
+    `колонки-даты формы объявлены от отчётной даты: на 01.08.2026 — 5 колонок; остаток на 01.01 = показу на 01.01 ` +
+    `(${jan.shown}), поток с начала года = событиям платежа (${ytd}), прошлый год — ${cell('pay-sum', 'c-ly').value}; ` +
+    `остаток за период и поток на дату — пустая клетка с причиной, а не ноль (ОГ-35, ADR-0282 п. 3–4)`);
+
+  const pre = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
+  const preRec = RP.ISS ? RP.ISS(pre.id) : RP.state.issues.find(i => i.id === pre.id);
+  const fin = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
+  ok(201, pre.ok && preRec.passport.dates.length === 5 && has(preRec.passport.seams.join(), 'statRows (платёж)') &&
+        !fin.ok && has(fin.why, 'закрыты все периоды формы') && has(fin.why, 'январь 2025') && has(fin.why, 'июль 2025') &&
+        has(fin.why, '«С начала года — прошлый год»') && !has(fin.why, '2026'),
+    `паспорт выпуска перечисляет каждую дату формы (${preRec.passport.dates.length}); окончательная сдача отказана ` +
+    `поимённо — не закрыты месяцы прошлого года колонки «аналогичный период»: «${fin.why.slice(0, 90)}…» (ОГ-35)`);
+
+  ['январь','февраль','март','апрель','май','июнь','июль'].forEach(m => { RP.state.periods[m + ' 2025'] = { state:'закрыт' }; });
+  const fin2 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
+  const rec2 = RP.state.issues.find(i => i.id === fin2.id);
+  as('buh'); RP.reopenPeriod('июль 2026', 'правка платежа задним числом'); as('auth');
+  const fin3 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf' });
+  ok(202, fin2.ok && fin2.kind === 'окончательный' && rec2.snapshot.timeTable && rec2.snapshot.timeTable.cols.length === 5 &&
+        rec2.snapshot.timeTable.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ly').value === 2400000 &&
+        rec2.passport.frozen && !fin3.ok && has(fin3.why, 'июль 2026 (колонка «На отчётную дату»)') &&
+        has(fin3.why, '«С начала года»'),
+    `все периоды закрыты — форма сдаётся окончательно, снимок морозит все 5 колонок; открыт заново июль 2026 — ` +
+    `отказ называет каждую колонку, которой он касается (ОГ-35, ИО-33)`);
+
+  RP.seed(); as('auth');
+  const scr = RP.timeAnswer('t-pay04', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, { asOf:'2026-08-01', dept:'' });
+  const old = RP.timeAnswer('t-overdue', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, { asOf:'2026-08-01', dept:'' });
+  ok(203, scr.ok && !scr.issuable.ok && has(scr.issuable.why, 'в сдачу идёт не режим экрана, а колонки-даты формы на 01.08.2026') &&
+        has(scr.issuable.why, 'январь 2025') && !old.issuable.ok && has(old.issuable.why, 'колонок-дат нет'),
+    `сдача в режимах времени: у формы с колонками-датами сдаётся не режим экрана, а её объявленные даты от отчётной; ` +
+    `у формы без них — по-прежнему «колонок-дат нет» (ОГ-35, ИО-21)`);
+
+  as('user');
+  const badOf = RP.setTimeCols('t-osh', [{ id:'a', kind:'аналогичный период', of:'x', name:'Год назад' }]);
+  const badAt = RP.setTimeCols('t-osh', [{ id:'a', kind:'на дату', at:'середина месяца', name:'Середина' }]);
+  const nowMode = RP.setTimeCols('t-avg', [{ id:'a', kind:'на дату', at:'отчётная дата', name:'Сейчас' }]);
+  const good = RP.setTimeCols('t-osh', [{ id:'d', kind:'на дату', at:'отчётная дата', name:'На отчётную дату' },
+    { id:'q', kind:'на дату', at:'начало квартала', name:'На начало квартала' }]);
+  as('auth');
+  const noDraft = RP.setTimeCols('t-overdue', [{ id:'d', kind:'на дату', at:'отчётная дата', name:'На дату' }]);
+  const checksGood = RP.publishChecks('t-osh').filter(c => c.check === 'колонки-даты');
+  RP.TPL('t-osh').editions[0].timeCols.push({ id:'z', kind:'аналогичный период', of:'z2', name:'Z' });
+  const checksBad = RP.publishChecks('t-osh').filter(c => c.check === 'колонки-даты');
+  ok(204, !badOf.ok && has(badOf.why, 'аналогичный период какой колонки') && !badAt.ok && has(badAt.why, 'не из набора') &&
+        !nowMode.ok && has(nowMode.why, '«на дату»') && good.ok && !noDraft.ok && has(noDraft.why, 'черновая редакция') &&
+        checksGood.length === 0 && checksBad.length === 1,
+    `колонки-даты объявляет черновая редакция из закрытого набора; «аналогичный» — от колонки формы; у «сейчас» ` +
+    `колонок нет; проверка утверждения ловит вписанное мимо (ОГ-35, ИО-21)`);
+
+  RP.seed(); as('auth');
+  const dyn = { mode:'динамика', from:'2026-01-01', to:'2026-08-01', step:'месяц' };
+  const orF = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]] };
+  const v1 = RP.saveView('t-overdue', 'динамика и Ош', null, { time: dyn, filter: orF });
+  const badF = RP.saveView('t-overdue', 'кривой', null, { filter:{ groups:[[{ field:'borrower', op:'больше', value:3 }]] } });
+  const badT = RP.saveView('t-overdue', 'длинный', null, { time:{ mode:'динамика', from:'2023-01-01', to:'2026-08-01' } });
+  const fx = RP.flexOf('t-overdue', v1.id), ap = RP.applyView(v1.id), plain = RP.flexOf('t-overdue', null);
+  ok(205, v1.ok && RP.viewDiff(v1.id).time.mode === 'динамика' && RP.viewDiff(v1.id).filter.groups.length === 2 &&
+        fx.time.from === 'вид «динамика и Ош»' && has(fx.time.text, 'динамика 01.01.2026 — 01.08.2026') &&
+        has(fx.filter.text, 'ИЛИ') && ap.ok && ap.flex.time.spec.mode === 'динамика' && !plain.time && !plain.filter &&
+        !badF.ok && has(badF.why, 'фильтр:') && !badT.ok && has(badT.why, 'длиннее 36'),
+    `вид хранит режим времени и фильтр отличием от отчёта: «${fx.time.text}», «${fx.filter.text}»; без вида экран ` +
+    `их не наследует; негодный фильтр и ряд длиннее 36 не сохраняются (ADR-0282, ADR-0281)`);
+
+  as('buh');
+  const shr = RP.setReportFlex('t-sh-plan', { time:{ mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, filter: orF });
+  const shEd = RP.TPL('t-sh-plan').editions[0];
+  const vSame = RP.saveView('t-sh-plan', 'как отчёт', null, { filter: orF });
+  const vOwn = RP.saveView('t-sh-plan', 'топ-3', null, { filter:{ top:{ n:3, by:'debt_main' } } });
+  const fxR = RP.flexOf('t-sh-plan', vSame.id), fxV = RP.flexOf('t-sh-plan', vOwn.id);
+  as('user');
+  const own = RP.setReportFlex('t-osh', { filter:{ top:{ n:3, by:'debt_main' } } });
+  const foreign = RP.setReportFlex('t-sh-plan', { filter: orF });
+  as('auth');
+  const offic = RP.setReportFlex('t-overdue', { filter: orF });
+  ok(206, shr.ok && has(shEd.changed, 'режим и фильтр') && vSame.ok && RP.viewDiff(vSame.id).filter === undefined &&
+        fxR.filter.from === 'отчёт' && fxR.time.from === 'отчёт' && fxV.filter.from === 'вид «топ-3»' && has(fxV.filter.text, 'топ 3') &&
+        own.ok && RP.flexOf('t-osh').filter.from === 'отчёт' && !foreign.ok && has(foreign.why, 'владелец и соавторы') &&
+        !offic.ok && has(offic.why, 'колонки-даты'),
+    `личный и общий отчёт хранят режим и фильтр своим умолчанием (общий — версией «изменён»); вид поверх хранит ` +
+    `только отличие; в официальном режим — колонки-даты, отбор — параметры, свой режим — в виде`);
+
+  RP.seed(); as('auth');
+  const v2 = RP.saveView('t-overdue', 'просрочка 30+', null, { filter:{ groups:[[{ field:'days', op:'больше', value:30 }]] } });
+  RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
+  const fx2 = RP.flexOf('t-overdue', v2.id);
+  ok(207, v2.ok && !fx2.filter && has(fx2.dropped, 'больше не годится') && has(fx2.dropped, 'снят'),
+    `фильтр вида сверяется с отчётом при каждом показе: поле ушло из перечня — фильтр отваливается с пометкой, ` +
+    `а не ломает вид (ИО-43)`);
+
+  RP.seed(); as('user');
+  const rowN = RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'kr-2' }, text:'на контроле' });
+  const cellN = RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'ячейка', row:'kr-2', col:'debt_main' }, text:'сверить остаток' });
+  const badCol = RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'ячейка', row:'kr-2', col:'sum' }, text:'x' });
+  const badRow = RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'pm-3' }, text:'x' });
+  as('head');
+  const hidden = RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'kr-2' }, text:'x' });
+  as('auth');
+  const seen = RP.notesFor('t-overdue', '2026-08-01');
+  ok(208, rowN.ok && cellN.ok && !badCol.ok && has(badCol.why, 'ячейка — строка × колонка') && !badRow.ok &&
+        has(badRow.why, 'объект ответа') && !hidden.ok && has(hidden.why, 'не виден') && seen.length === 2 &&
+        seen.some(n => /^к строке /.test(n.at)) && seen.some(n => /^к ячейке .* · Остаток/.test(n.at)),
+    `заметка ставится на строку (объект ответа) и ячейку (объект × колонка состава): ${seen.map(n => n.at).join('; ')}; ` +
+    `к чужой колонке и невидимому объекту — отказ (ОГ-31)`);
+
+  const ln = RP.chartOf('t-overdue', { asOf:'2026-08-01', dept:'' }, null, { kind:'линия', time:{ from:'2026-01-01', to:'2026-08-01' } });
+  const tbl = RP.timeAnswer('t-overdue', dyn, { asOf:'2026-08-01', dept:'' });
+  const pie = RP.chartOf('t-overdue', { asOf:'2026-08-01', dept:'' }, null, { kind:'круг' });
+  ok(209, ln.ok && ln.kind === 'линия' && ln.segments.length === 2 && ln.segments[0].length === 1 && ln.segments[1].length === 3 &&
+        ln.gaps.length === 4 && JSON.stringify(ln.points.map(p => p.value)) === JSON.stringify(tbl.tracks[0].points.map(p => p.value)) &&
+        ln.passport.seam === 'statSeries' && !pie.ok && has(pie.why, 'графиков два'),
+    `линия динамики — тот же ряд statSeries, что таблица (8 точек); 4 месяца без снимка рвут линию на 2 отрезка, ` +
+    `а не падают в ноль (ОГ-10, ОГ-6)`);
+
+  RP.seed(); as('auth');
+  RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'kr-2' }, text:'на контроле' });
+  RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'ячейка', row:'kr-6', col:'debt_main' }, text:'сверить остаток' });
+  const vv = RP.saveView('t-overdue', 'моя динамика', null, { time: dyn });
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.useView(vv.id); RP.state.sel.chart = true;
+  const s1 = win.VIEWS.issue.fn();
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.tpl = 't-pay04';
+  const s2 = win.VIEWS.issue.fn();
+  ok(210, has(s1, 'class="noted"') && has(s1, 'заметка к ячейке') && has(s1, 'Режим времени из вида «моя динамика»') &&
+        has(s1, '<svg class="chart line"') && has(s1, 'Заметка к строке') && has(s1, 'к ячейке') &&
+        has(s2, 'Колонки-даты формы — от отчётной даты 01.08.2026') && has(s2, 'С начала года — прошлый год') &&
+        has(s2, '2 400 000') && has(s2, 'колонки-даты') && has(s2, 'не закрыты январь 2025'),
+    `экраны: на показе — значок заметки у строки и ячейки, режим из вида, линия динамики; у формы с колонками-датами — ` +
+    `таблица «строки × даты», даты в паспорте и названный отказ окончательной сдачи`);
 })();
 
 /* ---- отчёт ---- */
