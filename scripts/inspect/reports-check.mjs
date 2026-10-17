@@ -112,8 +112,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.seed();
   const q = RP.ownQuery(), f = RP.ownFormula();
   ok(12, !q.ok && has(q.why, 'обойти область видимости она не может физически') &&
-        !f.ok && has(f.why, 'Вторая формула той же величины разошлась бы с первой'),
-    `«свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки`);
+        !f.ok && has(f.why, 'в официальный') && has(f.why, 'заводится показателем'),
+    `«свой запрос» — названный отказ; «своя формула» — названная граница: в официальный не входит (ADR-0281)`);
 })();
 
 /* ---------- D. Видимость применяется внутри шва (§13.2, §13.4) ---------- */
@@ -1089,10 +1089,11 @@ const DEV = 'изменено — не утверждённый состав';
   const tables = s => (String(s).match(/<table/g) || []).length;
   const sects = s => (String(s).match(/class="sect"/g) || []).length;
   ok(151, tables(rep) === 1 && sects(rep) === 2 && tables(bl) === 1 && sects(bl) === 2 &&
-        has(bl, 'По запросу <span class="n">· 1</span>') && has(bl, 'Кредитный договор') &&
+        has(bl, 'По запросу <span class="n">· 2</span>') && has(bl, 'Кредитный договор') &&
+        has(bl, 'по форме банка-агента') &&
         !has(bl, 'Под отбор не попало') && has(rep, 'Обязательные <span class="n">· 1</span>'),
     `обязательность делит строки ВНУТРИ одной таблицы: одна шапка и разделители групп; у бланков ` +
-    `«по запросу» — кредитный договор, необязательный по норме, но печатаемый каждый день`);
+    `«по запросу» — кредитный договор и форма банка-агента, необязательные по норме, но печатаемые каждый день`);
 })();
 
 /* ---------- T. Три стола в навигации — раскладка, а не права (ОЧ-55) ---------- */
@@ -1622,9 +1623,9 @@ const DEV = 'изменено — не утверждённый состав';
   const guar = pal.find(g => g.role === 'Поручитель').items[0];
   const found = RP.palette('t-contract', 'сумма', 'kr-6');
   const cp = RP.copyToken('Кредит.Сумма', 'число и прописью');
-  ok(167, roles.join() === 'Кредит,Заёмщик,Поручитель,Платёж — в повторе' && guar.ru === 'Поручитель.ФИО' &&
+  ok(167, roles.join() === 'Кредит,Заёмщик,Поручитель,Платёж — в повторе,Строка графика — в повторе' && guar.ru === 'Поручитель.ФИО' &&
         guar.example === 'Асанов Т. К.' && found.every(g => g.items.every(x => has(x.ru.toLowerCase() + x.name.toLowerCase(), 'сумма'))) &&
-        found.length === 2 && cp.ok && cp.token === '${Кредит.Сумма | число и прописью}',
+        found.length === 3 && cp.ok && cp.token === '${Кредит.Сумма | число и прописью}',
     `палитра полей — по ролям (${roles.join(' · ')}), с примером значения на живом объекте ` +
     `(«${guar.example}») и поиском; «копировать» отдаёт готовую метку ${cp.token}`);
 
@@ -1667,6 +1668,203 @@ const DEV = 'изменено — не утверждённый состав';
         !RP.publish('t-claim').ok,
     `утверждение повторяет проверку документом: ошибка с местом («${ch[0].why.slice(0, 50)}…») ` +
     `не пускает редакцию в печать`);
+})();
+
+/* ---- CC. Получатель сдачи — «вид + значение»; повтор в режиме бланка (ADR-0305, волна 34) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const P = { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный' };
+  const out = RP.issue('t-overdue', { ...P, recipient:'a-mf' });
+  const unit = RP.issue('t-overdue', { ...P, recipient:'unit:dep-legal' });
+  const post = RP.issue('t-overdue', { ...P, recipient:'post:p-chair' });
+  const d = r => r.ok && r.rec.doc ? RP.DOC(r.rec.doc) : {};
+  ok(171, out.ok && d(out).kind === 'черновик исходящего' && out.rec.recipient.kind === 'адресат сдачи' &&
+        unit.ok && d(unit).kind === 'черновик внутреннего документа' && unit.rec.recipient.kind === 'подразделение' &&
+        d(unit).to === 'Департамент правового обеспечения' &&
+        post.ok && d(post).kind === 'черновик внутреннего документа' && post.rec.recipient.name === 'Председатель Правления',
+    `документ сдачи решает ВИД получателя: Минфину — ${d(out).kind}, ДПО — ${d(unit).kind}, ` +
+    `председателю правления — ${d(post).kind}; признака «внешний / внутренний» у адресата нет (ОГ-Д8, ADR-0305 п. 2)`);
+
+  const asAddr = RP.issue('t-overdue', { ...P, recipient:'dep-legal' });
+  const reg = RP.registerDoc(unit.rec.doc);
+  const addrs = RP.addressees();
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.kind = 'окончательный';
+  RP.state.sel.recipient = 'unit:dep-legal';
+  const scr = win.VIEWS.issue ? win.VIEWS.issue.fn() : '';
+  ok(172, !asAddr.ok && has(asAddr.why, 'справочник адресатов держит только внешние') &&
+        addrs.every(a => !/^(dep|rep)-/.test(a.id)) && reg.ok && /^ВН-/.test(reg.number) &&
+        (!scr || (has(scr, 'Адресат сдачи — внешняя организация') && has(scr, 'Подразделение (оргструктура)') &&
+                  has(scr, 'черновиком внутреннего документа'))),
+    `подразделение адресатом сдачи не называется — «${asAddr.why.slice(0, 70)}…»; справочник адресатов — только ` +
+    `внешние (${addrs.length}); внутренняя сдача регистрируется журналом внутренних (${reg.number})`);
+
+  RP.seed(); as('auth');
+  const at = RP.show('t-recon', { obj:'kr-2', asOf:'2026-01-01' }, null);
+  const rp = at.data && at.data.repeats ? at.data.repeats[0] : { rows:[] };
+  const live = SEAM.objectRows('payment', { of:'kr-2' }, RP.viewer().scope.slice()).rows;
+  const pm3 = rp.rows.find(x => x.id === 'pm-3') || {};
+  ok(173, rp.seam === 'statRows' && rp.asOf === '2026-01-01' && rp.rows.length === 4 && pm3.amount === 500000 &&
+        !rp.rows.some(x => x.id === 'pm-8') && live.length === 5 && live.find(x => x.id === 'pm-3').amount === 550000 &&
+        at.data.passport.repeats[0].seam === 'statRows',
+    `акт сверки на 01.01.2026 — тело из того же снимка, что шапка: ${rp.rows.length} строки statRows, pm-3 — ` +
+    `${pm3.amount} (исправлен 10.02 на 550 000 — в акт не попадает), pm-8 от 15.03.2026 в снимке нет; ` +
+    `живое ядро даёт ${live.length} строк (ОГ-Д9, ADR-0305 п. 3)`);
+
+  as('user');                                    // за обязательством по dep-prom — Осмонова Г.
+  const fin = RP.issue('t-recon', { params:{ obj:'kr-2', asOf:'2026-01-01' }, kind:'окончательный' });
+  const snapRep = fin.ok && fin.rec.snapshot && fin.rec.snapshot.repeats ? fin.rec.snapshot.repeats[0] : null;
+  const now = RP.show('t-notice', { obj:'kr-2' }, null);
+  ok(174, fin.ok && snapRep && snapRep.seam === 'statRows' && snapRep.rows.length === 4 &&
+        now.data && now.data.repeats.length === 0 && now.data.passport.seams.join() === 'objectRows',
+    `в снимок выпуска ложится тело повтора тем же швом (${snapRep ? snapRep.seam + ', строк ' + snapRep.rows.length : '—'}); ` +
+    `бланк «сейчас» без повтора спрашивает только objectRows`);
+
+  const txt = 'АКТ\n${Повтор: каждая СтрокаГрафика}\n${СтрокаГрафика.Дата} ${СтрокаГрафика.Сумма}\n${Конец повтора}';
+  const onDate = RP.parseLayout(txt, 'credit', 'на дату');
+  const nowP = RP.parseLayout(txt, 'credit', 'сейчас');
+  as('auth'); RP.newEdition('t-recon');
+  RP.state.templates.find(x => x.id === 't-recon').editions.find(e => e.state === 'черновик').layoutText = txt;
+  const chk = RP.publishChecks('t-recon').filter(x => x.check === 'проверка макета');
+  const pal = RP.palette('t-recon', '', 'kr-2').map(g => g.role);
+  ok(175, onDate.errors.length === 1 && has(onDate.errors[0].why, 'строки графика на дату не хранятся') &&
+        nowP.errors.length === 0 && chk.length === 1 && !RP.publish('t-recon').ok &&
+        pal.indexOf('Платёж — в повторе') !== -1 && pal.indexOf('Строка графика — в повторе') === -1,
+    `повтор по строке графика у бланка «на дату» — ошибка проверки макета: «${(onDate.errors[0] || {}).why}»; ` +
+    `у бланка «сейчас» тот же текст чист; палитра бланка «на дату» строк графика не предлагает (ADR-0305 п. 4)`);
+
+  const sch = SEAM.statRows('schedule', '2026-01-01', { of:'kr-2' }, RP.viewer().scope.slice());
+  ok(176, !/cut\.before/.test(src) && sch.rows.length === 0 && has(sch.refused, 'на дату статистика не хранит'),
+    `отбора живых платежей датой больше нет: повтор «на дату» читает строки статистики, а не режет живой ` +
+    `ответ; строк графика на дату статистика не отдаёт — «${sch.refused}»`);
+})();
+
+/* ---- DD. Пачка, утверждение по сравнению, PDF-форма (ИО-38, ADR-0225, ADR-0297, волна 34) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const n0 = RP.state.issues.length;
+  const b = RP.batch('t-guar', { objs:['kr-1', 'kr-2', 'kr-3', 'kr-6'], kind:'окончательный' });
+  const pick = RP.journalPick(b.trail);
+  ok(177, b.ok && b.issued.length === 1 && b.refused.length === 3 && b.refused.every(x => /^КД-/.test(x.no) && has(x.why, 'поручитель')) &&
+        b.docs.length === 1 && RP.state.issues.length === n0 + 1 && pick.indexOf(b.issued[0]) !== -1 &&
+        !('batches' in RP.state) && has(b.note, 'след пачки — отбор журнала'),
+    `пачка — способ заказа: 4 кредита дали ${b.issued.length} обычный выпуск с черновиком документооборота, ` +
+    `не вышли поимённо ${b.refused.map(x => x.no).join(', ')} (нет лица в роли «поручитель»); своей записи у пачки нет — ` +
+    `её след в журнале отбором (ИО-38)`);
+
+  RP.seed(); as('user');
+  RP.state.worklists.push({ id:'РС-9', name:'обзвон', from:'провал', at:'2026-10-17', by:'Осмонова Г.', dept:null,
+    state:'открыт', objects:['kr-1', 'kr-2', 'kr-3', 'kr-6'], marks:{} });
+  const bu = RP.batch('t-notice', { worklist:'РС-9', kind:'предварительный' });
+  const brep = RP.batch('t-overdue', { objs:['kr-1'] });
+  const bnone = RP.batch('t-notice', {});
+  ok(178, bu.ok && bu.issued.length === 2 && bu.hidden === 2 && has(bu.note, 'вне области видимости — 2') &&
+        bu.docs.length === 0 && !brep.ok && has(brep.why, 'пачкой заказываются бланки') && !bnone.ok,
+    `прав пачка не добавляет: по списку из 4 вышло ${bu.issued.length}, невидимые названы числом (${bu.hidden}); ` +
+    `предварительная пачка документов не заводит; отчёт пачкой не заказывается`);
+
+  RP.seed(); as('clerk');
+  RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}\n${Если: есть Поручитель}\nПоручитель: ${Поручитель.ФИО}\n${Конец условия}');
+  const cmp = RP.compareEditions('t-notice');
+  RP.state.view = 'blank'; RP.state.sel.blank = 't-notice';
+  const scr = win.VIEWS.blank.fn();
+  ok(179, cmp.ok && cmp.was === 1 && cmp.now === 2 && cmp.changed > 0 && cmp.lines.some(x => x.op === '+') &&
+        cmp.conds.added.join() === 'есть Поручитель' && cmp.fields.added.indexOf('Поручитель.ФИО') !== -1 &&
+        cmp.paper.length > 0 && cmp.paper[0].before !== cmp.paper[0].after &&
+        has(scr, 'Сравнение: ред. 1 → ред. 2') && has(scr, 'Бумага «до и после»'),
+    `утверждение по сравнению: ред. 1 → 2 — изменённых строк ${cmp.changed}, условия +${cmp.conds.added.join()}, ` +
+    `поля +${cmp.fields.added.join(', ')}; бумага «до и после» на тех же примерах (ADR-0297 п. 13)`);
+
+  RP.seed(); as('clerk');
+  const f2 = RP.pdfFill('t-bankform', 'kr-2'), f6 = RP.pdfFill('t-bankform', 'kr-6');
+  const fin = RP.issue('t-bankform', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  ok(180, f2.ok && f2.continuation === 2 && f2.inForm === 3 && f2.pages === 2 && f2.baked &&
+        f2.fields.find(x => x.name === 'chkGuarantee').value === '☐' && f6.fields.find(x => x.name === 'chkGuarantee').value === '☒' &&
+        f2.fields.find(x => x.name === 'BankNote').how === 'оставлено пустым' &&
+        has(f2.fields.find(x => x.name === 'DebtAmount').value, 'пять миллионов сто тысяч') &&
+        fin.ok && fin.rec.pdf && fin.rec.pdf.pages === 2 && fin.rec.pdf.continuation === 2 &&
+        RP.state.issues.filter(i => i.tpl === 't-bankform').length === 1,
+    `PDF-форма заполняется своим кодом: поля запечены, флажок — условием (☐ у КД-2024/203, ☒ у КД-2025/126), ` +
+    `«оставить пустым» — явный выбор; 5 платежей — 3 в форме и 2 на листе продолжения того же PDF: один выпуск (ADR-0297 п. 7–8)`);
+
+  const t = RP.TPL('t-bankform');
+  t.editions[0].pdfForm.overflow = 'отказать';
+  const refuse = RP.issue('t-bankform', { params:{ obj:'kr-2' }, kind:'предварительный' });
+  t.editions[0].pdfForm.overflow = 'лист продолжения';
+  const up = RP.uploadPdfForm('t-bankform', 'bank-agent-confirm-v2.pdf', ['BorrowerName','ContractNo','DebtSum','chkGuarantee','BankNote','PayRow1']);
+  const send = RP.sendForApproval('t-bankform');
+  as('auth'); const pc = RP.publishChecks('t-bankform').filter(x => x.check === 'проверка макета');
+  const cmp2 = RP.compareEditions('t-bankform');
+  ok(181, !refuse.ok && has(refuse.why, 'лист продолжения эта форма не принимает') &&
+        up.ok && up.carried === 5 && up.lost.join() === 'DebtAmount' && up.fresh.join() === 'DebtSum' &&
+        !send.ok && has(send.why, 'сопоставление формы') && pc.length === 2 && !RP.publish('t-bankform').ok &&
+        cmp2.pdf && cmp2.mapping.removed.some(x => has(x, 'DebtAmount')) && cmp2.mapping.added.some(x => has(x, 'DebtSum')),
+    `форма с признаком «отказать» отклоняет переполнение с причиной; новая версия формы перенесла сопоставление ` +
+    `по именам (${up.carried} из 6), не совпавшее — ошибка проверки, утверждение закрыто; сравнение показывает ` +
+    `изменения сопоставления (ADR-0297 п. 6, 13)`);
+
+  RP.seed(); as('clerk');
+  RP.state.view = 'blank'; RP.state.sel.blank = 't-bankform'; RP.state.sel.blankObj = 'kr-2';
+  const pscr = win.VIEWS.blank.fn();
+  ok(182, has(pscr, 'мимо движка') && has(pscr, 'Страница формы') && has(pscr, 'на листе продолжения') &&
+        has(pscr, 'оставить пустым') && !has(pscr, 'Проверка документом'),
+    `экран PDF-формы — картинка страницы с полями, сопоставление и заполнение на примере, а не проверка docx`);
+})();
+
+/* ---- EE. Своя формула по уровням и вид отличиями (ИО-46, ИО-43, ОГ-Д3, волна 34) ---- */
+(() => {
+  RP.seed(); as('buh');
+  const F = { name:'Доля просрочки', a:'s-overdue-sum', op:'÷', b:'s-portfolio', k:100, unit:'%', dp:1 };
+  const add = RP.addFormula('t-sh-plan', F);
+  const r = RP.show('t-sh-plan', { asOf:'2026-08-01', dept:'' }, null);
+  const tot = r.data.totals.find(x => x.own);
+  const lv = r.data.groups.map(g => ({ g, f: g.totals.find(x => x.own),
+    a: g.totals.find(x => x.id === 's-overdue-sum').value, b: g.totals.find(x => x.id === 's-portfolio').value }));
+  const avg = lv.reduce((s, x) => s + x.f.value, 0) / lv.length, sum = lv.reduce((s, x) => s + x.f.value, 0);
+  ok(183, add.ok && tot && tot.shown === 16.1 && lv.length === 3 &&
+        lv.every(x => Math.abs(x.f.value - (x.b ? x.a / x.b * 100 : 0)) < 1e-9) &&
+        Math.abs(avg - tot.value) > 1 && Math.abs(sum - tot.value) > 1 &&
+        has(r.data.passport.formulas[0], 'своя формула') && RP.TPL('t-sh-plan').editions.slice(-1)[0].changed.indexOf('своя формула') !== -1,
+    `своя формула считается на каждом уровне заново из величин уровня: итог ${tot && tot.shown} % = ` +
+    `10,3 млн ÷ 64,1 млн, а не среднее уровней (${avg.toFixed(1)}) и не их сумма (${sum.toFixed(1)}); помечена и в паспорте (ИО-46)`);
+
+  as('auth');
+  const off = RP.addFormula('t-overdue', F);
+  const sh = RP.show('t-overdue', { asOf:'2026-08-01', dept:'' }, { formulas:[ Object.assign({ id:'ф-9' }, F) ] });
+  const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный', recipient:'a-mf',
+    twist:{ formulas:[ Object.assign({ id:'ф-9' }, F) ] } });
+  RP.newEdition('t-overdue');
+  RP.state.templates.find(x => x.id === 't-overdue').editions.find(e => e.state === 'черновик').formulas = [ Object.assign({ id:'ф-8' }, F) ];
+  const pc = RP.publishChecks('t-overdue').filter(x => x.check === 'своя формула');
+  const bad = RP.show('t-overdue', { asOf:'2026-08-01', dept:'' }, { formulas:[ { id:'ф-7', name:'x', a:'s-overdue-sum', op:'^', b:'s-portfolio' } ] });
+  ok(184, !off.ok && has(off.why, 'в официальный отчёт не входит') && sh.ok && sh.deviated &&
+        sh.data.totals.some(x => x.own) && (!fin.ok || fin.rec.kind === 'предварительный') &&
+        pc.length === 1 && !RP.publish('t-overdue').ok && !bad.ok && has(bad.why, 'не из списка'),
+    `в официальный отчёт своя формула не входит: в редакцию — отказ с путём «показатель реестра или производная ` +
+    `колонка», на экране — накрутка «изменено», в сдачу не идёт; действия — только + − × ÷`);
+
+  RP.seed(); as('auth');
+  const sv = RP.saveView('t-overdue', 'без состояния', { cuts:['dept'] });
+  const vw = RP.state.views.find(x => x.id === sv.id);
+  const d = RP.viewDiff(sv.id);
+  RP.newEdition('t-overdue');
+  const dr = RP.state.templates.find(x => x.id === 't-overdue').editions.find(e => e.state === 'черновик');
+  dr.stats = dr.stats.concat(['s-portfolio']); dr.dp = Object.assign({}, dr.dp, { 's-portfolio':0 });
+  const pub = RP.publish('t-overdue');
+  const ap = RP.applyView(sv.id);
+  ok(185, sv.ok && !('twist' in vw) && d.dropCuts.join() === 'status' && d.addCuts.length === 0 &&
+        d.addStats.length === 0 && d.dropStats.length === 0 && pub.ok &&
+        ap.ok && ap.twist.stats.indexOf('s-portfolio') !== -1 && ap.twist.cuts.join() === 'dept' && ap.dropped.length === 0,
+    `вид хранит только отличия (${JSON.stringify(d)}) и связан с оригиналом: владелец добавил показатель — ` +
+    `он пришёл в вид сам, снятый разрез остался снятым (ИО-43)`);
+
+  RP.seed(); as('auth');
+  const tw = { cuts:['dept','status'], formulas:[ Object.assign({ id:'ф-5' }, F) ] };
+  const sv2 = RP.saveView('t-overdue', 'с долей', tw);
+  RP.withdrawStat('s-portfolio');
+  const ap2 = RP.applyView(sv2.id);
+  ok(186, sv2.ok && RP.viewDiff(sv2.id).addFormulas.length === 1 && ap2.ok &&
+        ap2.dropped.some(x => has(x, 'своя формула «Доля просрочки» больше не считается')) && ap2.twist.formulas.length === 0,
+    `своя формула живёт в виде отличием; показатель под ней выведен — формула отваливается с пометкой, остальное работает`);
 })();
 
 /* ---- отчёт ---- */
