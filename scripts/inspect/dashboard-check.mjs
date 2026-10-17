@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–15, 11–17.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–16, 11–17.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-233, ИДБ-1…ИДБ-20):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-252, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -121,6 +121,13 @@
 //      доля, объект с собой на базе, во всех видах; сторож запретов: географической карты, точечной, круговой, каскада и прочих нет; 383 — находки ревью
 //      (выбор новых режимов помнится, нет базы — «—» в строках Ряда по разрезу, Переходы ждут базу скелетом, подпись погашенных осей). Переписаны под данные
 //      волны без ослабления: 122 (плиток Куратора и каталога на отчётах 18 — добавлена «Подано заявок · с начала года»), 196 (в каталоге 92 плитки).
+//   AC волна 16 (17.10.2026), переход к деталям ДБ-234…ДБ-247, ДБ-252, потоки записи объекта ДБ-248, ДБ-250, ДБ-251: панель «Кто в этом числе» рядом с полосой,
+//      без затемнения, подсветка строки, Esc; колонки объекта, разрез вида, «Колонки ▾» по человеку и типу объекта; подпись на дату (переименованное лицо
+//      «на 30.09» — под прежним именем); вес у счётного; «Изменение» — объекты обеих дат с ненулевой разницей, сумма = изменению строки; «в числе | вся
+//      группа»; поиск и порядок; выходы; карточка с шагами и возвратом; ссылка — состояние, права получателя, дата среза; доля и черта «80 %»; шапка и
+//      отказ; колонки узла; потоки «Остатка» и «Нераспределённого» — из записи объекта (частичное распределение — «распределено»), без потоков —
+//      «выросла / снизилась у прежних»; частичный ответ у Когорт, Переходов и Ряда по разрезу; история дела и заявки. Переписаны под данные волны без
+//      ослабления: 197 («Нераспределённый остаток» — частичное распределение), 212 (нераспределённых 23), 296 («вся группа» — в панели, не в полосе).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -1910,7 +1917,9 @@ const asUser = id => { DB.state.userId = id; };
     ['acc-prev', 'shift', 17929534],
     ['acc-refund', 'main', 3108293],
     ['acc-rev', 'main', 1],
-    ['acc-unalloc', 'move(0)', [25616606,13057964,[12740493],[24198243,1100892],0]],
+    // волна 16: пять поступлений, ждавших на 30.09, в октябре распределены частично — конец +1 863 406 (их остатки), «распределено» −1 863 406;
+    // начало, «поступило» и «возвращено» прежние, «прочее» — 0, как было (потоки записи «Поступления», ДБ-248)
+    ['acc-unalloc', 'move(0)', [25616606,14921370,[12740493],[22334837,1100892],0]],
     ['acc-prev', 'series(12)', prevEnd([139248882], [[136776387],[134792788],[97903433],[116176437],[136663065],[118347844],[124427349],[127567481],[125885127],[124960688],[142890222],[150065611]])],
     ['acc-pkind', 'slice(pkind)', [['по графику',11416013],['по решению суда',2917184],['досрочно',1422685],['имуществом',733317]]],
     ['acc-pkind', 'main', 16489199],
@@ -2184,10 +2193,11 @@ const asUser = id => { DB.state.userId = id; };
   // поле «срок ожидания» поступлений — своим генератором после прежних: прежние числа очередей на месте
   const rc = DB.DATA.receipt, nonAl = rc.filter(r => r.state !== 'распределено'), wd = r => r.at === 0 ? 11 - r.day : 11 - r.day + 30;
   const unm = DB.view('acc-unm', 'slice', null, [], 'u4', 'acc', {}), uni = DB.view('acc-unident', 'slice', null, [], 'u4', 'acc', {}), awt = DB.view('acc-await', 'slice', null, [], 'u4', 'acc', {});
-  ok(212, rc.length === 5200 && nonAl.length === 18 && nonAl.every(r => r.waitDays === wd(r)) && rc.filter(r => r.state === 'распределено').every(r => r.waitDays === null) && DB.DATA.task.length === 40
+  // волна 16: пять частично распределённых ждут остатком с даты поступления — нераспределённых 23 (18 прежних + 5), очереди прежние
+  ok(212, rc.length === 5200 && nonAl.length === 23 && nonAl.filter(r => r.part).length === 5 && nonAl.every(r => r.waitDays === wd(r)) && rc.filter(r => r.state === 'распределено').every(r => r.waitDays === null) && DB.DATA.task.length === 40
     && DB.base('acc-unident', 'u4', 'acc').value === 1 && DB.base('acc-unident', 'u4', 'acc').second.value === 507717 && DB.base('acc-await', 'u4', 'acc').value === 1 && DB.base('acc-unm', 'u4', 'acc').value === 16
     && unm.format === 'steps' && unm.sel.dim === 'rwait' && unm.nodes.map(n => n.value).join() === '7,8,1' && uni.nodes.map(n => n.value).join() === '0,1,0' && awt.nodes.map(n => n.value).join() === '1,0,0',
-    `срок ожидания поступления — дни от даты поступления, пока оно не распределено (18 строк, остальные пустые; случайных чисел нет, прежние данные не сдвинулись): «Незакрыжено» 16 = ${unm.nodes.map(n => n.label + ' ' + n.value).join(' · ')}, «Невыясненные» 1 — ${uni.nodes.find(n => n.value).label}, «Ожидают подтверждения» 1 — до 3 дн.; числа очередей прежние: 1 · 507 717 · 1 · 16 (ДБ-120)`);
+    `срок ожидания поступления — дни от даты поступления, пока оно не распределено (23 строки — с волны 16 и пять частично распределённых, остальные пустые; случайных чисел нет, прежние данные не сдвинулись): «Незакрыжено» 16 = ${unm.nodes.map(n => n.label + ' ' + n.value).join(' · ')}, «Невыясненные» 1 — ${uni.nodes.find(n => n.value).label}, «Ожидают подтверждения» 1 — до 3 дн.; числа очередей прежние: 1 · 507 717 · 1 · 16 (ДБ-120)`);
   // виды ссылочных плиток по объявленным разрезам: Разрез = числу, Таблица и Карта по числу разрезов, клик по числу — очередь
   const links = DB.TILES.filter(t => t.kind === 'link'), nd = t => DB.queueById(t.queue).dims.length;
   const lk = links.map(t => { const [uid, role] = who(t.id), v = vw(t.id, uid, role), b = DB.base(t.id, uid, role), n = nd(t), s = n ? DB.view(t.id, 'slice', null, [], uid, role, {}) : null, dl = DB.dimsFor(t.id);
@@ -3071,7 +3081,7 @@ const asUser = id => { DB.state.userId = id; };
   const wN = DB.whoNode('cat-brepsh'), w2 = DB.whoAt('cat-brepsh', 'bcredits', '2'), w3 = DB.whoAt('cat-brepsh', 'bcredits', '3+'), wT = DB.whoAt('cat-brepsh'); DB.state.open = {};
   const ids = l => l.map(x => x.r.id).sort().join(), bodyB = sv.h.slice(sv.h.indexOf('<div class="strip-b">'));
   ok(296, wN.list.length === sec[0] && ids(wN.list) === ids([...w2.list, ...w3.list]) && tot && num(tot[1]) === sec[1] && rows.length === 3 && sum(rows.map(x => x[1])) === sec[1] && wT.list.length === sec[1]
-    && sv.r.cnt === sec[1] && !/☰ [\d\s]+ из/.test(bodyB) && !/вся группа/.test(src),
+    && sv.r.cnt === sec[1] && !/☰ [\d\s]+ из/.test(bodyB) && !/вся группа/.test(sv.h),   // с волны 16 «вся группа» — переключатель панели списка (ДБ-240), в полосе её нет
     `«Доля повторных клиентов» по своему разрезу: «☰ ${cntOf(sv.h)[0]}» в строке полосы открывает числитель — ${wN.list.length} клиентов, те же, что в строках «2» и «3+»; итог тела «☰ ${tot && tot[1]}» = сумма строк ${rows.map(x => x[0] + ': ' + x[1]).join(' + ')}, список итога ${wT.list.length}; у итога подписи «вся группа» нет — два «☰» различает сама запись: «435 из 903» в строке, «903» в итоге (ДБ-174, ДБ-Д44)`);
 
   // ДБ-174: Куратор «Заёмщиков с просрочкой» — по своему разрезу и по чужому; доля двух колонок — числитель и группа объектов знаменателя
@@ -4348,6 +4358,219 @@ const asUser = id => { DB.state.userId = id; };
     && /<button class="off" aria-disabled="true" data-tip="Переходы недоступны: у потока[^"]*">на дату базы → сегодня<\/button>/.test(hpl) && !/на августу/.test(hpl)
     && fdn && fdn.v === 'выдана' && (hfd.match(/<div class="rz-r fn-r dn"/g) || []).length === 6 && !/<span class="rz-v">0<\/span>/.test(hfd.split('class="rz fn"')[1] || ''),
     'ревью волны 15: «по разрезу», оси, начало Когорт помнятся у человека; нет ответа на 30.09 — точка «—» и разница у неё и следующей в каждой строке Ряда по разрезу и в «ещё N»; медленная отчётность — Переходы скелетом до базы (1,5 с — ещё скелет, 3 с — матрица); у потока кнопка «на дату базы → сегодня» погашена с причиной; статистика не ответила по «выдана» — воронка не подставляет ноль: все шесть этапов «—» с причиной (нарастающий итог снизу), итог — как есть (ДБ-233, ДБ-213, ДБ-215, ДБ-223, ДБ-212)');
+  DB.seed();
+})();
+
+/* ---------- AC. Волна 16: переход к деталям — панель «Кто в этом числе» (ДБ-234…ДБ-247, ДБ-252); потоки записи объекта (ДБ-248); ДБ-250, ДБ-251 ---------- */
+(() => {
+  const tab = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '');
+  const near = (a, b, e = 0.5) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < e;
+  const u1 = U('u1'), lead = () => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); };
+  const W = () => DB.whoPanel();
+  const strip = (id, kind, sets) => { DB.openView(id, kind); (sets || []).forEach(([k, v]) => DB.viewSet(id, k, v)); };
+
+  // ДБ-235: немодальная панель справа, связана с полосой: клик по другому «☰ N» меняет содержимое, строка полосы подсвечена; ✕ и Esc; телефон — экран целиком
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]);
+  const sr0 = DB.whoAt('lead-od', 'region', 'Ошская'), w0 = JSON.parse(JSON.stringify(DB.state.who)), h0 = tab(DB.stripHTML('lead-od')), p0 = DB.whoHTML();
+  DB.whoAt('lead-od', 'region', 'Чуйская'); const w1 = DB.state.who, h1 = tab(DB.stripHTML('lead-od'));
+  const onBtn = (h, v) => new RegExp(`<button class="ls who-on"[^>]*onclick="event\\.stopPropagation\\(\\);DB\\.whoAt\\('lead-od','region','${v}'\\)">`).test(h);
+  const cls = DB.whoClose(), css = src.slice(0, src.indexOf('</style>'));
+  ok(384, w0.tile === 'lead-od' && w0.node.v === 'Ошская' && w0.fromStrip && sr0.list.length === 50 && onBtn(h0, 'Ошская') && !onBtn(h0, 'Чуйская')
+    && w1.node.v === 'Чуйская' && onBtn(h1, 'Чуйская') && !onBtn(h1, 'Ошская') && (h1.match(/who-on/g) || []).length === 1 && cls === null && DB.state.who === null
+    && !/drawer-mask|drawer-x/.test(p0) && /<aside class="who-p" id="who-p" role="complementary" aria-labelledby="wp-t" hidden><\/aside>/.test(src)
+    && /\.who-p\{ flex:none; width:var\(--who-w\);/.test(css) && /@media \(max-width:1100px\)\{ \.who-p\{ position:fixed; inset:0; z-index:39; width:100vw;/.test(css)
+    && /\.with-who \.grid\{ grid-template-columns:repeat\(2,minmax\(0,1fr\)\); \}/.test(css) && /e\.key==='Escape' && S\.who && view==='home' && !\$\('overlay'\)\.innerHTML\)\{ e\.preventDefault\(\); closeWho\(\); \}/.test(src),
+    `список — панелью рядом с полосой, без затемнения: «☰ 50» Ошской — панель «Просрочено › Ошская», строка полосы подсвечена; «☰» Чуйской — та же панель с её списком, подсветка переехала; ✕ и Esc закрывают; с панелью сетка — в две колонки, на узком окне и телефоне — экран целиком (ДБ-235)`);
+
+  // ДБ-236, ДБ-246: колонки объявлены у объекта; разрез вида — если путь его не закрепил; «Колонки ▾» — поле строки, помнится у человека по типу объекта
+  lead();
+  const names = m => m.refused ? 'отказ: ' + m.msg : m.cols.map(c => c.name).join(' · ');
+  const cRoot = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'bucket', v:'181+' }, [], { viewDims:['region'] });
+  const cPath = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'bucket', v:'181+' }, [{ dim:'region', v:'Ошская' }], { viewDims:['region'] });
+  const cNode = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'region', v:'Ошская' }, [], { viewDims:['region'] });
+  strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); DB.whoCol('category', true);
+  const cExt = W(), bal = DB.whoList('lead-bal', 'u1', 'lead', {}, { d:'program', v:'tur' }, [{ dim:'region', v:'Ошская' }], {}), brw = DB.whoList('lead-borr', 'u1', 'lead', {}, { d:'bregion', v:'Нарынская' }, [], {});
+  asUser('u2'); const other = DB.whoList('cur-od', 'u2', 'cur', {}, null, [], {}); asUser('u1');
+  const daysOk = cNode.rows.every(x => x.cells.days === DB.DATA.loan.find(l => l.id === x.id).overdueDays);
+  const decl = 'Объект · Заёмщик · Подразделение · Куратор · Программа · Дней просрочки';
+  ok(385, names(cNode) === decl && names(cRoot) === decl + ' · Область' && names(cPath) === decl && daysOk
+    && names(cExt).endsWith(' · Категория классификации') && names(bal).endsWith(' · Категория классификации') && !/Категория классификации/.test(names(brw))
+    && !/Категория классификации/.test(names(other)) && cExt.extraFields.find(f => f.dim === 'category').on && DB.state.listCols['u1|loan'].join() === 'category',
+    `колонки списка у кредита: «${decl}»; «Область» — у списка узла по сроку (разрез вида не закреплён), под путём «Ошская» её нет; «Колонки ▾» + «Категория классификации» — у Асанова на всех списках кредита, у заёмщика и у Бековой — нет (ДБ-236, ДБ-246)`);
+
+  // ДБ-237: подпись — колонка строки статистики на дату: номер и дата договора; наименование лица на дату — переименованное «на 30.09» под прежним именем
+  const rb = DB.DATA.borrower.find(b => (b.names || []).length === 2), rl = DB.DATA.loan.filter(l => l.borrower === rb.id && !l.closed && l.overdue > 0)[0];
+  const mNow = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'region', v:'Ошская' }, [], {}), mPt = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-1 }, [{ dim:'region', v:'Ошская' }], {});
+  const rowNow = mNow.rows.find(x => x.id === rl.id), rowPt = mPt.rows.find(x => x.id === rl.id), mo = DB.monthEndLabel(rl.from).slice(3);
+  const lbl = new RegExp('^' + rl.id + ' от \\d{2}\\.' + mo.replace('.', '\\.') + (mo.length === 2 ? '\\.2026' : '') + '$');
+  const bList = DB.whoList('lead-borr', 'u1', 'lead', {}, { d:'bregion', v:rb.region }, [], {});
+  ok(386, !!rb && rb.names[1].from === 0 && rowNow && rowPt && rowNow.cells.borrower === rb.names[1].name && rowPt.cells.borrower === rb.names[0].name && rb.names[1].name !== rb.names[0].name
+    && lbl.test(rowNow.cells.label) && mNow.rows.every(x => !/^З-\d/.test(x.cells.borrower)) && (bList.refused || bList.rows.every(x => x.cells.label === DB.nameAt(DB.borrowerOf(x.id), 0))),
+    `подпись — номер и дата договора («${rowNow && rowNow.cells.label}»), заёмщик — наименованием на дату списка: сегодня «${rb.names[1].name}», в списке точки «на конец 30.09» — «${rb.names[0].name}» (ДБ-237, ДБ-Д62)`);
+
+  // ДБ-238: у счётного — вес вместо «1»: «Во взыскании» — сумма требования, порядок по весу, сходимость — в шапке
+  const cl = DB.whoList('lead-claims', 'u1', 'lead', {}, null, [], {}), clV = cl.valCols.map(c => c[0]).join(), clW = cl.rows.map(x => x.w);
+  DB.who('lead-claims'); const hcl = DB.whoHTML(); DB.whoClose();
+  const clSum = DB.DATA.claim.filter(c => c.open).length, sumW = clW.reduce((a, b) => a + b, 0);
+  ok(387, cl.count && cl.weight === 'Сумма требования' && clV === 'w' && cl.rows.length === clSum && cl.conv.text === clSum + ' объектов = числу на плитке'
+    && clW.every((w, i) => i === 0 || clW[i - 1] >= w) && cl.rows.every(x => x.w === DB.DATA.claim.find(c => c.id === x.id).amount) && near(cl.rows.reduce((a, x) => a + x.pct, 0), 100, 1e-6)
+    && near(cl.rows[0].pct, cl.rows[0].w / sumW * 100, 1e-9) && !/wl-v/.test(hcl) && hcl.includes('>Сумма требования ↓</button>') && hcl.includes('<td class="n">' + DB.fmtVal(clW[0], 'sum') + '</td>'),
+    `«Во взыскании»: ${cl.rows.length} требований — колонки «1» нет, вес — сумма требования (${DB.fmtVal(clW[0], 'sum')} … ), порядок по весу, доля — от веса; шапка «${cl.conv.text}» (ДБ-238, ДБ-Д63)`);
+
+  // ДБ-239, ДБ-252: в «Изменении» список — объекты обеих дат с ненулевой разницей; сумма разниц = изменению строки; «как изменился»; панель следует режиму полосы
+  lead(); strip('lead-od', 'slice', [['dim', 'bucket']]); DB.mode('lead-od', 'change');
+  const vb = DB.view('lead-od', 'slice', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}), nb = vb.nodes.find(n => n.v === '91–180');
+  DB.whoAt('lead-od', 'bucket', '91–180'); const mc = W(), hows = [...new Set(mc.rows.map(x => x.how.replace(/«.*»/, '«…»')))].sort();
+  const fromSum = mc.rows.filter(x => x.how === 'пришёл из «31–90»').reduce((a, x) => a + x.v, 0), toSum = mc.rows.filter(x => x.how === 'перешёл в «181+»').reduce((a, x) => a + x.v, 0);
+  const consist = mc.rows.every(x => (x.a === null) !== (x.n === null) || (x.a !== null && x.n !== null && near(x.v, x.n - x.a)));
+  DB.mode('lead-od', 'sum'); const ms = W(); DB.mode('lead-od', 'change');
+  const ccl = DB.whoList('lead-claims', 'u1', 'lead', {}, null, [], { mode:'change' }), bcl = DB.base('lead-claims', 'u1', 'lead');
+  ok(388, mc.mode === 'change' && ms.mode === 'sum' && near(mc.sum, nb.delta) && mc.conv.matches && mc.rows.every(x => x.v !== 0) && consist
+    && near(fromSum, nb.moves.from.find(x => x.v === '31–90').sum) && near(toSum, nb.moves.to.find(x => x.v === '181+').sum)
+    && mc.valCols.map(c => c[1]).join(' · ') === 'на 30.09 · сейчас · разница · как изменился' && mc.rows.every((x, i) => i === 0 || Math.abs(mc.rows[i - 1].v) >= Math.abs(x.v))
+    && ccl.rows.length === Math.abs(bcl.shift.delta) && ccl.rows.every(x => x.how === 'новый' && x.v === 1) && /изменились · \+8 = изменению числа/.test(ccl.conv.text),
+    `«Просрочено» по сроку, «Изменение»: «☰» узла 91–180 — ${mc.rows.length} объектов с разницей (${hows.join(', ')}), сумма разниц ${DB.fmtVal(mc.sum, 'sum')} = изменению строки; «пришёл из 31–90» = «пришли из» узла, «перешёл в 181+» = «ушли в»; «Сумма» в полосе — список на дату; у «Во взыскании» — ${ccl.rows.length} новых требований (ДБ-239, ДБ-252)`);
+
+  // ДБ-240: у доли — «в числе | вся группа»: группа — объекты знаменателя с «в числе ✓ / —», сумма = знаменателю
+  lead(); asUser('u2'); DB.setTab('role', 'cur'); strip('cur-borod', 'slice'); DB.whoNode('cur-borod');
+  const sn = W(); DB.whoShare('group'); const sg = W(), bb = DB.base('cur-borod', 'u2', 'cur'), ph = DB.whoHTML();
+  asUser('u1'); DB.setTab('role', 'lead'); const lr = DB.whoList('lead-recov', 'u1', 'lead', {}, null, [], { share:'group' }), lrb = DB.base('lead-recov', 'u1', 'lead');
+  ok(389, sn.share.on === 'num' && sn.rows.length === bb.num && sg.share.on === 'group' && sg.rows.length === bb.den && sg.rows.filter(x => x.inNum).length === bb.num
+    && sg.valCols.some(c => c[0] === 'inNum') && sg.conv.text === bb.den + ' объектов = знаменателю' && sn.shareNums.num === bb.num && sn.shareNums.den === bb.den
+    && /<span class="seg wp-share"[^>]*><button class=""[^>]*>в числе 14<\/button><button class="on"[^>]*>вся группа 39<\/button><\/span>/.test(ph)
+    && near(lr.sum, lrb.den) && lr.conv.matches,
+    `у доли «Заёмщиков с просрочкой» (${bb.num} из ${bb.den}): «в числе» — ${sn.rows.length} заёмщиков, «вся группа» — ${sg.rows.length} с колонкой «в числе» (✓ у ${sg.rows.filter(x => x.inNum).length}); «Возвратность по делам» — вся группа ${DB.fmtVal(lr.sum, 'sum')} = знаменателю (ДБ-240)`);
+
+  // ДБ-241: сортировка по любой колонке и поиск; поиск сужает показ, а не число — шапка держит полный итог
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская');
+  DB.whoSearch('КД-25'); const sq = W(); DB.whoSort('days'); const sd = W(); DB.whoSort('days'); const sd2 = W(); DB.whoSearch(''); DB.whoSort('label'); const sl = W();
+  const shSum = sq.shown.reduce((a, x) => a + x.v, 0), dd = sd.shown.map(x => x.cells.days), dd2 = sd2.shown.map(x => x.cells.days), ll = sl.shown.map(x => x.cells.label);
+  ok(390, sq.shown.length > 0 && sq.shown.length < sq.rows.length && sq.shown.every(x => x.id.includes('КД-25')) && sq.rows.length === 50 && sq.conv.text === '50 объектов · 29,2 млн = числу строки'
+    && sq.shownText === 'показано ' + sq.shown.length + ' из 50 · сумма показанных ' + DB.fmtVal(shSum, 'sum') + ' из 29,2 млн = числу' && sq.cut === null
+    && sd.sort.k === 'days' && sd.sort.dir === 'desc' && dd.every((v, i) => i === 0 || dd[i - 1] >= v) && sd2.sort.dir === 'asc' && dd2.every((v, i) => i === 0 || dd2[i - 1] <= v)
+    && ll.every((v, i) => i === 0 || ll[i - 1].localeCompare(v, 'ru', { numeric:true }) <= 0) && /<label class="wp-sort">Порядок <select/.test(DB.whoHTML()) && !/фильтр|групп/i.test(DB.whoHTML().split('<div class="wp-b"')[0].replace(/рабочий список/, '')),
+    `поиск «КД-25» в списке Ошской: ${sq.shownText}; шапка — «${sq.conv.text}»; порядок по любой колонке (дни просрочки ↓ и ↑, подпись), на узкой панели — списком «Порядок»; фильтров и группировки нет (ДБ-241)`);
+
+  // ДБ-242: выходы — реестр, рабочий список в отчётности из показанного состава, выгрузка xlsx со штампом сразу; массовых действий нет
+  DB.whoSearch('КД-2'); const sx = W(), wl = DB.whoExit('worklist'), ex = DB.whoExit('export'), rg = DB.whoExit('registry'), hx = DB.whoHTML();
+  const btns = [...hx.matchAll(/onclick="DB\.whoExit\('([a-z]+)'\)"/g)].map(x => x[1]).join();
+  ok(391, wl.ids.join() === sx.shown.map(x => x.id).join() && wl.name.startsWith('Просрочено › Ошская · ') && wl.module === 'Отчётность' && DB.state.workLists[0] === wl
+    && ex.rows.length === sx.shown.length + 1 && ex.rows[0][0] === 'Объект' && ex.stamp.some(s => /^НЕ ЯВЛЯЕТСЯ ОФИЦИАЛЬНЫМ ДОКУМЕНТОМ/.test(s)) && ex.stamp.some(s => s === 'Список: Просрочено › Ошская')
+    && ex.stamp.some(s => s.includes('поиск «КД-2»')) && DB.state.exportLog[0].list && DB.state.exportLog[0].list.n === sx.shown.length && rg.registry === 'Реестр кредитов' && btns === 'registry,worklist,export',
+    `выходы: «Работать со списком» — ${rg.registry}; «Завести рабочий список» — «${wl.name}», ${wl.ids.length} объектов (показанные по поиску), в отчётности; «Выгрузить список» — ${ex.rows.length - 1} строк со штампом сразу; других кнопок нет (ДБ-242)`);
+
+  // ДБ-243: строка → карточка на месте дашборда; плашка — путь, дата, вклад и «сейчас»; шаги по списку в его порядке (с поиском); «← к дашборду» — на то же место
+  const c2 = DB.openCard(2), s3 = DB.cardStep(1), back = DB.cardBack(), afterBack = W();
+  const link = /<a class="linky" href="#st=[^"]*" onclick="return DB\.cardFrom\(event,\d+\)"/.test(DB.whoHTML());
+  // пришли данные новее: список — снимок полосы (вклад на 14:15), карточка — сейчас: у оплатившего кредита «в карточке сейчас» меньше вклада
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); DB.standFresh(); let cfr = null;
+  for (let i = 0; i < W().rows.length && !cfr; i++) { const k = DB.openCard(i); if (k && k.nowTxt !== DB.fmtVal(k.contrib, 'sum')) cfr = k; DB.cardBack(); }
+  const cf = !!cfr;
+  ok(392, c2.step === '3 из ' + sx.shown.length && c2.id === sx.shown[2].id && s3.step === '4 из ' + sx.shown.length && s3.id === sx.shown[3].id && /^Из дашборда: Просрочено › Ошская на 14:15 — вклад [^;]+; в карточке сейчас /.test(c2.plate)
+    && back && back.q === 'КД-2' && back.node.v === 'Ошская' && afterBack.shown.length === sx.shown.length && link && cf && /на 14:15/.test(cfr.plate)
+    && DB.state.open['lead-od'] && DB.state.open['lead-od'].sel.dim === 'region',
+    `строка → карточка «${c2.name} ${c2.title}»: «${c2.plate}» · ‹ ${c2.step} › — стрелка ведёт к ${s3.id} (порядок и поиск списка); «← к дашборду» — вкладка, полоса, панель, поиск и порядок те же; ссылка строки — адрес для новой вкладки (ДБ-243)`);
+
+  // ДБ-244: адрес несёт состояние и дату среза; получатель — со своими правами; дата ссылки — только у полосы и её списка
+  lead(); strip('lead-od', 'slice', [['dim', 'program']]); DB.mode('lead-od', 'change'); DB.whoAt('lead-od', 'program', 'prom'); DB.whoSearch('КД'); const l1 = DB.copyLink(), st1 = JSON.parse(decodeURIComponent(l1.slice(4)));
+  DB.setTab('role', 'an'); DB.state.who = null; const o1 = DB.openLink(l1), w1o = DB.state.who, op = JSON.parse(JSON.stringify(DB.state.open['lead-od']));
+  DB.mode('lead-od', 'sum'); const nSum = W().rows.length; const l1s = DB.copyLink(); asUser('u2'); const o2 = DB.openLink(l1s), seen = DB.state.who.seen, h2 = DB.whoHTML();
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); const v0 = W().sum, l3 = DB.copyLink(), bal0 = DB.base('lead-bal', 'u1', 'lead').value; DB.standFresh();
+  const o3 = DB.openLink(l3), byLink3 = o3.open.byLink, h3 = tab(DB.stripHTML('lead-od')), v3 = W().sum, bNow = DB.base('lead-bal', 'u1', 'lead');
+  DB.stripRefresh('lead-od'); const v4 = W().sum, h4 = tab(DB.stripHTML('lead-od'));
+  ok(393, st1.tab.id === 'lead' && st1.tile === 'lead-od' && st1.kind === 'slice' && st1.sel.dim === 'program' && st1.sel.mode === 'change' && st1.who.node.v === 'prom' && st1.who.q === 'КД' && st1.snap && st1.n === nSum
+    && o1.tabOk && o1.onScreen && DB.state.tab.id === 'lead' && op.sel.mode === 'change' && w1o.node.v === 'prom' && w1o.q === 'КД' && w1o.fromStrip
+    && !o2.tabOk && seen.theirs === nSum && seen.mine > 0 && seen.mine < seen.theirs && h2.includes('У вас видно ' + seen.mine + ' из ' + seen.theirs)
+    && byLink3 === true && /на 14:15 · по ссылке<span class="sep">·<\/span><button class="linky" onclick="DB\.stripRefresh\('lead-od'\)">на сегодня<\/button>/.test(h3) && v3 === v0
+    && typeof bNow.value === 'number' && bNow.value !== bal0 && v4 !== v0 && !DB.state.open['lead-od'].byLink && !/по ссылке/.test(h4),
+    `ссылка несёт вкладку, плитку, вид, путь, режим «Изменение», узел, поиск, фильтр и дату среза; Бекова (Куратор) по ссылке Руководства — «У вас видно ${seen.mine} из ${seen.theirs}»; пришли данные новее — полоса и список «на 14:15 · по ссылке» (${DB.fmtVal(v3, 'sum')}), «на сегодня» — ${DB.fmtVal(v4, 'sum')}; остальной экран — сегодня: «Остаток» ${DB.fmtVal(bal0, 'sum')} → ${DB.fmtVal(bNow.value, 'sum')} (ДБ-244)`);
+
+  // ДБ-245: доля в числе с полоской и черта «80 % числа» — только по значению сверху вниз; в «Изменении» — доля от изменения, полоска двусторонняя
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); const mp = W(), hp = DB.whoHTML();
+  let acc = 0, at = -1; mp.rows.forEach((x, i) => { if (at < 0) { acc += x.pct; if (acc >= 80 - 1e-9) at = i; } });
+  DB.whoSort('label'); const ml = W(); DB.whoSort('v'); DB.whoSort('v'); const ma = W();
+  DB.mode('lead-od', 'change'); const mcg = W(), hcg = DB.whoHTML();
+  ok(394, near(mp.rows.reduce((a, x) => a + x.pct, 0), 100, 1e-6) && mp.cut && mp.cut.after === at && mp.cut.n === at + 1 && hp.includes('↑ ' + (at + 1) + ' объекта — 80 % числа') && /<span class="wl-bar"><i style="width:/.test(hp)
+    && ml.cut === null && ma.sort.dir === 'asc' && ma.cut === null && mcg.cut === null && near(mcg.rows.reduce((a, x) => a + x.pct, 0), 100, 1e-6) && mcg.rows.some(x => x.pct < 0) && /<span class="wl-bar two"><i class="neg good"/.test(hcg) && /<span class="wl-bar two"><i class="pos bad"/.test(hcg) && !/<i class="(pos good|neg bad)/.test(hcg),
+    `доля в числе с полоской: у Ошской 50 кредитов, черта после ${at + 1}-го — «↑ ${at + 1} объекта — 80 % числа»; по подписи и снизу вверх черты нет; в «Изменении» доля от изменения со знаком, полоска двусторонняя — у «Просрочено» рост красным, снижение зелёным (ДБ-245)`);
+
+  // ДБ-247: шапка и порядок — путь и узел, сходимость, метаданные, поиск и колонки, выходы; список полный; выше порога — панель с отказом и тремя выходами
+  const hh = DB.whoHTML ? hp : '', order = ['<h3 id="wp-t">Кто в этом числе</h3>', 'class="wp-path"', 'class="wp-conv"', 'class="wp-tools"', 'class="wp-exits"', '<table class="wl">'].map(x => hh.indexOf(x));
+  lead(); strip('lead-od', 'slice', [['dim', 'region']]); DB.whoNode('lead-od'); const rf = W(), hr = DB.whoHTML();
+  ok(395, order.every((x, i) => x > 0 && (i === 0 || order[i - 1] < x)) && /<span class="wp-meta">на 14:15 · день не закрыт/.test(hh) && mp.rows.length === mp.shown.length && mp.rows.length === 50
+    && mp.rows.every((x, i) => i === 0 || mp.rows[i - 1].v >= x.v) && rf.refused && rf.exits.map(x => x[0]).join() === 'registry,slice,task' && /Усечённого и постраничного списка не бывает/.test(hr) && /287 строк — сузьте вопрос разрезом/.test(hr),
+    `шапка панели сверху вниз: «Кто в этом числе», путь «Просрочено › Ошская», сходимость и метаданные статистики, поиск и колонки, выходы, список — полный, по модулю вклада; «☰ 287» корня — та же панель с отказом и тремя выходами (ДБ-247)`);
+
+  // ДБ-246: колонки узла — «было → стало» у строки Движения и «пришли из», дата точки Ряда, месяц ячейки Когорт; закреплённые оси не печатаются
+  lead(); strip('lead-od', 'move'); DB.deeper('lead-od', 'bucket', '91–180');
+  const mvp = DB.view('lead-od', 'move', DB.state.open['lead-od'].sel, DB.state.open['lead-od'].path, 'u1', 'lead', {}).move, rin = mvp.rows.find(x => /^in:bucket:/.test(x.key));
+  DB.whoFlowAt('lead-od', rin.key); const mf = W(); DB.closeView('lead-od');
+  const mpt = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-2 }, [{ dim:'region', v:'Ошская' }], {});
+  const trl = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'bucket', tr:['31–90', '91–180'] }, [], { viewDims:['bucket'] });
+  const coh = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-1, coh:{ s:-9, len:3 } }, [{ dim:'region', v:'Ошская' }], {});
+  ok(396, mf.valCols.map(c => c[1]).join(' · ') === 'было → стало · вклад' && mf.rows.length === rin.cnt && mf.rows.every(x => x.was && x.was[1] === '91–180' && x.was[0] !== '91–180') && near(mf.sum, rin.v) && mf.conv.matches
+    && mpt.head.node === 'на конец 31.08' && mpt.ld === -2 && !trl.cols.some(c => c.dim === 'bucket') && !coh.refused && coh.ld === -1 && /мес\. с начала · на конец 30\.09$/.test(coh.head.node),
+    `колонки узла: строка Движения «${mvp.rows.find(x => x.key === rin.key).name || 'пришли из 31–90'}» — «было → стало» (31–90 → 91–180) и вклад, сумма = строке; точка Ряда — список «на конец 31.08»; ячейка Переходов — без колонки срока; ячейка Когорт — «${coh.head.node}» (ДБ-246)`);
+
+  // ДБ-248: потоки — из записи объекта в реестре статистики; частичное распределение — «распределено», «прочее» — не покрытое потоками; без записи — «выросла / снизилась у прежних»
+  DB.seed(); asUser('u4'); DB.setTab('role', 'acc');
+  const decl2 = DB.OBJECTS.receipt.flows['receipt.unalloc'], declL = DB.OBJECTS.loan.flows['loan.balance'];
+  const mU = DB.view('acc-unalloc', 'move', null, [], 'u4', 'acc', {}).move, part = DB.DATA.receipt.filter(r => r.part);
+  const dist = DB.drill('acc-unalloc', U('u4'), 'acc', {}, { flow:'distributed', mv:0 }), oth = mU.rows.find(x => x.key === 'other');
+  const partOk = part.length === 5 && part.every(r => { const x = dist.list.find(y => y.r.id === r.id); return x && x.v === -(r.amount - r.part.rest); });
+  const endOk = mU.end === DB.DATA.receipt.filter(r => r.state !== 'распределено').reduce((a, r) => a + (r.part ? r.part.rest : r.amount), 0);
+  DB.standNoFlows('receipt', true); const nU = DB.view('acc-unalloc', 'move', null, [], 'u4', 'acc', {}).move, dn = nU.rows.find(x => x.key === 'down');
+  const dnL = DB.drill('acc-unalloc', U('u4'), 'acc', {}, { flow:'down', mv:0 });
+  DB.standNoFlows('receipt', false); asUser('u1'); DB.setTab('role', 'lead'); const bL = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move;
+  DB.standNoFlows('loan', true); const nL = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move; DB.standNoFlows('loan', false);
+  const nm = mv => mv.rows.map(x => x.name).join(' · ');
+  ok(397, decl2.map(f => f.name + (f.sg > 0 ? '+' : '−')).join() === 'поступило без распределения+,распределено−,возвращено−' && declL.map(f => f.name).join() === 'выдано,начислено %,погашено,списано'
+    && decl2.every(f => f.src && f.col) && nm(mU) === 'поступило без распределения · распределено · возвращено · прочее' && oth.v === 0 && oth.cnt === 0 && partOk && endOk && dist.matches
+    && nm(bL).startsWith('выдано · начислено % · погашено · списано') && bL.model === 'money'
+    && nU.model === 'transitions' && nm(nU) === 'новые · ушли · выросла у прежних · снизилась у прежних' && dn.cnt === 5 && near(dn.v, -part.reduce((a, r) => a + r.amount - r.part.rest, 0)) && dnL.list.length === 5
+    && near(nU.start + nU.rows.reduce((a, x) => a + x.v, 0), nU.end) && nm(nL) === 'новые · ушли · выросла у прежних · снизилась у прежних · пришли в охват · ушли из охвата'.split(' · ').filter(n => nL.rows.some(x => x.name === n)).join(' · ') && !nL.rows.some(x => x.key === 'other'),
+    `потоки — из записи объекта: «Нераспределённый остаток» — ${decl2.map(f => f.name + ' (' + f.src + ')').join(', ')}; пять частично распределённых — в «распределено» своей частью, «прочее» 0; конец ${DB.fmtVal(mU.end, 'sum')} = остаткам ждущих; запись без потоков — «${nm(nU)}», частичные — «снизилась у прежних» ${DB.fmtVal(dn.v, 'sum')}; у «Остатка» без потоков — «${nm(nL)}» (ДБ-248)`);
+
+  // ДБ-250: частичный ответ у Когорт, Переходов и Ряда по разрезу — самая крупная строка «—» с причиной; итоги, которые спрашивали отдельно, — как есть
+  lead(); const C0 = DB.view('lead-od', 'cohort', { per:'q' }, [], 'u1', 'lead', {}), T0 = DB.view('lead-od', 'map', { axes:'trans', tdim:'bucket' }, [], 'u1', 'lead', {}), R0 = DB.view('lead-od', 'series', { points:12, of:'main', by:'region' }, [], 'u1', 'lead', {});
+  DB.stand('partDown', true);
+  const C1 = DB.view('lead-od', 'cohort', { per:'q' }, [], 'u1', 'lead', {}), T1 = DB.view('lead-od', 'map', { axes:'trans', tdim:'bucket' }, [], 'u1', 'lead', {}), R1 = DB.view('lead-od', 'series', { points:12, of:'main', by:'region' }, [], 'u1', 'lead', {});
+  strip('lead-od', 'cohort'); const hC = tab(DB.stripHTML('lead-od')); DB.closeView('lead-od'); strip('lead-od', 'map', [['axes', 'trans']]); const hT = tab(DB.stripHTML('lead-od')); DB.closeView('lead-od');
+  DB.stand('partDown', false);
+  const bigC = C0.cohort.rows.reduce((a, r) => !a || r.vol.sum > a.vol.sum ? r : a, null), dC = C1.cohort.rows.filter(r => r.down);
+  const iT = T0.trans.rowTot.reduce((a, x, i) => a < 0 || x.value > T0.trans.rowTot[a].value ? i : a, -1), dT = Object.keys(T1.trans.down || {});
+  const bigR = R0.series.by.lines.reduce((a, l) => !a || l.last > a.last ? l : a, null), dR = R1.series.by.lines.filter(l => l.down);
+  ok(398, dC.length === 1 && dC[0].label === bigC.label && dC[0].cells.every(x => !x || x.v === null) && dC[0].vol.sum === bigC.vol.sum && C1.cohort.rows.filter(r => !r.down).every(r => JSON.stringify(r.cells) === JSON.stringify(C0.cohort.rows.find(x => x.label === r.label).cells))
+    && dT.join() === String(iT) && T1.trans.rowTot[iT].value === null && T1.trans.cells[iT].every(c => c.base === null) && T1.trans.colTot.every((c, j) => c.value === T0.trans.colTot[j].value) && T1.trans.now === T0.trans.now
+    && dR.length === 1 && dR[0].label === bigR.label && dR[0].vals.every(v => v === null) && dR[0].change === null && JSON.stringify(R1.series.points.map(p => p.vals)) === JSON.stringify(R0.series.points.map(p => p.vals))
+    && /<tr class="dn"><td class="rl" data-tip="Статистика не ответила по когорте/.test(hC) && /<tr class="dn"><td class="rl" data-tip="Статистика не ответила по строке «[^»]+» на дату базы/.test(hT),
+    `частичный ответ: у Когорт «—» — когорта «${bigC.label}» (наибольшая по выдаче), объём слева остаётся; у Переходов — строка «${T0.trans.vals[iT]}» на 30.09 и её итог, итоги столбцов и общий — как есть; у Ряда по разрезу — строка «${bigR.label}», «итог» — как есть (ДБ-250, ДБ-Д64)`);
+
+  // ДБ-251: состояние дела и заявки на прошлые даты — из истории: закрытые дела по погашенным кредитам, месяц закрытия заявки; Когорты не ровные
+  lead(); const cases = DB.DATA.case, closed = cases.filter(c => c.state === 'закрыто'), CA = DB.IND['case.open'].stateAt, AA = DB.IND['app.inWork'].stateAt;
+  const closedOk = closed.length >= 40 && closed.every(c => c.closeM <= -1 && CA(c, c.closeM - 1) && !CA(c, c.closeM) && c.claims.every(id => !DB.DATA.claim.find(x => x.id === id).open));
+  asUser('u3'); DB.setTab('role', 'prob'); const sr3 = DB.at('prob-cases', 'series(12)', 'u3', 'prob', {}), vis = DB.rowsFor(U('u3'), 'prob', 'case');
+  const expect = [...Array(12).keys()].map(i => i - 11).map(m => m === 0 ? vis.filter(c => c.state !== 'закрыто').length : vis.filter(c => CA(c, m)).length);
+  const coC = DB.view('prob-cases', 'cohort', { per:'q' }, [], 'u3', 'prob', {}).cohort, falls = coC.rows.filter(r => { const v = r.cells.filter(Boolean).map(x => x.v); return v.length > 1 && v[v.length - 1] < v[0]; });
+  asUser('u1'); DB.setTab('role', 'lead'); const apps = DB.DATA.app, closedA = apps.filter(a => !a.inWork);
+  const appOk = closedA.every(a => a.closeM >= a.at && a.closeM <= 0 && !AA(a, a.closeM)) && apps.filter(a => a.inWork).every(a => AA(a, Math.max(a.at, -1)) || a.at === 0);
+  ok(399, closedOk && JSON.stringify(sr3.map(p => p[0])) === JSON.stringify(expect) && falls.length >= 2 && appOk && sr3[0][0] < sr3[11][0],
+    `история состояния: ${closed.length} закрытых дел (по погашенным кредитам) — открыты до месяца закрытия; «Дел открыто» у Проблемных за 12 мес. — ${sr3.map(p => p[0]).join(' · ')} = дела, открытые на конец каждого месяца; Когорты не ровные — у ${falls.length} когорт число падает с возрастом; у ${closedA.length} закрытых заявок — месяц закрытия (ДБ-251, ДБ-Д65)`);
+
+  // находки ревью волны 16: у счётного в «Изменении» — порядок по весу и колонка веса; «вся группа» в «Изменении» — «= изменению знаменателя», без
+  // колонки «в числе»; у вклада со знаком черты «80 %» нет; карточка — по месту в показанном списке (с поиском); список с плитки — те же данные, что
+  // у плитки (без своего снимка); список по ссылке без полосы — «на сегодня» снимает дату ссылки
+  lead(); const rc = DB.whoList('lead-claims', 'u1', 'lead', {}, null, [], { mode:'change' }), rw = rc.rows.map(x => x.w);
+  asUser('u2'); DB.setTab('role', 'cur'); const gc = DB.whoList('cur-bal', 'u2', 'cur', {}, null, [], {});
+  const gch = DB.whoList('lead-recov', 'u1', 'lead', {}, null, [], { share:'group', mode:'change' });
+  lead(); strip('lead-od', 'move'); const mvx = DB.view('lead-od', 'move', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}).move;
+  DB.whoFlowAt('lead-od', 'down'); const sgn = W(); DB.closeView('lead-od');
+  strip('lead-od', 'slice', [['dim', 'region']]); DB.whoAt('lead-od', 'region', 'Ошская'); DB.whoSort('label'); DB.whoSearch('КД-26'); const sw = W(), kc = DB.openCard(1); DB.cardBack();
+  lead(); DB.who('lead-claims'); DB.standFresh(); const ft = W(), fb = DB.base('lead-claims', 'u1', 'lead');
+  lead(); strip('lead-od', 'slice', [['dim', 'program']]); DB.whoAt('lead-od', 'program', 'tur'); const lk = DB.copyLink(); DB.standFresh(); asUser('u5'); DB.openLink(lk); const lw0 = W(), tl = DB.whoToday();
+  ok(400, rc.sort.k === 'w' && rw.every((w, i) => i === 0 || rw[i - 1] >= w) && rc.valCols.some(c => c[0] === 'w') && !gch.refused && /= изменению знаменателя$/.test(gch.conv.text) && !(gch.valCols || []).some(c => c[0] === 'inNum')
+    && sgn.signed && sgn.cut === null && kc && kc.id === sw.shown[1].id && sw.shown[1].id !== sw.rows[1].id && ft.sum === fb.value && lw0.byLink && !tl.byLink && !gc.refused,
+    `ревью волны 16: у счётного «Изменения» — по весу; «вся группа» в «Изменении» сходится с изменением знаменателя; у строки Движения (вклад со знаком) черты «80 %» нет; карточка из поиска — ${kc && kc.id} (2-й показанный, не 2-й в списке); список с плитки после новых данных = числу плитки ${ft.sum}; по ссылке без полосы — «на сегодня» (ДБ-252, ДБ-245, ДБ-243, ДБ-214, ДБ-244)`);
   DB.seed();
 })();
 

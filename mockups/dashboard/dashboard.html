@@ -547,6 +547,60 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 #v-catalog{ max-width:1200px; }
 .prop-c summary{ cursor:pointer; font-size:13px; font-weight:500; } .prop-c .checks{ margin:6px 0 0; }
 
+/* ---------- Панель «Кто в этом числе»: немодальная, справа, без затемнения — сдвигает дашборд; сетка — в две колонки; на телефоне — экран целиком ---------- */
+:root{ --who-w:clamp(560px,50vw,960px); }
+.who-p{ flex:none; width:var(--who-w); height:100vh; display:flex; flex-direction:column; min-width:0; background:var(--surface-card); border-left:1px solid var(--border-default); box-shadow:var(--shadow); container:who / inline-size; }
+.who-p[hidden]{ display:none; }
+.with-who .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+/* панель открыта — меню слева уходит в список разделов шапки, как на узком окне: дашборду остаётся место для полосы */
+.with-who .sidebar,.with-who .crumb-title{ display:none; } .with-who .nav-m{ display:block; }
+.wp-h{ flex:none; display:flex; align-items:flex-start; gap:6px; padding:14px 14px 8px 18px; }
+.wp-tt{ flex:1 1 auto; min-width:0; }
+.wp-h h3{ margin:0 0 2px; font-size:15px; line-height:1.3; font-weight:600; color:var(--text-heading); }
+.wp-path{ font-size:13px; line-height:1.4; color:var(--text-secondary); overflow-wrap:anywhere; } .wp-path b{ color:var(--text-heading); font-weight:600; } .wp-path .sep{ margin:0 5px; color:var(--text-placeholder); }
+.wp-conv{ flex:none; display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; padding:0 18px 8px; font-size:13px; line-height:1.4; }
+.wp-conv b{ font-weight:600; color:var(--text-heading); font-variant-numeric:tabular-nums; } .wp-meta{ color:var(--text-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.wp-seen{ flex:none; margin:0 18px 8px; padding:7px 12px; font-size:12.5px; }
+.wp-tools,.wp-exits{ flex:none; display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:0 18px 8px; }
+.wp-q{ flex:1 1 180px; min-width:0; height:30px; }
+.wp-cols{ position:relative; } .wp-cols summary{ list-style:none; } .wp-cols summary::-webkit-details-marker{ display:none; }
+.wp-colm{ position:absolute; z-index:5; right:0; top:34px; width:260px; padding:8px 10px; background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--r-lg); box-shadow:var(--shadow-lift); }
+.wp-colm .opt{ display:flex; margin:3px 0; } .wp-colm .hint{ margin-top:6px; font-size:12px; color:var(--text-muted); }
+.wp-share button{ white-space:nowrap; }
+.wp-sort{ display:none; align-items:center; gap:6px; font-size:13px; color:var(--text-muted); } .wp-sort select{ height:30px; max-width:220px; }
+/* узкая панель: колонки объекта — строкой под подписью, справа — значение и доля; порядок по любой колонке — списком «Порядок» */
+@container who (max-width:900px){ .wl th.wl-c,.wl td.wl-c{ display:none; } .wl td.wl-l{ white-space:normal; min-width:0; } .wl .wl-sub{ display:block; } .wp-tools .wp-sort{ display:inline-flex; } }
+.wp-shown{ flex:none; padding:0 18px 6px; font-size:12.5px; color:var(--text-secondary); font-variant-numeric:tabular-nums; }
+.wp-b{ flex:1 1 auto; min-height:0; overflow:auto; border-top:1px solid var(--border-default); padding:0 0 24px; }
+.wp-b > p{ margin:12px 18px; font-size:13px; } .wp-b > .wp-exits{ padding-top:4px; }
+.wl{ border-collapse:collapse; width:100%; font-size:12.5px; font-variant-numeric:tabular-nums; }
+.wl th,.wl td{ padding:6px 8px; border-bottom:1px solid var(--border-default); text-align:left; vertical-align:top; white-space:nowrap; }
+.wl th{ position:sticky; top:0; z-index:1; background:var(--surface-card); font-weight:500; color:var(--text-muted); }
+.wl th:first-child,.wl td:first-child{ padding-left:18px; } .wl th:last-child,.wl td:last-child{ padding-right:18px; }
+.wl th.n,.wl td.n{ text-align:right; } .wl th.on{ color:var(--text-heading); }
+.wl-s{ border:0; background:none; padding:0; color:inherit; font:inherit; } .wl-s:hover{ color:var(--text-heading); text-decoration:underline; text-underline-offset:3px; }
+.wl td.wl-l .linky{ font-weight:500; } .wl-sub{ display:none; margin-top:2px; font-size:11.5px; color:var(--text-muted); white-space:normal; }
+.wl tbody tr:hover td{ background:var(--surface-hover); }
+.wl td.wl-p{ min-width:96px; }
+.wl-bar{ display:block; position:relative; height:4px; margin-top:4px; border-radius:2px; background:var(--surface-sunk); overflow:hidden; }
+.wl-bar i{ position:absolute; left:0; top:0; bottom:0; background:var(--series-1); border-radius:2px; }
+.wl-bar.two::before{ content:''; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--border-strong); }
+.wl-bar.two i.pos{ left:50%; } .wl-bar.two i.neg{ left:auto; right:50%; }
+.wl-bar.two i.bad{ background:var(--st-crit); } .wl-bar.two i.good{ background:var(--st-good); } .wl-bar.two i.neu{ background:var(--series-1); }
+.wl tr.wl-cut td{ padding:3px 18px; font-size:11.5px; color:var(--text-muted); background:var(--surface-hover); border-bottom:1px dashed var(--border-strong); }
+/* строка полосы, чей список открыт в панели */
+.ls.who-on,.sl-cnt[data-on]{ background:var(--asubk-blue-tint); color:var(--asubk-blue); border-radius:var(--r-sm); }
+.rz-r:has(.who-on),.tb tr:has(.who-on) td,.heat td:has(.who-on){ background:var(--asubk-blue-tint); }
+.sl-link{ color:var(--text-secondary); }
+/* карточка модуля-владельца на месте дашборда: плашка — контекст провала и шаги по списку */
+.og-plate{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin:0 0 14px; padding:9px 14px; border-radius:10px; background:var(--asubk-blue-tint); font-size:13.5px; line-height:1.45; color:var(--text-heading); }
+.og-plate .sep{ color:var(--text-placeholder); } .og-t{ font-variant-numeric:tabular-nums; }
+.og-steps{ display:inline-flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; white-space:nowrap; } .og-steps .sl-icon[disabled]{ opacity:.35; cursor:default; }
+.card-h{ margin:0 0 12px; } .card-h .h2{ margin:0 0 2px; }
+@media (max-width:1100px){ .who-p{ position:fixed; inset:0; z-index:39; width:100vw; height:100vh; border-left:0; } .with-who .content{ overflow:hidden; } }
+@media (max-width:600px){ .wp-h{ padding:12px 10px 6px 16px; } .wp-conv,.wp-tools,.wp-exits,.wp-shown{ padding-left:16px; padding-right:16px; } .wp-seen{ margin:0 16px 8px; }
+  .wl th:first-child,.wl td:first-child{ padding-left:16px; } .wp-exits .btn{ flex:1 1 auto; } .og-plate{ padding:8px 12px; } }
+
 /* ---------- Ширины ---------- */
 @media (max-width:1000px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sidebar{ display:none; } #clock{ display:none; } .cols2{ grid-template-columns:minmax(0,1fr); } .pv-side{ position:static; max-height:none; overflow:visible; }
   .crumb-title{ display:none; } .nav-m{ display:block; } .cat-row{ grid-template-columns:minmax(0,1fr) 130px 200px; gap:4px 14px; } .prop{ grid-template-columns:minmax(0,1fr); } }
@@ -623,9 +677,11 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
         <section class="view" id="v-layouts"></section>
         <section class="view" id="v-journal"></section>
         <section class="view" id="v-stand"></section>
+        <section class="view" id="v-card"></section>
       </div>
     </div>
   </div>
+  <aside class="who-p" id="who-p" role="complementary" aria-labelledby="wp-t" hidden></aside>
 </div>
 <div id="overlay"></div>
 <div class="tip" id="tip"></div>
@@ -1174,9 +1230,19 @@ function collAt(c, m){ if(c.outM!==undefined) return m<c.outM ? { value:c.v0, st
   return { value:Math.max(0, c.value - rv), state:'в залоге' }; }
 // Поступление: на конец месяца нераспределено — то, что сегодня ещё ждёт (с месяца поступления), и пришедшее в конце месяца, разнесённое
 // (или возвращённое) в следующем; у поступления в валюте сумма в сомах на конец месяца меняется курсом.
+// Частично распределённое (волна 16): в месяце part.m разнесена часть, остаток part.rest ждёт дальше
+const fxk = (r, m)=>r.fx ? 1 + 0.004*m*(hash(r.id+'|fxs')%2 ? 1 : -1) : 1;
 function unallocAt(r, m){ if(m<r.at) return 0;
-  const k = r.fx ? 1 + 0.004*m*(hash(r.id+'|fxs')%2 ? 1 : -1) : 1;
-  return r.state!=='распределено' || (r.late && m===r.at) ? Math.round((r.amount||0)*k) : 0; }
+  const k = fxk(r, m), left = r.part && m>=r.part.m ? r.part.rest : (r.amount||0);
+  return r.state!=='распределено' || (r.late && m===r.at) ? Math.round(left*k) : 0; }
+// потоки поступления за месяц M — колонки строки статистики, которые объявляет запись «Поступления»: поступило без
+// распределения — пришло и встало в ожидание; распределено — разнесено из ожидания, целиком или частью; возвращено — возвращено из ожидания
+function recFlow(r, key, M){
+  if(key==='recIn') return r.at===M && (r.state!=='распределено' || r.late) ? Math.round((r.amount||0)*fxk(r, M)) : 0;
+  if(key==='recAlloc'){ if(r.part && M===r.part.m) return Math.round(((r.amount||0) - r.part.rest)*fxk(r, M));
+    return r.late && !r.part && !r.refund && M===r.at + 1 ? unallocAt(r, M - 1) : 0; }
+  if(key==='recRet') return r.late && !r.part && r.refund && M===r.at + 1 ? unallocAt(r, M - 1) : 0;
+  return 0; }
 function genHist(){
   const h = (id, k)=>hash(id+'|'+k);
   DATA.coll.forEach(c=>{ c.cstate = 'в залоге';
@@ -1210,9 +1276,43 @@ function genFunnel(){
     if(a.inWork){ const k = a.status==='Новый' ? Math.max(0, NEW.indexOf(a.stage)) : BY[a.status]; a.reach = k; a.fate = FUNNEL[k].work; return; }
     const k = pickW(f, [[5,56],[2,14],[3,20],[4,10]]); a.reach = k; a.fate = k===5 ? FUNNEL[5].done : FUNNEL[k].loss; });
 }
+// Волна 16: свой генератор после прежних, своё зерно — прежние данные стенда не сдвигаются.
+// · подпись объекта на дату: у заёмщика — наименование лица; одна организация переименована 05.10 — в списке «на 30.09» она под прежним именем;
+// · частичное распределение: пять поступлений, ждавших на 30.09, в октябре разнесены не целиком — остаток ждёт («распределено частично»);
+// · состояние на дату — снимок статистики: у закрытой заявки — месяц закрытия после подачи, по этапу, до которого дошла; у дела — закрытые
+//   дела по погашенным кредитам (месяцы открытия и закрытия)
+const ORG_W = ['Ак-Жол','Береке','Алтын-Дан','Нур-Агро','Сары-Булак','Ала-Тоо','Кен-Сай','Жашыл-Талаа','Арпа','Чолпон','Кара-Суу','Ак-Терек','Бай-Терек','Ынтымак','Мээрим','Сай-Булак','Дан-Азык','Эл-Нур','Тянь-Шань','Ысык-Ата'];
+const ORG_S = ['Агро','Плюс','Трейд','Сервис','Строй','Продукт','Групп','Азык','Текстиль'];
+const FAM = ['Асанов','Бекматов','Жумабаев','Иманалиев','Кадыров','Мамытов','Нурматов','Осмонов','Садыков','Токтогулов','Усенов','Шамшиев','Абдыкадыров','Байзаков','Дуйшенбеков','Эшимов','Мырзаев','Сыдыков','Алымкулов','Турдубаев'];
+const INITS = 'АБГДЖКМНОСТУЭ';
+function genWave16(){
+  const w = rng(20261018), io = ()=>INITS[Math.floor(w()*INITS.length)]+'. '+INITS[Math.floor(w()*INITS.length)]+'.';
+  DATA.borrower.forEach(b=>{ const t = b.ptype || 'физ', f = pick(w, FAM)+(w()<0.4 ? 'а' : '');
+    b.names = [{ from:-999, name: t==='юр' ? 'ОсОО «'+pick(w, ORG_W)+' '+pick(w, ORG_S)+'»' : (t==='ИП' ? 'ИП ' : '')+f+' '+io() }]; });
+  // переименование: юр. лицо с наибольшей просрочкой в Ошской области — с 05.10 под новым именем
+  const byId = new Map(DATA.borrower.map(b=>[b.id, b]));
+  const rb = DATA.loan.filter(l=>!l.closed && l.region==='Ошская' && l.overdue>0).sort((a, b)=>b.overdue - a.overdue).map(l=>byId.get(l.borrower)).find(b=>b && b.ptype==='юр');
+  if(rb){ const n0 = rb.names[0].name; rb.names.push({ from:0, name:n0.replace(/»$/, ' Холдинг»'), since:'05.10.2026' }); }
+  const late = DATA.receipt.filter(r=>r.late && r.at===-1 && !r.refund);
+  for(let k=0; k<5 && late.length; k++){ const r = late.splice(Math.floor(w()*late.length), 1)[0];
+    r.state = 'распределено частично'; r.part = { m:0, rest:Math.round((r.amount||0)*(0.25 + w()*0.35)) };
+    let d = TODAY.day - r.day; for(let k=r.at;k<0;k++) d += DAYS_IN[monthOf(k).mi]; r.waitDays = d; }   // остаток ждёт с даты поступления
+  DATA.receipt.forEach(r=>{ r.unalloc = r.state==='распределено' ? 0 : r.part ? r.part.rest : r.amount; });
+  DATA.app.forEach(a=>{ if(!a.inWork) a.closeM = Math.min(0, a.at + 1 + Math.floor(w()*Math.max(1, a.reach || 1))); });
+  // закрытые дела: долг по кредиту погашен — дело закрыто в месяц после закрытия кредита; открыто за 3–14 месяцев до того, не раньше выдачи
+  const pool = DATA.loan.filter(l=>l.closed && l.to>=-22 && l.to<=-2), dayOfM = m=>{ for(let d=1; d<1200; d++) if(dayBack(d).m===m) return d; return 1; };
+  for(let k=0; k<48 && pool.length; k++){ const l = pool.splice(Math.floor(w()*pool.length), 1)[0], closeM = l.to + 1;
+    const openM = Math.max(-24, l.from + 1, closeM - 3 - Math.floor(w()*12)); if(openM>=closeM) continue;
+    const ageDays = dayOfM(openM) + Math.floor(w()*20), amount = Math.round((l.issued || 1e6)*(0.12 + w()*0.2)), cid = 'ТР-'+(1800+k);
+    DATA.claim.push({ id:cid, loan:l.id, region:l.region, leadDept:'opk', dept: w()<0.62 ? 'opk' : l.dept, phase:'Урегулирование', amount,
+      sinceDays:ageDays, realization:false, open:false, from:openM, recovered:0 });
+    DATA.case.push({ id:'ДЛ-'+(300+DATA.case.length), borrower:l.borrower, region:l.region, claims:[cid], loans:[l.id], state:'закрыто', basis:'просрочка',
+      ageDays: dayBack(ageDays).m===openM ? ageDays : dayOfM(openM), base:amount, paid:Math.round(amount*(1.01 + w()*0.05)), court:0, exp:Math.round(2e4 + w()*6e4), from:-24, closeM }); }
+}
 genData();
 genHist();
 genFunnel();
+genWave16();
 
 /* ================= Реестр статистики: объекты, разрезы, показатели ================= */
 // Дашборд своих показателей и разрезов не заводит — читает реестр статистики.
@@ -1237,6 +1337,17 @@ const OBJECTS = {
   oblig:   { name:'Обязательство', wave:3, vis:'dept', owner:'Отчётность', registry:'Реестр обязательств' },
   task:    { name:'Задание', wave:3, vis:'self', owner:'Задания', registry:'Мои задания' },
 };
+// потоки, объясняющие изменение остатка: запись объекта в реестре статистики объявляет у показателя-остатка перечень потоков —
+// показатель-источник каждого (src), знак (sg) и колонку строки статистики (col); заполняет владелец объекта, отчётность применяет. Стенд стоит за реестр
+OBJECTS.loan.flows = { 'loan.balance': [
+  { key:'issued', name:'выдано', src:'Выдано', col:'issuedM', sg:1, tip:'выдачи по договорам за период' },
+  { key:'accrued', name:'начислено %', src:'Начислено процентов', col:'accrued', sg:1, tip:'начисленные проценты за период' },
+  { key:'paid', name:'погашено', src:'Поступило в погашение', col:'paid', sg:-1, tip:'погашено за период: по графику и просрочка' },
+  { key:'written', name:'списано', src:'Списано за баланс', col:'written', sg:-1, tip:'списано за баланс за период' } ] };
+OBJECTS.receipt.flows = { 'receipt.unalloc': [
+  { key:'in', name:'поступило без распределения', src:'Поступило без распределения', col:'recIn', sg:1, tip:'пришло за период и встало в ожидание распределения' },
+  { key:'distributed', name:'распределено', src:'Распределено из ожидания', col:'recAlloc', sg:-1, tip:'разнесено на платежи из ожидания — целиком или частью' },
+  { key:'returned', name:'возвращено', src:'Возвращено из ожидания', col:'recRet', sg:-1, tip:'возвращено плательщику из ожидания' } ] };
 // объект отвечает, когда его модуль-владелец объявил его статистике (стенд: STAND.down) и, если у объекта есть ворота, они открыты;
 // волна объекта — прогноз порядка, а не дата: готовность решает сосед
 function objReady(o){ const O = OBJECTS[o]; return !STAND.down[O.owner] && (!O.gate || !!STAND[O.gate]); }
@@ -1362,6 +1473,10 @@ function dimValue(d, row){ const D = DIMS[d], v = D.get ? D.get(row) : row[D.fie
 function dimAt(d, row, m){ const D = DIMS[d]; return D && D.at && m ? D.at(row, m) : dimValue(d, row); }
 function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
 
+// состояние на конец прошлого месяца — снимок статистики на ту дату (stateAt): дело открыто с месяца открытия до месяца закрытия,
+// заявка в работе с месяца подачи до месяца закрытия; на сегодня — where
+const CASE_AT = (r, m)=>dayBack(r.ageDays || 0).m<=m && (r.closeM===undefined || m<r.closeM);
+const APP_AT = (r, m)=>r.at<=m && (r.inWork || (r.closeM!==undefined && m<r.closeM));
 // Показатель: agg count|sum|max · kind stock|flow|event · dir up_good|up_bad|neutral · unit sum|pcs|days
 const IND = {};
 function ind(id, o){ IND[id] = Object.assign({ id, agg:'count', kind:'stock', dir:'neutral', unit:'pcs' }, o); }
@@ -1400,7 +1515,7 @@ ind('receipt.unident',{ obj:'receipt', name:'Невыясненные посту
 ind('receipt.unidentSum',{ obj:'receipt', name:'Сумма невыясненных', agg:'sum', field:'amount', unit:'sum', where:r=>r.state==='невыяснено', dir:'up_bad', currentOnly:true });
 ind('receipt.await',  { obj:'receipt', name:'Ожидают подтверждения', where:r=>r.state==='ожидает подтверждения', dir:'up_bad', currentOnly:true });
 ind('receipt.unmatched',{ obj:'receipt', name:'Незакрыжено', where:r=>r.state==='не закрыжено', dir:'up_bad', currentOnly:true });
-ind('receipt.unalloc',{ obj:'receipt', name:'Нераспределённый остаток', agg:'sum', field:'amount', unit:'sum', dir:'up_bad',
+ind('receipt.unalloc',{ obj:'receipt', name:'Нераспределённый остаток', agg:'sum', field:'unalloc', unit:'sum', dir:'up_bad',
   where:r=>r.state!=='распределено', hist:(r, m)=>unallocAt(r, m) || null, move:'unalloc' });
 ind('payment.amount', { obj:'payment', name:'Платежи', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
 ind('coll.count',     { obj:'coll', name:'Предметов в залоге', where:r=>r.cstate==='в залоге', hist:(c, m)=>collAt(c, m).state==='в залоге' ? 1 : null });
@@ -1411,8 +1526,8 @@ ind('coll.noBan',     { obj:'coll', name:'Нет запрета на отчуж�
 ind('coll.registering',{ obj:'coll', name:'Договоров на регистрации', where:r=>r.registering, currentOnly:true });
 ind('coll.inSale',    { obj:'coll', name:'В реализации', where:r=>r.inSale, currentOnly:true });
 ind('loan.lowCov',    { obj:'loan', name:'Кредиты с обеспеченностью ниже 120 %', where:r=>r.coverage<120, dir:'up_bad' });
-ind('app.inWork',     { obj:'app', name:'Заявок в работе', where:r=>r.inWork });
-ind('app.requested',  { obj:'app', name:'Запрошено по заявкам в работе', agg:'sum', field:'requested', unit:'sum', where:r=>r.inWork });
+ind('app.inWork',     { obj:'app', name:'Заявок в работе', where:r=>r.inWork, stateAt:APP_AT });
+ind('app.requested',  { obj:'app', name:'Запрошено по заявкам в работе', agg:'sum', field:'requested', unit:'sum', where:r=>r.inWork, stateAt:APP_AT });
 ind('app.ready',      { obj:'app', name:'Готовы к отправке', where:r=>r.ready, dir:'up_good', currentOnly:true });
 ind('app.negative',   { obj:'app', name:'Есть отрицательное заключение', where:r=>r.negative, dir:'up_bad', currentOnly:true });
 ind('app.filed',      { obj:'app', name:'Подано заявок', kind:'event' });
@@ -1443,12 +1558,12 @@ ind('task.overdue',   { obj:'task', name:'Из них просрочено', whe
 // — объекты 13.10 —
 // req — величина, которой ещё нет в схеме статистики: макет показывает её как будущую, это заявка соседу
 const OPEN_CASE = r=>r.state!=='закрыто';
-ind('case.paid',      { obj:'case', name:'Платежи по кредитам дела', agg:'sum', field:'paid', unit:'sum', dir:'up_good', where:OPEN_CASE });
-ind('case.base',      { obj:'case', name:'База возвратности', agg:'sum', field:'base', unit:'sum', where:OPEN_CASE });
-ind('case.open',      { obj:'case', name:'Дел открыто', where:OPEN_CASE });
+ind('case.paid',      { obj:'case', name:'Платежи по кредитам дела', agg:'sum', field:'paid', unit:'sum', dir:'up_good', where:OPEN_CASE, stateAt:CASE_AT });
+ind('case.base',      { obj:'case', name:'База возвратности', agg:'sum', field:'base', unit:'sum', where:OPEN_CASE, stateAt:CASE_AT });
+ind('case.open',      { obj:'case', name:'Дел открыто', where:OPEN_CASE, stateAt:CASE_AT });
 ind('case.quar',      { obj:'case', name:'Из них в карантине', where:r=>r.state==='карантин' });
-ind('case.court',     { obj:'case', name:'Остаток по решениям суда', agg:'sum', field:'court', unit:'sum', dir:'up_bad', where:OPEN_CASE });
-ind('case.exp',       { obj:'case', name:'Расходы на взыскание', agg:'sum', field:'exp', unit:'sum', dir:'up_bad', where:OPEN_CASE });
+ind('case.court',     { obj:'case', name:'Остаток по решениям суда', agg:'sum', field:'court', unit:'sum', dir:'up_bad', where:OPEN_CASE, stateAt:CASE_AT });
+ind('case.exp',       { obj:'case', name:'Расходы на взыскание', agg:'sum', field:'exp', unit:'sum', dir:'up_bad', where:OPEN_CASE, stateAt:CASE_AT });
 ind('rsapp.count',    { obj:'rsapp', name:'Обращений' });
 ind('rsapp.inWork',   { obj:'rsapp', name:'Обращений в работе', where:r=>r.inWork });
 ind('rsapp.multi',    { obj:'rsapp', name:'Из них многократных', where:r=>r.inWork && r.multi, dir:'up_bad' });
@@ -1474,7 +1589,7 @@ ind('asset.days',     { obj:'asset', name:'Наибольший срок на у
 // нет ответа на дату базы; fresh, dataAt — версия данных (сколько раз «пришли новые данные») и её время; overload — отчётность перегружена
 // (вопросы ждут в очереди); slow — медленная отчётность (части полосы приходят с задержкой)
 const STAND = { down:{}, reportsReady:true, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
-  partDown:false, baseDown:false, fresh:0, dataAt:null, overload:false, slow:false };
+  partDown:false, baseDown:false, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{} };
 const STAND_SEED = JSON.stringify(STAND);
 // время данных стенда: «сегодня» заморожено, пришедшие новые данные сдвигают время расчёта на 5 минут
 const nowTime = ()=>STAND.dataAt || TODAY.time;
@@ -1520,7 +1635,8 @@ function stockAt(row, I, pt){
   if(!exists(row, pt.m)) return null;
   if(!pt.day && noAnswerAt(row, pt.m)) return null;           // источник не ответил по строке на эту дату — пусто, а не ноль
   if(I.hist && !pt.day && pt.m<0){ const v = I.hist(row, pt.m); return v===undefined ? null : v; }   // строка объекта на ту дату (залог, поступление)
-  if(I.where && !I.where(row)) return null;
+  if(I.stateAt && !pt.day && pt.m<0){ if(!I.stateAt(row, pt.m)) return null; }   // состояние на ту дату (дело, заявка) — из снимка, а не сегодняшнее
+  else if(I.where && !I.where(row)) return null;
   if(I.agg==='count') return 1;
   let v = row[I.field] || 0;
   if(pt.m===0 && !pt.day){ const f = scen(row, I.field); return STAND.fresh && f!==1 ? Math.round(v*f) : v*f; }   // новые данные — в целых сомах
@@ -2219,6 +2335,7 @@ function rowFlow(row, key, m){ // потоки за месяц m для форм
     return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0);
   // кредит: потоки — из его истории (остаток на дату из них и сложен)
   const LK = { issuedM:'iss', accrued:'acc', paid:'paid', written:'wr', small:'sm' };
+  if(/^rec/.test(key)) return /^П-/.test(row.id) ? recFlow(row, key, m) : 0;   // поступление: свои потоки
   return isLoanRow(row) && LK[key] ? loanFlow(row, LK[key], m) : 0;
 }
 // вклад строки в поток не ноль — полшага единицы шумом не считается; «☰ N» потока и его список считают так же
@@ -2255,15 +2372,10 @@ const MV_MODELS = {
     // ушла просрочка: причина по старшинству — списан → реструктурирован → погасил → прочее
     loss:(r, M)=>{ const s0 = isLoanRow(r) ? loanAt(r, M - 1) : null, s1 = s0 && loanAt(r, M);
       return !s0 ? 'other' : s1.writtenCum > s0.writtenCum ? 'written' : !s0.restr && s1.restr ? 'restr' : s1.paidCum > s0.paidCum ? 'paid' : 'other'; } },
-  // Остаток задолженности: потоки кредита из его истории; пришедший в охват — своим остатком на базу, его потоки — в новом охвате
-  balance: { money:true,
-    rows: [
-      ['issued', 'выдано', '+', 'flow', ()=>'выдачи по договорам за период'],
-      ['accrued', 'начислено %', '+', 'flow', ()=>'начисленные проценты за период'],
-      ['paid', 'погашено', '−', 'flow', ()=>'погашено за период: по графику и просрочка'],
-      ['written', 'списано', '−', 'flow', ()=>'списано за баланс за период'] ],
-    flows: [['issued', 'issuedM', 1], ['accrued', 'accrued', 1], ['paid', 'paid', -1], ['written', 'written', -1]],
-    tail: [['other', 'прочее', '±', 'other', ()=>'то, что потоки не объяснили: начисленные комиссии и расходы взыскания (потоков нет), пеня и курсовая']] },
+  // Остаток задолженности: потоки — из записи «Кредита» в реестре статистики (OBJECTS.loan.flows); пришедший в охват — своим остатком
+  // на базу, его потоки — в новом охвате
+  balance: { money:true, declared:true,
+    tail: [['other', 'прочее', '±', 'other', ()=>'то, что потоки записи объекта не объяснили: начисленные комиссии и расходы взыскания (потоков нет), пеня и курсовая']] },
   // Заёмщиков: по состоянию портфеля клиента на двух датах
   clients: { money:false,
     rows: [
@@ -2283,16 +2395,26 @@ const MV_MODELS = {
       ['realized', 'реализовано', '−', 'event', ()=>'вышел из залога продажей во взыскании; продан и освобождён — здесь'] ],
     gain:()=>'accepted', up:'revalUp', down:'revalDown',
     loss:(r, M)=>r.outKind!==undefined && collAt(r, M).state==='реализован' ? 'realized' : 'released' },
-  // Нераспределённый остаток: по поступлению на двух датах; изменение суммы ждущего в обе даты (курс) — «прочее»
-  unalloc: { money:true,
-    rows: [
-      ['in', 'поступило без распределения', '+', 'flow', M=>'на '+monthEndLabel(M - 1)+' не было или распределено, '+mvWhen(M)+' ждёт распределения'],
-      ['distributed', 'распределено', '−', 'flow', ()=>'ждало распределения, разнесено на платежи'],
-      ['returned', 'возвращено', '−', 'flow', ()=>'ждало распределения, возвращено плательщику'] ],
-    tail: [['other', 'прочее', '±', 'other', ()=>'изменение суммы у ждущих в обе даты: курсовая переоценка поступлений в валюте']],
-    gain:()=>'in', up:'other', down:'other', loss:r=>r.refund ? 'returned' : 'distributed' },
+  // Нераспределённый остаток: потоки — из записи «Поступления» (OBJECTS.receipt.flows); частичное распределение — «распределено»,
+  // не покрытое потоками — «прочее» (курсовая переоценка поступлений в валюте)
+  unalloc: { money:true, declared:true,
+    tail: [['other', 'прочее', '±', 'other', ()=>'то, что потоки записи объекта не объяснили: курсовая переоценка поступлений в валюте']] },
 };
-const mvModel = I=>I && I.move ? MV_MODELS[I.move] || null : null;
+// запись объекта не объявила потоки остатка (стенд): изменение у прежних — строками «выросла / снизилась у прежних», как у «Просрочено»
+const MV_NOFLOWS = { money:false, noFlows:true,
+  rows: [
+    ['new', 'новые', '+', 'event', M=>'на '+monthEndLabel(M - 1)+' числа не было, '+mvWhen(M)+' — есть'],
+    ['gone', 'ушли', '−', 'event', M=>'на '+monthEndLabel(M - 1)+' число было, '+mvWhen(M)+' — нет'],
+    ['up', 'выросла у прежних', '+', 'prior', ()=>'число есть в обе даты и выросло: потоки, которые это объяснили бы, запись объекта не объявила'],
+    ['down', 'снизилась у прежних', '−', 'prior', ()=>'число есть в обе даты и снизилось: потоки, которые это объяснили бы, запись объекта не объявила'] ],
+  gain:()=>'new', up:'up', down:'down', loss:()=>'gone' };
+// потоки, объясняющие изменение остатка, — из записи объекта в реестре статистики: перечень, показатель-источник и знак (заполняет владелец объекта)
+function declFlows(I){ const D = OBJECTS[I.obj].flows; return D && !STAND.noFlows[I.obj] ? D[I.id] || null : null; }
+const MD_CACHE = new Map();
+function mvModel(I){ const Md = I && I.move ? MV_MODELS[I.move] || null : null; if(!Md || !Md.declared) return Md;
+  const fl = declFlows(I); if(!fl) return MV_NOFLOWS;
+  let x = MD_CACHE.get(fl); if(!x) MD_CACHE.set(fl, x = Object.assign({}, Md, { rows:fl.map(f=>[f.key, f.name, f.sg>0 ? '+' : '−', 'flow', ()=>f.tip]), flows:fl.map(f=>[f.key, f.col, f.sg]) }));
+  return x; }
 const mvTransitions = I=>!!mvModel(I);                       // Движение по объектам (одна из моделей), а не прежними оборотами
 // у кредита без ответа источника на одну из дат строка ядра неполна (флаг стенда): на эту дату значения нет — пусто, а не ноль
 function noAnswerAt(row, m){ if(!STAND.noAnswer || !isLoanRow(row) || !(row.overdue>0) || hash(row.id+'|na')%20) return false;
@@ -2469,14 +2591,17 @@ function statRows(tile, user, roleId, panel, node, path){
     list.sort((a,b)=>Math.abs(b.v) - Math.abs(a.v));
     return { refused:false, list, inFilter:all.length, unit:I.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj }; }
   const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));   // «% от итога группы» по своему разрезу — узел знаменателя (all — итог такого вида)
-  if(q.share && !own) rows = numRows(q, rows, user, cm);        // клик по доле — строки числителя: оба фильтра
-  const spec = q.share ? IND[q.share[0]] : IND[q.inds[(node && node.line) || 0]];
+  const grp = !!(node && node.grp) && !!q.share && !own;       // у доли «вся группа»: объекты знаменателя, у каждого — в числителе ли он
+  const inNum = grp ? new Set(numRows(q, rows, user, cm).filter(r=>contributes(IND[q.share[0]], valueOf(r, IND[q.share[0]], ctx))).map(r=>r.id)) : null;
+  if(q.share && !own && !grp) rows = numRows(q, rows, user, cm);        // клик по доле — строки числителя: оба фильтра
+  const spec = q.share ? IND[q.share[grp ? 1 : 0]] : IND[q.inds[(node && node.line) || 0]];
   const pk = node && node.m!==undefined ? '__d'+node.m : null;
   if(pk){ if(ctx.period){ PERIODS[pk] = { months:[node.m], partial:node.m===0 }; ctx = { period:pk, tf:ctx.tf }; } else ctx = { point:{ m:node.m }, tf:ctx.tf }; }
   let all, list;                                                // all — весь срез по фильтру отчёта (реестр), list — только объекты с вкладом
   try { all = rows.map(r=>({ r, v: valueOf(r, spec, ctx) })).filter(x=>x.v!==null); list = all.filter(x=>contributes(spec, x.v)); } finally { if(pk) delete PERIODS[pk]; }
   if(list.length > STAND.N) return { refused:true, count:list.length, inFilter:all.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
   list.sort((a,b)=>b.v-a.v);
+  if(inNum) list.forEach(x=>{ x.inNum = inNum.has(x.r.id); });
   return { refused:false, list, inFilter:all.length, unit:spec.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj };
 }
 // узел перехода разреза: { d, v, from:v2 } — пришли в v из v2, { d, v, to:v2 } — ушли из v в v2; v2 = null — охват
@@ -2551,7 +2676,7 @@ function nodeNum(t, user, roleId, panel, node, path){
     const p = r.series && r.series.points.find(x=>x.m===node.m); return p ? p.vals[node.line || 0] : null; }
   const r = answer(Object.assign(q, { format:'number' }), user, roleId, panel);
   if(r.state!=='ok' && r.state!=='zero') return null;
-  return q.share ? r.num : r.values[(node && node.line) || 0];
+  return q.share ? (node && node.grp ? r.den : r.num) : r.values[(node && node.line) || 0];
 }
 // «Работать со списком» — реестр модуля-владельца с фильтром плитки и путём крошек, на сегодня
 function registryList(tile, user, roleId, panel, path){
@@ -2563,6 +2688,207 @@ function registryList(tile, user, roleId, panel, path){
   const sr = statRows(tile, user, roleId, panel, undefined, path);
   return { registry:OBJECTS[I.obj].registry, owner:OBJECTS[I.obj].owner, today:rows.length, slice: sr.inFilter };
 }
+
+/* ================= Панель «Кто в этом числе»: колонки объекта, вес, «Изменение», доля, поиск, выходы ================= */
+// подпись объекта — колонка строки статистики на дату: номер и дата договора, номер требования, наименование лица; отдаёт модуль-владелец при снимке
+const dmy = (m, d)=>{ const x = monthOf(m), dd = m===0 && d>TODAY.day ? 1 + (d - 1) % TODAY.day : d; return String(dd).padStart(2, '0')+'.'+String(x.mi + 1).padStart(2, '0')+'.'+x.y; };
+const dayOfId = id=>1 + hash(id+'|day')%28;
+let BOR_BY = null;
+function borrowerOf(id){ if(!BOR_BY || BOR_BY.n!==DATA.borrower.length){ BOR_BY = new Map(DATA.borrower.map(b=>[b.id, b])); BOR_BY.n = DATA.borrower.length; } return BOR_BY.get(id) || null; }
+// наименование лица на дату m: переименованное — под тем именем, что было тогда
+function nameAt(b, m){ if(!b) return '—'; const ns = b.names || []; let n = ns.length ? ns[0].name : b.id; ns.forEach(x=>{ if(x.from<=(m || 0)) n = x.name; }); return n; }
+// поле строки на дату: у кредита остаток, просрочено и дни — из его строки на ту дату; прочие поля стенд держит без истории
+const loanDays = (r, m)=>m ? loanAt(r, m).days : (r.overdueDays || 0);
+const fieldAt = (r, f, m)=>m && isLoanRow(r) && LOAN_AT_FIELDS[f] ? loanAt(r, m)[f] : r[f];
+// колонки списка — запись объекта в реестре статистики объявляет их один раз: подпись, 4–6 полей строки и вес (денежная величина для порядка
+// счётного списка). dim — разрез, которому колонка равна: закреплённый путём или осями — одинаков во всех строках и не печатается
+const LC = (k, name, f, o)=>Object.assign({ k, name, f }, o || {});
+const W = (name, f)=>({ name, unit:'sum', f });
+const LIST_DECL = {
+  loan:    { label:r=>r.id+' от '+dmy(r.from, dayOfId(r.id)), weight:W('Остаток', (r, m)=>fieldAt(r, 'balance', m) || 0),
+    cols:[LC('borrower', 'Заёмщик', (r, m)=>nameAt(borrowerOf(r.borrower), m)), LC('dept', 'Подразделение', (r, m)=>deptName(dimAt('dept', r, m)), { dim:'dept' }),
+      LC('curator', 'Куратор', (r, m)=>userName(dimAt('curator', r, m)), { dim:'curator' }), LC('program', 'Программа', r=>progName(r.program), { dim:'program' }),
+      LC('days', 'Дней просрочки', (r, m)=>loanDays(r, m), { num:true, unit:'days' })] },
+  borrower:{ label:(r, m)=>nameAt(r, m), weight:W('Задолженность', r=>r.total || 0),
+    cols:[LC('region', 'Территория', r=>r.region, { dim:'bregion' }), LC('curator', 'Ведущий куратор', r=>r.curator ? userName(r.curator) : '—', { dim:'curator' }),
+      LC('credits', 'Договоров', r=>r.credits || 0, { num:true, unit:'pcs' }), LC('over', 'С просрочкой', r=>r.overCredits || 0, { num:true, unit:'pcs' })] },
+  program: { label:r=>r.name, cols:[LC('state', 'Состояние', r=>r.state, { dim:'pgstate' }), LC('source', 'Источник', r=>r.source, { dim:'pgsource' }), LC('line', 'Линия', r=>r.line, { dim:'pgline' })] },
+  claim:   { label:r=>r.id+' от '+dmy(r.from, dayOfId(r.id)), weight:W('Сумма требования', r=>r.amount || 0),
+    cols:[LC('loan', 'Кредит', r=>r.loan), LC('dept', 'Подразделение', r=>deptName(r.dept)), LC('phase', 'Фаза', r=>r.phase, { dim:'phase' }), LC('since', 'Дней с направления', r=>r.sinceDays, { num:true, unit:'days' })] },
+  measure: { label:r=>r.id+' от '+dmy(r.at, r.day), cols:[LC('kind', 'Вид меры', r=>r.kind, { dim:'mkind' }), LC('claim', 'Требование', r=>r.claim), LC('dept', 'Подразделение', r=>deptName(r.dept))] },
+  case:    { label:r=>r.id, weight:W('База возвратности', r=>r.base || 0),
+    cols:[LC('borrower', 'Заёмщик', (r, m)=>nameAt(borrowerOf(r.borrower), m)), LC('loans', 'Кредитов', r=>(r.loans || []).length, { num:true, unit:'pcs' }), LC('state', 'Состояние', r=>r.state, { dim:'cstate' }), LC('basis', 'Основание', r=>r.basis, { dim:'cbasis' })] },
+  receipt: { label:r=>r.id+' от '+dmy(r.at, r.day), weight:W('Сумма', r=>r.amount || 0),
+    cols:[LC('source', 'Источник', r=>r.source, { dim:'source' }), LC('state', 'Состояние', r=>r.state), LC('wait', 'Дней ожидания', r=>r.waitDays===null || r.waitDays===undefined ? '—' : r.waitDays, { num:true, unit:'days' })] },
+  payment: { label:r=>r.id+' от '+dmy(r.at, r.day), weight:W('Сумма', r=>r.amount || 0),
+    cols:[LC('loan', 'Кредит', r=>r.loan), LC('kind', 'Вид погашения', r=>r.kind, { dim:'pkind' }), LC('dept', 'Подразделение', (r, m)=>deptName(dimAt('dept', r, m)), { dim:'dept' })] },
+  coll:    { label:r=>r.id, weight:W('Стоимость', (r, m)=>m ? collAt(r, m).value : r.value || 0),
+    cols:[LC('loan', 'Кредит', r=>r.loan), LC('kind', 'Вид залога', r=>r.kind, { dim:'ckind' }), LC('dept', 'Подразделение', (r, m)=>deptName(dimAt('dept', r, m)), { dim:'dept' })] },
+  rsapp:   { label:r=>r.id, cols:[LC('loan', 'Кредит', r=>r.loan), LC('stage', 'Стадия', r=>r.stage, { dim:'rstage' }), LC('outcome', 'Исход', r=>r.outcome || '—', { dim:'routcome' })] },
+  spell:   { label:r=>r.id, cols:[LC('loan', 'Кредит', r=>r.loan), LC('state', 'Состояние', r=>r.state, { dim:'spstate' }), LC('days', 'Дней', r=>r.days, { num:true, unit:'days' })] },
+  app:     { label:r=>r.id+' от '+dmy(r.at, r.day), weight:W('Запрошено', r=>r.requested || 0),
+    cols:[LC('program', 'Программа', r=>r.program==='none' ? 'без программы' : progName(r.program), { dim:'program' }), LC('status', 'Статус', r=>r.status, { dim:'astatus' }), LC('dept', 'Подразделение', r=>deptName(r.dept), { dim:'dept' })] },
+  comm:    { label:r=>r.id, weight:W('Сумма', r=>r.sum || 0), cols:[LC('commission', 'Комиссия', r=>r.commission, { dim:'commission' }), LC('status', 'Статус', r=>r.status), LC('decision', 'Решение', r=>r.decision || '—', { dim:'decision' })] },
+  concl:   { label:r=>r.id, cols:[LC('dept', 'Отдел', r=>deptName(r.dept)), LC('app', 'Заявка', r=>r.app), LC('verdict', 'Вердикт', r=>r.verdict || 'ждёт', { dim:'verdict' })] },
+  asset:   { label:r=>r.id, weight:W('Стоимость', r=>r.value || 0), cols:[LC('kind', 'Вид имущества', r=>r.kind, { dim:'imkind' }), LC('state', 'Состояние', r=>r.state, { dim:'imstate' }), LC('dept', 'Подразделение', r=>deptName(r.dept), { dim:'dept' })] },
+  oblig:   { label:r=>r.id, cols:[LC('form', 'Форма', r=>r.form), LC('dept', 'Подразделение', r=>deptName(r.dept)), LC('state', 'Итог сдачи', r=>r.state, { dim:'ostate' })] },
+  task:    { label:r=>r.id, cols:[LC('assignee', 'Исполнитель', r=>userName(r.assignee)), LC('due', 'Дней до срока', r=>r.dueIn, { num:true, unit:'days' })] },
+};
+Object.keys(LIST_DECL).forEach(o=>{ OBJECTS[o].list = LIST_DECL[o]; });
+const objLabel = (obj, r, m)=>{ const L = OBJECTS[obj].list; return L && L.label ? L.label(r, m || 0) : r.id; };
+// «Колонки ▾»: любое поле строки объекта — разрезы объекта; выбор помнится у человека по типу объекта
+const listExtraOf = (uid, obj)=>(S.listCols[uid+'|'+obj] || []).slice();
+function listColsSet(uid, obj, d, on){ const k = uid+'|'+obj, cur = new Set(S.listCols[k] || []); if(on) cur.add(d); else cur.delete(d); S.listCols[k] = [...cur]; return S.listCols[k]; }
+// поля строки на выбор в «Колонки ▾»: разрезы объекта, которых нет среди объявленных колонок
+function listFieldsOf(obj){ const L = OBJECTS[obj].list || { cols:[] }, own = new Set(L.cols.map(c=>c.dim).filter(Boolean));
+  return (OBJ_DIMS[obj] || []).filter(d=>DIMS[d] && !DIMS[d].big && !DIMS[d].queueOnly && !own.has(d)).map(d=>({ dim:d, name:DIMS[d].name })); }
+// колонки: подпись · объявленные · разрез вида (если путь его не закрепил) · добавленные человеком; закреплённое путём и осями — не печатается
+function listCols(obj, fixed, viewDims, extra){
+  const L = OBJECTS[obj].list || { cols:[] }, seen = new Set(fixed.filter(Boolean));
+  const cols = [{ k:'label', name:'Объект', f:(r, m)=>objLabel(obj, r, m) }];
+  L.cols.forEach(c=>{ if(c.dim && seen.has(c.dim)) return; cols.push(c); if(c.dim) seen.add(c.dim); });
+  const own = (L.cols || []).map(c=>c.dim);
+  [...viewDims.map(d=>[d, false]), ...extra.map(d=>[d, true])].forEach(([d, ex])=>{ if(!d || !DIMS[d] || DIMS[d].big || seen.has(d)) return;
+    if(own.includes(d)) return; seen.add(d); cols.push({ k:'d:'+d, name:DIMS[d].name, dim:d, extra:ex, f:(r, m)=>{ const v = dimAt(d, r, m); return v===null || v===undefined ? '—' : dimLabel(d, v); } }); });
+  return cols; }
+// причина ухода из числа в «Изменении»: по старшинству Движения, где модель её знает; иначе — «ушёл»
+const GONE_NAMES = { paid:'погашен', written:'списан', restr:'реструктурирован', paidAll:'погасил всё', released:'освобождён', realized:'реализован', distributed:'распределено', returned:'возвращено' };
+function goneWhy(I, r, M){ const Md = mvModel(I); if(!Md || !Md.loss || Md.noFlows) return 'ушёл'; try { const k = Md.loss(r, M); return GONE_NAMES[k] || 'ушёл'; } catch(e){ return 'ушёл'; } }
+// список «Изменения»: объекты узла на дату базы и на дату числа — форма «объекты на двух датах»; только с ненулевой разницей; сумма разниц =
+// изменению узла. grp — у доли: знаменатель («вся группа»), иначе — числитель. pts — точка Ряда: { b:месяц базы, n:месяц точки }
+function chgRows(t, u, roleId, panel, node, path, grp, pts){
+  const res = ask(t, u, roleId, panel, path); if(!res.rows) return { refused:true, msg:res.msg || 'нет ответа' };
+  const q = userConds(numQ(t, path, node && node.of), u), I = IND[q.inds[0]];
+  const ctx = pts ? { point:{ m:pts.n }, tf:ctxOf(q).tf } : ctxOf(q), cm = ctxMonth(ctx);
+  let B;
+  if(pts) B = { ctx:{ point:{ m:pts.b }, tf:ctx.tf }, label:'к '+monthEndLabel(pts.b), done:()=>{} };
+  else { const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return { refused:true, msg:'у плитки нет базы сдвига — «Изменения» нет' }; B = diffBase(ctx, key); }
+  if(B.none) return { refused:true, msg:B.none };
+  try {
+    const bm = ctxMonth(B.ctx), env = { base:rowsFor(u, roleId, I.obj), user:u, roleId, panel };
+    const rowsN = pts && pts.n ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, cm) : res.rows;
+    const rowsB = B.ctx.point ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, bm) : res.rows;
+    const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));
+    const sh = q.share && !own, spec = IND[sh ? (grp ? q.share[1] : q.share[0]) : q.inds[(node && node.line) || 0]];
+    const inNode = (r, m)=>!node || ((!node.d || dimAt(node.d, r, m)===node.v) && (!node.d2 || dimAt(node.d2, r, m)===node.v2));
+    const take = (rs, c, m)=>{ const M = new Map(); (sh && !grp ? numRows(q, rs, u, m) : rs).forEach(r=>{ if(!inNode(r, m)) return; const v = valueOf(r, spec, c); if(contributes(spec, v)) M.set(r, v); }); return M; };
+    const A = take(rowsB, B.ctx, bm), N = take(rowsN, ctx, cm), all = new Set([...A.keys(), ...N.keys()]);
+    const otherVal = (rs, r, m)=>node && node.d && rs.includes(r) ? dimAt(node.d, r, m) : undefined;
+    const list = [];
+    for(const r of all){ const a = A.has(r) ? A.get(r) : null, n = N.has(r) ? N.get(r) : null, diff = (n || 0) - (a || 0);
+      if(Math.abs(diff) < (spec.agg==='count' ? 1 : 0.5)) continue;
+      let how;
+      if(a===null){ const ov = otherVal(rowsB, r, bm); how = ov!==undefined && ov!==null && ov!==node.v ? 'пришёл из «'+dimLabel(node.d, ov)+'»' : 'новый'; }
+      else if(n===null){ const ov = otherVal(rowsN, r, cm); how = ov!==undefined && ov!==null && ov!==node.v && contributes(spec, valueOf(r, spec, ctx)) ? 'перешёл в «'+dimLabel(node.d, ov)+'»' : bm===cm - 1 ? goneWhy(I, r, cm) : 'ушёл'; }
+      else how = diff > 0 ? 'вырос' : 'снизился';
+      list.push({ r, a, n, v:diff, how }); }
+    if(list.length > STAND.N) return { refused:true, count:list.length, msg:nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
+    const sum = list.reduce((s, x)=>s + x.v, 0);
+    return { refused:false, list, sum, unit:spec.unit, agg:spec.agg, obj:I.obj, passport:res.passport, baseLabel:B.label, bm, cm, grp:!!grp }; }
+  finally { B.done(); } }
+// число, с которым сходится список «Изменения»: разница узла в том же виде, что рисует полоса (у доли — числителя или знаменателя)
+function chgNumber(t, u, roleId, panel, node, path, grp, pts){
+  const q = numQ(t, path, node && node.of); if(!q) return null; const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));
+  const sh = q.share && !own, part = x=>x===null || x===undefined ? null : x;
+  if(pts){ const a = nodeNum(t, u, roleId, panel, Object.assign({}, node, { m:pts.b }), path), b = nodeNum(t, u, roleId, panel, Object.assign({}, node, { m:pts.n }), path); return a===null || b===null ? null : b - a; }
+  const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return null;
+  if(node && node.d){ const dims = node.d2 ? [node.d, node.d2] : [node.d];
+    const r = answer(Object.assign(userConds(numQ(t, path, node.of), u), { format:node.d2 ? 'heat' : DIMS[node.d].ordered ? 'steps' : 'slice', dims, diff:key }, own ? { share:undefined, numFilter:undefined } : {}), u, roleId, panel);
+    if(node.d2){ const h = r.heat; if(!h) return null; const i = h.rows.indexOf(node.v), j = h.cols.indexOf(node.v2); if(i<0 || j<0) return 0; return part(h.deltas && h.deltas[i][j]); }
+    const n = r.nodes && r.nodes.find(x=>x.v===node.v); if(!n) return 0;
+    return sh ? (grp ? (n.den || 0) - (n.baseDen || 0) : (n.num || 0) - (n.baseNum || 0)) : part(n.delta); }
+  const r = answer(Object.assign(userConds(q, u), { format:'shift', shift: key==='period' ? undefined : key }), u, roleId, panel);
+  if(!r.shift || r.shift.none) return null;
+  if(!sh) return r.shift.delta;
+  const qq = userConds(q, u), B = diffBase(ctxOf(qq), key); if(B.none) return null;
+  try { const env = { base:rowsFor(u, roleId, IND[qq.inds[0]].obj), user:u, roleId, panel }, rowsB = B.ctx.point ? panelRowsAt(r.rows || [], IND[qq.inds[0]].obj, panel, env, qq.filter, ctxMonth(B.ctx)) : r.rows || [];
+    const agg = (rs, c, m, i)=>aggregate(i===0 ? numRows(qq, rs, u, m) : rs, IND[qq.share[i]], c).value || 0, i = grp ? 1 : 0;
+    return agg(r.rows || [], ctxOf(qq), ctxMonth(ctxOf(qq)), i) - agg(rowsB, B.ctx, ctxMonth(B.ctx), i); }
+  finally { B.done(); } }
+// режим списка: «Изменение» — у числа, строки и ячейки, у точки Ряда остатка; у Движения, переходов, Когорт и Переходов вид сам сравнивает — список на дату
+const chgNode = node=>!node || (!node.flow && !mvNode(node) && !node.tr && !node.coh && !node.fk && !bigNode(node));
+// модель панели: шапка, сходимость, колонки, строки, доля и черта «80 %», показанное после поиска, выходы
+// opt: { mode:'sum'|'change', share:'num'|'group', q:'', sort:{ k, dir }, viewDims:[…] }
+function whoList(tileId, u, roleId, panel, node, path, opt){
+  opt = opt || {}; path = path || [];
+  const t = typeof tileId==='string' ? tileById(tileId) : tileId, q0 = t && numQ(t, path, node && node.of);
+  if(!q0) return { refused:true, msg:t ? reportBroken(t) : 'Плитки нет', exits:[] };
+  const own = node && (node.all || (q0.numFilter || []).some(c=>c.f===node.d || c.f===node.d2)), isShare = !!q0.share && !own;
+  const grp = isShare && opt.share==='group';
+  const pts = node && node.m!==undefined && !node.coh && IND[q0.inds[0]].kind==='stock' ? { b:node.m - 1, n:node.m } : null;
+  const chg = opt.mode==='change' && chgNode(node) && (!node || node.m===undefined || pts) && (!!pts || !changeOff(t, u, roleId, panel, path));   // «Изменение» погашено — список на дату
+  const nd = node ? Object.assign({}, node, grp ? { grp:true } : {}) : grp ? { grp:true } : null;
+  const sr = chg ? chgRows(t, u, roleId, panel, node, path, grp, pts) : drill(t, u, roleId, panel, nd, path);
+  const I = IND[q0.inds[0]], obj = I.obj, spec = isShare ? IND[q0.share[grp ? 1 : 0]] : I;
+  const crumbs = [t.title, ...path.map(x=>dimLabel(x.dim, x.v))], nodeTxt = nodeText(q0, node);
+  const head = { title:'Кто в этом числе', crumbs, node:nodeTxt };
+  const shareSw = isShare ? { on:grp ? 'group' : 'num' } : null;
+  const exits = [['registry', 'Работать со списком'], ['worklist', 'Завести рабочий список'], ['export', 'Выгрузить список']];
+  const base = { head, share:shareSw, mode:chg ? 'change' : 'sum', obj, unit:spec.unit, dir:spec.dir, tileId:t.id, node:node || null, path:path.slice(), exits };
+  if(sr.refused) return Object.assign(base, { refused:true, msg:sr.msg, count:sr.count, passport:sr.passport, exits:[['registry', 'Работать со списком'], ['slice', 'Открыть Разрез'], ['task', 'Выгрузка строк (задание статистики)']] });
+  // дата строк списка: у точки Ряда и ячейки Когорт — их месяц, иначе — дата среза числа
+  const ld = node && node.m!==undefined ? node.m : chg ? sr.cm : ctxMonth(ctxOf(userConds(q0, u)));
+  const fixed = [...path.map(x=>x.dim), node && node.d, node && node.d2, node && node.fd, node && node.tr ? node.d : null];
+  const vd = (opt.viewDims || []).filter(d=>!fixed.includes(d)), cols = listCols(obj, fixed, vd, listExtraOf(u.id, obj));
+  const L = OBJECTS[obj].list || {}, cnt = spec.agg==='count', wt = cnt && L.weight ? L.weight : null;
+  // база «пришли из / ушли в» узла — база разницы вида (как у Разреза в «Изменении»)
+  let chgBase = null; if(mvNode(node)){ const key = shiftRule(t, srcOf(t), mainQ(t, path)).key, c0 = ctxOf(userConds(q0, u)), B = key ? diffBase(c0, key) : null;
+    if(B && !B.none){ chgBase = { bm:ctxMonth(B.ctx), cm:ctxMonth(c0) }; B.done(); } }
+  const signed = chg || (!!node && (!!node.flow || mvNode(node)));
+  // строки: подпись и колонки — на дату списка; значение, вес, доля
+  let rows = (sr.list || []).map(x=>{ const r = x.r, o = { id:r.id, r, cells:{}, v:x.v };
+    cols.forEach(c=>{ o.cells[c.k] = c.f(r, ld); });
+    if(wt) o.w = wt.f(r, ld);
+    if(chg){ o.a = x.a; o.n = x.n; o.how = x.how; }
+    // «было → стало»: у перехода по разрезу — значения разреза на две даты; у события Движения — число объекта на две даты; у денежного потока — только вклад
+    if(node && (node.flow || mvNode(node))){ const M = node.flow ? (node.mv || 0) : (chgBase ? chgBase.cm : 0), bm = node.flow ? M - 1 : (chgBase ? chgBase.bm : M - 1);
+      const kp = node.flow ? String(node.flow).split(':') : [], fd = mvNode(node) ? node.fd || node.d : kp.length===3 ? kp[1] : null;
+      if(fd && DIMS[fd]){ const lb = m=>{ const v = dimAt(fd, r, m); return v===null || v===undefined ? '—' : String(dimLabel(fd, v)); }; o.was = [lb(bm), lb(M)]; }
+      else if(node.flow && mvTransitions(I) && !(mvModel(I) || {}).flows && !['scopeIn', 'scopeOut', 'noanswer'].includes(node.flow)){ const tf = ctxOf(userConds(q0, u)).tf, at = m=>valueOf(r, I, { point:{ m }, tf });
+        o.was = [fmtVal(at(bm) || 0, I.unit), fmtVal(at(M) || 0, I.unit)]; } }
+    if(grp) o.inNum = !!x.inNum;
+    return o; });
+  // доля в числе: у суммы — от значения, у счётного — от веса, в «Изменении» — от изменения (со знаком)
+  const tot = rows.reduce((s, x)=>s + (chg ? x.v : wt ? (x.w || 0) : x.v), 0);
+  rows.forEach(x=>{ const v = chg ? x.v : wt ? (x.w || 0) : x.v; x.pct = tot ? v / tot * 100 : null; });
+  // порядок: по умолчанию — по модулю вклада (у счётного — по весу, в «Изменении» — по модулю разницы; без веса — по подписи); любой колонкой
+  const defK = chg ? (cnt && wt ? 'w' : 'v') : cnt ? (wt ? 'w' : 'label') : 'v';   // у счётного в «Изменении» разница ±1 — порядок по весу
+  const sort = Object.assign({ k:defK, dir:defK==='label' ? 'asc' : 'desc' }, opt.sort || {});
+  const key = x=>sort.k==='v' ? (chg || signed ? Math.abs(x.v) : x.v) : sort.k==='w' ? x.w : sort.k==='pct' ? Math.abs(x.pct || 0) : sort.k==='a' ? x.a : sort.k==='n' ? x.n : sort.k==='how' ? x.how : x.cells[sort.k];
+  const cmp = (a, b)=>{ const x = key(a), y = key(b); const r = typeof x==='number' && typeof y==='number' ? x - y : String(x===null || x===undefined ? '' : x).localeCompare(String(y===null || y===undefined ? '' : y), 'ru', { numeric:true });
+    return (sort.dir==='asc' ? r : -r) || String(a.id).localeCompare(String(b.id), 'ru', { numeric:true }); };
+  rows.sort(cmp);
+  // поиск — по подписи и номеру: сужает показ, а не число; шапка держит полный итог
+  const qRaw = String(opt.q || '').trim(), qs = qRaw.toLowerCase(), hit = x=>!qs || String(x.id).toLowerCase().includes(qs) || String(x.cells.label).toLowerCase().includes(qs);
+  const shown = rows.filter(hit);
+  // черта «80 % числа»: после строки, где накопленная доля переходит 80 %; только по значению или весу сверху вниз, без поиска, в «Сумме»
+  let cut = null;
+  if(!chg && !signed && !qs && sort.dir==='desc' && (sort.k==='v' || sort.k==='w' || sort.k==='pct') && tot > 0 && rows.length > 1){ let acc = 0;
+    for(let i=0; i<rows.length; i++){ acc += rows[i].pct || 0; if(acc >= 80 - 1e-9){ if(i < rows.length - 1) cut = { after:i, n:i + 1 }; break; } } }
+  // сходимость: список целиком = числу рядом (у счётного — числом объектов), показанное — своей суммой
+  const n = rows.length, sum = sr.sum, number = chg ? chgNumber(t, u, roleId, panel, node, path, grp, pts) : sr.number;
+  const matches = number!==null && number!==undefined && Math.abs(sum - number) < (node && node.flow && !mvTransitions(I) ? 3 : 0.5);
+  const fv = v=>signed ? mvSum(v, spec.unit) : fmtVal(v, spec.unit);
+  const where = !node ? 'на плитке' : node.flow || mvNode(node) ? 'строки' : node.m!==undefined && !node.coh ? 'точки' : node.d2 || node.tr || node.coh ? 'ячейки' : node.d ? 'строки' : 'на плитке';
+  const eq = grp ? (chg ? '= изменению знаменателя' : '= знаменателю') : chg ? '= изменению '+(where==='на плитке' ? 'числа' : where) : where==='на плитке' ? '= числу на плитке' : '= числу '+where;
+  const objs = n+' '+plural(n, 'объект', 'объекта', 'объектов');
+  const conv = { n, sum, number, matches,
+    text: chg ? n+' '+plural(n, 'объект изменился', 'объекта изменились', 'объектов изменились')+' · '+fv(sum)+' '+(matches ? eq : '· '+(where==='на плитке' ? 'на плитке ' : 'в узле ')+fv(number))
+      : cnt ? objs+(matches ? ' '+eq : ' · '+fmtVal(number, 'pcs')+' в числе') : objs+' · '+fv(sum)+' '+(matches ? eq : '· '+where+' '+fv(number)) };
+  const shSum = shown.reduce((s, x)=>s + x.v, 0);
+  const shownText = qs ? 'показано '+shown.length+' из '+n+(cnt && !chg ? '' : ' · сумма показанных '+fv(shSum)+' из '+fv(sum)+(matches ? ' = '+(chg ? 'изменению' : 'числу') : '')) : '';
+  const valCols = chg ? [['a', 'на '+monthEndLabel(sr.bm)], ['n', ld===0 ? 'сейчас' : 'на '+monthEndLabel(ld)], ['v', 'разница'], ['how', 'как изменился'], ...(wt ? [['w', wt.name]] : [])]
+    : wt ? [['w', wt.name]] : cnt ? [] : node && (node.flow || mvNode(node)) ? [['was', 'было → стало'], ['v', 'вклад']] : [['v', 'Значение']];
+  if(valCols.some(c=>c[0]==='was') && !rows.some(x=>x.was)) valCols.splice(valCols.findIndex(c=>c[0]==='was'), 1);
+  if(grp && !chg) valCols.push(['inNum', 'в числе']);
+  const shareNums = isShare ? shareCounts(t, u, roleId, panel, node, path) : null;
+  return Object.assign(base, { refused:false, cols, valCols, rows, shown, cut, conv, shownText, sort, q:qRaw, ld, passport:sr.passport, signed, weight:wt ? wt.name : null,
+    count:cnt, shareNums, number, sum, matches, total:tot, baseLabel:sr.baseLabel || null, extraFields:listFieldsOf(obj).map(f=>Object.assign(f, { on:listExtraOf(u.id, obj).includes(f.dim) })) });
+}
+// «в числе 435 | вся группа 903» — счёт числителя и знаменателя доли на дату узла
+function shareCounts(t, u, roleId, panel, node, path){
+  const a = statRows(t, u, roleId, panel, node || undefined, path), b = statRows(t, u, roleId, panel, Object.assign({}, node || {}, { grp:true }), path);
+  return { num:a.refused ? a.count || null : a.list.length, den:b.refused ? b.count || null : b.list.length }; }
 
 /* ================= Плитки: каталог (каноническая модель плитки) ================= */
 // Плитка = ссылка на отчёт + значения его параметров + главное и второе число + сдвиг + светофор + умолчания пяти видов. Чисел не хранит.
@@ -2863,7 +3189,10 @@ function seed(){
   S = { userId:'u1', tab:null, panels:{}, lastTab:{}, collapsed:{}, asked:{}, arrange:false, declared:JSON.parse(JSON.stringify(DECLARED_SEED)),
     overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), last:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{},
     ms:0, warm:null, dawn:null,
-    roleNews:{}, newMark:{}, newsFlash:null, layoutDraft:null, catQ:'', catOnly:false, mObj:'', mQ:'', mInd:null };
+    roleNews:{}, newMark:{}, newsFlash:null, layoutDraft:null, catQ:'', catOnly:false, mObj:'', mQ:'', mInd:null,
+    who:null, card:null, listCols:{}, workLists:[], link:null };
+  // who — открытая панель «Кто в этом числе» (плитка, узел, путь, поиск, порядок, доля); card — карточка из списка с шагами; listCols —
+  // «Колонки ▾» человека по типу объекта («человек|объект»); workLists — рабочие списки, заведённые в отчётности; link — открыто по ссылке
   // roleNews — разовая плашка «Раскладка роли обновлена …» у держателя («человек|роль»), newMark — плитки с меткой «новая»; layoutDraft —
   // правка раскладки роли в редакторе до «Сохранить»; catQ, catOnly — поиск и «только доступные мне» каталога; mObj, mQ, mInd — шаг 1 мастерской
   // S.panel — фильтр текущей вкладки, который сужает числа: значения вне охвата смотрящего в нём не участвуют; S.panelRaw — фильтр, как он
@@ -3849,6 +4178,20 @@ function partDown(res){
     else { const r = tb.rows[big(tb.rows, x=>x.cells[0])]; r.cells = blank(r.cells); r.bases = blank(r.bases); r.cnt = undefined; r.moves = undefined;
       r.down = PART_DOWN('строке «'+r.label+'»'); res.partDown = r.down; } }
 }
+// часть без ответа у Когорт, Переходов и Ряда по разрезу — то же правило, самая крупная строка: у Когорт — когорта с наибольшим объёмом на старте (клетки
+// «—», объём слева остаётся — он пришёл со списком когорт); у Переходов — значение на дату базы с наибольшим итогом строки (клетки, «ушли» и итог строки
+// «—»); у Ряда по разрезу — строка с наибольшим числом на дату плитки (точки и изменение «—»). Итоги, которые спрашивали отдельно, — как есть: столбцы
+// Переходов (Разрез на сегодня), строка «итог» Ряда по разрезу (сам Ряд)
+function partDownMore(res){
+  const big = (xs, f)=>xs.reduce((a, x, i)=>a<0 || Math.abs(f(x) || 0) > Math.abs(f(xs[a]) || 0) ? i : a, -1);
+  if(res.cohort && res.cohort.rows.length){ const c = res.cohort, r = c.rows[big(c.rows, x=>c.volSum ? x.vol.sum : x.vol.n)];
+    r.down = PART_DOWN('когорте «'+r.label+'»'); r.cells = r.cells.map(x=>x ? Object.assign({}, x, { v:null, cnt:undefined, down:true }) : x); res.partDown = r.down; }
+  if(res.trans && res.trans.vals.length){ const tr = res.trans, i = big(tr.rowTot, x=>x.value), why = PART_DOWN('строке «'+dimLabel(tr.d, tr.vals[i])+'» на дату базы');
+    tr.cells[i] = tr.cells[i].map(c=>Object.assign({}, c, { base:null, now:null, n:0, list:[], down:true })); tr.gone[i] = Object.assign({}, tr.gone[i], { base:null, n:0, list:[], down:true });
+    tr.rowTot[i] = Object.assign({}, tr.rowTot[i], { value:null }); tr.down = { [i]:why }; res.partDown = why; }
+  if(res.series && res.series.by && res.series.by.lines.length){ const B = res.series.by, l = B.lines[big(B.lines, x=>x.last)];
+    l.down = PART_DOWN('строке «'+l.label+'»'); l.vals = l.vals.map(()=>null); l.deltas = l.deltas.map(()=>null); l.last = null; l.change = null; l.cnt = undefined; res.partDown = l.down; }
+}
 // нет ответа на дату базы — точка Ряда на эту дату «—», разница у неё и у следующей точки — «—» с той же причиной
 function seriesDown(res, bd){ (res.series.points || []).forEach((p, i, ps)=>{ if(bd.months.includes(p.m)){ p.vals = p.vals.map(()=>null); p.down = bd.msg; p.cnt = undefined;
     Object.assign(p, { base:null, delta:null, pct:null }); const nx = ps[i + 1]; if(nx && !nx.none) Object.assign(nx, { base:null, delta:null, pct:null, downD:bd.msg }); } });
@@ -3912,6 +4255,7 @@ function viewOf0(t, kind, sel, path, u, roleId, panel){
     if(T0.total && T0.total.bases) T0.total.bases = re(T0.total.bases);
     T0.cols = s.cols.map(c=>c===SHARE_COL ? { id:SHARE_COL, name:sh.name, unit:'pct' } : T0.cols[ask.indexOf(c)]); }
   if(STAND.partDown && (res.nodes || res.heat || res.table)) partDown(res);
+  if(STAND.partDown && (res.trans || (res.series && res.series.by))) partDownMore(res);
   if(res.table) tableRows(res, mode);
   const list = dimsFor(t, path, panel), used = kind==='slice' || kind==='table' ? [s.dim] : trans ? [s.tdim] : kind==='map' ? s.dims : kind==='series' && s.by ? [s.by] : [];
   const tempCol = kind==='table' && s.cols.some(i=>(colsFor(t).find(x=>x.id===i) || {}).temp);
@@ -3940,6 +4284,7 @@ function cohortView(t, sel, path, u, roleId, panel){
   const res = answer(q, u, roleId, panel);
   if(res.rows) countNodes(res, numQ(t, path, 'main'), u, null);
   delete res.rows; delete res.rowsAt;
+  if(STAND.partDown && res.cohort) partDownMore(res);
   return Object.assign(res, { kind:'cohort', sel:s, path:path.slice(), temp:false, mode:null, modeOff:null, next:null });
 }
 // строки Ряда по разрезу: упорядоченный разрез — все в своём порядке; иначе первые N по сумме на дату плитки и «ещё N» одной строкой; итог — сам Ряд
@@ -4045,7 +4390,7 @@ function remember(tileId, kind, patch){
 const SEL_VIEW = { top:'slice', points:'series', of:'series', month:'move', dims:'map', cols:'table', by:'series', axes:'map', tdim:'map', per:'cohort' };   // выбор → вид, где он действует; разрез — у Разреза и Таблицы
 // раскрытое не хранится: сбрасывается при смене пользователя и вкладки (к вкладке полосы не возвращаются), в seed() и утром;
 // закреплённое на своём экране встаёт заново. Память видов не трогается
-function resetOpen(){ S.open = {}; applyPins(); }
+function resetOpen(){ S.open = {}; S.who = null; S.card = null; applyPins(); }   // панель списка связана с полосой — уходит вместе с ней
 // закреплённое встаёт раскрытым при входе на экран; вид, погашенный к этому дню, остаётся закрытым
 function applyPins(){
   const tab = curTab(), sc = tab.kind==='screen' && screenById(tab.id); if(!sc || !sc.pinned) return;
@@ -4200,6 +4545,7 @@ function panelOfTab(){ const t = peekTab(), k = tabKey(t);
 function collapsedNow(){ const pre = tabKey()+'|', o = {}; Object.keys(S.collapsed).forEach(k=>{ if(S.collapsed[k] && k.startsWith(pre)) o[k.slice(pre.length)] = true; }); return o; }
 function render(){
   if(!HAS_DOM) return;
+  const tp = $('tip'); if(tp) tp.style.display = 'none';   // подсказка не переживает перерисовку: элемент под ней мог уйти (строка списка → карточка)
   const u = user();
   $('clock').textContent = 'Сегодня '+TODAY.label.replace(' '+TODAY.time, ', '+nowTime());
   $('ava').textContent = u.name.split(/\s+/).filter(Boolean).slice(0, 2).map(w=>w[0]).join('').toUpperCase();
@@ -4216,8 +4562,11 @@ function render(){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+view).classList.add('active');
   if(view!==lastView){ if(lastView!==null) $('content').scrollTop = 0; lastView = view; }   // другой раздел — с начала страницы
-  $('crumb').textContent = { home:'Главная', catalog:'Каталог плиток', builder:'+ Плитка', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд' }[view];
-  ({ home:renderHome, catalog:renderCatalog, builder:renderBuilder, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand })[view]();
+  $('crumb').textContent = { home:'Главная', catalog:'Каталог плиток', builder:'+ Плитка', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд', card:'Карточка из списка' }[view];
+  ({ home:renderHome, catalog:renderCatalog, builder:renderBuilder, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand, card:renderCard })[view]();
+  renderWho();
+  // адрес несёт состояние главной: вкладка, полоса, путь, режим, список и дата среза — «Назад» и ссылка открывают то же место
+  if(view==='home' || view==='card'){ try { history.replaceState(history.state, '', (Object.keys(S.open).length || S.who || view==='card') ? linkOf() : location.pathname+location.search); } catch(e){} }
   if(rcOpen){ if(rdraft && (view==='builder' || view==='home')) renderRC(); else closeOverlay(); }   // ящик конструктора отчётности перерисовывается вместе со страницей
   markScroll();
 }
@@ -4424,20 +4773,21 @@ function tileHTML(t, res, o){
 /* ---------- Полоса под рядом плиток ---------- */
 // узлы полосы: клик ведёт глубже, а когда разрезы кончились — открывает список; «☰ N» — список узла с путём
 function stripOps(k, r){
+  const on = n=>whoOn(k, n) ? ' who-on' : '';   // строка, чей список открыт в панели, — подсвечена
   const id = esc(k), a = (d, v, d2, v2)=>`'${id}','${d}','${esc(v)}'`+(d2 ? `,'${d2}','${esc(v2)}'` : '');
   return {
     go:(d, v, d2, v2)=>r.next ? `DB.deeper(${a(d, v, d2, v2)})` : `DB.whoAt(${a(d, v, d2, v2)})`,
-    all:n=>n===undefined || n===null ? '' : `<button class="ls quiet${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt('${id}')">☰ ${nbsp(n)}</button>`,   // «☰ N» итога — список самого узла полосы
-    ls:(d, v, d2, v2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt(${a(d, v, d2, v2)})">☰ ${nbsp(n)}</button>`,
+    all:n=>n===undefined || n===null ? '' : `<button class="ls quiet${n ? '' : ' zero'}${on(null)}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt('${id}')">☰ ${nbsp(n)}</button>`,   // «☰ N» итога — список самого узла полосы
+    ls:(d, v, d2, v2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}${on({ d, v, d2, v2 })}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt(${a(d, v, d2, v2)})">☰ ${nbsp(n)}</button>`,
     month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})`,
     // Когорты: ячейка — объекты когорты на конец месяца; Переходы: «было × стало» (null — новые / ушли); воронка: дошли до этапа k
     cohGo:(s, len, m)=>`DB.whoCohort('${id}',${s},${len},${m})`,
-    coh:(s, len, m, n)=>`<button class="ls" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoCohort('${id}',${s},${len},${m})">☰ ${nbsp(n)}</button>`,
+    coh:(s, len, m, n)=>`<button class="ls${on({ m, coh:{ s, len } })}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoCohort('${id}',${s},${len},${m})">☰ ${nbsp(n)}</button>`,
     trGo:(d, a, b)=>`DB.whoTrans('${id}','${d}',${a===null ? 'null' : `'${esc(a)}'`},${b===null ? 'null' : `'${esc(b)}'`})`,
-    tr:(d, a, b, n)=>`<button class="ls" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoTrans('${id}','${d}',${a===null ? 'null' : `'${esc(a)}'`},${b===null ? 'null' : `'${esc(b)}'`})">☰ ${nbsp(n)}</button>`,
-    fn:(d, k, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}" data-tip="Кто дошёл до этапа: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoFunnel('${id}','${d}',${k})">☰ ${nbsp(n)}</button>`,
+    tr:(d, a, b, n)=>`<button class="ls${on({ d, tr:[a, b] })}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoTrans('${id}','${d}',${a===null ? 'null' : `'${esc(a)}'`},${b===null ? 'null' : `'${esc(b)}'`})">☰ ${nbsp(n)}</button>`,
+    fn:(d, k2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}${on({ d, fk:k2 })}" data-tip="Кто дошёл до этапа: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoFunnel('${id}','${d}',${k2})">☰ ${nbsp(n)}</button>`,
     // «☰ N» части «пришли из / ушли в» узла: объекты перехода (v2 = null — охват)
-    mv:(d, v, dir, v2, n, name, fd)=>`<button class="ls quiet" data-tip="${esc('Кто перешёл: '+nbsp(n)+' стр. · '+name)}" onclick="event.stopPropagation();DB.whoMoveAt('${id}','${d}','${esc(v)}','${dir}',${v2===null ? 'null' : `'${esc(v2)}'`}${fd && fd!==d ? `,'${fd}'` : ''})">☰ ${nbsp(n)}</button>` };
+    mv:(d, v, dir, v2, n, name, fd)=>`<button class="ls quiet${on({ d, v, [dir]:v2 })}" data-tip="${esc('Кто перешёл: '+nbsp(n)+' стр. · '+name)}" onclick="event.stopPropagation();DB.whoMoveAt('${id}','${d}','${esc(v)}','${dir}',${v2===null ? 'null' : `'${esc(v2)}'`}${fd && fd!==d ? `,'${fd}'` : ''})">☰ ${nbsp(n)}</button>` };
 }
 function dimOptions(list, cur, src){
   const opt = x=>`<option value="${x.dim}" ${x.dim===cur?'selected':''}>${DIMS[x.dim].req ? '⚑ ' : ''}${esc(x.name)}</option>`, own = list.filter(x=>!x.temp), rest = list.filter(x=>x.temp);
@@ -4590,10 +4940,12 @@ function stripIn(k, o, t, u, roleId, place, newer){
   // пять видов кнопками; Когорты открыты из «⋯» — нажатой пилюлей сразу за пятью, клик по любой из пяти возвращает
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('')
     + (kind==='cohort' ? `<button class="on sl-coh" aria-pressed="true" data-tip="Когорты открыты из «⋯»; другой вид — кнопкой слева">${VIEW_NAMES.cohort}</button>` : '');
-  const fresh = newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '';
+  // открыта по ссылке на прошлую дату данных: дата ссылки — только у этой полосы и её списка; «на сегодня» берёт новые данные
+  const fresh = newer && o.byLink ? `<span class="sl-fresh sl-link" role="status">на ${esc(o.snap.at)} · по ссылке<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">на сегодня</button></span>`
+    : newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '';
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free, r)}
     <span class="sl-sp"></span>${fresh}${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
-    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
+    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}"${whoOn(k, null) ? ' data-on="1"' : ''} onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
   const tools = (queued ? '' : stripMode(k, r0, pend || (wait && !!r0.baseLabel)))+stripCtl(k, t, kind, s, queued ? {} : r0);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
@@ -4606,6 +4958,7 @@ function openStripMenu(ev, tileId){
   if(!list || list.offsetParent===null) items.push(['Работать со списком', `DB.registryAt('${id}')`, 'реестр модуля-владельца с фильтром плитки и путём полосы']);
   const co = cohortItem(t, user(), curRole(), path, S.panel); items.push([co.name, co.ok ? `DB.openView('${id}','cohort')` : null, co.ok ? co.hint : co.why]);   // шестой вид — пунктом «⋯»; погашен — с причиной
   items.push(['⤓ Выгрузить', `DB.openExport('${id}','xlsx',true)`, 'вид со штампом: вид, путь, паспорт']);
+  items.push(['🔗 Скопировать ссылку', `DB.copyLink('${id}')`, 'то же место: вкладка, вид, путь, режим, список и дата среза — у получателя со своими правами']);
   if(t.kind!=='link') items.push(['📌 Сохранить отчётом', `DB.saveAsReport('${id}')`, 'разрезы вида и путь — в отчёт, на нём — личная плитка']);
   const tab = curTab(), scr = tab.kind==='screen' ? screenById(tab.id) : null, pinned = !!(scr && scr.pinned && scr.pinned[tileId]);
   if(scr) items.push([pinned ? '📍 Открепить' : '📍 Закрепить раскрытой', `DB.pinOpen('${id}')`, pinned ? 'плитка больше не открывается сама' : 'при входе на этот экран плитка откроется этим видом']);
@@ -4772,7 +5125,7 @@ function mvBody(res, q, ops){
   const up = Math.max(0, ...flows.map(f=>f.v)), dn = Math.max(0, ...flows.map(f=>-f.v)), span = (up + dn) || 1, zero = (dn / span * 100).toFixed(2);   // шкала — по самому большому потоку
   const tone = f=>f.other || !f.v ? 'neu' : I.dir==='up_good' || I.dir==='up_bad' ? ((I.dir==='up_good')===(f.v>0) ? 'good' : 'bad') : 'flat';
   const sgn = v=>v>0 ? '+' : v<0 ? '−' : '', num = v=>sgn(v)+fmtVal(Math.abs(v), u);
-  const ls = (n, code, quiet, tip)=>!ops || n===undefined || n===null ? '' : `<button class="ls${quiet ? ' quiet' : ''}${n ? '' : ' zero'}" data-tip="${esc('Кто в этом числе: '+nbsp(n)+' стр.'+(tip ? ' · '+tip : ''))}" onclick="event.stopPropagation();${code}">☰ ${nbsp(n)}</button>`;
+  const ls = (n, code, quiet, tip, hl)=>!ops || n===undefined || n===null ? '' : `<button class="ls${quiet ? ' quiet' : ''}${n ? '' : ' zero'}${hl ? ' who-on' : ''}" data-tip="${esc('Кто в этом числе: '+nbsp(n)+' стр.'+(tip ? ' · '+tip : ''))}" onclick="event.stopPropagation();${code}">☰ ${nbsp(n)}</button>`;
   const zl = `<span class="rz-z" style="left:${zero}%"></span>`;
   const edge = (kind, name, v, c)=>`<div class="rz-r mv-e" data-edge="${kind}"><span class="rz-nm">${esc(name)}</span><span class="rz-v">${fmtVal(v, u)}</span><span class="rz-c">${c}</span><span class="rz-t">${zl}</span></div>`;
   // большое «прочее» денежного Движения — янтарная метка у строки «прочее»; ниже порога — только серый тон строки
@@ -4782,7 +5135,7 @@ function mvBody(res, q, ops){
   const bigMark = f=>warn && f.key==='other' ? `<span class="pill warn mv-big"${tipAttr(bigTip(f))}>⚠ большое необъяснённое</span>` : '';
   const flowRow = f=>{ const t = tone(f), w = Math.abs(f.v) / span * 100, go = ops ? `DB.whoFlowAt('${id}','${f.key}')` : '', mk = bigMark(f);
     return `<div class="rz-r mv-f${mk ? ' mv-warn' : ''}" data-flow="${f.key}" data-kind="${f.kind}"${tipAttr(f.name+': '+num(f.v)+' · '+when+(f.tip ? ' · '+f.tip : ''))}${go ? ` onclick="event.stopPropagation();${go}"` : ''}><span class="rz-nm"><span class="mv-sg">${f.sg}</span>${esc(f.name)}${mk}</span>`
-      +`<span class="rz-v ${t}">${num(f.v)}</span><span class="rz-c">${ls(f.cnt, go, false, f.name)}</span>`
+      +`<span class="rz-v ${t}">${num(f.v)}</span><span class="rz-c">${ls(f.cnt, go, false, f.name, whoOn(res.tileId, { flow:f.key }))}</span>`
       +`<span class="rz-t">${zl}${w>0 ? `<span class="rz-f ${t}${f.v<0 ? ' neg' : ''}" style="left:${(f.v<0 ? Math.max(0, zero - w) : +zero).toFixed(2)}%;width:${Math.max(.3, w).toFixed(2)}%"></span>` : ''}</span></div>`; };
   const chain = mvChain([{ sg:'', v:m.start }].concat(flows.filter(f=>f.v).map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);   // нулевые строки в цепочку не идут
   const startLs = ls(m.cnt0, ops && ops.month(M - 1), true, 'на '+from);
@@ -4838,7 +5191,8 @@ function coBody(res, q, ops){
     const go = ops && ops.coh ? ` onclick="event.stopPropagation();${ops.cohGo(r.s, c.len, x.m)}"` : '';
     return `<td class="c ${empty ? 'hm-e' : sCls(x.v)}${x.closed ? '' : ' lt'}"${tipAttr(tip)}${go}>${empty ? '—' : serNum(sc, x.v)}${ops && ops.coh && x.cnt ? `<span class="hm-q">${ops.coh(r.s, c.len, x.m, x.cnt)}</span>` : ''}</td>`; };
   const head = `<tr><th class="l">${esc((c.per==='q' ? 'Квартал ' : 'Месяц ')+c.name+' \\ месяцев с начала')}</th><th class="co-vh">${esc(c.vol)}</th>${c.ages.map(a=>`<th>${a}</th>`).join('')}</tr>`;
-  const rows = c.rows.map(r=>`<tr><td class="rl">${esc(r.label)}</td><td class="co-v"${tipAttr(volTip(r))}>${vol(r)}</td>${r.cells.map((x, i)=>cell(r, c.ages[i], x)).join('')}</tr>`).join('');
+  const dnCell = (r, x)=>x ? `<td class="c hm-e dn"${tipAttr(r.down)}>—</td>` : `<td class="co-y"></td>`;
+  const rows = c.rows.map(r=>`<tr${r.down ? ' class="dn"' : ''}><td class="rl"${r.down ? tipAttr(r.down) : ''}>${esc(r.label)}${r.down ? DN_TAG : ''}</td><td class="co-v"${tipAttr(volTip(r))}>${vol(r)}</td>${r.cells.map((x, i)=>r.down ? dnCell(r, x) : cell(r, c.ages[i], x)).join('')}</tr>`).join('');
   const mean = c.flow ? 'за месяц' : unit==='sum' ? 'остаток на конец месяца' : 'на конец месяца';
   return `<div class="sr-cap"><b>${esc(sc.name+' · '+mean)}</b>${esc('; строка — '+(c.per==='q' ? 'квартал' : 'месяц')+' '+c.name+', колонка — месяцев с начала; итогов нет — сумма по возрастам ничего не значит')}${reqMarkOf([c.req])}</div>`
     + scrollBox(`<table class="heat co"><colgroup><col class="hm-lab"><col class="co-vc">${c.ages.map(()=>'<col>').join('')}</colgroup>${head}${rows}</table>`, 'когорты');
@@ -4848,7 +5202,7 @@ function coBody(res, q, ops){
 // синяя по величине; «ушли» и «новые» — нейтральные. «☰ N» в углу каждой клетки, клик — тот же список
 function trBody(res, q, ops){
   const tr = res.trans, unit = res.unit, vs = tr.vals, d = tr.d, has = v=>v!==null && v!==undefined;
-  const nums = [...tr.cells.flat().map(c=>c.base), ...tr.gone.map(c=>c.base), ...tr.neu.map(c=>c.now), ...tr.rowTot.map(x=>x.value), ...tr.colTot.map(x=>x.value), tr.now, tr.base];
+  const nums = [...tr.cells.flat().map(c=>c.base), ...tr.gone.map(c=>c.base), ...tr.neu.map(c=>c.now), ...tr.rowTot.map(x=>x.value), ...tr.colTot.map(x=>x.value), tr.now, tr.base].filter(v=>v!==null && v!==undefined);
   const sc = serScale(res, nums), bl = monthEndLabel(tr.bm), nl = tr.cm===0 ? 'сегодня' : 'на '+monthEndLabel(tr.cm), lab = v=>String(dimLabel(d, v));
   const mx = xs=>Math.max(1e-9, ...xs.map(Math.abs)), offMax = mx(tr.cells.flatMap((row, i)=>row.filter((c, j)=>i!==j).map(c=>c.base))), dgMax = mx(tr.cells.map((row, i)=>row[i].base)), edMax = mx([...tr.gone.map(c=>c.base), ...tr.neu.map(c=>c.now)]);
   const lv = (v, m)=>{ const k = Math.abs(v) / m; return k>=.6 ? 3 : k>=.3 ? 2 : 1; };
@@ -4864,7 +5218,9 @@ function trBody(res, q, ops){
   const tot = (v, sub, tip)=>`<td class="t"${tipAttr(tip)}>${serNum(sc, v)}${sub}</td>`;
   const dsub = (now, base)=>{ const x = rzDelta(q, res, now - base); return x.dir==='none' ? '' : `<span class="s2 ${x.tone}">${x.dir==='flat' ? '0' : (x.dir==='up' ? '▲ ' : '▼ ')+serNum(sc, Math.abs(now - base))}</span>`; };
   const head = `<tr><th class="l"${tipAttr('Строки — '+DIMS[d].name+' на '+bl+', столбцы — '+nl)}>${esc(DIMS[d].name+': на '+bl+' \\ '+nl)}</th>${vs.map(v=>`<th>${esc(lab(v))}</th>`).join('')}<th>ушли</th><th>итог на ${esc(bl)}</th></tr>`;
-  const rows = vs.map((v, i)=>`<tr><td class="rl">${esc(lab(v))}</td>${vs.map((w, j)=>cell(i, j)).join('')}${gone(i)}${tot(tr.rowTot[i].value, '', lab(v)+' на '+bl+': '+fmtVal(tr.rowTot[i].value, unit)+' — сумма строки с «ушли»')}</tr>`).join('');
+  const dn = i=>tr.down && tr.down[i], dnTd = i=>`<td class="c hm-e dn"${tipAttr(tr.down[i])}>—</td>`;
+  const rows = vs.map((v, i)=>dn(i) ? `<tr class="dn"><td class="rl"${tipAttr(tr.down[i])}>${esc(lab(v))}${DN_TAG}</td>${vs.map(()=>dnTd(i)).join('')}${dnTd(i)}<td class="t dn"${tipAttr(tr.down[i])}>—</td></tr>`
+    : `<tr><td class="rl">${esc(lab(v))}</td>${vs.map((w, j)=>cell(i, j)).join('')}${gone(i)}${tot(tr.rowTot[i].value, '', lab(v)+' на '+bl+': '+fmtVal(tr.rowTot[i].value, unit)+' — сумма строки с «ушли»')}</tr>`).join('');
   const neuRow = `<tr><td class="rl">новые</td>${vs.map((w, j)=>neu(j)).join('')}<td class="hm-e"></td><td class="t"${tipAttr('Новых '+nl+': '+fmtVal(tr.neuTot.value, unit)+' — на '+bl+' их в числе не было')}>—</td></tr>`;
   const foot = `<tr class="tr"><td class="rl">итог ${esc(nl)}</td>${vs.map((v, j)=>tot(tr.colTot[j].value, dsub(tr.colTot[j].value, tr.colTot[j].base), lab(v)+' '+nl+': '+fmtVal(tr.colTot[j].value, unit)+' — сумма столбца с «новыми»; на '+bl+' — '+fmtVal(tr.colTot[j].base, unit))).join('')}<td class="t">—</td>${tot(tr.now, dsub(tr.now, tr.base), 'Итог '+nl+': '+fmtVal(tr.now, unit)+'; на '+bl+' — '+fmtVal(tr.base, unit))}</tr>`;
   return `<div class="sr-cap"><b>${esc(sc.name+' · '+DIMS[d].name.toLowerCase()+' на '+bl+' → '+nl)}</b>${esc('; строка — значение на '+bl+', столбец — '+nl+'; в ячейке — число на '+bl+', у новых — '+nl+(tr.ordered ? '; правее диагонали — хуже, левее — лучше' : ''))}</div>`
@@ -4933,7 +5289,8 @@ function srByBody(t, res, ops){
   const chgCell = l=>{ const x = has(l.change) ? rzDelta(ind, res, l.change) : null; return `<span class="rz-d ${x ? x.tone : 'flat'}">${x ? x.text : '—'}</span>`; };
   const go = l=>!ops || l.more || l.tot ? '' : d==='big' ? `DB.whoAt('${id}','big','${esc(l.v)}')` : `DB.deeper('${id}','${d}','${esc(l.v)}')`;
   const cnt = l=>l.tot ? (ops ? ops.all(res.cnt) : '') : l.more ? `<span class="st">☰ ${nbsp(l.cnt)}</span>` : ops ? ops.ls(d, l.v, null, null, l.cnt) : '';
-  const row = l=>`<div class="sb-r${l.more ? ' sb-more' : ''}${l.tot ? ' sb-tot' : ''}"${go(l) ? ` onclick="event.stopPropagation();${go(l)}"` : ''}${l.tot || l.more ? '' : tipAttr(l.label+': '+fmtVal(l.last, u)+(d==='big' ? '\nКлик — кто в этом числе' : '\nКлик — Ряд этого узла'))}><span class="rz-nm">${esc(l.tot ? 'итог' : l.label)}</span>`
+  const row = l=>l.down ? `<div class="sb-r dn"${tipAttr(l.down)}><span class="rz-nm">${esc(l.label)}${DN_TAG}</span><span class="rz-v dn">—</span><span class="sb-ps"></span><span class="rz-d flat">—</span><span class="rz-c"></span></div>`
+    : `<div class="sb-r${l.more ? ' sb-more' : ''}${l.tot ? ' sb-tot' : ''}"${go(l) ? ` onclick="event.stopPropagation();${go(l)}"` : ''}${l.tot || l.more ? '' : tipAttr(l.label+': '+fmtVal(l.last, u)+(d==='big' ? '\nКлик — кто в этом числе' : '\nКлик — Ряд этого узла'))}><span class="rz-nm">${esc(l.tot ? 'итог' : l.label)}</span>`
     +`<span class="rz-v">${fmtVal(l.last, u)}</span><span class="sb-ps${chg ? ' chg' : ''}">${l.tot ? '' : bars(l)}</span>${chgCell(l)}<span class="rz-c">${cnt(l)}</span></div>`;
   const tot = { tot:true, last:pts[pts.length - 1].vals[0], change: has(pts[pts.length - 1].vals[0]) && has(first.vals[0]) ? pts[pts.length - 1].vals[0] - first.vals[0] : null };
   const mean = S0.flow ? 'за месяц' : u==='sum' ? 'остаток на конец месяца' : 'на конец месяца';
@@ -5017,7 +5374,7 @@ function seriesHTML(t, res, ops){
       : x ? `<span class="sr-d ${x.cls}">${dtxt}</span>` : `<span class="sr-d">&nbsp;</span>`;
     const tip = [mon+' '+my.y+' · '+(p.down ? p.down : fmtVal(v, unit)), p.closed ? 'месяц закрыт' : p.open && p.openLabel ? 'не закрыт · '+(s.flow ? 'за ' : '')+p.openLabel : 'месяц не закрыт',
       x ? x.tip : none ? 'Без сдвига: '+p.none+(p.plan ? ' · '+none.text : '') : '', p.down ? '' : 'Клик — кто в этом числе'].filter(Boolean).join('\n');
-    const ls = p.cnt===undefined || p.cnt===null ? '' : `<span class="sr-q"><button class="ls${p.cnt ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(p.cnt)} стр. · ${mon} ${my.y}" onclick="event.stopPropagation();${month(p.m)}">☰ ${nbsp(p.cnt)}</button></span>`;
+    const ls = p.cnt===undefined || p.cnt===null ? '' : `<span class="sr-q"><button class="ls${p.cnt ? '' : ' zero'}${whoOn(t.id, { m:p.m }) ? ' who-on' : ''}" data-tip="Кто в этом числе: ${nbsp(p.cnt)} стр. · ${mon} ${my.y}" onclick="event.stopPropagation();${month(p.m)}">☰ ${nbsp(p.cnt)}</button></span>`;
     return `<div class="sr-c${p.open ? ' cur' : ''}" data-m="${p.m}"${tipAttr(tip)}><div class="sr-sl">${p.down ? '' : `<button type="button" class="sr-hit" aria-label="${esc('Кто в этом числе: '+mon+' '+my.y)}" onclick="event.stopPropagation();${month(p.m)}"></button>`}${sl}</div><div class="sr-m">${lab}${under}${ls}</div></div>`; }).join('');
   const mean = s.flow ? 'за месяц' : unit==='sum' ? 'остаток на конец месяца' : 'на конец месяца';
   const lead = chg ? (unit==='pct' ? 'п.п.' : sc.name)+' · изменение к прошлому месяцу' : sc.name+' · '+mean;
@@ -5229,26 +5586,185 @@ const ROW_LABEL = {
 function rowLabel(obj, r){ const f = ROW_LABEL[obj]; return f ? f(r) : ''; }
 // предложение с одной точкой в конце, даже если причина уже кончается точкой
 const sentence = s => String(s).replace(/[.\s]+$/, '')+'.';
-// провал отчёта по узлу: боковая панель с полным списком объектов на дату плитки или честный отказ выше порога
-function openWho(tileId, node, path){
+// провал узла: немодальная панель справа со списком объектов на дату плитки или честным отказом выше порога; связана с полосой
+function openWho(tileId, node, path, from){
   const t = tileById(tileId); const sr = drill(tileId, user(), curRole(), S.panel, node, path);
-  const at = path && path.length;
-  const head = 'Кто в этом числе — «'+esc(t.title)+'»'+(at ? ' · путь: '+esc(pathText(path)) : '')+(sr.nodeText ? ' · '+esc(sr.nodeText) : '');
-  if(sr.refused){ drawer(head, `<div class="banner warn">Отказ статистики: ${esc(sentence(sr.msg))}</div>
-    <p>Усечённого и постраничного списка не бывает: он не сошёлся бы с числом.</p>
-    <p><button class="btn" onclick="DB.${at ? 'registryAt' : 'registry'}('${t.id}')">Работать со списком (реестр, можно листать)</button>
-    <button class="btn" onclick="DB.close();DB.openView('${t.id}','slice')">Открыть Разрез</button>
-    <button class="btn" onclick="DB.toast('Выгрузка строк поставлена статистике заданием — файл придёт с метаданными внутри')">Выгрузка строк (задание статистики)</button></p>
-    ${sr.passport?'<div class="passport mono">'+esc(sr.passport)+'</div>':''}`); return sr; }
-  // сумма списка — со знаком, как у своего числа: у строки Движения и части «пришли из / ушли в» он печатается («+8,0 млн», «−5,1 млн»);
-  // сверяется с числом своего узла — строки, точки ряда, ячейки карты; без узла — с числом на плитке
-  const n = sr.node, signed = !!n && (!!n.flow || mvNode(n)), fv = v=>signed ? mvSum(v, sr.unit) : fmtVal(v, sr.unit);
-  const eq = !n ? ['= числу на плитке', 'на плитке'] : n.flow || mvNode(n) ? ['= числу строки', 'в строке'] : n.m!==undefined ? ['= числу точки', 'в точке'] : n.d2 ? ['= числу ячейки', 'в ячейке'] : n.d ? ['= числу строки', 'в строке'] : ['= числу на плитке', 'на плитке'];
-  const sumLine = sr.matches ? fv(sr.sum)+' '+eq[0] : fv(sr.sum)+(sr.number!==null ? ' · '+eq[1]+' '+fv(sr.number) : '');
-  drawer(head, `<div class="kv"><div class="k">Строк</div><div>${sr.list.length} — полный список на дату среза</div>
-    <div class="k">Сумма списка</div><div>${sumLine}</div><div class="k">Паспорт</div><div class="mono">${esc(sr.passport)}</div></div>
-    <table class="list"><tr><th>Объект</th><th>Кратко</th><th class="n">Значение</th></tr>${sr.list.slice(0,400).map(x=>`<tr><td><button class="linky" onclick="DB.toast('Карточка ${esc(x.r.id)} открывается в модуле «${esc(OBJECTS[sr.obj].owner)}»')">${esc(x.r.id)}</button></td><td>${esc(rowLabel(sr.obj, x.r))}</td><td class="n">${fmtVal(x.v, sr.unit)}</td></tr>`).join('')}</table>`);
+  const o = S.open[tileId], same = S.who && S.who.tile===tileId;
+  S.who = { tile:tileId, node:node || null, path:(path || []).slice(), nk:nodeKey(node), q:'', sort:null, share:same && S.who.share || 'num', fromStrip:!!o && from!=='tile',
+    role:curRole(), snap:null, seen:null };   // из полосы — её снимок; с плитки — те же данные, что у плитки
+  view = 'home'; render(); if(HAS_DOM){ const b = document.querySelector('#who-p .wp-b'); if(b) b.scrollTop = 0; }
   return sr;
+}
+// узел — ключ для подсветки строки полосы, чей список открыт: только то, что выбирает узел (путь и выбор вида — у полосы)
+const nodeKey = n=>!n ? '[]' : JSON.stringify([n.d || null, n.v===undefined ? null : n.v, n.d2 || null, n.v2===undefined ? null : n.v2, n.m===undefined ? null : n.m, n.flow || null,
+  n.coh ? [n.coh.s, n.coh.len] : null, n.tr || null, n.fk===undefined ? null : n.fk, n.from===undefined ? '-' : n.from, n.to===undefined ? '-' : n.to]);
+const whoOn = (k, n)=>!!S.who && S.who.tile===k && S.who.nk===nodeKey(n);
+function closeWho(){ S.who = null; render(); return null; }
+// режим и разрезы вида — у полосы, с которой связан список: «Сумма | Изменение» полосы меняет список
+function whoOpt(w){ const o = w.fromStrip && S.open[w.tile], t = tileById(w.tile); let mode = 'sum', vd = [];
+  if(o && t){ const s = viewSel(t, o.kind, o.sel, user(), o.path || [], S.panel); mode = ['slice', 'table', 'series', 'map'].includes(o.kind) && !(o.kind==='map' && s.axes==='trans') ? modeOf(o.sel) : 'sum';
+    vd = o.kind==='slice' || o.kind==='table' ? [s.dim] : o.kind==='map' && s.axes!=='trans' ? (s.dims || []) : o.kind==='series' && s.by ? [s.by] : []; }
+  return { mode, share:w.share, q:w.q, sort:w.sort, viewDims:vd.filter(d=>d && d!=='big') }; }
+// модель панели — из снимка полосы (или ссылки), с правами смотрящего
+function whoModel(){ const w = S.who; if(!w || !tileById(w.tile)) return null; const o = S.open[w.tile];
+  const snap = w.fromStrip && o ? o.snap : w.snap;
+  return atSnap(snap, ()=>{ const m = whoList(tileById(w.tile), user(), w.role!==undefined ? w.role : curRole(), S.panel, w.node, w.path, whoOpt(w));
+    m.snapAt = snap ? snap.at : nowTime(); m.byLink = !!(w.link || (o && o.byLink)); return m; }); }
+// полоска доли: в «Сумме» — от левого края; в «Изменении» и у вклада со знаком — от середины, «+» вправо, «−» влево, цвет — по направлению показателя
+const wlBar = (pct, two, dir, v)=>{ if(pct===null || pct===undefined) return '';
+  const w = Math.min(100, Math.abs(pct)), up = (v===undefined ? pct : v) >= 0, tone = dir==='up_bad' ? (up ? 'bad' : 'good') : dir==='up_good' ? (up ? 'good' : 'bad') : 'neu';
+  return two ? `<span class="wl-bar two"><i class="${up ? 'pos' : 'neg'} ${tone}" style="width:${(w / 2).toFixed(1)}%"></i></span>` : `<span class="wl-bar"><i style="width:${w.toFixed(1)}%"></i></span>`; };
+const pctTxt = p=>p===null || p===undefined ? '—' : (Math.round(p*10)/10).toString().replace('.', ',')+' %';
+function whoCell(m, x, k){ const v = x.cells[k], c = m.cols.find(y=>y.k===k);
+  return c && c.num && typeof v==='number' ? fmtVal(v, c.unit || 'pcs') : esc(v===null || v===undefined ? '—' : v); }
+function whoPanelHTML(m){
+  if(!m) return '';
+  const w = S.who, path = m.head.crumbs, last = path.length - 1;
+  const crumbs = path.map((c, i)=>i===last && !m.head.node ? `<b>${esc(c)}</b>` : esc(c)).join('<span class="sep">›</span>')+(m.head.node ? '<span class="sep">›</span><b>'+esc(m.head.node)+'</b>' : '');
+  const head = `<div class="wp-h"><div class="wp-tt"><h3 id="wp-t">${esc(m.head.title)}</h3><div class="wp-path">${crumbs}</div></div>
+    <button class="sl-icon" aria-label="Действия панели" data-tip="Действия панели" onclick="DB.whoMenu(event)">${ICON_DOTS}</button><button class="sl-icon wp-x" aria-label="Закрыть" data-tip="Закрыть · Esc" onclick="DB.whoClose()">${ICON_X}</button></div>`;
+  const when = (m.byLink ? 'на '+m.snapAt+' · по ссылке' : '');
+  const seen = w && w.seen && w.seen.mine!==null && w.seen.theirs!==null && w.seen.mine < w.seen.theirs ? `<div class="banner info wp-seen">У вас видно ${nbsp(w.seen.mine)} из ${nbsp(w.seen.theirs)}: ссылка открыта с вашими правами — строки вне вашего охвата не показаны</div>` : '';
+  const exitBtn = ([k, n])=>`<button class="btn sm" onclick="DB.whoExit('${k}')">${esc(n)}</button>`;
+  if(m.refused) return head+`<div class="wp-conv"><b>${esc(sentence(m.msg))}</b><span class="wp-meta">${esc([when, m.passport].filter(Boolean).join(' · '))}</span></div>${seen}
+    <div class="wp-b"><p>Усечённого и постраничного списка не бывает: он не сошёлся бы с числом. Сузьте вопрос разрезом полосы или возьмите выгрузкой.</p><div class="wp-exits">${m.exits.map(exitBtn).join('')}</div></div>`;
+  const shareSw = m.share ? `<span class="seg wp-share" role="group" aria-label="Чей список у доли">${[['num', 'в числе', m.shareNums && m.shareNums.num], ['group', 'вся группа', m.shareNums && m.shareNums.den]].map(([k, n, c])=>
+    `<button class="${m.share.on===k ? 'on' : ''}" onclick="DB.whoShare('${k}')">${n}${c!==null && c!==undefined ? ' '+nbsp(c) : ''}</button>`).join('')}</span>` : '';
+  const fields = m.extraFields.length ? `<details class="wp-cols"><summary class="btn sm">Колонки ▾</summary><div class="wp-colm" role="group" aria-label="Колонки на время просмотра">${m.extraFields.map(f=>
+    `<label class="opt"><input type="checkbox" ${f.on ? 'checked' : ''} onchange="DB.whoCol('${f.dim}',this.checked)"> ${esc(f.name)}</label>`).join('')}<div class="hint">поля строки — на время просмотра; выбор помнится по типу объекта</div></div></details>` : '';
+  const sortOpts = [...m.cols.map(c=>[c.k, c.name]), ...m.valCols.filter(([k])=>k!=='was').map(([k, n])=>[k, n]), ['pct', 'доля']];
+  const sortSel = `<label class="wp-sort">Порядок <select aria-label="Порядок списка" onchange="DB.whoSort(this.value)">${sortOpts.map(([k, n])=>`<option value="${k}"${m.sort.k===k ? ' selected' : ''}>${esc(n)}${m.sort.k===k ? (m.sort.dir==='asc' ? ' ↑' : ' ↓') : ''}</option>`).join('')}</select></label>`;
+  const tools = `<div class="wp-tools"><input type="search" class="wp-q" aria-label="Найти в списке" placeholder="Найти в списке…" value="${esc(w ? w.q : '')}" oninput="DB.whoSearch(this.value)">${fields}${shareSw}${sortSel}</div>`;
+  const exits = `<div class="wp-exits">${m.exits.map(exitBtn).join('')}</div>`;
+  const today = m.byLink ? ` <button class="linky" onclick="${w && w.fromStrip ? `DB.stripRefresh('${esc(w.tile)}')` : 'DB.whoToday()'}">на сегодня</button>` : '';
+  const conv = `<div class="wp-conv"><b>${esc(m.conv.text)}</b><span class="wp-meta">${esc([when, m.passport].filter(Boolean).join(' · '))}${today}</span></div>`;
+  // таблица: заголовки — порядок по колонке (повторный клик — обратный); значение и доля — справа
+  const all = [...m.cols.map((c, i)=>[c.k, c.name, c.num, i>0]), ...m.valCols.map(([k, n])=>[k, n, !['how', 'was', 'inNum'].includes(k)]), ['pct', m.mode==='change' ? 'доля изменения' : 'доля в числе', true]];
+  const th = ([k, n, num, oc])=>{ const on = m.sort.k===k, arr = on ? (m.sort.dir==='asc' ? ' ↑' : ' ↓') : '';
+    return `<th class="${num ? 'n' : ''}${oc ? ' wl-c' : ''}${on ? ' on' : ''}" scope="col"><button class="wl-s" onclick="DB.whoSort('${k}')">${esc(n)}${arr}</button></th>`; };
+  const fv = v=>m.signed ? mvSum(v, m.unit) : fmtVal(v, m.unit);
+  const val = (x, k)=>k==='v' ? fv(x.v) : k==='w' ? fmtVal(x.w, 'sum') : k==='a' ? (x.a===null ? '—' : m.count ? '✓' : fmtVal(x.a, m.unit)) : k==='n' ? (x.n===null ? '—' : m.count ? '✓' : fmtVal(x.n, m.unit))
+    : k==='how' ? esc(x.how) : k==='was' ? (x.was ? esc(x.was[0])+' → '+esc(x.was[1]) : '—') : k==='inNum' ? (x.inNum ? '✓' : '—') : '';
+  const idx = new Map(m.shown.map((x, i)=>[x.id, i]));
+  const row = x=>`<tr><td class="wl-l"><a class="linky" href="${esc(linkOf({ card:x.id }))}" onclick="return DB.cardFrom(event,${idx.get(x.id)})" data-tip="${esc(x.id+' — карточка в модуле «'+OBJECTS[m.obj].owner+'»')}">${esc(x.cells.label)}</a>${m.cols.length>1 ? `<span class="wl-sub">${m.cols.slice(1).map(c=>whoCell(m, x, c.k)).join(' · ')}</span>` : ''}</td>`
+    +m.cols.slice(1).map(c=>`<td class="wl-c${c.num ? ' n' : ''}">${whoCell(m, x, c.k)}</td>`).join('')
+    +m.valCols.map(([k])=>`<td class="${['how', 'was', 'inNum'].includes(k) ? '' : 'n'}${k==='v' ? ' wl-v' : ''}">${val(x, k)}</td>`).join('')
+    +`<td class="n wl-p">${pctTxt(x.pct)}${wlBar(x.pct, m.mode==='change' || m.signed, m.dir, x.v)}</td></tr>`;
+  const ncol = all.length, body = m.shown.map((x, i)=>row(x)+(m.cut && i===m.cut.after ? `<tr class="wl-cut"><td colspan="${ncol}">↑ ${m.cut.n} ${plural(m.cut.n, 'объект', 'объекта', 'объектов')} — 80 % числа</td></tr>` : '')).join('');
+  const shown = m.shownText ? `<div class="wp-shown">${esc(m.shownText)}</div>` : '';
+  const table = m.rows.length ? `<table class="wl"><thead><tr>${all.map(th).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${ncol}" class="muted">Ничего не нашлось по «${esc(m.q)}»</td></tr>`}</tbody></table>`
+    : `<p class="muted">Объектов с вкладом нет — число ноль.</p>`;
+  return head+conv+seen+tools+exits+shown+`<div class="wp-b" tabindex="0" aria-label="Список объектов">${table}</div>`;
+}
+// панель — перерисовка только себя (поиск держит фокус и каретку)
+function renderWho(){ if(!HAS_DOM) return; const el = $('who-p'), app = document.querySelector('.app');
+  const on = view==='home' && !!S.who && !!tileById(S.who.tile);
+  if(!on){ if(el){ el.hidden = true; el.innerHTML = ''; } if(app) app.classList.remove('with-who'); return; }
+  const ae = document.activeElement, inQ = ae && ae.classList && ae.classList.contains('wp-q'), pos = inQ ? ae.selectionStart : null, sc = (el.querySelector('.wp-b') || {}).scrollTop || 0;
+  const open = el.querySelector('details.wp-cols[open]');
+  el.innerHTML = whoPanelHTML(whoModel()); el.hidden = false; app.classList.add('with-who');
+  const b = el.querySelector('.wp-b'); if(b) b.scrollTop = sc;
+  if(open){ const d = el.querySelector('details.wp-cols'); if(d) d.open = true; }
+  if(inQ){ const q = el.querySelector('.wp-q'); if(q){ q.focus(); try { q.setSelectionRange(pos, pos); } catch(e){} } } }
+function whoMenu(ev){ if(!HAS_DOM || !S.who) return null; const x = Math.min(ev.clientX - 280, window.innerWidth - 300), y = Math.min(ev.clientY + 8, window.innerHeight - 160);
+  $('overlay').innerHTML = `<div class="drawer-mask" style="background:transparent" onclick="DB.close()"></div><div class="menu" style="left:${Math.max(8, x)}px;top:${y}px">
+    <button onclick="DB.close();DB.copyLink()">🔗 Скопировать ссылку</button><div class="hint">то же место: вкладка, вид, путь, режим, список и дата среза — у получателя со своими правами</div></div>`;
+  return ['Скопировать ссылку']; }
+// выходы — как у провала отчётности: реестр (сегодня), рабочий список в отчётности из показанного состава, выгрузка xlsx со штампом
+function whoExit(k){ const w = S.who; if(!w) return null; const t = tileById(w.tile);
+  const nodePath = w.path.concat(w.node && w.node.d ? [{ dim:w.node.d, v:w.node.v }].concat(w.node.d2 ? [{ dim:w.node.d2, v:w.node.v2 }] : []) : []);
+  if(k==='registry') return openRegistry(w.tile, nodePath);
+  if(k==='slice'){ closeWho(); return openTileView(w.tile, 'slice'); }
+  if(k==='task'){ toast('Выгрузка строк поставлена статистике заданием — файл придёт с метаданными внутри'); return { task:true }; }
+  if(k==='worklist') return workList();
+  if(k==='export') return exportList();
+  return null; }
+function whoNameOf(m){ return m.head.crumbs.concat(m.head.node ? [m.head.node] : []).join(' › '); }
+// «Завести рабочий список»: в отчётности, из показанного состава (с поиском — из совпавших), имя — по пути
+function workList(){ const m = whoModel(); if(!m || m.refused) return { error:'Списка нет' };
+  const e = { id:'РС-'+(S.workLists.length + 1), name:whoNameOf(m)+' · '+TODAY.label.slice(0, 10), ids:m.shown.map(x=>x.id), owner:S.userId, at:TODAY.label, obj:m.obj, tile:m.tileId, module:'Отчётность' };
+  S.workLists.unshift(e); journal('завёл рабочий список', e.name+' · объектов: '+e.ids.length);
+  toast('Рабочий список «'+e.name+'» заведён в отчётности: '+e.ids.length+' '+plural(e.ids.length, 'объект', 'объекта', 'объектов')); return e; }
+// «Выгрузить список»: xlsx со штампом сразу — ниже порога список и так полный; с поиском — показанное
+function exportList(){ const m = whoModel(); if(!m || m.refused) return { refused:true, msg:m ? m.msg : 'Списка нет' };
+  const t = tileById(m.tileId), all = [...m.cols.map(c=>[c.k, c.name]), ...m.valCols.map(([k, n])=>[k, n]), ['pct', m.mode==='change' ? 'доля изменения' : 'доля в числе']];
+  const cell = (x, k)=>k==='v' ? (m.signed ? mvSum(x.v, m.unit) : fmtVal(x.v, m.unit)) : k==='w' ? fmtVal(x.w, 'sum') : k==='a' ? (x.a===null ? '—' : fmtVal(x.a, m.unit)) : k==='n' ? (x.n===null ? '—' : fmtVal(x.n, m.unit))
+    : k==='how' ? x.how : k==='was' ? (x.was ? x.was.join(' → ') : '—') : k==='inNum' ? (x.inNum ? 'да' : 'нет') : k==='pct' ? pctTxt(x.pct) : String(x.cells[k]===undefined ? '' : x.cells[k]);
+  const vis = atSnap(S.who.fromStrip && S.open[S.who.tile] ? S.open[S.who.tile].snap : S.who.snap, ()=>ask(t, user(), S.who.role!==undefined ? S.who.role : curRole(), S.panel, m.path).visible);
+  const st0 = stampOf(t, { passport:m.passport, visible:vis });
+  const stamp = [ ...st0.slice(0, -2), 'Список: '+whoNameOf(m)+(m.mode==='change' ? ' · изменение '+(m.baseLabel || '') : ''), m.conv.text+(m.q ? ' · поиск «'+m.q+'»: '+m.shownText : ''), ...st0.slice(-2) ];
+  const rows = [all.map(x=>x[1]), ...m.shown.map(x=>all.map(([k])=>cell(x, k)))];
+  const csv = [...stamp.map(s=>'# '+s), ...rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';'))].join('\n');
+  S.lastExport = { stamp, rows, csv, kind:'xlsx' };
+  S.exportLog.unshift({ at:TODAY.label, who:S.userId, tile:t.id, kind:'xlsx', list:{ node:m.node, path:m.path, n:m.shown.length } });
+  journal('выгрузил список', whoNameOf(m)+' · строк: '+m.shown.length);
+  if(HAS_DOM) downloadCSV(); toast('Список выгружен: '+m.shown.length+' '+plural(m.shown.length, 'строка', 'строки', 'строк')+', штамп внутри файла');
+  return S.lastExport; }
+// строка списка → карточка модуля-владельца на месте дашборда; плашка — контекст провала, шаги по списку в его порядке (с поиском)
+function cardFrom(ev, i){ if(ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button===1)) return true;   // новая вкладка — по адресу ссылки
+  if(ev && ev.preventDefault) ev.preventDefault(); openCard(i); return false; }
+function openCard(i, noPush){ const m = whoModel(); if(!m || m.refused) return null; const ids = m.shown.map(x=>x.id); const k = typeof i==='number' ? i : ids.indexOf(i);   // i — место в показанном списке (с поиском) или номер объекта
+  if(k<0 || k>=ids.length) return null; const id = ids[k], j = k;
+  S.card = { id, i:j<0 ? 0 : j, ids, back:{ scroll:HAS_DOM ? $('content').scrollTop : 0, list:HAS_DOM ? ((document.querySelector('#who-p .wp-b') || {}).scrollTop || 0) : 0 } };
+  if(HAS_DOM && !noPush) try { history.pushState({ card:id }, '', linkOf({ card:id })); } catch(e){}   // «Назад» браузера — к дашборду на то же место
+  view = 'card'; render(); if(HAS_DOM) $('content').scrollTop = 0; return cardModel(); }
+function renderCard(){ $('v-card').innerHTML = cardHTML(); }
+function cardStep(d){ const c = S.card; if(!c) return null; const j = c.i + d; if(j<0 || j>=c.ids.length) return cardModel(); c.i = j; c.id = c.ids[j]; render(); return cardModel(); }
+function cardBack(){ const c = S.card; S.card = null; view = 'home'; render();
+  if(HAS_DOM && c){ $('content').scrollTop = c.back.scroll; const b = document.querySelector('#who-p .wp-b'); if(b) b.scrollTop = c.back.list; try { history.replaceState(null, '', linkOf()); } catch(e){} }
+  return S.who; }
+// карточка: объект сейчас (поля из реестра владельца), плашка — откуда пришли, вклад на дату среза и значение сейчас
+function cardModel(){ const c = S.card, w = S.who; if(!c || !w) return null; const m = whoModel(); if(!m) return null;
+  const x = m.rows.find(y=>y.id===c.id), obj = m.obj, r = DATA[obj].find(y=>y.id===c.id); if(!r) return null;
+  const t = tileById(w.tile), q = numQ(t, w.path, w.node && w.node.of), I = IND[q.share ? q.share[m.share && m.share.on==='group' ? 1 : 0] : q.inds[0]], L = OBJECTS[obj].list || { cols:[] };
+  const nowV = valueOf(r, I, ctxOf(userConds(q, user())));   // в карточке — сейчас: текущие данные, а не снимок полосы
+  const contrib = !x ? null : m.mode==='change' ? x.v : m.count && x.w!==undefined ? x.w : x.v;
+  const nowTxt = m.count && L.weight ? fmtVal(L.weight.f(r, 0), 'sum') : nowV===null ? 'нет в числе' : fmtVal(nowV, I.unit);
+  const vTxt = contrib===null ? '—' : m.mode==='change' || m.signed ? mvSum(contrib, m.unit) : fmtVal(contrib, m.count ? 'sum' : m.unit);
+  const plate = 'Из дашборда: '+whoNameOf(m)+' на '+(m.snapAt || nowTime())+' — '+(m.mode==='change' ? 'изменение ' : m.count ? (L.weight ? L.weight.name.toLowerCase()+' ' : '') : 'вклад ')+vTxt+'; в карточке сейчас '+nowTxt;
+  const fields = [['Подпись', objLabel(obj, r, 0)], ...L.cols.map(cl=>[cl.name, cl.num && typeof cl.f(r, 0)==='number' ? fmtVal(cl.f(r, 0), cl.unit || 'pcs') : cl.f(r, 0)]), ...(L.weight ? [[L.weight.name, fmtVal(L.weight.f(r, 0), 'sum')]] : [])];
+  return { id:c.id, obj, owner:OBJECTS[obj].owner, name:OBJECTS[obj].name, title:objLabel(obj, r, 0), plate, i:c.i, n:c.ids.length, step:(c.i + 1)+' из '+c.ids.length, fields, contrib, nowTxt }; }
+function cardHTML(){ const k = cardModel(); if(!k) return '<p class="muted">Карточки нет.</p>';
+  const nav = `<span class="og-steps"><button class="sl-icon" aria-label="Предыдущий в списке" ${k.i>0 ? 'onclick="DB.cardStep(-1)"' : 'disabled'}>‹</button><span>${esc(k.step)}</span><button class="sl-icon" aria-label="Следующий в списке" ${k.i<k.n - 1 ? 'onclick="DB.cardStep(1)"' : 'disabled'}>›</button></span>`;
+  return `<div class="og-plate" role="status"><span class="og-t">${esc(k.plate)}</span><span class="sep">·</span>${nav}<span class="sep">·</span><button class="linky" onclick="DB.cardBack()">← к дашборду</button></div>
+    <div class="card-h"><h2 class="h2">${esc(k.name)} ${esc(k.title)}</h2><div class="muted small">Карточка модуля «${esc(k.owner)}» — открыта на месте дашборда; работа с объектом — здесь, в модуле-владельце</div></div>
+    <div class="kv">${k.fields.map(([a, b])=>`<div class="k">${esc(a)}</div><div>${esc(b===null || b===undefined ? '—' : b)}</div>`).join('')}</div>
+    <p class="muted small">Плашка — из дашборда: «в числе» — на дату среза списка, «сейчас» — в карточке. Стрелки идут по списку в его порядке; «← к дашборду» и «Назад» браузера возвращают на то же место.</p>`; }
+// адрес несёт состояние: вкладка · плитка · вид · путь · режим · узел списка · фильтр панели · дата среза (снимок); card — карточка из списка
+function stateOf(extra){ const ids = Object.keys(S.open).sort((a, b)=>S.open[b].n - S.open[a].n), id = (extra && extra.tile) || (S.who ? S.who.tile : ids[0]), o = id && S.open[id];
+  const w = S.who && S.who.tile===id ? S.who : null;
+  const st = { v:1, from:S.userId, tab:S.tab ? { kind:S.tab.kind, id:S.tab.id } : null, tile:id || null, kind:o ? o.kind : null, sel:o ? o.sel : null, path:o ? o.path || [] : w ? w.path : [],
+    panel:S.panelRaw || {}, snap:o ? o.snap : w ? w.snap || snapNow() : snapNow() };
+  if(w) st.who = { node:w.node, share:w.share, q:w.q, sort:w.sort, strip:w.fromStrip };
+  if(extra && extra.card) st.card = extra.card; else if(view==='card' && S.card) st.card = S.card.id;
+  return st; }
+function linkOf(extra){ return '#st='+encodeURIComponent(JSON.stringify(stateOf(extra))); }
+// счёт списка ссылки: сколько объектов в списке видно — у отправителя при копировании, у получателя при открытии
+function linkCount(st, u, roleId){ if(!st.who || !st.tile || !tileById(st.tile)) return null; const t = tileById(st.tile);
+  return atSnap(st.snap, ()=>{ const m = whoList(t, u, roleId, S.panel, st.who.node, st.path || [], { share:st.who.share });
+    return m.refused ? (m.count || null) : m.rows.length; }); }
+function copyLink(id){ const st = stateOf(id ? { tile:id } : null); st.n = linkCount(st, user(), curRole()); const link = '#st='+encodeURIComponent(JSON.stringify(st));
+  const url = HAS_DOM ? location.href.split('#')[0]+link : link;
+  if(HAS_DOM && navigator.clipboard) navigator.clipboard.writeText(url).catch(()=>{});
+  toast('Ссылка скопирована: откроет то же место на '+(st.snap ? st.snap.at : nowTime())+' — у получателя со своими правами'); return link; }
+// открыть ссылку: своя такая же вкладка — она; полоса — тем же видом, путём и режимом; список — со своими правами; дата ссылки — только у полосы и списка
+function openLink(link){ let st; try { st = JSON.parse(decodeURIComponent(String(link).replace(/^.*#st=/, ''))); } catch(e){ return { error:'Ссылка не читается' }; }
+  const u = user(), t = st.tile && tileById(st.tile); if(st.tile && !t) return { error:'Плитки по ссылке нет' };
+  const tabOk = st.tab && (st.tab.kind==='role' ? u.roles.includes(st.tab.id) : !!screenById(st.tab.id));
+  if(tabOk){ S.tab = { kind:st.tab.kind, id:st.tab.id }; S.lastTab[u.id] = S.tab; S.panel = st.panel || {}; }
+  view = 'home'; S.open = {}; S.who = null; S.card = null;
+  const old = st.snap && st.snap.fresh < STAND.fresh, snap = old ? st.snap : snapNow();
+  const onScreen = !!t && tabOk && homeItems().includes(st.tile);
+  if(onScreen && st.kind){ const o = placeStrip(st.tile, st.kind, JSON.parse(JSON.stringify(st.sel || {}))); o.path = JSON.parse(JSON.stringify(st.path || [])); o.snap = snap; if(old) o.byLink = true; }
+  if(st.who && t){ const obj = IND[numQ(t, st.path || []).inds[0]].obj, roleId = tabOk && st.tab.kind==='role' ? st.tab.id : u.roles.find(r=>hasRight(r, obj)) || null;
+    S.who = { tile:st.tile, node:st.who.node || null, path:st.path || [], nk:nodeKey(st.who.node), q:st.who.q || '', sort:st.who.sort || null, share:st.who.share || 'num',
+      fromStrip:onScreen && !!st.kind, role:onScreen ? curRole() : roleId, snap:onScreen || !old ? null : snap, link:old, seen:null };
+    const mine = linkCount(st, u, S.who.role); S.who.seen = { mine, theirs:st.n===undefined ? null : st.n }; }
+  S.link = { at:snap.at, old, tabOk, onScreen };
+  if(st.card && S.who){ const m = whoModel(); const i = m && !m.refused ? m.shown.findIndex(x=>x.id===st.card) : -1; if(i>=0) openCard(i); else render(); }
+  else render();
+  if(!tabOk && st.tab) toast('Вкладки «'+(st.tab.kind==='role' ? roleName(st.tab.id) : 'экран')+'» у вас нет — список открыт с вашими правами');
+  return { st, tabOk, onScreen, who:S.who, open:S.open[st.tile] || null };
 }
 // ответ отчёта малой таблицей: первый уровень строк с итогом или итог без разрезов
 function answerHTML(v){
@@ -5631,13 +6147,16 @@ function renderStand(){
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label><br>
-      ${chk('partDown','статистика ответила на вид полосы не целиком: у Таблицы — колонка «'+IND[PART_COL].name+'» (где её нет — самая крупная строка), у Разреза — самый крупный узел, у Карты — самая крупная строка')}
+      ${chk('partDown','статистика ответила на вид полосы не целиком: у Таблицы — колонка «'+IND[PART_COL].name+'» (где её нет — самая крупная строка), у Разреза — самый крупный узел, у Карты — самая крупная строка; у Когорт — самая крупная когорта, у Переходов — строка с наибольшим итогом на дату базы, у Ряда по разрезу — самая крупная строка')}
       ${chk('baseDown','нет ответа на дату базы (на 30.09 у остатка, за прошлый период у потока)')}
       ${chk('overload','отчётность перегружена: вопросы ждут в очереди')}
       ${chk('slow','медленная отчётность: «Сумма» полосы — через 1,5 с, база — через 3 с, Движение — через 12 с')}
       <div style="margin:6px 0 2px"><button class="btn" onclick="DB.standFresh()">Пришли новые данные</button> <span class="muted small">данные — на ${esc(nowTime())}</span></div>
       <div class="why">Часть без ответа — «—» на её месте с причиной в подсказке; итог по ней — «—», остальное как посчитано, вид не гаснет. Нет базы — «Изменение» и Движение погашены, у плитки «без сдвига», точка Ряда на эту дату — «—». Перегруз: свежий ответ (не старше минуты) показывается как обычно, вопросы, которые надо задать, ждут в очереди («Прошло 2 минуты» — и «сегодня» встаёт в очередь): последний ответ из кэша со своей датой и «⚠ устарело · на …, сейчас считается», нет его — скелет и «в очереди»; полоса — только скелет и «в очереди»; «Повторить» — только при ошибке доставки. Медленная отчётность: строка полосы сразу, тело — серый скелет формы вида, «Сумма» раньше базы, дольше 10 с — «считается дольше обычного · Отменить». Новые данные: открытая полоса и плитка над ней держат снимок — в строке полосы «есть данные на … · Обновить»; закреплённая раскрытой на своём экране обновляется сама, пока в ней не провалились вглубь.</div>
       <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается. Остаток и очереди на нём (у Бухгалтерии — «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». Поток «сегодня» («Поступило сегодня») отвечает отказом с причиной: за сегодня — после ночного прогона, за вчера — число серой подсказкой. «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
+    <div class="form-step"><h4>Реестр статистики: потоки, объясняющие остаток</h4>${['loan', 'receipt'].map(o=>{ const D = OBJECTS[o].flows || {}, ind = Object.keys(D)[0];
+        return `<label class="opt"><input type="checkbox" ${STAND.noFlows[o] ? '' : 'checked'} onchange="DB.standNoFlows('${o}', !this.checked)"> запись «${esc(OBJECTS[o].name)}» объявила потоки «${esc(IND[ind].name)}»: ${esc(D[ind].map(f=>f.name+' ('+f.src+') '+(f.sg>0 ? '+' : '−')).join(' · '))}</label><br>`; }).join('')}
+      <div class="why">Потоки объявляет владелец объекта в его записи реестра, отчётность применяет их к двум строкам каждого объекта; не покрытое потоками — «прочее». Запись без потоков — Движение остатка строками «новые · ушли · выросла / снизилась у прежних», как у «Просрочено».</div></div>
     <div class="form-step"><h4>Пользователи: администраторы дашборда</h4>${adminStand()}</div>
     <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
     <div class="form-step"><h4>Круг отчёта</h4><label class="opt"><input type="checkbox" ${circleNarrowed()?'checked':''} onchange="DB.standCircle(this.checked)"> Сузить круг отчёта «${esc((reportById(NARROW.report)||{}).title)}»: без ${esc(NARROW.of)}</label>
@@ -5730,7 +6249,17 @@ const api = {
   // «Обновить» в шапке — человек сам попросил: числа запрошены заново, открытые полосы берут новые данные (путь и вид остаются)
   refresh:()=>{ S.cache.clear(); Object.values(S.open).forEach(o=>{ o.snap = snapNow(); }); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
   // «Обновить» на плашке полосы: снимок — на сейчас, путь, вид и выбор остаются
-  stripRefresh:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; o.snap = snapNow(); loadOf(o); render(); return { ok:true, at:o.snap.at, path:o.path.slice(), kind:o.kind }; },
+  stripRefresh:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; o.snap = snapNow(); delete o.byLink; if(S.who && S.who.tile===id) S.who.link = false; loadOf(o); render(); return { ok:true, at:o.snap.at, path:o.path.slice(), kind:o.kind }; },
+  // панель «Кто в этом числе»: модель и разметка, поиск, порядок, доля, колонки, выходы; карточка из списка; ссылка на состояние
+  whoPanel:()=>whoModel(), whoHTML:()=>whoPanelHTML(whoModel()), whoClose:()=>closeWho(), whoMenu:(e)=>whoMenu(e),
+  whoToday:()=>{ if(!S.who) return null; S.who.snap = null; S.who.link = false; render(); return whoModel(); },   // список по ссылке без полосы — «на сегодня»
+  whoSearch:(q)=>{ if(!S.who) return null; S.who.q = String(q || ''); renderWho(); return whoModel(); },
+  whoSort:(k)=>{ if(!S.who) return null; const m = whoModel(), cur = m && m.sort; S.who.sort = cur && cur.k===k ? { k, dir:cur.dir==='asc' ? 'desc' : 'asc' } : { k, dir:k==='label' || k==='how' || (m && m.cols.some(c=>c.k===k && !c.num)) ? 'asc' : 'desc' }; renderWho(); return whoModel(); },
+  whoShare:(k)=>{ if(!S.who) return null; S.who.share = k==='group' ? 'group' : 'num'; renderWho(); return whoModel(); },
+  whoCol:(d, on)=>{ if(!S.who) return null; const m = whoModel(); if(!m) return null; listColsSet(user().id, m.obj, d, on); renderWho(); return whoModel(); },
+  whoExit:(k)=>whoExit(k), workList, exportList, cardFrom, openCard:(i)=>openCard(i), cardStep:(d)=>cardStep(d), cardBack:()=>cardBack(), cardModel, cardHTML,
+  linkOf:(x)=>linkOf(x), stateOf, copyLink:(id)=>copyLink(id), openLink:(l)=>openLink(l), nodeKey,
+  standNoFlows:(obj, on)=>{ if(on) STAND.noFlows[obj] = true; else delete STAND.noFlows[obj]; S.cache.clear(); render(); return Object.keys(STAND.noFlows); },
   // медленная отчётность без страницы: часы полосы вперёд на ms (на странице идут сами); «Отменить» — к прежнему вопросу полосы, первого нет — закрыть
   loadTick:(ms)=>{ S.ms += ms; render(); return S.ms; },
   loadCancel:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; const p = o.prev;
@@ -5774,7 +6303,7 @@ const api = {
   newsShow:()=>{ const N = roleNewsShow(S.userId, curRole()); render(); if(HAS_DOM && N && N.add.length){ const el = document.querySelector('.tile.flash'); if(el) el.scrollIntoView({ block:'nearest' }); } return N; },
   newsClose:()=>{ const r = roleNewsClose(S.userId, curRole()); render(); return r; },
   primary:(id)=>primaryClick(id), menu:(e,id)=>openMenu(e,id), stripMenu:(e,id)=>inSnap(id, ()=>openStripMenu(e,id)), close:closeOverlay,
-  who:(id,d,v,d2,v2,path)=>{ countClick(id); return openWho(id, d ? { d, v, d2, v2 } : null, path); },
+  who:(id,d,v,d2,v2,path)=>{ countClick(id); return openWho(id, d ? { d, v, d2, v2 } : null, path, 'tile'); },
   whoMonth:(id,m,line)=>{ countClick(id); return openWho(id, line ? { m, line } : { m }); },
   // узлы и кнопки полосы несут её путь
   // списки из открытой полосы — из её снимка данных
@@ -5801,6 +6330,8 @@ const api = {
   planShareOf:(id)=>planShareOf(tileArg(id)), bigOK:(id)=>bigOK(tileArg(id)), FUNNEL, COHORT_START, COHORT_AGES, BIG_REST, cohortStarts, qStartOf,
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),
   openReport, drill, reportView, reportChangedFor, rowLabel, scrollEnd,
+  whoList:(id, uid, roleId, panel, node, path, opt)=>whoList(tileArg(id), userArg(uid) || user(), roleId, panel || {}, node || null, path || [], opt || {}),
+  chgRows, chgNumber, nameAt, borrowerOf, objLabel, LIST_DECL, listFieldsOf, declFlows, MV_NOFLOWS,
   registry:(id)=>openRegistry(id), queue:(id)=>openQueue(id),
   openView:openTileView, closeView:closeStrip, pinOpen:(id)=>{ const r = pinOpen(tileArg(id).id); toast(r.error || (r.pinned ? 'Закреплена раскрытой: при входе на экран откроется так же' : 'Откреплена: на экране плитка закрыта')); render(); return r; },
   clickOf:(id, uid, roleId, panel)=>clickOf(tileArg(id), userArg(uid) || user(), roleId, panel || {}),
@@ -5943,7 +6474,14 @@ const api = {
   ldCancel:()=>{ S.layoutDraft = null; render(); }, toast,
 };
 seed();
-if(HAS_DOM){ document.addEventListener('DOMContentLoaded', render);
+if(HAS_DOM){ document.addEventListener('DOMContentLoaded', ()=>{ if(/^#st=/.test(location.hash)) openLink(location.hash); else render(); });
+  // Esc закрывает панель списка, когда поверх нет окна или меню; «Назад» браузера из карточки — к дашборду на то же место
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && S.who && view==='home' && !$('overlay').innerHTML){ e.preventDefault(); closeWho(); } });
+  // «Вперёд» после «Назад» — снова карточка того же объекта из того же списка
+  window.addEventListener('popstate', ()=>{ if(view==='card'){ cardBack(); return; } if(!/^#st=/.test(location.hash)) return;
+    let st = null; try { st = JSON.parse(decodeURIComponent(location.hash.slice(4))); } catch(e){}
+    if(st && st.card && S.who){ const m = whoModel(), i = m && !m.refused ? m.shown.findIndex(x=>x.id===st.card) : -1; if(i>=0) openCard(i, true); }
+    else if(!S.who && !Object.keys(S.open).length) openLink(location.hash); });
   // тихое обновление: раз в 5 минут, только пока вкладка видна; плитки на закрытую дату остаются в кэше
   setInterval(()=>{ if(document.visibilityState==='visible' && view==='home'){ tick(5); render(); } }, 5*60*1000); }
 return api;
