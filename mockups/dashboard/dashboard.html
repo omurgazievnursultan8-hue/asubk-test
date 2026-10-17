@@ -133,6 +133,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
   box-shadow:inset 0 0 0 1px rgba(0,106,245,.28); color:var(--asubk-link); font-size:12.5px; font-weight:500; line-height:1.35; }
 .fchip-x{ flex:none; width:20px; height:20px; display:grid; place-items:center; border:0; border-radius:50%; background:none; color:inherit; padding:0; }
 .fchip-x:hover{ background:rgba(0,106,245,.14); } .fchip-x svg{ width:10px; height:10px; }
+.fchip.off{ background:var(--surface-sunk); box-shadow:inset 0 0 0 1px var(--border-default); color:var(--text-muted); cursor:help; } .fchip.off .fchip-x:hover{ background:rgba(28,55,90,.10); }
 .fchg{ display:inline-flex; flex-wrap:wrap; align-items:center; gap:2px 6px; } .fchg .sep{ color:var(--text-disabled); }
 /* строка поиска в каталоге и у отчётов */
 .filterbar{ display:flex; gap:8px 14px; align-items:center; flex-wrap:wrap; padding:9px 12px; margin-bottom:18px; background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--r-lg);
@@ -149,7 +150,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .fw-n{ margin:-4px 0 12px; font-size:13px; color:var(--text-muted); }
 .fw-b{ display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1fr); gap:10px 18px; min-height:0; overflow:auto; }
 .fw-f{ margin:0; padding:0; border:0; min-width:0; } .fw-f legend{ padding:0 0 6px; font-size:13px; font-weight:600; color:var(--text-heading); }
-.fw-l{ display:flex; flex-direction:column; } .fw-l .opt{ margin:0; padding:3px 0; font-size:13.5px; }
+.fw-l{ display:flex; flex-direction:column; } .fw-l .opt{ margin:0; padding:3px 0; font-size:13.5px; } .fw-o{ padding:3px 0; font-size:12.5px; line-height:1.4; color:var(--text-muted); }
 .fwin .ask-b{ align-items:center; } .fwin .fw-clr{ margin-right:auto; font-size:13px; }
 .menu button:disabled{ color:var(--text-disabled); cursor:not-allowed; background:none; }
 
@@ -574,6 +575,8 @@ const MON_SHORT = ['янв','фев','мар','апр','май','июн','июл
 const DAYS_IN = [31,28,31,30,31,30,31,31,30,31,30,31];
 function monthOf(m){ const abs = 2026*12 + 9 + m; return { y:Math.floor(abs/12), mi:abs%12 }; }
 function monthName(m){ const x = monthOf(m); return MONTHS[x.mi]; }
+// дата n дней назад от сегодня: месяц (0 — текущий) и день
+function dayBack(n){ let m = 0, d = TODAY.day - n; while(d<=0){ m--; d += DAYS_IN[monthOf(m).mi]; } return { m, d }; }
 function monthEndLabel(m){ const x = monthOf(m); return String(DAYS_IN[x.mi]).padStart(2,'0')+'.'+String(x.mi+1).padStart(2,'0')+(x.y!==2026?'.'+x.y:''); }
 function monthShort(m){ const x = monthOf(m); return MON_SHORT[x.mi]+(x.mi===0||m===-23?' '+String(x.y).slice(2):''); }
 
@@ -728,7 +731,10 @@ function genData(){
     const collection = overdueDays>90 && r()<0.78;
     const restr = !collection && overdueDays>0 && r()<0.18;
     const coverage = Math.round(80 + r()*170);
-    const from = i<40 ? -Math.floor(r()*30)-1 : (r()<0.08 ? -Math.floor(r()*9) : -Math.floor(10+r()*40));
+    const from0 = i<40 ? -Math.floor(r()*30)-1 : (r()<0.08 ? -Math.floor(r()*9) : -Math.floor(10+r()*40));
+    // кредит выдан не позже месяца, в котором началась его просрочка: тянущийся эпизод не начинается раньше выдачи. Дни просрочки — как
+    // выпали (сегодняшние числа те же), раньше становится месяц выдачи; случайных чисел не прибавилось — прочие данные стенда не сдвигаются
+    const from = overdueDays ? Math.min(from0, dayBack(overdueDays).m) : from0;
     const paid = Math.round(balance*(0.024+r()*0.012)*(overdueDays>30?0.35:1));
     const expected = Math.round(paid*(overdueDays>30?2.6:1.06));
     loans.push({ id:'КД-'+(2000+i), borrower:b.id, region:reg, dept, program, curator, balance, overdue, overdueDays, category,
@@ -870,7 +876,6 @@ function genMore(loans, claims, measures){
   DATA.rsapp = rsapps;
   // --- эпизод просрочки: открытый — у каждого кредита в просрочке ровно один; вылеченные — в прошлом. Это и есть просрочка кредита:
   //     дни просрочки в строке кредита на дату — длительность тянущегося на эту дату эпизода (spellDays), эпизода нет — 0 ---
-  const dayBack = n=>{ let m = 0, d = TODAY.day - n; while(d<=0){ m--; d += DAYS_IN[monthOf(m).mi]; } return { m, d }; };
   const spells = []; const busy = new Map(); const sid = ()=>'ЭП-'+(10000+spells.length);
   const join = l=>({ loan:l.id, region:l.region, dept:l.dept, curator:l.curator, program:l.program });   // через ключ кредита
   loans.forEach(l=>{ if(!l.overdueDays) return; const f = dayBack(l.overdueDays);
@@ -1543,6 +1548,19 @@ function normPanel(panel){ const o = {}; Object.keys(PANEL).forEach(k=>{ const v
 const samePanel = (a, b)=>JSON.stringify(normPanel(a))===JSON.stringify(normPanel(b));
 function panelOpts(k){ return k==='region' ? REGIONS.map(r=>[r, r]) : k==='dept' ? DEPTS.map(d=>[d.id, d.name]) : PROGRAMS.concat(PROGRAMS_CLOSED).map(p=>[p.id, p.name]); }
 const panelName = (k, v)=>k==='dept' ? deptName(v) : k==='program' ? progName(v) : v;
+// значения поля фильтра в охвате смотрящего — как выбор значений в конструкторе по охвату автора: по строкам охвата вкладки (роль вкладки,
+// на своём экране — все роли человека) у объектов, где поле действует. Руководство видит всё, Куратор Чуйского РП в «Подразделении» —
+// одно «Чуйское РП». Кэш — на стенд (seed() его стирает): ключ — человек, его роли и подразделение, вкладка, поле, готовность объектов
+function panelScope(u, roleId, k){ const C = S.pScope || (S.pScope = {});
+  const key = [u.id, u.dept, u.roles.join(), roleId || '*', k, Object.keys(OBJECTS).filter(objReady).join()].join('|'); if(C[key]) return C[key];
+  const seen = new Set(); Object.keys(OBJECTS).filter(o=>objReady(o) && panelApplies(o, k)).forEach(o=>(rowsFor(u, roleId, o) || []).forEach(r=>seen.add(PANEL_SELF[o]===k ? r.id : r[k])));
+  return (C[key] = panelOpts(k).filter(([v])=>seen.has(v))); }
+// фильтр делится на то, что сужает (in), и значения вне охвата смотрящего (out): такое значение пришло из сохранённого фильтра своего экрана
+// (роль сняли, охват сузился) — его печатает серая фишка «вне вашего охвата», числа им не сужаются
+function panelSplit(u, roleId, panel){ const out = { in:{}, out:{} };
+  Object.keys(PANEL).forEach(k=>{ const vs = panelVals(panel, k); if(!vs.length) return; const ok = panelScope(u, roleId, k).map(x=>x[0]);
+    const a = vs.filter(v=>ok.includes(v)), b = vs.filter(v=>!ok.includes(v)); if(a.length) out.in[k] = a; if(b.length) out.out[k] = b; });
+  return out; }
 function applyPanel(rows, obj, panel){
   const applied = [], skipped = [];
   for(const k of Object.keys(PANEL)){ const vs = panelVals(panel, k); if(!vs.length) continue;
@@ -1805,7 +1823,12 @@ function answer(q0, user, roleId, panel){
   const bm = Bk ? ctxMonth(Bk.ctx) : null, rowsB = Bk ? (Bk.ctx.point ? rowsAt(bm) : rows) : null;
   const scopeB = ()=>{ const pt = !!Bk.ctx.point, ph = pt ? panelHist(I.obj, panel || {}) : [], at = panelAt(I.obj, panel, ph), rest = Object.assign({}, panel); ph.forEach(k=>{ delete rest[k]; });
     return applyPanel(applyFilter(pt ? scopeEnv(env, I.obj).rows(bm) : base, q.path, user, bm), I.obj, rest).rows.filter(r=>at(r, bm)); };
-  const vals = d=>{ const vs = valuesOf(d, rows, scope(), cm); if(!Bk) return vs;
+  // разрез по полю, где в фильтре отмечено несколько значений, — только отмеченные: других на экране нет, нули чужих значений — шум;
+  // поле не в фильтре — полный список. Строки выборки все в отмеченных, итог по-прежнему = сумме строк
+  const picked = d=>{ const k = Object.keys(PANEL).find(x=>PANEL_SELF[I.obj]!==x && panelApplies(I.obj, x) && panelDim(I.obj, x)===d), vs = k ? panelVals(panel, k) : [];
+    return vs.length>1 ? vs : null; };
+  const vals = d=>{ const vs = valuesOf(d, rows, scope(), cm), pk = picked(d);
+    if(pk) return [...vs.filter(v=>pk.includes(v)), ...pk.filter(v=>!vs.includes(v))]; if(!Bk) return vs;
     const E = DIMS[d].empty, more = valuesOf(d, rowsB, scopeB(), bm).filter(v=>v!==E && !vs.includes(v)); if(!more.length) return vs;
     const hasE = E && vs.includes(E); return [...vs.filter(v=>v!==E), ...more, ...(hasE ? [E] : [])]; };
   const val = (rs, c) => {                                    // число узла: показатель или доля (два показателя или фильтр числителя)
@@ -2595,8 +2618,11 @@ function seed(){
     roleNews:{}, newMark:{}, newsFlash:null, layoutDraft:null, catQ:'', catOnly:false, mObj:'', mQ:'', mInd:null };
   // roleNews — разовая плашка «Раскладка роли обновлена …» у держателя («человек|роль»), newMark — плитки с меткой «новая»; layoutDraft —
   // правка раскладки роли в редакторе до «Сохранить»; catQ, catOnly — поиск и «только доступные мне» каталога; mObj, mQ, mInd — шаг 1 мастерской
-  // S.panel — фильтр текущей вкладки; запись нормализует: значения поля — список, пустые поля выброшены
-  Object.defineProperty(S, 'panel', { get:()=>panelOfTab(), set:v=>{ S.panels[tabKey()] = normPanel(v); }, enumerable:false, configurable:true });
+  // S.panel — фильтр текущей вкладки, который сужает числа: значения вне охвата смотрящего в нём не участвуют; S.panelRaw — фильтр, как он
+  // записан у вкладки (фишки, «Сохранить в экран», окно фильтра). Запись нормализует: значения поля — список, пустые поля выброшены
+  Object.defineProperty(S, 'panel', { get:()=>{ const t = peekTab(); return panelSplit(user(), t.kind==='role' ? t.id : null, panelOfTab()).in; },
+    set:v=>{ S.panels[tabKey()] = normPanel(v); }, enumerable:false, configurable:true });
+  Object.defineProperty(S, 'panelRaw', { get:()=>panelOfTab(), enumerable:false, configurable:true });
   S.overlays['u2|cur'] = { order:[], hidden:[], added:['p-u2-agro'] };
   // область задана фильтром экрана, поэтому в паре Карты её нет: «программа × срок»
   S.screens.u1 = [{ id:'sc1', name:'Совещание по Ошу', items:['lead-od','lead-bal'], filter:{ region:['Ошская'] },
@@ -2654,7 +2680,7 @@ function createScreen(name, from){ const list = screens(user().id); if(list.leng
 // снимок текущей вкладки для копии: раскладка роли — с личной перекладкой (без заглушек снятых плиток), свой экран — как есть
 function tabSnapshot(){ const tab = curTab(), u = user(), sc = tab.kind==='screen' && screenById(tab.id);
   const items = sc ? sc.items.slice() : composeLayout(u.id, tab.id).filter(k=>!k.startsWith('x:'));
-  return { items, filter:normPanel(S.panel), pinned: sc && sc.pinned ? sc.pinned : {}, name:(tabsFor(u).find(t=>t.kind===tab.kind && t.id===tab.id) || {}).name || '' }; }
+  return { items, filter:normPanel(S.panelRaw), pinned: sc && sc.pinned ? sc.pinned : {}, name:(tabsFor(u).find(t=>t.kind===tab.kind && t.id===tab.id) || {}).name || '' }; }
 function screenById(id){ return screens(user().id).find(s=>s.id===id); }
 // «+ экран — копия «Руководства»» у роли без своей раскладки с образцом (Аналитик): у держателя «Руководства» — его вкладка с личной
 // перекладкой, иначе — объявленная раскладка «Руководства» (отвечающие плитки). Экран свой: смотрит правами всех ролей человека, фильтра нет
@@ -2666,9 +2692,9 @@ function copyRoleScreen(roleId){ const u = user(), from = (ROLES.find(r=>r.id===
   return { screen:sc, source: own ? 'tab' : 'declared' }; }
 function screenAdd(id, tileId){ const sc = screenById(id); if(sc && !sc.items.includes(tileId)) sc.items.push(tileId); }
 function screenRemove(id, key){ const sc = screenById(id); if(sc){ sc.items = sc.items.filter(k=>k!==key); if(sc.pinned) delete sc.pinned[key]; } }
-function screenSaveFilter(id){ const sc = screenById(id); if(sc) sc.filter = panelOn(S.panel) ? normPanel(S.panel) : null; }
+function screenSaveFilter(id){ const sc = screenById(id); if(sc) sc.filter = panelOn(S.panelRaw) ? normPanel(S.panelRaw) : null; }
 // фильтр своего экрана меняется только явно: отличается от сохранённого — у фишек «изменён · Сохранить в экран · Вернуть»
-function screenFilterChanged(sc){ return !!sc && !samePanel(S.panel, sc.filter); }
+function screenFilterChanged(sc){ return !!sc && !samePanel(S.panelRaw, sc.filter); }
 function deleteScreen(id){ const k = user().id+'|screen:'+id; S.screens[user().id] = screens(user().id).filter(s=>s.id!==id); delete S.panels[k];
   Object.keys(S.collapsed).forEach(x=>{ if(x.startsWith(k+'|')) delete S.collapsed[x]; }); }
 
@@ -2710,6 +2736,19 @@ function catNum(t, u, roleId){ return cachedBy(cacheKey(t, u, roleId, {}, 'cat')
   const why = reportBroken(t), q = !why && mainQ(t); if(!q) return { state:'broken', msg:why || 'Плитка не ссылается на отчёт.' };
   const lock = circleWhy(t, u); if(lock) return { state:'noaccess', msg:lock };
   return answer(q, u, roleId, {}); }); }
+// охват смотрящего по относительному параметру плитки пуст («куратор: я» у Руководства, а сам он не куратор): подсказка «у вас пусто»
+// вместо нуля. Пустой охват — законный ответ, плитку можно поставить; ноль при непустом охвате («куратор: я», а просрочки нет) — число
+const OBJ_MANY = { loan:'кредиты', borrower:'клиентов', program:'программы', claim:'требования', measure:'меры взыскания', case:'дела взыскания',
+  receipt:'поступления', payment:'платежи', coll:'предметы залога', rsapp:'обращения о реструктуризации', spell:'эпизоды просрочки', app:'заявки',
+  comm:'записи комиссии', concl:'заключения', asset:'объекты имущества', oblig:'обязательства', task:'задания' };
+function mineEmpty(t, u, roleId){ const r = t && t.kind!=='link' && t.report && reportById(t.report); if(!r) return null;
+  const p = t.params || {}, o = objOf(r), ns = Object.keys(r.params).filter(n=>r.params[n].dim && ['@me','@myDept','@myDeptTree'].includes(p[n]));
+  const base = ns.length && rowsFor(u, roleId, o); if(!base || !base.length) return null;   // охват пуст целиком — это состояние «пусто» плитки
+  if(applyFilter(base, ns.map(n=>({ f:r.params[n].dim, op:r.params[n].op || 'eq', v:p[n] })), u, 0).length) return null;
+  const n = ns[0], d = r.params[n].dim, v = p[n], via = LOAN_KEYED[o] ? ' по кредитам' : '';
+  const who = v!=='@me' ? (v==='@myDept' ? ' вашего подразделения' : ' вашего подразделения и ниже')
+    : d==='curator' ? (o==='borrower' ? ', у которых вы ведущий куратор' : via+', где вы куратор') : d==='specialist' ? ', где вы кредитный специалист' : ', где «'+r.params[n].name.toLowerCase()+'» — вы';
+  return 'Плитка считает '+(OBJ_MANY[o] || OBJECTS[o].name.toLowerCase())+who+'; у вас таких нет'; }
 // число строки словами — как на плитке: доля в процентах, суммы не выше «млн»
 function catNumText(t, res){ if(!res || !LIVE.includes(res.state)) return null; if(res.state==='dash') return '—';
   const q = mainQ(t); return q && q.share ? fmtVal(res.value, 'pct') : fmtVal(res.value, res.unit); }
@@ -2724,9 +2763,11 @@ function catalogView(u, opts){
     // на вкладке роли плитка смотрит правами этой роли: не открыто ей — «Нельзя» с причиной, а не «Добавить» с «нет доступа» на плитке
     if(res && res.state==='noaccess' && status==='add'){ status = 'no'; why = 'Нельзя на вкладке «'+roleName(roleId)+'»: '+String(res.msg || '').replace(/^Нельзя: /, '').replace(/\.$/, '').replace('вашей роли', 'этой роли'); res = null; }
     const text = [t.title, catSection(t), ...q.inds.map(i=>IND[i].name), I ? OBJECTS[I.obj].name : '', ...paramChips(t), src ? (src.title || src.name || '') : ''].join(' · ').toLowerCase();
-    return { t, why, ready, status, section:catSection(t), params:paramChips(t), res, num:catNumText(t, res), owner: I ? OBJECTS[I.obj].owner : '—', text }; })
+    const empty = res && LIVE.includes(res.state) ? mineEmpty(t, u, roleId) : null;   // охват по параметру пуст — «у вас пусто», не ноль
+    return { t, why, ready, status, section:catSection(t), params:paramChips(t), res, num:empty ? null : catNumText(t, res), empty, owner: I ? OBJECTS[I.obj].owner : '—', text }; })
     .filter(x=>(!qs || x.text.includes(qs)) && (!opts.only || x.status==='has' || x.status==='add'));
-  const sections = CAT_SECTIONS.map(([name])=>({ name, rows:rows.filter(x=>x.section===name) })).concat([{ name:'Прочее', rows:rows.filter(x=>x.section==='Прочее') }]).filter(s=>s.rows.length);
+  // строки «у вас пусто» — в конце своей секции, прочие — как были
+  const sections = CAT_SECTIONS.map(([name])=>name).concat(['Прочее']).map(name=>({ name, rows:[...rows.filter(x=>x.section===name && !x.empty), ...rows.filter(x=>x.section===name && x.empty)] })).filter(s=>s.rows.length);
   return { sections, rows, n:rows.length, q:qs, only:!!opts.only, roleId }; }
 
 /* ================= Доступные отчёты ================= */
@@ -3162,10 +3203,10 @@ function whereUsed(id){
 }
 /* ---------- Неиспользуемые — подсказкой, снятие — руками, с заменой ---------- */
 // «открывали за 90 дней» — обезличенный счётчик стенда: из ключа плитки (у плиток раскладок ролей — сотни, у остальных — от нуля до
-// сорока; собранные на ходу — с нуля) плюс открытия в этом сеансе
+// сорока; собранные на ходу — с нуля) плюс открытия в этом сеансе: полоса открылась или клик по числу, а не перерисовка главной
 function opens90(t){ if(!t) return 0; const h = hash(t.id+'|o90'), inRoles = Object.values(DECLARED_SEED).some(L=>L.includes(t.id));
   const seedN = !TILES_SEED_IDS.has(t.id) ? 0 : inRoles ? 40 + h%360 : h%4===0 ? 0 : 1 + h%40;
-  return seedN + ((S.usage[t.id] || {}).views || 0); }
+  return seedN + ((S.usage[t.id] || {}).opens || 0); }
 function daysSince(dmy){ const m = /^(\d\d)\.(\d\d)\.(\d{4})/.exec(dmy || ''), [y, mo, d] = TODAY.iso.split('-').map(Number); if(!m) return 0;
   return Math.round((Date.UTC(y, mo - 1, d) - Date.UTC(+m[3], +m[2] - 1, +m[1])) / 864e5); }
 // кандидат на снятие — подсказка, не автоснятие: в каталоге не меньше 90 дней, за 90 дней ни одного открытия, ни в одной раскладке роли
@@ -3678,8 +3719,11 @@ function atOf(id, spec, uid, roleId, panel){
   throw new Error('нет такого выражения: «'+spec+'»');
 }
 function tick(min){ S.clock += (min||1); }
-function countView(id){ const x = S.usage[id] || (S.usage[id] = { views:0, clicks:0 }); x.views++; }
-function countClick(id){ const x = S.usage[id] || (S.usage[id] = { views:0, clicks:0 }); x.clicks++; }
+// обезличенные счётчики плитки: opens — открытия (полоса открылась или клик по числу открыл список, очередь), clicks — все клики. Перерисовка
+// главной открытием не считается: фильтр, смена вида в открытой полосе, закреплённая полоса при входе на экран счётчик не двигают
+const usageOf = id=>S.usage[id] || (S.usage[id] = { opens:0, clicks:0 });
+function countOpen(id){ usageOf(id).opens++; }
+function countClick(id){ usageOf(id).clicks++; }
 
 /* ================= Отрисовка ================= */
 const HAS_DOM = typeof document!=='undefined';
@@ -3761,10 +3805,14 @@ function topHTML(u, tab, roleId, sc){
 }
 // фишки фильтра: «Область: Ошская, Джалал-Абадская ×» на поле и «Сбросить»; на своём экране с фильтром не как сохранённый —
 // «изменён · Сохранить в экран · Вернуть» (и когда фильтр сняли совсем)
+// Значение вне охвата смотрящего — серой фишкой «вне вашего охвата»: числа им не сужаются; × у каждой фишки снимает только её значения
 function chipsHTML(sc){
-  const P = normPanel(S.panel), keys = Object.keys(P), chg = screenFilterChanged(sc);
+  const t = peekTab(), P = normPanel(S.panelRaw), sp = panelSplit(user(), t.kind==='role' ? t.id : null, P), keys = Object.keys(P), chg = screenFilterChanged(sc);
   if(!keys.length && !chg) return '';
-  const chips = keys.map(k=>`<span class="fchip">${PANEL[k]}: ${esc(P[k].map(v=>panelName(k, v)).join(', '))}<button class="fchip-x" aria-label="Снять поле «${PANEL[k]}»" onclick="DB.setPanel('${k}', [])">${ICON_X}</button></span>`).join('');
+  const names = (k, vs)=>esc(vs.map(v=>panelName(k, v)).join(', ')), keep = vs=>'['+vs.map(v=>"'"+esc(v)+"'").join(', ')+']';
+  const chips = keys.map(k=>{ const a = sp.in[k] || [], b = sp.out[k] || [];
+    return (a.length ? `<span class="fchip">${PANEL[k]}: ${names(k, a)}<button class="fchip-x" aria-label="Снять поле «${PANEL[k]}»" onclick="DB.setPanel('${k}', ${keep(b)})">${ICON_X}</button></span>` : '')
+      + (b.length ? `<span class="fchip off"${tipAttr((b.length>1 ? 'Этих значений' : 'Этого значения')+' в вашем охвате нет — плитки им не сужаются: фильтр охват не расширяет. Так бывает с сохранённым фильтром своего экрана, когда охват сузился')}>${PANEL[k]}: ${names(k, b)} · вне вашего охвата<button class="fchip-x" aria-label="Снять «${names(k, b)}» — вне вашего охвата" onclick="DB.setPanel('${k}', ${keep(a)})">${ICON_X}</button></span>` : ''); }).join('');
   return `<div class="fchips" role="group" aria-label="Фильтр вкладки">${chips}${keys.length ? '<button class="linky" onclick="DB.clearPanel()">Сбросить</button>' : '<span class="muted">фильтр снят</span>'}${chg
     ? '<span class="fchg"><span class="muted">изменён</span><span class="sep">·</span><button class="linky" onclick="DB.saveScreenFilter()">Сохранить в экран</button><span class="sep">·</span><button class="linky" onclick="DB.revertScreenFilter()">Вернуть</button></span>' : ''}</div>`;
 }
@@ -3802,7 +3850,6 @@ function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {};
   return `<div class="banner info">${head} <button class="linky" onclick="DB.go('catalog')">Добавить плитки из каталога →</button>${copy}</div>`; }
 function renderHome(again){
   const h = homeHTML(); $('v-home').innerHTML = h.html;
-  h.items.forEach(k=>{ if(!k.startsWith('s:') && !k.startsWith('x:') && !inShut(h.items, k, h.col)) countView(k); });
   wireDnD();
   if(h.anyOpen){ lastCols = gridCols(); if(!again && lastCols!==h.cols) return renderHome(true); }       // первая отрисовка: число колонок известно только после неё
 }
@@ -4372,13 +4419,18 @@ function openScreenMenu(ev){
   if(list[0]) list[0].focus();
   return items;
 }
+// поля окна фильтра: значения — в охвате смотрящего (на вкладке роли — её охват, на своём экране — всех ролей человека), отмеченные —
+// фильтр вкладки; значение вне охвата в списке не стоит — оно названо под полем и переживает «Применить»
+function filterFields(u, roleId, panel){ const P = normPanel(panel), sp = panelSplit(u, roleId, P);
+  return Object.keys(PANEL).map(k=>({ k, name:PANEL[k], opts:panelScope(u, roleId, k), checked:sp.in[k] || [], out:sp.out[k] || [] })); }
 // окно фильтра на странице: три поля, в поле — несколько значений; «Применить» ставит фильтр вкладке
 function openFilter(){
   if(!HAS_DOM) return;
-  const P = normPanel(S.panel);
-  const field = k=>`<fieldset class="fw-f"><legend>${PANEL[k]}</legend><div class="fw-l">${panelOpts(k).map(([v, n])=>`<label class="opt"><input type="checkbox" name="fw-${k}" value="${esc(v)}"${(P[k] || []).includes(v) ? ' checked' : ''}>${esc(n)}</label>`).join('')}</div></fieldset>`;
+  const t = peekTab(), FF = filterFields(user(), t.kind==='role' ? t.id : null, S.panelRaw), F = {}; FF.forEach(x=>{ F[x.k] = x; });
+  const field = k=>`<fieldset class="fw-f"><legend>${PANEL[k]}</legend><div class="fw-l">${F[k].opts.map(([v, n])=>`<label class="opt"><input type="checkbox" name="fw-${k}" value="${esc(v)}"${F[k].checked.includes(v) ? ' checked' : ''}>${esc(n)}</label>`).join('')
+    || '<span class="fw-o">В вашем охвате значений нет</span>'}${F[k].out.length ? `<span class="fw-o">${esc(F[k].out.map(v=>'«'+panelName(k, v)+'»').join(', '))} — вне вашего охвата, плитки не сужает</span>` : ''}</div></fieldset>`;
   $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask fwin" id="fw-form" role="dialog" aria-modal="true" aria-labelledby="fw-t" aria-describedby="fw-n" tabindex="-1">
-    <h3 id="fw-t">Фильтр</h3><p class="fw-n" id="fw-n">Сужает плитки, где есть такой разрез; охват не расширяет. В поле можно отметить несколько значений, между полями — «и».</p>
+    <h3 id="fw-t">Фильтр</h3><p class="fw-n" id="fw-n">Сужает плитки, где есть такой разрез; охват не расширяет. В полях — значения вашего охвата; в поле можно отметить несколько, между полями — «и».</p>
     <div class="fw-b">${Object.keys(PANEL).map(field).join('')}</div>
     <div class="ask-b"><button type="button" class="linky fw-clr">Снять отметки</button><button type="button" class="btn" onclick="DB.close()">Отмена</button><button type="submit" class="btn primary">Применить</button></div></form>`;
   const f = $('fw-form'), ring = ()=>[...f.querySelectorAll('input, button')];
@@ -4390,7 +4442,7 @@ function openFilter(){
     const R = ring(), n = R.length, k = R.indexOf(document.activeElement); e.preventDefault();
     R[k < 0 ? (e.shiftKey ? n - 1 : 0) : (k + (e.shiftKey ? n - 1 : 1)) % n].focus(); });
   f.addEventListener('submit', e=>{ e.preventDefault(); const out = {};
-    Object.keys(PANEL).forEach(k=>{ out[k] = [...f.querySelectorAll('input[name="fw-'+k+'"]:checked')].map(x=>x.value); });
+    Object.keys(PANEL).forEach(k=>{ out[k] = [...f.querySelectorAll('input[name="fw-'+k+'"]:checked')].map(x=>x.value).concat(F[k].out); });
     const back = askBack; askBack = null; closeOverlay(); S.panel = out; render(); if(back) back(); });
   (f.querySelector('input:checked') || f.querySelector('input')).focus();
 }
@@ -4403,7 +4455,7 @@ function screenExport(){ const u = user(), tab = curTab(), roleId = curRole(), s
 function primaryClick(tileId){ const t = tileById(tileId), c = clickOf(t, user(), curRole(), S.panel);
   if(c.act==='close') closeStrip(tileId);
   else if(c.act==='view') openTileView(tileId, c.kind);
-  else { countClick(tileId); if(c.act==='queue') openQueue(tileId); else openWho(tileId); }
+  else { countClick(tileId); countOpen(tileId); if(c.act==='queue') openQueue(tileId); else openWho(tileId); }
   return c; }   // число — полоса, ссылочная плитка — очередь, нечего показать — список
 function drawer(title, html, wide){ if(!HAS_DOM) return; rcOpen = false; $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div>
   <div class="drawer ${wide?'wide':''}"><div class="drawer-h"><h3>${title}</h3><button class="drawer-x" onclick="DB.close()">✕</button></div><div class="drawer-b">${html}</div></div>`; }
@@ -4584,7 +4636,8 @@ function catalogHTML(){
 // строка витрины: название с метками, значения параметров, живое число (основа и паспорт — подсказкой), «Есть / Добавить / Нельзя: … / ждёт соседа»
 function catRowHTML(x){ const t = x.t, res = x.res;
   const marks = (t.owner!=='catalog' ? ' <span class="chip">личная</span>' : '')+(t.proposed ? ' <span class="pill info"'+tipAttr('Предложена в каталог — ждёт администратора дашборда')+'>предложена · ждёт</span>' : '')+(t.kind==='link' ? ' <span class="chip">ждёт меня</span>' : '');
-  const num = x.num!==null ? `<span class="cat-v"${tipAttr('Основа: '+baseLine(t)+(res && res.passport ? '\n'+res.passport : ''))}>${numUnit(x.num)}</span>`
+  const num = x.empty ? `<span class="cat-v"><span class="st cat-0"${tipAttr(x.empty)}>у вас пусто</span></span>`
+    : x.num!==null ? `<span class="cat-v"${tipAttr('Основа: '+baseLine(t)+(res && res.passport ? '\n'+res.passport : ''))}>${numUnit(x.num)}</span>`
     : res ? `<span class="cat-v"><span class="st"${tipAttr(res.msg || '')}>${esc((STATE_WORD[res.state] || 'нет ответа').toLowerCase())}</span></span>` : '<span class="cat-v"></span>';
   const act = x.status==='no' ? `<span class="bad">${esc(x.why)}</span>` : x.status==='wait' ? `<span class="muted">ждёт соседа: ${esc(x.owner)}</span>`
     : x.status==='has' ? '<span class="cat-has">Есть</span>' : `<button class="btn sm primary" onclick="DB.addFromCatalog('${t.id}')" aria-label="Добавить «${esc(t.title)}»${x.params.length ? ' · '+esc(x.params.join(', ')) : ''}">Добавить</button>`;
@@ -4820,7 +4873,7 @@ function registryHTML(){
     <div class="h2">Плитки каталога</div>
     <p><button class="btn primary" onclick="DB.go('builder')">Новая плитка</button> <span class="muted small">Цикл: черновик → опубликована → снята. Открытия и клики — обезличенными счётчиками.</span></p>
     <table class="list"><tr><th>Плитка</th><th>Отчёт</th><th>Вопрос</th><th>Основа</th><th>Состояние</th><th>Версия</th><th>Где стоит</th><th class="n">Открывали за 90 дней</th><th class="n">Кликов</th><th></th></tr>
-    ${rows.map(t=>{ const w = whereUsed(t.id); const us = S.usage[t.id]||{views:0,clicks:0}; const q = questionOf(t), R = t.replacement && tileById(t.replacement);
+    ${rows.map(t=>{ const w = whereUsed(t.id); const us = S.usage[t.id]||{opens:0,clicks:0}; const q = questionOf(t), R = t.replacement && tileById(t.replacement);
       return `<tr data-tile="${esc(t.id)}"><td>${esc(t.title)}${withdrawCandidate(t) ? ' '+cand : ''}<div class="muted small">${esc(paramChips(t).join(' · '))}</div></td><td class="small">${reportCell(t)}</td><td class="small">${q ? esc(OBJECTS[IND[q.inds[0]].obj].name) : 'отчёт не найден'}</td><td class="small">${esc(baseLine(t))}</td>
       <td>${{published:'опубликована',draft:'черновик',withdrawn:'снята'}[t.state]}${t.state==='withdrawn' ? `<div class="muted small">замена: ${R ? '«'+esc(R.title)+'»' : 'нет'}</div>` : ''}</td><td>в. ${t.version}</td>
       <td class="small">${w.roles.map(roleName).join(', ')||'—'}${w.personal?' · личных: '+w.personal:''}${w.screens?' · экранов: '+w.screens:''}</td><td class="n">${opens90(t)}</td><td class="n">${us.clicks}</td>
@@ -4844,7 +4897,7 @@ function layoutsHTML(){
       <td><button class="btn sm" aria-label="Выше" onclick="DB.ldMove('${esc(k)}',-1)">↑</button><button class="btn sm" aria-label="Ниже" onclick="DB.ldMove('${esc(k)}',1)">↓</button><button class="btn sm danger" onclick="DB.ldRemove('${esc(k)}')">убрать</button></td></tr>`; }).join('')}</table>
     <p>Добавить: <select id="decl-add">${TILES.filter(t=>t.state==='published' && t.owner==='catalog' && !L.includes(t.id)).map(t=>`<option value="${t.id}">${esc(t.title)}${paramChips(t).length ? ' · '+esc(paramChips(t).join(', ')) : ''}</option>`).join('')}</select> <button class="btn" onclick="DB.ldAdd(document.getElementById('decl-add').value)">Добавить в конец</button></p>`;
 }
-function renderJournal(){ $('v-journal').innerHTML = `<p class="muted">Изменения плиток и раскладок, выгрузки — поимённо. Просмотры — только счётчиками в реестре плиток.</p>
+function renderJournal(){ $('v-journal').innerHTML = `<p class="muted">Изменения плиток и раскладок, выгрузки — поимённо. Открытия плиток и клики — только счётчиками в реестре плиток.</p>
   <table class="list"><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Подробно</th></tr>${S.journal.map(j=>`<tr><td>${esc(j.at)}</td><td>${esc(userName(j.who))}</td><td>${esc(j.action)}</td><td class="small">${esc(j.detail)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">пусто</td></tr>'}</table>`; }
 // стенд: отчётность сузила круг одного отчёта — без одного подразделения — и вернула как было
 const NARROW = { report:'r-portfolio', dept:'rp-nar', of:'Нарынского РП' };
@@ -4904,7 +4957,7 @@ if(HAS_DOM){ document.addEventListener('mousemove', e=>{ const el = e.target.clo
 
 /* ================= API (onclick и смоук) ================= */
 // вид плитки — полосой под рядом: в ряду одна, в разных рядах может быть по одной; путь, выбор и вид живут в S.open
-function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(id); const o = openStrip(id, kind); unmarkNew(S.userId, t.id); view = 'home'; render();
+function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(t.id); if(!S.open[t.id]) countOpen(t.id); const o = openStrip(id, kind); unmarkNew(S.userId, t.id); view = 'home'; render();
   if(HAS_DOM){ const el = document.querySelector('[data-strip="'+id+'"]'); if(el) el.scrollIntoView({ block:'nearest' }); else toast('Плитки «'+t.title+'» нет на этом экране'); }
   return o; }
 function closeStrip(id){ delete S.open[id]; render(); }
@@ -4931,7 +4984,7 @@ const api = {
   opens90, daysSince, withdrawCandidate, swapGoneOf:swapGone, applyDeclared, declaredSave, layoutDiff, roleHolders, roleNewsShow, roleNewsClose, isNewTile, unmarkNew, newsText, newsBanner, goneHTML,
   catalogHTML, builderHTML, registryHTML, layoutsHTML, proposalHTML, get page(){ return view; },
   exportTile, signalToggle, signalRemove, nightCheck, createScreen, screens, screenAdd, screenSaveFilter, screenFilterChanged, tabSnapshot, screenExport, scopeKey,
-  panelVals, normPanel, panelOn, lightOnly, tabsFor, scopeCaption, homeHTML:()=>homeHTML().html, topHTML:()=>{ const u = user(), t = curTab(); return topHTML(u, t, curRole(), t.kind==='screen' ? screenById(t.id) : null); }, tick, fmtVal, rowsFor, dimHist, noAnswerAt, monthEndLabel, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
+  panelVals, normPanel, panelOn, panelScope, panelSplit, filterFields, mineEmpty, lightOnly, tabsFor, scopeCaption, homeHTML:()=>homeHTML().html, topHTML:()=>{ const u = user(), t = curTab(); return topHTML(u, t, curRole(), t.kind==='screen' ? screenById(t.id) : null); }, tick, fmtVal, rowsFor, dimHist, noAnswerAt, monthEndLabel, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
   get draft(){ return draft; }, get rdraft(){ return rdraft; }, reportHints, buildReport, similarReport, saveAndPlace, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF, loanAt, isLoanRow,
   base:(id, uid, roleId, panel)=>baseOut(cachedBase(tileArg(id), userArg(uid), roleId, panel)),
   mini:(id, uid, roleId, panel)=>cachedMini(tileArg(id), userArg(uid), roleId, panel),
@@ -4956,8 +5009,8 @@ const api = {
     resetOpen(); draft=null; rdraft=null; if(['registry','layouts','journal'].includes(view) && !isAdmin(user())) view='home'; render(); },
   refresh:()=>{ S.cache.clear(); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
   // поле фильтра вкладки: значение или список значений; пустое — поле снято
-  setPanel:(k,v)=>{ S.panel = Object.assign({}, S.panel, { [k]:v }); render(); return S.panel; }, clearPanel:()=>{ S.panel = {}; render(); },
-  setFilter:(p)=>{ S.panel = p || {}; render(); return S.panel; }, openFilter, screenMenu:(e)=>openScreenMenu(e), screenMenuItems,
+  setPanel:(k,v)=>{ S.panel = Object.assign({}, S.panelRaw, { [k]:v }); render(); return S.panelRaw; }, clearPanel:()=>{ S.panel = {}; render(); },
+  setFilter:(p)=>{ S.panel = p || {}; render(); return S.panelRaw; }, openFilter, screenMenu:(e)=>openScreenMenu(e), screenMenuItems,
   revertScreenFilter:()=>{ const sc = S.tab && S.tab.kind==='screen' && screenById(S.tab.id); if(sc) S.panel = sc.filter || {}; render(); toast('Фильтр экрана — как сохранён'); },
   toggleArrange:()=>{ S.arrange=!S.arrange; render(); },
   move:(key,dir)=>{ if(S.tab.kind==='screen'){ const sc = screenById(S.tab.id); const i = sc.items.indexOf(key), j=i+dir; if(j>=0&&j<sc.items.length){ [sc.items[i],sc.items[j]]=[sc.items[j],sc.items[i]]; } }
@@ -4977,7 +5030,7 @@ const api = {
       { label:'Название', choices:[['copy', 'копия «'+snap.name+'» '+fl, 'плитки, секции и фильтр — как сейчас; дальше экран живёт отдельно'], ['empty', 'пустой', 'плитки добавите из каталога']] }); },
   renameScreen:()=>{ const sc = screenById(S.tab.id); askText('Новое название', sc.name, n=>{ sc.name=n; render(); }); },
   deleteScreen:()=>{ const sc = screenById(S.tab.id); deleteScreen(S.tab.id); S.tab=null; resetOpen(); render(); toast('Экран «'+(sc ? sc.name : '')+'» удалён'); },
-  saveScreenFilter:()=>{ screenSaveFilter(S.tab.id); render(); toast(panelOn(S.panel) ? 'Фильтр сохранён в экран' : 'Экран сохранён без фильтра'); },
+  saveScreenFilter:()=>{ screenSaveFilter(S.tab.id); render(); toast(panelOn(S.panelRaw) ? 'Фильтр сохранён в экран' : 'Экран сохранён без фильтра'); },
   openCatalogFor:()=>{ catalogTarget = S.tab; view='catalog'; render(); },
   addFromCatalog:(id)=>{ const tg = catalogTarget || S.tab; if(!tg) return; if(tg.kind==='screen') screenAdd(tg.id, id); else arrangeAdd(tg.id, id); render(); toast('Добавлено в конец раскладки'); },
   catSearch:(q)=>{ S.catQ=q; renderCatalog(); },
