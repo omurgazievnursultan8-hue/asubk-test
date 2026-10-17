@@ -95,7 +95,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .btn.primary:hover{ background:var(--asubk-blue-hover); border-color:var(--asubk-blue-hover); }
 .btn.danger{ color:var(--asubk-red); } .btn.danger:hover{ border-color:var(--asubk-red); }
 .btn.sm{ height:28px; padding:0 10px; font-size:12.5px; }
-.btn:disabled{ color:var(--text-disabled); border-color:var(--border-default); background:var(--surface-card); cursor:not-allowed; }
+.btn:disabled,.btn[aria-disabled="true"]{ color:var(--text-disabled); border-color:var(--border-default); background:var(--surface-card); cursor:not-allowed; }
 .linky{ border:0; background:none; padding:0; color:var(--text-link); font-weight:500; text-align:left; }
 .linky:hover{ text-decoration:underline; text-underline-offset:3px; }
 .banner{ border-radius:10px; padding:10px 14px; margin:0 0 12px; font-size:13.5px; line-height:1.5; }
@@ -122,6 +122,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .top-r .btn svg{ width:15px; height:15px; flex:none; }
 .top-r .fbtn svg{ color:var(--text-muted); }
 .top-r .fbtn.on{ background:var(--asubk-blue-tint); border-color:var(--asubk-blue-ring); color:var(--asubk-link); } .top-r .fbtn.on svg{ color:inherit; }
+.top-r .fbtn[aria-disabled="true"] svg{ color:var(--text-disabled); }
 .top-r .more{ width:32px; padding:0; }
 .scope-m{ display:none; }
 .arrange-bar{ position:absolute; inset:0; z-index:5; display:flex; align-items:center; gap:6px 12px; padding:0 4px 0 14px; border-radius:var(--r-lg);
@@ -216,7 +217,11 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .tile .state-msg b{ color:var(--text-heading); font-weight:600; }
 .tile .state-sub{ color:var(--text-muted); white-space:nowrap; }
 .tile.skel .t-body{ background:var(--surface-sunk); border-radius:var(--r-md); margin:8px 0 2px; min-height:52px; }
-@media (prefers-reduced-motion:no-preference){ .tile.skel .t-body{ animation:pulse 1.1s ease-in-out infinite alternate; } }
+/* в очереди (отчётность перегружена): в сером скелете — место в очереди; кнопки «Повторить» нет — ответ заменит сам */
+.tile.skel .sk-q{ display:flex; align-items:center; justify-content:center; min-height:52px; font-size:12.5px; color:var(--text-muted); cursor:help; }
+/* у вас пусто: охват по параметру плитки пуст — серым на месте числа, причина — подсказкой */
+.tile .mine0{ font-size:17px; line-height:32px; font-weight:500; color:var(--text-muted); cursor:help; text-decoration:underline dotted var(--text-placeholder); text-underline-offset:5px; }
+@media (prefers-reduced-motion:no-preference){ .tile.skel .t-body{ animation:pulse 1.1s ease-in-out infinite alternate; } .strip .sk{ animation:pulse 1.1s ease-in-out infinite alternate; } }
 @keyframes pulse{ from{ opacity:1; } to{ opacity:.45; } }
 .tile.arrange{ cursor:grab; outline:1.5px dashed var(--border-strong); outline-offset:-1px; box-shadow:none; }
 .tile.drag-over,.section-row.drag-over{ outline:2px solid var(--asubk-blue); }
@@ -236,6 +241,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 /* единственная строка над графиком: путь · число узла · сдвиг · метки · разрез ··· паспорт · пять видов · ☰ N · список · ⋯ · ✕; не влезло — fitStrips прячет по очереди */
 .strip-line{ flex:none; display:flex; flex-wrap:nowrap; align-items:center; gap:8px 12px; min-height:44px; padding:2px 0 8px; overflow:hidden; white-space:nowrap; font-size:14px; color:var(--text-heading); }
 .strip-line > *{ flex:none; } .strip-line .sl-sp{ flex:1 1 0; min-width:0; } .strip-line .cut{ display:none !important; }
+.strip-line.wrap{ flex-wrap:wrap; row-gap:6px; overflow:visible; }
 .sl-path{ display:inline-flex; align-items:baseline; gap:6px; font-size:14px; } .sl-path b{ font-weight:600; } .sl-path .sep{ color:var(--text-placeholder); }
 .sl-path .linky{ font-size:14px; white-space:nowrap; } .sl-mids{ display:inline-flex; align-items:baseline; gap:6px; } .sl-dots{ display:inline-flex; align-items:baseline; gap:6px; color:var(--text-muted); cursor:help; }
 .sl-num{ font-size:21px; line-height:1; font-weight:600; letter-spacing:-.018em; color:var(--text-heading); font-variant-numeric:tabular-nums; cursor:help; }
@@ -250,6 +256,22 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .sl-icon{ width:32px; padding:0; border:1px solid transparent; background:none; color:var(--text-muted); } .sl-icon:hover{ background:var(--surface-sunk); color:var(--text-heading); }
 .sl-cnt svg,.sl-icon svg{ width:16px; height:16px; display:block; }
 .strip-line .sl-list{ height:32px; }
+/* снимок полосы: пришли данные новее — плашка в строке; «Обновить» берёт новые, путь и вид остаются */
+.sl-fresh{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); box-shadow:inset 0 0 0 1px rgba(0,106,245,.28); color:var(--text-heading); font-size:12.5px; font-weight:500; }
+.sl-fresh .linky{ height:22px; padding:0 8px; border-radius:var(--radius-pill); font-size:12.5px; } .sl-fresh .linky:hover{ background:rgba(0,106,245,.12); text-decoration:none; }
+/* загрузка и очередь: скелет — та же разметка вида без чисел (серые плашки той же длины), высота полосы не прыгает; состояние — плашкой поверх скелета */
+.sk-w{ position:relative; }
+.sk .sk-t{ color:transparent; background:var(--surface-sunk); border-radius:4px; }
+.sk .rz-f,.sk .sr-b,.sk .rz-z,.sk .sr-zero{ background:var(--surface-sunk); } .sk .heat td.c,.sk .heat td.t,.sk .tb td.key{ background:var(--surface-panel); } .sk .rz-r,.sk .heat td.c,.sk .tb tr.rowlink{ cursor:default; }
+.sk-st{ position:absolute; top:24px; left:50%; transform:translateX(-50%); z-index:2; display:inline-flex; align-items:center; gap:6px; max-width:calc(100% - 16px); padding:5px 12px; border-radius:var(--radius-pill); background:var(--surface-card);
+  border:1px solid var(--border-default); box-shadow:var(--shadow-lift); font-size:12.5px; color:var(--text-secondary); white-space:nowrap; }
+.sk-st.long{ border-color:var(--asubk-amber-line); }
+/* часть, которая не ответила: «—» на её месте, причина — подсказкой; ноль и прошлое значение не подставляются */
+.rz-r.dn{ cursor:default; } .rz-r.dn:hover{ background:none; } .rz-r.dn .rz-nm{ color:var(--text-secondary); } .rz-v.dn,.rz-d.dn{ color:var(--text-muted); font-weight:400; cursor:help; }
+.rz-d.pend,.tb .pend,.heat .pend{ color:var(--text-placeholder); }
+.tb td.dn,.tb th.dn{ color:var(--text-muted); cursor:help; } .heat td.dn{ background:var(--surface-panel); color:var(--text-muted); cursor:help; }
+.seg button.pend{ color:var(--text-muted); }
+.dn-tag{ margin-left:6px; font-size:11.5px; font-weight:400; color:var(--text-muted); white-space:nowrap; } .tb th .dn-tag{ display:block; margin:1px 0 0; }
 /* тело: прокручивается внутри полосы; сверху его — «Сумма | Изменение» и настройки вида; одна тонкая линия отделяет строку от графика */
 .strip-b{ flex:1 1 auto; min-height:0; overflow:auto; border-top:1px solid var(--border-default); padding:0 0 16px; }
 .strip-tools{ position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; padding:12px 0; background:var(--surface-card); font-size:12.5px; color:var(--text-muted); }
@@ -521,6 +543,8 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   /* Движение на телефоне: «☰ 1 258» целиком (52 px), название переносится с висячим знаком, метка «⚠» — второй строкой от левого края названия */
   .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 52px; } .rz.mv-w .rz-r{ column-gap:8px; } .mv-w .mv-e .rz-t{ display:none; } .mv-w .rz-nm{ white-space:normal; padding-left:14px; text-indent:-14px; } .mv-w .rz-nm .pill,.mv-w .rz-nm .mv-sg{ text-indent:0; } .mv-w .mv-warn .rz-nm .pill{ margin:2px 0 0 -14px; }
   .rz-mv{ grid-column:1/-1; } .rz-mvp{ white-space:normal; flex-wrap:wrap; }
+  /* часть без ответа на телефоне: «нет ответа» — строкой под названием, не обрезается */
+  .rz-r.dn .rz-nm,.heat td.rl:has(.dn-tag),.tb td:has(.dn-tag){ white-space:normal; } .dn-tag{ display:block; margin:1px 0 0; }
   .heat{ min-width:560px; } .heat th.l{ white-space:nowrap; } .heat col.hm-lab{ width:110px; } .heat col.hm-tc{ width:76px; } .heat td,.heat th{ padding-left:3px; padding-right:3px; }
   .tb{ --tb-nm:120px; --tb-n:112px; --tb-ls:58px; font-size:12.5px; } .tb th,.tb td{ padding-left:6px; padding-right:6px; }
 }
@@ -1151,7 +1175,9 @@ const OBJECTS = {
   oblig:   { name:'Обязательство', wave:3, vis:'dept', owner:'Отчётность', registry:'Реестр обязательств' },
   task:    { name:'Задание', wave:3, vis:'self', owner:'Задания', registry:'Мои задания' },
 };
-function objReady(o){ const O = OBJECTS[o]; return O.wave <= STAND.wave && (!O.gate || !!STAND[O.gate]); }
+// объект отвечает, когда его модуль-владелец объявил его статистике (стенд: STAND.down) и, если у объекта есть ворота, они открыты;
+// волна объекта — прогноз порядка, а не дата: готовность решает сосед
+function objReady(o){ const O = OBJECTS[o]; return !STAND.down[O.owner] && (!O.gate || !!STAND[O.gate]); }
 // Список значений разреза ведёт статистика и держит его полным: у срока просрочки первая корзина — «нет просрочки», у статусов — весь
 // справочник. Где признак к части объектов не применим, «пусто» — последнее значение списка со своим именем (empty); где пусто
 // невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
@@ -1368,8 +1394,17 @@ ind('asset.exp',      { obj:'asset', name:'Расходы на содержан�
 ind('asset.days',     { obj:'asset', name:'Наибольший срок на учёте', agg:'max', field:'daysOnBook', unit:'days', dir:'up_bad', where:IM_ON });
 
 /* ================= Стенд: настройки «соседей» ================= */
-const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150 };
+// down — модули-владельцы, ещё не объявившие объекты статистике (готовность соседей; волны — только прогноз порядка); reportsReady — модуль
+// отчётности и отчёты каталога: предусловие всего дашборда. partDown — статистика ответила на вид полосы не целиком (часть — «—»); baseDown —
+// нет ответа на дату базы; fresh, dataAt — версия данных (сколько раз «пришли новые данные») и её время; overload — отчётность перегружена
+// (вопросы ждут в очереди); slow — медленная отчётность (части полосы приходят с задержкой)
+const STAND = { down:{}, reportsReady:true, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
+  partDown:false, baseDown:false, fresh:0, dataAt:null, overload:false, slow:false };
 const STAND_SEED = JSON.stringify(STAND);
+// время данных стенда: «сегодня» заморожено, пришедшие новые данные сдвигают время расчёта на 5 минут
+const nowTime = ()=>STAND.dataAt || TODAY.time;
+const REPORTS_WAIT = 'модуль отчётности и отчёты каталога ещё не готовы — плитка дашборда ссылается на отчёт';
+const timePlus = min=>{ const [h, m] = TODAY.time.split(':').map(Number), t = h*60 + m + min; return String(Math.floor(t/60)).padStart(2, '0')+':'+String(t%60).padStart(2, '0'); };
 
 /* ================= Даты, периоды, базы сдвига ================= */
 const DATE_MODES = {
@@ -1397,7 +1432,14 @@ function monthClosed(m){ return m <= STAND.closedThrough; }
 function exists(row, m){ return (row.from===undefined || row.from<=m); }
 function flows(row, m){ return exists(row, m) && (row.to===undefined || m<=row.to); }   // потоки закрытого договора кончаются месяцем закрытия
 const LOAN_AT_FIELDS = { overdue:true, risk:true, balance:true };
-function scen(row, field){ return (STAND.overdueUp && (field==='overdue' || field==='risk')) ? 1.18 : 1; }
+// «пришли новые данные» (стенд): за каждые 5 минут у каждого девятого кредита в просрочке поступила оплата — 15 % просроченного; дни просрочки
+// те же (самый старый неоплаченный платёж остался), остаток меньше на ту же сумму. Меняется только сегодняшнее значение: история та же
+function freshPaid(row){ if(!STAND.fresh || !isLoanRow(row) || !(row.overdue>0) || !row.balance) return 0; let od = row.overdue;
+  for(let k=1; k<=STAND.fresh; k++) if(hash(row.id+'|fr'+k)%9===0) od *= 0.85;
+  return Math.round(row.overdue - od); }
+function scen(row, field){ const up = (STAND.overdueUp && (field==='overdue' || field==='risk')) ? 1.18 : 1;
+  if(!STAND.fresh || (field!=='overdue' && field!=='balance')) return up; const paid = freshPaid(row); if(!paid) return up;
+  return field==='overdue' ? up*(row.overdue - paid)/row.overdue : (row.balance - paid)/row.balance; }
 function stockAt(row, I, pt){
   if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
   if(!exists(row, pt.m)) return null;
@@ -1406,7 +1448,7 @@ function stockAt(row, I, pt){
   if(I.where && !I.where(row)) return null;
   if(I.agg==='count') return 1;
   let v = row[I.field] || 0;
-  if(pt.m===0 && !pt.day) return v*scen(row, I.field);
+  if(pt.m===0 && !pt.day){ const f = scen(row, I.field); return STAND.fresh && f!==1 ? Math.round(v*f) : v*f; }   // новые данные — в целых сомах
   if(!pt.day && LOAN_AT_FIELDS[I.field] && isLoanRow(row)) return loanAt(row, pt.m)[I.field];   // кредит на конец прошлого месяца — его строка на ту дату
   const k = pt.day ? 'd'+pt.day : 'm'+pt.m; const amp = pt.day ? 0.004 : 0.03*Math.min(1,(Math.abs(pt.m)+1)/4);
   const trend = pt.day ? 1 : 1 + pt.m*(I.field==='overdue'||I.field==='risk' ? 0.03 : I.field==='balance' ? 0.004 : I.field==='amount' ? 0.08 : 0.002); // портфель и просрочка растут
@@ -1623,7 +1665,7 @@ function staleOf(q){
 }
 function passportOf(q, visible, opts){
   const ctx = ctxOf(q); const parts = [], night = nightOnlyOf(q);
-  const at = night ? (STAND.nightRunFailed ? '02:00 10.10 · ночной прогон 11.10 не прошёл' : '02:00 · только ночью') : TODAY.time;   // на какое время число «сегодня»
+  const at = night ? (STAND.nightRunFailed ? '02:00 10.10 · ночной прогон 11.10 не прошёл' : '02:00 · только ночью') : nowTime();   // на какое время число «сегодня»
   const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
   if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
     parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
@@ -1739,6 +1781,10 @@ function baseOf(t, user, roleId, panel, path){
   const rule = shiftRule(m, src, q);
   const res = answer(rule.key ? Object.assign({}, q, { format:'shift', shift: rule.key==='period' ? undefined : rule.key }) : q, user, roleId, panel);
   if(!LIVE.includes(res.state)) return res;
+  // охват по относительному параметру плитки пуст («куратор: я», а смотрящий не куратор) — «у вас пусто» с причиной, а не «0 · посчитали — нет»,
+  // как в каталоге; ноль при непустом охвате — число
+  const me = !(path && path.length) && mineEmpty(t, user, roleId);
+  if(me) return Object.assign(res, { state:'mine0', msg:me });   // строки ответа остаются: «кто в этом числе» — пустой список, а не отказ
   if(!rule.key){ res.shift = { none:rule.none };
     if(rule.plan){ const p = answer(compile(src, m.params, { inds:PLAN_INDS, share:PLAN_INDS, conds:pathConds(path) }), user, roleId, panel);
       res.shift.plan = { value:p.value, num:p.num, den:p.den, label:'по плану' }; } }
@@ -1795,7 +1841,8 @@ function answer(q0, user, roleId, panel){
   if(q.withdrawnStub){ res.state='withdrawn'; res.msg='Плитка снята администратором дашборда.'; return res; }
   const broken = q.inds.find(i=>STAND.withdrawn[i]);
   if(broken){ res.state='broken'; res.msg='Показатель «'+IND[broken].name+'» выведен из реестра статистики '+STAND.withdrawn[broken]+' — отчёт с этим показателем сломан.'; return res; }
-  if(O.wave > STAND.wave){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
+  if(q.reportId && !STAND.reportsReady){ res.state='refusal'; res.msg='Не отвечается: '+REPORTS_WAIT+'; владелец — модуль «Отчётность».'; return res; }
+  if(STAND.down[O.owner]){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
   if(O.gate && !STAND[O.gate]){ res.state='refusal'; res.msg='Не отвечается: '+O.gateMsg+'; владелец — модуль «'+O.owner+'».'; return res; }
   if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
   const base = rowsFor(user, roleId, I.obj);
@@ -1900,12 +1947,16 @@ function groupBy(rows, d, f, m, all, vs0){
 }
 // база сравнения — одна у сдвига плитки и у разницы в полосе (§5.3): у остатка — точка из закрытого списка, у потока — тот же
 // законченный период раньше (временный период снимает done); нет честной базы — { none: причина }
+// нет ответа на дату базы (стенд): базы нет — { none: причина, down, months }: сдвиг плитки «без сдвига», «Изменение» и Движение погашены, точка Ряда — «—»
+const BASE_DOWN = when=>'нет ответа '+when+' — статистика не ответила';
 function diffBase(ctx, key){
   if(ctx.period){ const P = PERIODS[ctx.period]; if(P.partial || !P.base) return { none:PARTIAL };
+    if(STAND.baseDown) return { none:BASE_DOWN('за '+(P.base.length===1 ? monthName(P.base[0]) : ctx.period==='prevYear' ? '2024 год' : 'прошлый квартал')), down:true, months:P.base.slice() };
     const k = '__base:'+ctx.period; PERIODS[k] = { months:P.base, label:'база' };
     return { ctx:{ period:k, tf:ctx.tf }, label: ctx.period==='prevMonth' ? 'к '+MONTHS_GEN[monthOf(-2).mi].replace(/я$/,'ю').replace(/а$/,'у') : ctx.period==='prevYear' ? 'к 2024' : 'к пред. кварталу',
       done:()=>{ delete PERIODS[k]; } }; }
   const B = STOCK_BASES[key && STOCK_BASES[key] ? key : 'prevMonthEnd']; if(ctx.point.m===B.point.m) return { none:'база совпадает с датой плитки' };
+  if(STAND.baseDown) return { none:BASE_DOWN('на '+monthEndLabel(B.point.m)), down:true, months:[B.point.m] };
   return { ctx:{ point:B.point, tf:ctx.tf }, label:B.short(), done:()=>{} };
 }
 // разница к базе: delta — в единицах числа (у доли — п.п.), pct — процент изменения (у доли не считается); нет пары — null
@@ -1915,7 +1966,7 @@ function setDiff(o, v, b, unit){
   o.pct = o.delta===null || unit==='pct' || !o.base ? null : o.delta / Math.abs(o.base) * 100;
   return o; }
 function shiftOf(q, rows, ctx, val, rowsAt){
-  const I = IND[q.inds[0]], B = diffBase(ctx, q.shift); if(B.none) return { none:B.none };
+  const I = IND[q.inds[0]], B = diffBase(ctx, q.shift); if(B.none) return B.down ? { none:B.none, down:true } : { none:B.none };
   try { const at = (c, rs)=>q.share ? val(rs, c).v : aggregate(rs, I, c).value;   // база остатка — строки на её дату (панель по полю с историей)
     const baseVal = at(B.ctx, B.ctx.point && rowsAt ? rowsAt(B.ctx.point.m) : rows), cur = at(ctx, rows);
     return { base:baseVal, delta: ctx.period ? cur - baseVal : (cur||0)-(baseVal||0), label:B.label }; }
@@ -1997,7 +2048,7 @@ function seriesOf(q, rows0, rowsAt){
     if(m===e-n){ prev = any ? vals[0] : null; continue; }
     // разница к прошлой точке — по первой линии; незакрытый месяц (текущий) подписан, у потока он не сравнивается
     const p = { m, label:monthShort(m), closed:monthClosed(m), vals };
-    if(m===0){ p.open = true; p.openLabel = flow ? '1–'+TODAY.day : 'на '+TODAY.time; }
+    if(m===0){ p.open = true; p.openLabel = flow ? '1–'+TODAY.day : 'на '+nowTime(); }
     if(m===0 && flow) Object.assign(p, { base:null, delta:null, pct:null, none:OPEN_MONTH });
     else if(prev===null) Object.assign(p, { base:null, delta:null, pct:null }); else setDiff(p, vals[0], prev, unit);
     prev = vals[0]; out.points.push(p);
@@ -2583,7 +2634,8 @@ const TILES_SEED_IDS = new Set(TILES.map(t=>t.id));          // плитки с�
 function tileById(id){ return TILES.find(t=>t.id===id); }
 
 /* ================= Объявленные раскладки ролей (одна на роль) ================= */
-const ROLE_CORE_WAVE = { lead:1, an:1, cur:1, prob:1, acc:1, zal:1, spec:2, com:2, gof:2, otd:2, ast:2, rep:3 };
+// прогноз порядка запуска (волны) — текст стенда, а не дата: раскладку роли включает готовность её плиток (roleLaunch)
+const WAVE_FORECAST = { lead:1, cur:1, prob:1, acc:1, zal:1, spec:2, com:2, gof:2, otd:2, ast:2, rep:3 };
 const DECLARED_SEED = {
   lead:['s:Картина портфеля','lead-bal','lead-od','lead-borr','lead-risk','lead-spin','lead-spcure',
         's:Деньги и план','lead-issued','lead-paid',
@@ -2614,7 +2666,8 @@ function seed(){
   // свёрнутые секции («человек|вкладка|секция») помнятся между входами. Вход на стенде — смена пользователя; seed() — новый стенд.
   // asked — сколько раз плитка спросила у статистики основу (главное число, сдвиг, второе): свёрнутая секция не спрашивает
   S = { userId:'u1', tab:null, panels:{}, lastTab:{}, collapsed:{}, asked:{}, arrange:false, declared:JSON.parse(JSON.stringify(DECLARED_SEED)),
-    overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{},
+    overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), last:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{},
+    ms:0, warm:null, dawn:null,
     roleNews:{}, newMark:{}, newsFlash:null, layoutDraft:null, catQ:'', catOnly:false, mObj:'', mQ:'', mInd:null };
   // roleNews — разовая плашка «Раскладка роли обновлена …» у держателя («человек|роль»), newMark — плитки с меткой «новая»; layoutDraft —
   // правка раскладки роли в редакторе до «Сохранить»; catQ, catOnly — поиск и «только доступные мне» каталога; mObj, mQ, mInd — шаг 1 мастерской
@@ -2635,10 +2688,19 @@ function journal(action, detail, who){ S.journal.unshift({ at:TODAY.label, who: 
 /* ================= Раскладка: объявленная + личная перекладка ================= */
 function tileAnswers(t){ // в раскладку попадает только плитка, которая отвечает (автопроверка)
   if(!t) return false; if(t.state==='draft') return false;
+  if(t.kind!=='link' && !STAND.reportsReady) return false;     // плитка — ссылка на отчёт: без модуля отчётности ей не на что ссылаться
   const q = questionOf(t); if(!q) return true;                 // отчёт не найден — плитка встаёт сломанной и называет причину
   return q.inds.every(i=>objReady(IND[i].obj) && !IND[i].refuses);
 }
-function roleHasLayout(roleId){ return !!S.declared[roleId] && (ROLE_CORE_WAVE[roleId]||9) <= STAND.wave; }
+// запуск роли — по отвечающим плиткам, а не по датам волн: предусловие — модуль отчётности и отчёты каталога; дальше роль получает свою
+// объявленную раскладку, когда отвечает не меньше половины её плиток (плитки «ждёт меня» — ссылки на очереди модулей — не в счёте); до того —
+// минимальная. { ok, n, of, why }: why — 'none' (своей раскладки нет), 'reports' (отчётность не готова), 'tiles' (отвечает меньше половины)
+function roleLaunch(roleId){
+  const L = S.declared[roleId]; if(!L) return { ok:false, n:0, of:0, why:'none' };
+  const ts = L.filter(k=>!k.startsWith('s:')).map(tileById).filter(t=>t && t.kind!=='link' && t.state!=='withdrawn'), n = ts.filter(tileAnswers).length, of = ts.length;   // снятая у роли исчезает — не в счёте
+  if(!STAND.reportsReady) return { ok:false, n, of, why:'reports' };
+  return n*2 >= of && n>0 ? { ok:true, n, of, why:null } : { ok:false, n, of, why:'tiles' }; }
+function roleHasLayout(roleId){ return roleLaunch(roleId).ok; }
 function declaredItems(roleId){
   if(!roleHasLayout(roleId)) return MINIMAL.filter(k=>tileAnswers(tileById(k)));
   const L = S.declared[roleId].filter(k=>k.startsWith('s:') || tileAnswers(tileById(k)) || (tileById(k)||{}).state==='withdrawn');
@@ -2764,7 +2826,8 @@ function catalogView(u, opts){
     if(res && res.state==='noaccess' && status==='add'){ status = 'no'; why = 'Нельзя на вкладке «'+roleName(roleId)+'»: '+String(res.msg || '').replace(/^Нельзя: /, '').replace(/\.$/, '').replace('вашей роли', 'этой роли'); res = null; }
     const text = [t.title, catSection(t), ...q.inds.map(i=>IND[i].name), I ? OBJECTS[I.obj].name : '', ...paramChips(t), src ? (src.title || src.name || '') : ''].join(' · ').toLowerCase();
     const empty = res && LIVE.includes(res.state) ? mineEmpty(t, u, roleId) : null;   // охват по параметру пуст — «у вас пусто», не ноль
-    return { t, why, ready, status, section:catSection(t), params:paramChips(t), res, num:empty ? null : catNumText(t, res), empty, owner: I ? OBJECTS[I.obj].owner : '—', text }; })
+    return { t, why, ready, status, section:catSection(t), params:paramChips(t), res, num:empty ? null : catNumText(t, res), empty,
+      owner: t.kind!=='link' && !STAND.reportsReady ? 'Отчётность' : I ? OBJECTS[I.obj].owner : '—', text }; })   // без отчётности плитка ждёт её, а не объект
     .filter(x=>(!qs || x.text.includes(qs)) && (!opts.only || x.status==='has' || x.status==='add'));
   // строки «у вас пусто» — в конце своей секции, прочие — как были
   const sections = CAT_SECTIONS.map(([name])=>name).concat(['Прочее']).map(name=>({ name, rows:[...rows.filter(x=>x.section===name && !x.empty), ...rows.filter(x=>x.section===name && x.empty)] })).filter(s=>s.rows.length);
@@ -3373,23 +3436,66 @@ function scopeKey(t, u, roleId){ const q = questionOf(t) || { filter:[], inds:[]
 }
 // отчёт и его версия — правка отчёта обесценивает ответ сразу; значения параметров лежат в плитке, её версия — в ключе
 // у вида в ключе ещё вид, выбор и путь; у мини-ряда — свой ключ; черновик меняется без версии — в ключе и его числа, светофор и умолчания
+// в ключе — стенд, который меняет ответ (очередь и медленная отчётность меняют только «когда», а не «что»), и версия данных — отдельной частью:
+// последний ответ плитки (очередь при перегрузе) ищется без неё
+const STAND_WHEN = ['overload', 'slow', 'fresh', 'dataAt'];
+const standKey = ()=>JSON.stringify(STAND, (k, v)=>STAND_WHEN.includes(k) ? undefined : v);
+const lastKey = k=>k.replace(/§v\d+(?=§|$)/, '');
 function cacheKey(t, u, roleId, panel, extra){ const r = t.kind!=='link' && t.report && reportById(t.report);
   return [t.id, t.version, t.report || '', r ? r.version+':'+r.state : 'нет отчёта', JSON.stringify(t.params || {}), JSON.stringify([t.main, t.second, t.shift, t.tl, t.views]),
-    scopeKey(t,u,roleId), circleWhy(t,u) ? 'круг закрыт' : '', JSON.stringify(normPanel(panel)), JSON.stringify(STAND)]
+    scopeKey(t,u,roleId), circleWhy(t,u) ? 'круг закрыт' : '', JSON.stringify(normPanel(panel)), standKey(), 'v'+STAND.fresh]
     .concat(extra ? [extra] : []).join('§'); }
-function cachedBy(k, q, fn){
+// перегруз отчётности (стенд): вопрос ждёт в очереди сам, «Повторить» нет. Плитке — её последний ответ из кэша (хоть ночной прогрев) со своей датой и
+// «⚠ устарело · на 14:02, сейчас считается»; нет его — «в очереди». Полоса (view) прошлых чисел не показывает — только «в очереди». Флаг сняли —
+// ответ приходит, замена сама. Свежий ответ кэша (в пределах срока жизни) отдаётся как обычно: спрашивать незачем
+const QUEUE_TIP = 'Отчётность перегружена: вопрос ждёт в очереди, ответ заменит число сам — нажимать ничего не нужно';
+let calcAtNow = null;                                          // время расчёта у ночного прогрева — время прогона, а не показа
+function cachedBy(k, q, fn, view){
   const live = q.period ? PERIODS[q.period].partial : (q.date||'today')==='today';
   const hit = S.cache.get(k); const ttl = live ? 1 : 1e9;      // «сегодня» — не дольше минуты; закрытый день — до следующего прогона
   if(hit && S.clock - hit.at < ttl){ S.cacheHits++; return hit.res; }
-  S.cacheMiss++; const res = fn(); S.cache.set(k, { at:S.clock, res, calcAt:TODAY.time }); return res;
+  if(STAND.overload){ const last = !view && S.last.get(lastKey(k)); return last ? queuedLast(last) : { state:'queued', msg:'В очереди: отчётность перегружена' }; }
+  S.cacheMiss++; const res = fn(), at = calcAtNow || nowTime(); S.cache.set(k, { at:S.clock, res, calcAt:at }); S.last.set(lastKey(k), { res, calcAt:at }); return res;
 }
+// последний ответ при перегрузе: число со своей датой, жёлтая рамка и метка «⚠ устарело · на 14:15, сейчас считается»
+function queuedLast(last){ const r = last.res, at = last.calcAt; if(!r || typeof r!=='object' || !LIVE.includes(r.state)) return r;
+  const tip = QUEUE_TIP+'. Сейчас показан последний ответ — на '+at+'.';
+  return Object.assign({}, r, { staleState:true, queuedAt:at, stale:'отчётность перегружена — последний ответ на '+at+', новый в очереди',
+    marks:[{ kind:'warn', text:'⚠ устарело · на '+at+', сейчас считается', tip }, ...(r.marks || []).filter(x=>!/^⚠ устарело/.test(x.text))] }); }
+/* ---------- Ночной прогрев и утренний пик ---------- */
+// вопрос к отчётности — отчёт (у ссылочной — очередь модуля) + значения параметров + дата + охват (ключ общего кэша): у плиток на одном отчёте с теми же
+// значениями и у держателей с одним охватом ответ один. Части ответа плитки: главное число на её дату (второе — тот же отчёт и дата) и база сдвига —
+// на свою, закрытую дату. live — «сегодня» (день или период не закрыт)
+function tileAsks(t, u, roleId){ const q = !reportBroken(t) && mainQ(t); if(!q) return [];
+  const src = srcOf(t), key = (t.report || t.queue)+'|'+JSON.stringify(t.params || {})+'|'+scopeKey(t, u, roleId), at = q.period || q.date || 'today';
+  const out = [{ key:key+'|'+at, live:liveOf(q) }], rule = shiftRule(t, src, q);
+  if(rule.key) out.push({ key:key+'|база '+(rule.key==='period' ? at : rule.key), live:false });
+  return out; }
+// раскладки ролей в охвате каждого держателя: вопросы на закрытые даты (их прогревают ночью) и «сегодня» (их считают утром); держатели — у кого
+// роль со своей раскладкой; tiles — плитки, чьё главное число на закрытую дату (ответ плитки целиком — в кэше)
+function warmPlan(){ const closed = new Set(), today = new Set(), holders = new Set(), tiles = [];
+  USERS.forEach(u=>u.roles.forEach(r=>{ if(!roleHasLayout(r)) return; holders.add(u.id);
+    declaredItems(r).forEach(k=>{ const t = !k.startsWith('s:') && tileById(k); if(!t || t.state==='withdrawn' || !tileAnswers(t)) return;
+      const as = tileAsks(t, u, r); as.forEach(a=>(a.live ? today : closed).add(a.key)); if(as.length && !as[0].live) tiles.push([t, u, r]); }); }));
+  return { closed:closed.size, today:today.size, holders:holders.size, tiles }; }
+// после ночного прогона дашборд сам спрашивает числа на закрытые даты (база сдвига, вчера, прошлый месяц) для плиток объявленных раскладок ролей
+// в охвате каждого держателя и держит их в кэше до следующего прогона. Личные плитки, свои экраны и полоса — по требованию
+function prewarm(){
+  if(STAND.nightRunFailed) return { skipped:'ночной прогон не прошёл — закрытые даты не прогреты' };
+  const P = warmPlan(), ov = STAND.overload; STAND.overload = false; calcAtNow = WARM_AT;   // ночью очереди нет
+  try { P.tiles.forEach(([t, u, r])=>cachedAsk(t, u, r, {})); } finally { calcAtNow = null; STAND.overload = ov; }
+  return S.warm = { n:P.closed, m:P.holders, at:WARM_AT }; }
+const WARM_AT = '02:40';
+// утро: держатели открывают свои раскладки — к отчётности уходят вопросы, которых нет в кэше. С прогревом — только «сегодня», без него — и закрытые даты
+function morningLoad(){ const P = warmPlan();
+  return S.dawn = { requests:P.today + (S.warm ? 0 : P.closed), today:P.today, closed:P.closed, warm:!!S.warm, holders:P.holders }; }
 function cachedAsk(t, u, roleId, panel){ return cachedBy(cacheKey(t, u, roleId, panel), questionOf(t) || {}, ()=>ask(t, u, roleId, panel)); }
 function cachedBase(t, u, roleId, panel, path){
   if(!(path && path.length)) return cachedAsk(t, u, roleId, panel);
   return cachedBy(cacheKey(t, u, roleId, panel, 'base§'+JSON.stringify(path || [])), mainQ(t) || {}, ()=>baseOf(t, u, roleId, panel, path)); }
-function cachedMini(t, u, roleId, panel){ return cachedBy(cacheKey(t, u, roleId, panel, 'mini'), mainQ(t) || {}, ()=>miniOf(t, u, roleId, panel)); }
+function cachedMini(t, u, roleId, panel){ return cachedBy(cacheKey(t, u, roleId, panel, 'mini'), mainQ(t) || {}, ()=>miniOf(t, u, roleId, panel), true); }
 function cachedView(t, kind, sel, path, u, roleId, panel){ const s = viewSel(t, kind, sel, u, path, panel);
-  return cachedBy(cacheKey(t, u, roleId, panel, 'view§'+kind+'§'+JSON.stringify(s)+'§'+modeOf(sel)+'§'+JSON.stringify(path || [])), mainQ(t) || {}, ()=>viewOf(t, kind, sel, path, u, roleId, panel)); }
+  return cachedBy(cacheKey(t, u, roleId, panel, 'view§'+kind+'§'+JSON.stringify(s)+'§'+modeOf(sel)+'§'+JSON.stringify(path || [])), mainQ(t) || {}, ()=>viewOf(t, kind, sel, path, u, roleId, panel), true); }
 
 /* ================= Пять видов в полосе ================= */
 const VIEW_KINDS = ['series','slice','map','move','table'];
@@ -3468,10 +3574,38 @@ function viewsFor(t, u, roleId, path, panel){
     series: !hist ? NO_HIST : !timed ? NO_DATE : null,
     slice: free ? null : noDims,
     map: free>=2 ? null : 'нужны два разреза — свободных '+free,
-    move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : (mvDateOf(t) || {}).off || null,
+    move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : (mvDateOf(t) || {}).off
+      || mvBaseDown(t, path) || null,
     table: free ? null : noDims };
   return VIEW_KINDS.map(kind=>({ kind, ok:!why[kind], why:why[kind] }));
 }
+// нет ответа на дату базы: причина и месяцы базы сдвига плитки (тот же ключ базы, что у сдвига и «Изменения»)
+function baseDownOf(t, path){ if(!STAND.baseDown) return null; const src = srcOf(t), q = src && !reportBroken(t) && mainQ(t, path); if(!q) return null;
+  const rule = shiftRule(t, src, q); if(!rule.key) return null; const B = diffBase(ctxOf(q), rule.key==='period' ? undefined : rule.key);
+  return B.down ? { msg:B.none, months:B.months } : null; }
+// Движению база нужна началом: текущий месяц идёт от конца прошлого, прошлый — к нему; нет ответа на конец прошлого месяца — Движение погашено той же причиной
+function mvBaseDown(t, path){ const bd = baseDownOf(t, path); return bd && bd.months.includes(-1) ? bd.msg : null; }
+// часть вида, на которую статистика не ответила (стенд): у Таблицы — колонка «Сумма под риском (залог)», где её нет — самая крупная строка; у Разреза —
+// самый крупный узел, у Карты — самая крупная строка. На её месте «—» с причиной в подсказке, итог по ней — «—», остальное — как посчитано;
+// вид не гаснет, ноль и прошлое значение не подставляются. Итог Разреза и Карты — число узла полосы (его спрашивали отдельно) — как есть
+const PART_COL = 'loan.risk', DN_TAG = '<span class="dn-tag">нет ответа</span>';
+const PART_DOWN = what=>'Статистика не ответила по '+what+' — на её месте «—»: ни ноль, ни прошлое значение; остальное посчитано';
+function partDown(res){
+  const nil = o=>{ ['value', 'num', 'den', 'base', 'delta', 'pct', 'baseNum', 'baseDen'].forEach(f=>{ if(f in o) o[f] = null; }); o.moves = undefined; o.cnt = undefined; };
+  const big = (xs, f)=>xs.reduce((a, x, i)=>a<0 || Math.abs(f(x) || 0) > Math.abs(f(xs[a]) || 0) ? i : a, -1);
+  if(res.nodes && res.nodes.length){ const n = res.nodes[big(res.nodes, x=>x.value)]; nil(n); n.down = PART_DOWN('узлу «'+n.label+'»'); res.partDown = n.down; }
+  if(res.heat && res.heat.rows.length){ const h = res.heat, i = big(h.rowTot, x=>x.value), why = PART_DOWN('строке «'+dimLabel(h.d1, h.rows[i])+'»');
+    h.cells[i] = h.cells[i].map(()=>null); ['bases', 'deltas', 'pcts'].forEach(f=>{ if(h[f]) h[f][i] = h[f][i].map(()=>null); }); if(h.cnt) h.cnt[i] = h.cnt[i].map(()=>undefined);
+    nil(h.rowTot[i]); h.down = { [i]:why }; res.partDown = why; }
+  if(res.table && res.table.rows.length){ const tb = res.table, j = tb.cols.findIndex(c=>c.id===PART_COL), blank = a=>a ? a.map(()=>null) : a;
+    if(j>=0){ const why = PART_DOWN('колонке «'+IND[PART_COL].name+'»'); tb.downCol = { [j]:why };
+      tb.rows.forEach(r=>{ r.cells[j] = null; if(r.bases) r.bases[j] = null; }); res.total[j] = null; if(tb.total && tb.total.bases) tb.total.bases[j] = null; res.partDown = why; }
+    else { const r = tb.rows[big(tb.rows, x=>x.cells[0])]; r.cells = blank(r.cells); r.bases = blank(r.bases); r.cnt = undefined; r.moves = undefined;
+      r.down = PART_DOWN('строке «'+r.label+'»'); res.partDown = r.down; } }
+}
+// нет ответа на дату базы — точка Ряда на эту дату «—», разница у неё и у следующей точки — «—» с той же причиной
+function seriesDown(res, bd){ (res.series.points || []).forEach((p, i, ps)=>{ if(bd.months.includes(p.m)){ p.vals = p.vals.map(()=>null); p.down = bd.msg; p.cnt = undefined;
+    Object.assign(p, { base:null, delta:null, pct:null }); const nx = ps[i + 1]; if(nx && !nx.none) Object.assign(nx, { base:null, delta:null, pct:null, downD:bd.msg }); } }); }
 // ответ вида: компилируется из того же отчёта и параметров, путь — условия «=»; разрез не из отчёта — «на время просмотра»
 function viewOf(t, kind, sel, path, u, roleId, panel){
   path = path || []; const v = viewsFor(t, u, roleId, path, panel).find(x=>x.kind===kind);
@@ -3497,11 +3631,13 @@ function viewOf(t, kind, sel, path, u, roleId, panel){
       if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; res.nodeOf = tmp.nodeOf; } }
     if(res.move) res.cnt = res.move.cntEnd; }   // «☰ N» конца Движения — объекты в охвате на конец (панель и охват роли — на ту дату), как список конца
   delete res.rows; delete res.rowsAt;
+  if(res.series && STAND.baseDown){ const bd = baseDownOf(t, path); if(bd) seriesDown(res, bd); }
   if(sh && res.table){ const T0 = res.table, tot = res.total, at = (a, c)=>c===SHARE_COL ? (a[ask.indexOf(sh.inds[1])] ? a[ask.indexOf(sh.inds[0])] / a[ask.indexOf(sh.inds[1])] * 100 : null) : a[ask.indexOf(c)];
     const re = a=>s.cols.map(c=>at(a, c));                    // и сумма, и база — по колонкам выбора; доля на базе — из числителя и знаменателя на базе
     T0.rows.forEach(r=>{ r.cells = re(r.cells); if(r.bases) r.bases = re(r.bases); }); res.total = re(tot);   // в итоге доля — второе число плитки
     if(T0.total && T0.total.bases) T0.total.bases = re(T0.total.bases);
     T0.cols = s.cols.map(c=>c===SHARE_COL ? { id:SHARE_COL, name:sh.name, unit:'pct' } : T0.cols[ask.indexOf(c)]); }
+  if(STAND.partDown && (res.nodes || res.heat || res.table)) partDown(res);
   if(res.table) tableRows(res, mode);
   const list = dimsFor(t, path, panel), used = kind==='slice' || kind==='table' ? [s.dim] : kind==='map' ? s.dims : [];
   const tempCol = kind==='table' && s.cols.some(i=>(colsFor(t).find(x=>x.id===i) || {}).temp);
@@ -3551,11 +3687,13 @@ function sliceLines(res, mode, top){
   const u = res.unit;
   if(!top){ res.lines = res.nodes.slice(); res.top = null; res.more = 0; return; }
   if(mode==='change') res.nodes.sort((a, b)=>byDelta(a.delta, b.delta));
-  const cand = res.nodes;   // все значения списка: строкой или в «ещё N», в обоих режимах; сумма строк = итогу, сумма разниц строк = разнице итога
+  // все значения списка: строкой или в «ещё N», в обоих режимах; сумма строк = итогу, сумма разниц строк = разнице итога. Узел без ответа
+  // (часть, на которую статистика не ответила) — своей строкой «—», не в первых N и не в «ещё N»: его числа не знаем
+  const cand = res.nodes.filter(n=>!n.down), dn = res.nodes.filter(n=>n.down);
   const keep = new Set(mode==='change' ? cand.slice().sort((a, b)=>Math.abs(b.delta || 0) - Math.abs(a.delta || 0)).slice(0, top) : cand.slice(0, top));
   const shown = cand.filter(n=>keep.has(n)), rest = cand.filter(n=>!keep.has(n));
   const more = rest.length ? moreNode(rest, u, res.agg) : null; res.top = top; res.more = rest.length;
-  res.lines = mode==='change' ? [...shown.filter(n=>n.delta>0), ...(more ? [more] : []), ...shown.filter(n=>!(n.delta>0))] : [...shown, ...(more ? [more] : [])];
+  res.lines = mode==='change' ? [...shown.filter(n=>n.delta>0), ...(more ? [more] : []), ...shown.filter(n=>!(n.delta>0)), ...dn] : [...shown, ...dn, ...(more ? [more] : [])];
 }
 function moreNode(rest, u, agg){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 0), has = rest.some(n=>n.base!==undefined);
   const top = f=>{ const xs = rest.map(n=>n[f]).filter(x=>x!==null && x!==undefined); return xs.length ? Math.max(...xs) : null; };   // у наибольшего «ещё N» — наибольшее из скрытых строк, не сумма
@@ -3597,7 +3735,7 @@ let openSeq = 0;
 function placeStrip(id, kind, sel){
   const items = homeItems(), cols = gridCols(), col = collapsedNow(), mine = stripSlot(items, id, cols, col, rendersItem);
   if(mine>=0) Object.keys(S.open).forEach(k=>{ if(stripSlot(items, k, cols, col, rendersItem)===mine) delete S.open[k]; });
-  return (S.open[id] = { kind, sel:sel || {}, path:[], n:++openSeq });
+  return (S.open[id] = { kind, sel:sel || {}, path:[], n:++openSeq, snap:snapNow() });   // снимок данных — с открытия
 }
 function openStrip(id, kind){
   const o = S.open[id] || placeStrip(id, kind); o.kind = kind; remember(id, kind); return o;
@@ -3694,7 +3832,7 @@ function userArg(uid){ return uid && typeof uid==='object' ? uid : USERS.find(x=
 function tileArg(id){ const t = typeof id==='string' ? tileById(id) : id; if(!t) throw new Error('нет плитки «'+id+'»'); return t; }
 function baseOut(r){ const s = r.shift;
   return { state:r.state, msg:r.msg, value:r.value, unit:r.unit, num:r.num, den:r.den,
-    shift: !s ? null : s.none ? Object.assign({ none:s.none }, s.plan ? { plan:s.plan } : {}) : { delta:s.delta, label:s.label, base:s.base },
+    shift: !s ? null : s.none ? Object.assign({ none:s.none }, s.plan ? { plan:s.plan } : {}, s.down ? { down:true } : {}) : { delta:s.delta, label:s.label, base:s.base },
     second:r.second || null, tl:r.tl || null, passport:r.passport, marks:r.marks || [] }; }
 // выражение: main | second | second.num | second.den | shift | tl | series(N[,main|second]) | slice(d) | map(d1,d2) | move(M) | table(d;c1,c2…)
 // [.total] и сегменты пути >разрез=значение
@@ -3754,7 +3892,7 @@ function collapsedNow(){ const pre = tabKey()+'|', o = {}; Object.keys(S.collaps
 function render(){
   if(!HAS_DOM) return;
   const u = user();
-  $('clock').textContent = 'Сегодня '+TODAY.label.replace(' ', ', ');
+  $('clock').textContent = 'Сегодня '+TODAY.label.replace(' '+TODAY.time, ', '+nowTime());
   $('ava').textContent = u.name.split(/\s+/).filter(Boolean).slice(0, 2).map(w=>w[0]).join('').toUpperCase();
   $('user-sel').innerHTML = USERS.map(x=>`<option value="${x.id}" ${x.id===u.id?'selected':''}>${esc(x.name)} — ${esc(x.roles.map(roleName).join(', '))}</option>`).join('');
   const unread = S.notifs.filter(n=>n.to===u.id && !n.read).length;
@@ -3798,11 +3936,16 @@ function topHTML(u, tab, roleId, sc){
   const opt = t=>`<option value="${t.kind}:${esc(t.id)}"${on(t) ? ' selected' : ''}>${esc(t.name)}</option>`;
   const row = `<nav class="tabs" aria-label="Экраны">${tabs.map(t=>`<button class="tab${t.kind==='screen' ? ' own' : ''}${on(t) ? ' active" aria-current="true' : ''}" onclick="DB.setTab('${t.kind}','${t.id}')">${esc(t.name)}</button>`).join('')}<button class="tab add" onclick="DB.newScreen()" data-tip="Свой экран — до пяти">+ экран</button></nav>
     <label class="scr-pick"><span>Экран:</span><select aria-label="Экран" onchange="DB.pickTab(this.value)"><optgroup label="Роли">${roles.map(opt).join('')}</optgroup>${own.length ? `<optgroup label="Свои экраны">${own.map(opt).join('')}</optgroup>` : ''}<option value="new">+ экран</option></select></label>
-    <span class="scope"${tipAttr(cap)}>${esc(cap)}</span><div class="top-r"><button class="btn sm fbtn${panelOn(S.panel) ? ' on' : ''}" aria-haspopup="dialog" onclick="DB.openFilter()">${ICON_FILTER}Фильтр</button><button class="btn sm more" aria-label="Действия с экраном" onclick="DB.screenMenu(event)">${ICON_DOTS}</button></div>`;
+    <span class="scope"${tipAttr(cap)}>${esc(cap)}</span><div class="top-r">${filterOff(u, roleId) ? `<button class="btn sm fbtn" aria-disabled="true"${tipAttr(NO_FILTER)}>${ICON_FILTER}Фильтр</button>`
+      : `<button class="btn sm fbtn${panelOn(S.panel) ? ' on' : ''}" aria-haspopup="dialog" onclick="DB.openFilter()">${ICON_FILTER}Фильтр</button>`}<button class="btn sm more" aria-label="Действия с экраном" onclick="DB.screenMenu(event)">${ICON_DOTS}</button></div>`;
   const bar = S.arrange ? `<div class="arrange-bar" role="region" aria-label="Перекладка"><b>Перекладка «${esc(cur.name)}»</b><span class="ab-h">плитки — мышью или стрелками</span>
     <span class="ab-r"><button class="btn sm arrange-only" onclick="DB.addSectionPrompt()">+ секция</button><button class="btn sm arrange-only" onclick="DB.openCatalogFor()">+ плитка из каталога</button><button class="btn sm primary" onclick="DB.toggleArrange()">Готово</button></span></div>` : '';
   return `<div class="top"><div class="topline">${row}${bar}</div><div class="scope-m">${esc(cap)}</div>${chipsHTML(sc)}</div>`;
 }
+// фильтра не из чего выбрать: у объектов охвата вкладки нет ни одного значения области, подразделения и программы (Комиссия, Отдел · заключения,
+// Отчётность) — «Фильтр» погашен с причиной, окна нет
+const NO_FILTER = 'У плиток этой вкладки нет области, подразделения и программы';
+function filterOff(u, roleId){ return filterFields(u, roleId, {}).every(f=>!f.opts.length); }
 // фишки фильтра: «Область: Ошская, Джалал-Абадская ×» на поле и «Сбросить»; на своём экране с фильтром не как сохранённый —
 // «изменён · Сохранить в экран · Вернуть» (и когда фильтр сняли совсем)
 // Значение вне охвата смотрящего — серой фишкой «вне вашего охвата»: числа им не сужаются; × у каждой фишки снимает только её значения
@@ -3818,8 +3961,9 @@ function chipsHTML(sc){
 }
 // главная строкой: верх, сообщения, сетка; без страницы — для проверки разметки
 function homeHTML(){
-  const u = user(); const tab = curTab(); const roleId = curRole();
+  const u = user(); const tab = curTab(); const roleId = curRole(); qPos = 0; loadWake = null;
   const sc = tab.kind==='screen' ? screenById(tab.id) : null, items = sc ? sc.items.slice() : composeLayout(u.id, roleId), col = collapsedNow();
+  pinFresh(sc);   // до плиток: плитка над закреплённой полосой — из того же снимка
   // полосы по рядам: в ряду одна, при споре (окно сузилось) остаётся открытая позже
   const anyOpen = Object.keys(S.open).length > 0, cols = anyOpen ? gridCols() : lastCols, strips = {};
   if(!S.arrange) Object.keys(S.open).sort((a, b)=>(S.open[a].n || 0) - (S.open[b].n || 0)).forEach(k=>{ const p = stripPlace(items, k, cols, col, rendersItem);
@@ -3827,6 +3971,7 @@ function homeHTML(){
   const minimal = tab.kind==='role' && !roleHasLayout(roleId);
   const banners = [];
   if(STAND.statDown) banners.push('<div class="banner err">Статистика не отвечает — плитки показывают «ошибка доставки», а не прошлые числа.</div>');
+  else if(STAND.overload) banners.push('<div class="banner warn">Отчётность перегружена — плитки ждут в очереди сами: где есть последний ответ, он стоит со своей датой; новый заменит его сам.</div>');
   if(minimal) banners.push(minimalBanner(roleId));
   if(tab.kind==='role') banners.push(newsBanner(u, roleId));
   const html = `${topHTML(u, tab, roleId, sc)}
@@ -3843,14 +3988,18 @@ function newsBanner(u, roleId){ const k = u.id+'|'+roleId, N = S.roleNews[k], nm
   const F = S.newsFlash; if(F && F.k===k && (F.add.length || F.rem.length)) return `<div class="news-note" role="status">${F.add.length ? 'Новые в раскладке роли — подсвечены'+(F.rem.length ? '; ' : '.') : ''}${F.rem.length ? 'убраны из раскладки: '+esc(F.rem.map(nm).join(', '))+'.' : ''}</div>`;
   return ''; }
 // роль без своей раскладки — минимальная: «Мои задания» и «добавить из каталога»; у роли с образцом (Аналитик) — ещё «+ экран — копия
-// «Руководства»»; у роли, чьё ядро ещё не готово, раскладка объявлена, но не показана
-function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {};
-  const head = S.declared[roleId] ? 'Для роли «'+esc(roleName(roleId))+'» раскладка ещё не объявлена — показана минимальная.' : 'У роли «'+esc(roleName(roleId))+'» своей раскладки нет — показана минимальная.';
+// «Руководства»»; у роли, чья раскладка объявлена, но отвечает меньше половины её плиток, — сколько отвечает; нет отчётности — у всех минимальная
+function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {}, L = roleLaunch(roleId), nm = esc(roleName(roleId));
+  const head = L.why==='reports' ? 'Модуль отчётности и отчёты каталога ещё не готовы — у всех ролей минимальная раскладка: плитка дашборда ссылается на отчёт.'
+    : L.why==='tiles' ? 'Раскладка роли «'+nm+'» встанет, когда ответит не меньше половины её плиток: сейчас отвечают '+L.n+' из '+L.of+' — показана минимальная.'
+    : 'У роли «'+nm+'» своей раскладки нет — показана минимальная.';
   const copy = R.copyOf ? ` <span class="sep">·</span> <button class="linky" onclick="DB.copyRoleScreen('${roleId}')"${tipAttr('Свой экран — копия раскладки «'+roleGen(R.copyOf)+'»; дальше живёт отдельно')}>+ экран — копия «${esc(roleGen(R.copyOf))}»</button>` : '';
-  return `<div class="banner info">${head} <button class="linky" onclick="DB.go('catalog')">Добавить плитки из каталога →</button>${copy}</div>`; }
+  return `<div class="banner info">${head}${L.why==='reports' ? '' : ` <button class="linky" onclick="DB.go('catalog')">Добавить плитки из каталога →</button>`}${copy}</div>`; }
 function renderHome(again){
   const h = homeHTML(); $('v-home').innerHTML = h.html;
   wireDnD();
+  // полоса ждёт часть ответа (медленная отчётность): перерисовать, когда она придёт
+  clearTimeout(loadTimer); if(loadWake!==null){ const w = loadWake; loadTimer = setTimeout(()=>{ if(view==='home') render(); }, w + 30); }
   if(h.anyOpen){ lastCols = gridCols(); if(!again && lastCols!==h.cols) return renderHome(true); }       // первая отрисовка: число колонок известно только после неё
 }
 function hiddenChips(u, roleId){ if(!roleId) return ''; const ov = S.overlays[u.id+'|'+roleId]; if(!ov || !ov.hidden.length) return '';
@@ -3870,7 +4019,9 @@ function itemHTML(k, u, roleId, sc, items, col){
   if(k.startsWith('x:')) return goneHTML(tileById(k.slice(2)), k);
   const t = tileById(k); if(!t) return '';
   if(t.state==='withdrawn') return itemHTML('x:'+k, u, roleId, sc, items, col);
-  const res = loading ? null : cachedBase(t, u, roleId, S.panel);
+  // плитка над открытой полосой — из снимка полосы: числа плитки и полосы не расходятся; в очереди — место по порядку на экране
+  let res = loading ? null : inSnap(t.id, ()=>cachedBase(t, u, roleId, S.panel));
+  if(res && res.state==='queued') res = Object.assign({}, res, { pos:++qPos });
   return tileHTML(t, res, { roleId, arrange:S.arrange, key:k, user:u, panel:S.panel });
 }
 // заглушка снятой плитки в личной раскладке и своём экране: «снята, замена: … · Заменить · Убрать» — живёт, пока человек её не уберёт;
@@ -3941,7 +4092,8 @@ function qualLine(t){ const q = questionOf(t), pt = q && q.date && DATE_MODES[q.
 // плитка главной — основа 1×1, три строки: название и уточнение · главное число и сдвиг · второе число; в предпросмотре конструктора — без действий
 function tileHTML(t, res, o){
   const u = o.user || user(), m = t, act = !o.arrange && !o.preview;
-  if(!res) return `<div class="tile skel"><div class="t-head"><div class="t-name"><span class="t-title">${esc(t.title)}</span></div></div><div class="t-body"></div></div>`;
+  // загрузка — серый скелет; в очереди (отчётность перегружена, последнего ответа в кэше нет) — тот же скелет с местом в очереди, без «Повторить»
+  if(!res || res.state==='queued') return `<div class="tile skel" data-key="${esc(o.key||t.id)}"><div class="t-head"><div class="t-name"><span class="t-title">${esc(t.title)}</span></div></div><div class="t-body">${res ? `<span class="sk-q"${tipAttr(QUEUE_TIP)}>в очереди${res.pos ? ' · '+res.pos+'-я' : ''}</span>` : ''}</div></div>`;
   const live = LIVE.includes(res.state);
   const fresh = !o.preview && isNewTile(u.id, o.roleId, t.id), F = S.newsFlash, flash = !o.preview && !!F && F.k===u.id+'|'+o.roleId && F.add.includes(t.id);
   const cls = 'tile'+(res.staleState?' stale':'')+(res.state==='error'?' err':'')+(o.arrange?' arrange':'')+(S.open[t.id] && !o.arrange ? ' open' : '')+(flash ? ' flash' : '');
@@ -3950,7 +4102,8 @@ function tileHTML(t, res, o){
       <button class="who" aria-label="Кто в этом числе"${tipAttr('Кто в этом числе')} onclick="event.stopPropagation();DB.who('${t.id}')">${ICON_LIST}</button>
       <button class="more" aria-label="Действия"${tipAttr('Действия')} onclick="event.stopPropagation();DB.menu(event,'${t.id}')">${ICON_DOTS}</button></div>`;
   let body;
-  if(!live) body = `<div class="t-body">${stateBody(t, res, o)}</div>`;
+  if(res.state==='mine0') body = `<div class="t-row"><span class="mine0"${tipAttr(res.msg)}>у вас пусто</span></div>`;
+  else if(!live) body = `<div class="t-body">${stateBody(t, res, o)}</div>`;
   else { const q = mainQ(t), dash = res.state==='dash';
     body = `<div class="t-row">${headlineText(q, res, t)}${dash ? '' : shiftHTML(q, res)+(res.tl && tlOn(m)==='main' ? boundHTML(t, res.tl) : '')}</div>${dash ? '' : secondHTML(t, m, res)}`; }
   const arr = o.arrange ? `<div class="arr-tools arrange-only"><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',-1)">←</button><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',1)">→</button><button class="btn sm" onclick="event.stopPropagation();DB.hide('${o.key}')">Скрыть</button></div>` : '';
@@ -3989,9 +4142,12 @@ function stripDims(k, t, kind, s, free){
   return c + mark;
 }
 // «Сумма | Изменение»: сегмент над графиком, в теле полосы; один на полосу (ответ вида: mode, modeOff, baseLabel); в Движении его нет; погашенное «Изменение» — серое, причина в подсказке
-function stripMode(k, r){
+// база ещё считается (pend) — «Изменение …»: выбрать можно, разница придёт вместе с базой
+function stripMode(k, r, pend){
   if(r.mode===null || r.mode===undefined) return '';
-  const id = esc(k), btn = (m, name, off)=>off ? `<button class="off" aria-disabled="true" data-tip="${esc(off)}">${name}</button>` : `<button class="${r.mode===m ? 'on' : ''}" onclick="DB.mode('${id}','${m}')">${name}</button>`;
+  const id = esc(k), btn = (m, name, off)=>off ? `<button class="off" aria-disabled="true" data-tip="${esc(off)}">${name}</button>`
+    : m==='change' && pend ? `<button class="pend${r.mode===m ? ' on' : ''}" data-tip="База считается — разница придёт вместе с ней" onclick="DB.mode('${id}','${m}')">${name} …</button>`
+    : `<button class="${r.mode===m ? 'on' : ''}" onclick="DB.mode('${id}','${m}')">${name}</button>`;
   return `<span class="strip-mode"><span class="seg">${btn('sum', 'Сумма')}${btn('change', 'Изменение', r.modeOff)}</span>${r.baseLabel ? `<span>${esc(r.baseLabel)}</span>` : ''}</span>`;
 }
 // настройки вида — тихая строка в теле полосы над графиком, рядом с «Сумма | Изменение»: топ N, точки и число Ряда, месяц Движения, колонки Таблицы
@@ -4021,32 +4177,93 @@ function stripNum(t, b, root, pass){
   const tip = [pass, root && b.tl ? tlTip(t, b) : ''].filter(Boolean).join('\n');
   return `<span class="sl-num"${tipAttr(tip)}${tip ? ` data-tip0="${esc(tip)}"` : ''}>${numUnit(b.state==='dash' ? '—' : fmtVal(b.value, b.unit))}</span>`;
 }
+// снимок полосы: числа, списки и путь открытой полосы — из одного снимка данных («на 14:15»); плитка над ней — из того же. Пришли данные новее —
+// в строке «есть данные на 14:20 · Обновить»; «Обновить» берёт новые, путь и вид остаются
+const snapNow = ()=>({ fresh:STAND.fresh, at:nowTime() });
+function atSnap(snap, fn){ if(!snap || snap.fresh===STAND.fresh) return fn();
+  const f = STAND.fresh, a = STAND.dataAt; STAND.fresh = snap.fresh; STAND.dataAt = snap.fresh ? snap.at : null;
+  try { return fn(); } finally { STAND.fresh = f; STAND.dataAt = a; } }
+const inSnap = (id, fn)=>atSnap((S.open[id] || {}).snap, fn);
+// медленная отчётность (стенд): части ответа полосы приходят с задержкой — «Сумма» через 1,5 с, база разницы через 3 с, Движение (переходы объектов
+// на двух датах) — через 12 с; дольше 10 с — «считается дольше обычного · Отменить». Вопрос — вид, выбор (без «Сумма | Изменение»), путь и снимок;
+// сменился — новый вопрос с нуля. Часы — performance.now() на странице, без страницы (смоук) — S.ms, его двигает DB.loadTick
+const LOAD_MS = { sum:1500, base:3000, move:12000, long:10000 };
+const nowMs = ()=>HAS_DOM && typeof performance!=='undefined' ? performance.now() : S.ms;
+const loadSig = o=>JSON.stringify([o.kind, Object.assign({}, o.sel, { mode:undefined }), o.path || [], (o.snap || {}).fresh]);
+// части полосы на сейчас: sum — пришла «Сумма» (у Движения — весь ответ), base — пришла база разницы, long — ждём дольше 10 с, next — через сколько мс
+// придёт следующая часть. Прежний вопрос, пришедший целиком, помнится (prev): «Отменить» возвращает к нему
+function loadOf(o){
+  if(!STAND.slow || !o) return { sum:true, base:true, long:false, next:null };
+  const sig = loadSig(o);
+  if(!o.load || o.load.sig!==sig){ if(o.load && o.load.done) o.prev = { kind:o.load.kind, sel:o.load.sel, path:o.load.path };
+    o.load = { sig, t0:nowMs(), kind:o.kind, sel:JSON.parse(JSON.stringify(o.sel || {})), path:(o.path || []).slice() }; }
+  const e = nowMs() - o.load.t0, two = ['slice', 'map', 'table'].includes(o.kind), dS = o.kind==='move' ? LOAD_MS.move : LOAD_MS.sum;
+  const sum = e >= dS, base = two ? sum && e >= LOAD_MS.base : sum, long = !sum && e >= LOAD_MS.long;
+  if(sum && base){ o.load.done = true; return { sum, base, long:false, next:null }; }
+  const next = [dS, two ? LOAD_MS.base : null, sum ? null : LOAD_MS.long].filter(x=>x!==null && x > e).sort((a, b)=>a - b)[0];
+  return { sum, base, long, next: next===undefined ? null : next - e }; }
+// пока база не пришла, вид — «Суммой», разница — «…»: копия ответа без базы (числа базы не показываем, пока их нет)
+function pendCopy(r){ const c = JSON.parse(JSON.stringify(r)), nb = o=>{ if(o){ ['base', 'delta', 'pct'].forEach(f=>{ if(f in o) o[f] = null; }); o.moves = undefined; } };
+  (c.nodes || []).forEach(nb); (c.lines || []).forEach(nb); nb(c.total && !Array.isArray(c.total) ? c.total : null);
+  if(c.heat){ const h = c.heat; ['bases', 'deltas', 'pcts'].forEach(f=>{ if(h[f]) h[f] = h[f].map(row=>row.map(()=>null)); }); h.rowTot.forEach(nb); h.colTot.forEach(nb); }
+  if(c.table){ const nil = a=>a ? a.map(()=>null) : a; c.table.rows.forEach(w=>{ w.bases = nil(w.bases); w.deltas = nil(w.deltas); w.pcts = nil(w.pcts); w.moves = undefined; });
+    const T = c.table.total; if(T){ T.bases = nil(T.bases); T.deltas = nil(T.deltas); T.pcts = nil(T.pcts); } }
+  c.pendBase = true; c.mode = 'sum'; return c; }
+// скелет вида — та же разметка ответа (строки и клетки — по списку значений разреза из реестра), но без чисел и слов: текст — серые плашки той же
+// длины, полосы и цвета ячеек — серые, подсказок и кликов нет. Высота полосы та же, что у ответа, — ничего не прыгает
+const SKEL_ROWS = '<div class="rz c4">'+'<div class="rz-r"><span class="rz-nm"><span class="sk-t">        </span></span><span class="rz-v"><span class="sk-t">     </span></span><span class="rz-c"></span><span class="rz-t"><span class="rz-f" style="width:50%"></span></span></div>'.repeat(5)+'</div>';
+function skelHTML(html){
+  return html.replace(/\s(?:data-tip0?|data-cut|onclick|onscroll|aria-label|aria-disabled)="[^"]*"/g, '').replace(/<button\b/g, '<span').replace(/<\/button>/g, '</span>')
+    .replace(/\bhm-(?:s|r|g|n)\d\b|\bhm-z\b/g, 'hm-e').replace(/class="rz-f[^"]*" style="[^"]*"/g, 'class="rz-f" style="width:50%"')
+    .replace(/(class="sr-b[^"]*") style="[^"]*"/g, '$1 style="height:60px"').replace(/(class="sr-v[^"]*") style="[^"]*"/g, '$1 style="bottom:64px"')
+    .replace(/>([^<]+)</g, (m, x)=>/\S/.test(x) ? '><span class="sk-t">'+x.replace(/\S/g, ' ')+'</span><' : m); }
+function skelBody(html, st){ return `<div class="sk-w"><div class="sk" aria-hidden="true">${html}</div><div class="sk-st${/Отменить/.test(st) ? ' long' : ''}" role="status">${st}</div></div>`; }
+// закреплённая раскрытой на своём экране — на проекторе — обновляется сама, пока в ней не провалились вглубь (путь пуст); плитка над ней — тоже
+function pinFresh(sc){ if(sc && sc.pinned) Object.keys(sc.pinned).forEach(k=>{ const o = S.open[k]; if(o && !(o.path || []).length) o.snap = snapNow(); }); }
+let qPos = 0, loadWake = null, loadTimer = null;   // место в очереди при перегрузе — по порядку на экране; когда разбудить полосу, ждущую часть
 // полоса: одна строка над графиком — путь крошками (он же заголовок), число узла, сдвиг, метки, разрез ··· паспорт, пять видов, «☰ N», «Работать со списком», «⋯», «✕»;
-// под ней тело — «Сумма | Изменение», настройки вида и сам вид, прокручивается внутри; place — где полоса стоит в сетке (стрелка к плитке)
+// под ней тело — «Сумма | Изменение», настройки вида и сам вид, прокручивается внутри; place — где полоса стоит в сетке (стрелка к плитке).
+// Закреплённая раскрытой на своём экране обновляется сама, пока в ней не провалились вглубь; открытая — держит снимок
 function stripHTML(k, u, roleId, sc, place){
   const o = S.open[k], t = tileById(k); if(!o || !t || S.arrange || t.state==='withdrawn') return '';
+  pinFresh(sc);
+  const newer = o.snap && o.snap.fresh < STAND.fresh ? nowTime() : null;
+  return atSnap(o.snap, ()=>stripIn(k, o, t, u, roleId, place, newer));
+}
+function stripIn(k, o, t, u, roleId, place, newer){
   const id = esc(k), path = o.path || [], panel = S.panel, kind = o.kind;
-  const s = Object.assign({ cols:[] }, viewSel(t, kind, o.sel, u, path, panel)), r = cachedView(t, kind, o.sel, path, u, roleId, panel);
-  const ok = r.state==='ok' || r.state==='zero', free = dimsFor(t, path, panel);
-  const body = ok ? formatBody(t, r, viewQ(t, r), stripOps(k, r)) : `<div class="state-msg">${esc(r.msg || 'нет ответа')}</div>`;
-  const b = cachedBase(t, u, roleId, panel, path), live = LIVE.includes(b.state), q = live && mainQ(t, path);
+  const s = Object.assign({ cols:[] }, viewSel(t, kind, o.sel, u, path, panel)), r0 = cachedView(t, kind, o.sel, path, u, roleId, panel);
+  const L = loadOf(o), queued = r0.state==='queued', wait = queued || !L.sum;
+  if(L.next!==null) loadWake = loadWake===null ? L.next : Math.min(loadWake, L.next);
+  // ответ, который рисуем: целиком; без базы (пришла только «Сумма») — «Суммой» с «…» на месте разницы. Выбрано «Изменение» — до базы скелет
+  // формы «Изменения»: её строки идут по разнице и несут «пришли из / ушли в» — без базы их нет, а скелет держит высоту
+  const pend = !wait && !L.base && !!r0.baseLabel, chgWait = pend && r0.mode==='change', r = pend && !chgWait ? pendCopy(r0) : r0;
+  const ok = !wait && (r.state==='ok' || r.state==='zero'), free = dimsFor(t, path, panel);
+  let body;
+  if(wait || chgWait){   // скелет формы вида: та же разметка без чисел; поверх — «в очереди · N-я» или «считается…», дольше 10 с — «Отменить»
+    const v = queued ? viewOf(t, kind, o.sel, path, u, roleId, panel) : r0;
+    const shape = v && (v.state==='ok' || v.state==='zero') ? skelHTML(formatBody(t, v, viewQ(t, v), null)) : SKEL_ROWS;
+    body = skelBody(shape, queued ? `в очереди · ${++qPos}-я` : L.long ? `считается дольше обычного <span class="sep">·</span> <button class="linky" onclick="DB.loadCancel('${id}')">Отменить</button>` : 'считается…'); }
+  else body = ok ? formatBody(t, r, viewQ(t, r), stripOps(k, r)) : `<div class="state-msg">${esc(r.msg || 'нет ответа')}</div>`;
+  const b = cachedBase(t, u, roleId, panel, path), live = !queued && LIVE.includes(b.state), q = live && mainQ(t, path);
   // путь: название плитки › узлы; середина сворачивается в «…», когда строка не вмещает (fitStrips)
   const steps = [t.title].concat(path.map(x=>dimLabel(x.dim, x.v))), last = path.length, sep = '<span class="sep">›</span>';
   const crumb = (n, i)=>i===last ? `<b>${esc(n)}</b>` : `<button class="linky" ${i ? `data-tip="${esc(DIMS[path[i - 1].dim].name)}"` : ''} onclick="DB.crumb('${id}',${i})">${esc(n)}</button>`;
   const mids = steps.slice(1, -1);
   const crumbs = mids.length ? crumb(steps[0], 0)+sep+`<span class="sl-mids" data-fit="mid">${mids.map((n, i)=>crumb(n, i + 1)+sep).join('')}</span><span class="sl-dots cut" data-tip="${esc('Свёрнуто: '+mids.join(' › '))}">…${sep}</span>`+crumb(steps[last], last)
     : steps.map((n, i)=>crumb(n, i)).join(sep);
-  const pass = stripPass(r, path), passRow = ok && r.passport ? r.passport.replace(' · разрез на время просмотра', '') : '';
+  const pass = ok ? stripPass(r, path) : '', passRow = ok && r.passport ? r.passport.replace(' · разрез на время просмотра', '') : '';
   const shift = live && b.state!=='dash' ? shiftHTML(q, b, true) : '';
-  const marks = (live ? marksHTML(b) : '')+(r.temp ? `<span class="pill info"${tipAttr('Разрез не из отчёта — на время просмотра. Чтобы вид остался, сохраните его отчётом')}>на время просмотра</span>` : '');
+  const marks = (live ? marksHTML(b) : '')+(!wait && r.temp ? `<span class="pill info"${tipAttr('Разрез не из отчёта — на время просмотра. Чтобы вид остался, сохраните его отчётом')}>на время просмотра</span>` : '');
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('');
+  const fresh = newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '';
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free)}
-    <span class="sl-sp"></span>${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
+    <span class="sl-sp"></span>${fresh}${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
     ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
-  const tools = stripMode(k, r)+stripCtl(k, t, kind, s, r);
+  const tools = (queued ? '' : stripMode(k, r0, pend || (wait && !!r0.baseLabel)))+stripCtl(k, t, kind, s, queued ? {} : r0);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
-  return `<div class="strip" data-strip="${id}">${arrow}${line}<div class="strip-b">${tools ? `<div class="strip-tools">${tools}</div>` : ''}${body}</div></div>`; }
+  return `<div class="strip" data-strip="${id}"${wait || pend ? ' aria-busy="true"' : ''}>${arrow}${line}<div class="strip-b">${tools ? `<div class="strip-tools">${tools}</div>` : ''}${body}</div></div>`; }
 // «⋯» полосы: «Работать со списком» (когда ушла из строки), выгрузка, сохранение отчётом, закрепление (только на своём экране) и паспорт целиком
 function openStripMenu(ev, tileId){
   const o = S.open[tileId], t = tileById(tileId); if(!HAS_DOM || !o || !t) return null;
@@ -4073,9 +4290,11 @@ function fitStrips(){
     l.querySelectorAll('.cut').forEach(e=>e.classList.remove('cut'));
     const mids = l.querySelector('.sl-mids'), dots = l.querySelector('.sl-dots'), over = ()=>l.scrollWidth > l.clientWidth + 1;
     if(dots) dots.classList.add('cut');
+    l.classList.remove('wrap');
     if(!phone){
       for(const f of FIT_ORDER){ if(!over()) break; const e = l.querySelector('[data-fit="'+f+'"]'); if(e) e.classList.add('cut'); }
       if(over() && mids && dots){ mids.classList.add('cut'); dots.classList.remove('cut'); }
+      if(over()) l.classList.add('wrap');   // узкое окно (800 px): и так не влезло — строка переносится, «⋯», «✕» и плашка снимка не уходят за край
     }
     const num = l.querySelector('.sl-num'), sh = l.querySelector('[data-fit="shift"]'); if(!num) return;
     const tip = [num.dataset.tip0, sh && sh.classList.contains('cut') ? sh.dataset.cut : ''].filter(Boolean).join('\n');
@@ -4110,7 +4329,7 @@ function headlineText(q, res, t){
 function shiftNone(res){ const s = res.shift, p = s.plan;
   if(p && !(p.num===res.num && p.den===res.den)){ const [a, b] = pairParts(fmtVal(p.num, IND[PLAN_INDS[0]].unit), fmtVal(p.den, IND[PLAN_INDS[1]].unit));
     return { cls:'plan', text:a+' из '+b+' '+p.label, tip:'Без сдвига: '+s.none }; }
-  return s.none===PARTIAL || s.none===OPEN_MONTH ? { cls:'none', text:'без сдвига', tip:'Без сдвига: '+s.none } : null; }
+  return s.none===PARTIAL || s.none===OPEN_MONTH || s.down ? { cls:'none', text:'без сдвига', tip:'Без сдвига: '+s.none } : null; }
 function shiftParts(q, res){ const s = res.shift;
   const I = IND[q.inds[0]], d = s.delta, dir = d>0 && !(res.unit==='pct' && d<.05) ? 'up' : d<0 && !(res.unit==='pct' && d>-.05) ? 'down' : 'flat';   // доля, не дотянувшая до 0,1 п.п., — без стрелки
   const good = I.dir==='up_good' ? (dir==='up'?'good':'bad') : I.dir==='up_bad' ? (dir==='up'?'bad':'good') : null;
@@ -4147,7 +4366,8 @@ function rzBody(res, q, ops, go){
     return n.label+names+': '+top+fmtVal(n.value, unit)+(n.den ? ' ('+fmtVal(n.num, IND[q.share[0]].unit)+' из '+fmtVal(n.den, IND[q.share[1]].unit)+')' : ''); };
   const dtip = n=>{ const p = rzPct(n.pct); return 'Изменение '+(p ? p+' ' : '')+lab+(n.base!==null && n.base!==undefined ? ' · было '+fmtVal(n.base, unit) : ''); };
   const vCell = n=>`<span class="rz-v">${fmtVal(n.value, unit)}</span>`;
-  const dCell = (n, quiet)=>{ const x = rzDelta(q, res, n.delta); return `<span class="rz-d ${quiet ? 'flat' : x.tone}"${x.dir==='none' ? '' : tipAttr(dtip(n))}>${x.text}</span>`; };
+  const dCell = (n, quiet)=>{ if(res.pendBase) return '<span class="rz-d pend">…</span>';   // база ещё считается
+    const x = rzDelta(q, res, n.delta); return `<span class="rz-d ${quiet ? 'flat' : x.tone}"${x.dir==='none' ? '' : tipAttr(dtip(n))}>${x.text}</span>`; };
   const cCell = (n, kind)=>`<span class="rz-c">${kind==='tot' ? (ops ? ops.all(n.cnt) : '') : kind==='more' ? (n.cnt===undefined ? '' : `<span class="st"${tipAttr('Объекты в строках «'+n.label+'»')}>☰ ${nbsp(n.cnt)}</span>`) : (ops ? ops.ls(dim, n.v, null, null, n.cnt) : '')}</span>`;
   const bar = (n, kind)=>{
     if(kind==='tot') return '<span class="rz-t"></span>';
@@ -4158,7 +4378,10 @@ function rzBody(res, q, ops, go){
   // с переходами; «☰» — список объектов перехода. В «Сумме» те же части — в подсказке строки
   const mvLine = n=>{ const ps = chg ? mvParts(n.moves) : []; if(!ps.length) return '';
     return `<div class="rz-mv">${ps.map(p=>`<span class="rz-mvp">${esc(p.name)} ${ops && ops.mv ? ops.mv(dim, n.v, p.dir, p.v, p.cnt, p.name, p.fd) : `<span class="st">☰ ${nbsp(p.cnt)}</span>`} <span class="rz-mvs">${mvSum(p.sum, unit)}</span></span>`).join('<span class="rz-mvd">·</span>')}</div>`; };
-  const row = (n, kind)=>{ const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : ''), sub = kind ? '' : mvLine(n);
+  // узел, на который статистика не ответила: «—» на месте числа и разницы, причина — подсказкой строки; не кликается
+  const dnRow = n=>`<div class="rz-r dn"${tipAttr(n.down)}><span class="rz-nm">${esc(n.label)}${DN_TAG}</span>${chg ? '<span class="rz-d dn">—</span><span class="rz-v dn">—</span>' : '<span class="rz-v dn">—</span>'+(diff ? '<span class="rz-d dn">—</span>' : '')}<span class="rz-c"></span><span class="rz-t"></span></div>`;
+  const row = (n, kind)=>{ if(n.down && !kind) return dnRow(n);
+    const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : ''), sub = kind ? '' : mvLine(n);
     const rt = kind ? '' : [tip(n), ...(chg ? [] : mvTipLines(n.moves, unit))].join('\n');
     return `<div class="rz-r${kind ? ' rz-'+kind : ''}${sub ? ' has-mv' : ''}"${kind ? '' : ` data-tip="${esc(rt)}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}${sub}</div>`; };
   const head = diff ? `<div class="rz-hd"><span></span>${chg ? `<span>${esc(lab)}</span><span>${esc(asOf)}</span>` : `<span>${esc(asOf)}</span><span>${esc(lab)}</span>`}<span></span><span></span></div>` : '';
@@ -4237,16 +4460,20 @@ function tbBody(res, q, ops, go, t){
     return tipAttr('Изменение '+(chg ? '' : x.text+' ')+(p ? p+' ' : '')+lab+(b!==null && b!==undefined ? ' · было '+fmtVal(b, cols[i].unit) : '')+(more || '')); };
   // у ключевой колонки разреза с историей — «пришли из … / ушли в …» строки в подсказке
   const mvt = (a, i)=>{ const ls = i ? [] : mvTipLines(a.moves, cols[0].unit); return ls.length ? '\n'+ls.join('\n') : ''; };
-  const cell = (a, i)=>{ const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x ? dtip(a, i, x, mvt(a, i)) : '';
+  // часть без ответа: колонка (downCol) или строка (r.down) — «—» с причиной в подсказке
+  const dnCol = (tb.downCol || {}), dnTd = (i, why)=>`<td class="dn${i ? '' : ' key'}"${tipAttr(why)}>—</td>`;
+  const cell = (a, i)=>{ if(dnCol[i]) return dnTd(i, dnCol[i]); const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x && !res.pendBase ? dtip(a, i, x, mvt(a, i)) : '';
     return chg ? `<td class="d ${x.tone}${k}"${tip}>${x.text}</td>` : `<td${k ? ' class="key"' : ''}${tip}>${val(a, i)}</td>`; };
-  const total = i=>{ const x = diff ? dl(tot, i) : null, k = i ? '' : ' key', tip = x ? dtip(tot, i, x) : '';
+  const total = i=>{ if(dnCol[i]) return dnTd(i, dnCol[i]); const x = diff ? dl(tot, i) : null, k = i ? '' : ' key', tip = x ? dtip(tot, i, x) : '';
     if(!x) return `<td${k ? ' class="key"' : ''}>${val(tot, i)}</td>`;
+    if(res.pendBase) return `<td${k ? ' class="key"' : ''}><span>${val(tot, i)}</span><span class="s2 pend">…</span></td>`;
     return chg ? `<td${k ? ' class="key"' : ''}><span class="${x.tone}"${tip}>${x.text}</span><span class="s2">${val(tot, i)}</span></td>`
       : `<td${k ? ' class="key"' : ''}><span>${val(tot, i)}</span><span class="s2 ${x.tone}"${tip}>${x.text}</span></td>`; };
   const mark = ord ? '' : `<span class="tb-ord"${tipAttr(chg ? 'Порядок строк — по разнице этой колонки, от роста к падению' : 'Порядок строк — по этой колонке, от большего к меньшему')}>↓</span>`;
   const cap = diff ? `<div class="tb-cap">${chg ? `<b>${esc('изменение '+lab)}</b>; в итоге под разницей — значение` : `${asOf ? `<b>${esc(asOf)}</b>; ` : ''}в итоге под значением — разница ${esc(lab)}`}</div>` : '';
-  const head = `<tr><th>${esc(DIMS[tb.d].name)}</th>${cols.map((c, i)=>`<th${i ? '' : ' class="key"'}>${esc(c.name)}${i ? '' : mark}</th>`).join('')}<th></th></tr>`;
-  const rows = tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();${go(tb.d, r.v)}"><td${tipAttr(r.label)}>${esc(r.label)}</td>${cols.map((c, i)=>cell(r, i)).join('')}<td class="tb-l">${ops ? ops.ls(tb.d, r.v, null, null, r.cnt) : ''}</td></tr>`).join('');
+  const head = `<tr><th>${esc(DIMS[tb.d].name)}</th>${cols.map((c, i)=>`<th class="${[i ? '' : 'key', dnCol[i] ? 'dn' : ''].filter(Boolean).join(' ')}"${tipAttr(dnCol[i])}>${esc(c.name)}${i ? '' : mark}${dnCol[i] ? DN_TAG : ''}</th>`).join('').replace(/ class=""/g, '')}<th></th></tr>`;
+  const rows = tb.rows.map(r=>r.down ? `<tr${tipAttr(r.down)}><td>${esc(r.label)}${DN_TAG}</td>${cols.map((c, i)=>dnTd(i, r.down)).join('')}<td class="tb-l"></td></tr>`
+    : `<tr class="rowlink" onclick="event.stopPropagation();${go(tb.d, r.v)}"><td${tipAttr(r.label)}>${esc(r.label)}</td>${cols.map((c, i)=>cell(r, i)).join('')}<td class="tb-l">${ops ? ops.ls(tb.d, r.v, null, null, r.cnt) : ''}</td></tr>`).join('');
   const foot = `<tr class="tot"><td>итог</td>${cols.map((c, i)=>total(i)).join('')}<td class="tb-l">${ops ? ops.all(tot.cnt) : ''}</td></tr>`;
   return cap+scrollBox(`<table class="tb" style="--tb-k:${cols.length}"><colgroup><col class="tb-cn">${cols.map(()=>'<col class="tb-cv">').join('')}<col class="tb-cl"></colgroup>${head}${rows}${foot}</table>`, 'таблица');
 }
@@ -4314,14 +4541,17 @@ function seriesHTML(t, res, ops){
       if(x){ const hh = x.dir==='flat' ? 0 : Math.max(2, Math.round(Math.abs(d) * kd)), neg = d<0;
         sl += (hh ? `<span class="sr-b ${x.cls}${neg ? ' dn' : ''}${lt ? ' lt' : ''}" style="bottom:${neg ? zero - hh : zero}px;height:${hh}px"></span>` : '')
           +`<span class="sr-v ${x.cls}" style="bottom:${neg ? zero - hh - 18 : zero + hh + 3}px">${dtxt}</span>`; }
-      else if(none) sl += `<span class="sr-nb" style="bottom:${zero + 4}px"${tipAttr('Без сдвига: '+p.none)}>без сдвига</span>`; }
-    const under = chg ? `<span class="sr-d sum">${serNum(sc, v)}</span>`
+      else if(none) sl += `<span class="sr-nb" style="bottom:${zero + 4}px"${tipAttr('Без сдвига: '+p.none)}>без сдвига</span>`;
+      else if(p.down || p.downD) sl += `<span class="sr-nb" style="bottom:${zero + 4}px"${tipAttr(p.down || 'Нет разницы: '+p.downD)}>—</span>`; }
+    // нет ответа на эту дату: точка «—», разница у неё и у следующей — «—», причина — подсказкой
+    const under = p.down && chg ? `<span class="sr-d none"${tipAttr(p.down)}>—</span>` : chg ? `<span class="sr-d sum">${serNum(sc, v)}</span>`
+      : p.down || p.downD ? `<span class="sr-d none"${tipAttr(p.down || 'Нет разницы: '+p.downD)}>—</span>`
       : none ? `<span class="sr-d ${none.cls}"${tipAttr('Без сдвига: '+p.none)}>${esc(none.text)}</span>`
       : x ? `<span class="sr-d ${x.cls}">${dtxt}</span>` : `<span class="sr-d">&nbsp;</span>`;
-    const tip = [mon+' '+my.y+' · '+fmtVal(v, unit), p.closed ? 'месяц закрыт' : p.open && p.openLabel ? 'не закрыт · '+(s.flow ? 'за ' : '')+p.openLabel : 'месяц не закрыт',
-      x ? x.tip : none ? 'Без сдвига: '+p.none+(p.plan ? ' · '+none.text : '') : '', 'Клик — кто в этом числе'].filter(Boolean).join('\n');
+    const tip = [mon+' '+my.y+' · '+(p.down ? p.down : fmtVal(v, unit)), p.closed ? 'месяц закрыт' : p.open && p.openLabel ? 'не закрыт · '+(s.flow ? 'за ' : '')+p.openLabel : 'месяц не закрыт',
+      x ? x.tip : none ? 'Без сдвига: '+p.none+(p.plan ? ' · '+none.text : '') : '', p.down ? '' : 'Клик — кто в этом числе'].filter(Boolean).join('\n');
     const ls = p.cnt===undefined || p.cnt===null ? '' : `<span class="sr-q"><button class="ls${p.cnt ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(p.cnt)} стр. · ${mon} ${my.y}" onclick="event.stopPropagation();${month(p.m)}">☰ ${nbsp(p.cnt)}</button></span>`;
-    return `<div class="sr-c${p.open ? ' cur' : ''}" data-m="${p.m}"${tipAttr(tip)}><div class="sr-sl"><button type="button" class="sr-hit" aria-label="${esc('Кто в этом числе: '+mon+' '+my.y)}" onclick="event.stopPropagation();${month(p.m)}"></button>${sl}</div><div class="sr-m">${lab}${under}${ls}</div></div>`; }).join('');
+    return `<div class="sr-c${p.open ? ' cur' : ''}" data-m="${p.m}"${tipAttr(tip)}><div class="sr-sl">${p.down ? '' : `<button type="button" class="sr-hit" aria-label="${esc('Кто в этом числе: '+mon+' '+my.y)}" onclick="event.stopPropagation();${month(p.m)}"></button>`}${sl}</div><div class="sr-m">${lab}${under}${ls}</div></div>`; }).join('');
   const mean = s.flow ? 'за месяц' : unit==='sum' ? 'остаток на конец месяца' : 'на конец месяца';
   const lead = chg ? (unit==='pct' ? 'п.п.' : sc.name)+' · изменение к прошлому месяцу' : sc.name+' · '+mean;
   const tail = (chg ? '; под месяцем — '+(unit==='pct' ? '%, ' : '')+mean : unit==='pct' ? '; разница под месяцем — в п.п.' : '');
@@ -4355,9 +4585,11 @@ function hmBody(res, q, ops, go){
   // итог: главное число и мелко второе — в «Сумме» разница, в «Изменении» сумма
   const totTd = (n, cls, name, extra)=>{ const x = dx(n.delta), sum = has(n.value) ? serNum(sc, n.value) : '—';
     const main = chg ? `<span class="${x ? x.tone : 'flat'}">${dTxt(x, n.delta)}</span>` : sum;
-    const sub = chg ? `<span class="s2">${sum}</span>` : diff && x ? `<span class="s2 ${x.tone}">${dTxt(x, n.delta)}</span>` : '';
-    return `<td class="${cls}"${tip(name, n)}>${main}${sub}${extra}</td>`; };
+    const sub = chg ? `<span class="s2">${sum}</span>` : res.pendBase ? '<span class="s2 pend">…</span>' : diff && x ? `<span class="s2 ${x.tone}">${dTxt(x, n.delta)}</span>` : '';
+    return `<td class="${cls}"${res.pendBase ? '' : tip(name, n)}>${main}${sub}${extra}</td>`; };
+  const dn = h.down || {};   // строка без ответа: «—» в клетках и в итоге строки, причина — подсказкой; не кликается
   const rows = h.rows.map((r, i)=>{ const rn = String(dimLabel(h.d1, r));
+    if(dn[i]) return `<tr><td class="rl"${tipAttr(dn[i])}>${esc(rn)}${DN_TAG}</td>${h.cols.map(()=>`<td class="dn"${tipAttr(dn[i])}>—</td>`).join('')}<td class="t dn"${tipAttr(dn[i])}>—</td></tr>`;
     const tds = h.cols.map((c, j)=>{ const n = cell(i, j), cn = dimLabel(h.d2, c), x = chg ? dx(n.delta) : null,
       empty = !n.value && !n.cnt && (!chg || !n.base), cls = empty ? 'hm-e' : chg ? dCls(x, n.delta) : sCls(n.value), txt = empty ? '—' : chg ? dTxt(x, n.delta) : serNum(sc, n.value);
       return `<td class="c ${cls}"${empty ? tipAttr(rn+' × '+cn+': нет объектов') : tip(rn+' × '+cn, n)} onclick="event.stopPropagation();${go(h.d1, r, h.d2, c)}">${txt}${ops && n.cnt ? corner(ops.ls(h.d1, r, h.d2, c, n.cnt)) : ''}</td>`; }).join('');
@@ -4426,6 +4658,7 @@ function filterFields(u, roleId, panel){ const P = normPanel(panel), sp = panelS
 // окно фильтра на странице: три поля, в поле — несколько значений; «Применить» ставит фильтр вкладке
 function openFilter(){
   if(!HAS_DOM) return;
+  if(filterOff(user(), curRole())) return toast(NO_FILTER);
   const t = peekTab(), FF = filterFields(user(), t.kind==='role' ? t.id : null, S.panelRaw), F = {}; FF.forEach(x=>{ F[x.k] = x; });
   const field = k=>`<fieldset class="fw-f"><legend>${PANEL[k]}</legend><div class="fw-l">${F[k].opts.map(([v, n])=>`<label class="opt"><input type="checkbox" name="fw-${k}" value="${esc(v)}"${F[k].checked.includes(v) ? ' checked' : ''}>${esc(n)}</label>`).join('')
     || '<span class="fw-o">В вашем охвате значений нет</span>'}${F[k].out.length ? `<span class="fw-o">${esc(F[k].out.map(v=>'«'+panelName(k, v)+'»').join(', '))} — вне вашего охвата, плитки не сужает</span>` : ''}</div></fieldset>`;
@@ -4587,7 +4820,7 @@ function openQueue(tileId){ const t = tileById(tileId); const q = questionOf(t);
   drawer('Очередь «'+esc(qu.name)+'» — модуль «'+esc(qu.module)+'»', `<div class="banner info">Ссылочная плитка ведёт в очередь модуля, где работа делается. Дашборд ничего не поручает и списка дел не держит.</div>
     <div class="kv"><div class="k">В очереди</div><div>${fmtVal(res.value, IND[q.inds[0]].unit)}</div><div class="k">Модуль</div><div>${esc(qu.module)}</div></div>
     ${(res.rows||[]).filter(r=>valueOf(r, IND[q.inds[0]], ctxOf(q))!==null).slice(0,50).map(r=>`<div class="small">• ${esc(r.id)} ${esc(rowLabel(IND[q.inds[0]].obj, r))}</div>`).join('')}`); }
-function openExport(tileId, kind, fromStrip){ const r = exportTile(tileId, kind, curRole(), fromStrip ? S.open[tileId] || null : null);   // из полосы — её вид и путь, с плитки — основа
+function openExport(tileId, kind, fromStrip){ const r = fromStrip ? inSnap(tileId, ()=>exportTile(tileId, kind, curRole(), S.open[tileId] || null)) : exportTile(tileId, kind, curRole(), null);   // выгрузка полосы — из её снимка   // из полосы — её вид и путь, с плитки — основа
   if(r.refused){ toast('Не выгружается: '+r.msg.replace(/\.$/, '')); return r; }
   drawer('Выгрузка '+(kind==='pdf'?'PDF':'Excel')+' — со штампом', `<div class="stamp">${r.stamp.map(s=>/^НЕ ЯВЛЯЕТСЯ/.test(s)?'<b>'+esc(s)+'</b>':esc(s)).join('<br>')}</div>
     <p class="muted small">Штамп печатается всегда. Выгрузка записана в журнал выгрузок отчётности и в журнал дашборда.</p>
@@ -4775,7 +5008,7 @@ function renderRC(){
   const html = `<p class="muted small" style="margin-top:0">Конструктор принадлежит модулю «Отчётность»: дашборд открывает его поверх себя. Собранный отчёт встаёт на вашу личную полку, на нём сразу ставится плитка.</p>
     ${sim ? `<div class="banner info">Похожий уже есть: «${esc(sim.r.title)}» (${esc(SHELF_NAMES[sim.r.shelf]||sim.r.shelf)}, владелец: ${esc(userName(sim.r.owner))}) — <button class="linky" onclick="DB.close();DB.rTake('${sim.r.id}')">взять его</button></div>` : ''}
     <div class="cols2"><div>
-    <div class="form-step"><h4>1 · Объект</h4><select style="max-width:100%" onchange="DB.rSet('obj', this.value)">${objs.map(o=>`<option value="${o}" ${o===obj?'selected':''}>${esc(OBJECTS[o].name)}${OBJECTS[o].wave>STAND.wave?' — ещё не объявлен':!objReady(o)?' — строк ещё нет':''}</option>`).join('')}</select>
+    <div class="form-step"><h4>1 · Объект</h4><select style="max-width:100%" onchange="DB.rSet('obj', this.value)">${objs.map(o=>`<option value="${o}" ${o===obj?'selected':''}>${esc(OBJECTS[o].name)}${STAND.down[OBJECTS[o].owner]?' — ещё не объявлен':!objReady(o)?' — строк ещё нет':''}</option>`).join('')}</select>
       <div class="why" style="margin-left:0">Своих показателей и разрезов нет — только записи реестра статистики.</div></div>
     <div class="form-step"><h4>2 · Показатели (до 4, одного рода)</h4>${inds.map(x=>`<div><label class="opt ${STAND.withdrawn[x.id]?'off':''}"><input type="checkbox" ${rd.inds.includes(x.id)?'checked':''} ${STAND.withdrawn[x.id]?'disabled':''} onchange="DB.rInd('${x.id}', this.checked)"> ${esc(x.name)} <span class="muted small">${x.kind==='stock'?'остаток':'за период'}</span></label></div>`).join('')}
       ${rd.inds.length===2 ? `<label class="opt"><input type="checkbox" ${rd.share?'checked':''} onchange="DB.rSet('share', this.checked)"> второе число плитки — доля: первый показатель из второго</label>` : ''}
@@ -4882,6 +5115,10 @@ function registryHTML(){
 }
 // раскладка роли: правка — черновиком на странице, «Сохранить» применяет сразу; перед сохранением — «затронет N держателей роли»
 function renderLayouts(){ $('v-layouts').innerHTML = layoutsHTML(); }
+// запуск роли словами: сколько плиток отвечает (ссылочные не в счёте), чья раскладка у держателей сейчас, прогноз волны
+function launchText(rid){ const L = roleLaunch(rid), w = WAVE_FORECAST[rid];
+  return 'отвечают '+L.n+' из '+L.of+' плиток (ссылочные не в счёте) · у держателей — '+(L.ok ? 'своя раскладка' : L.why==='reports' ? 'минимальная: отчётность не готова' : 'минимальная: отвечает меньше половины')
+    +(w ? ' · прогноз — волна '+w : ''); }
 function layoutsHTML(){
   const rid = S.layoutRole || 'lead', base = S.declared[rid] || [], D = S.layoutDraft && S.layoutDraft.role===rid ? S.layoutDraft.items : null, L = D || base;
   const ch = D ? layoutDiff(base, D) : null, dirty = !!ch && (ch.add.length || ch.rem.length || ch.moved), hs = roleHolders(rid);
@@ -4889,7 +5126,7 @@ function layoutsHTML(){
   const nm = k=>k.startsWith('s:') ? 'секция «'+k.slice(2)+'»' : '«'+(tileById(k) || { title:k }).title+'»';
   return `<p>Объявленная раскладка — одна на роль на всю систему. Правка действует сразу после «Сохранить»: новая плитка встаёт в конец личных раскладок, убранная исчезает; у держателей — разовая плашка «Раскладка роли обновлена» и метка «новая» на новых плитках.</p>
     <p>Роль: <select onchange="DB.layoutRole(this.value)">${Object.keys(S.declared).map(r=>`<option value="${r}" ${r===rid?'selected':''}>${esc(roleName(r))}</option>`).join('')}</select>
-    <span class="muted small">держателей роли: ${hs.length} · ядро раскладки готово с волны ${ROLE_CORE_WAVE[rid]} · сейчас волна ${STAND.wave}</span></p>
+    <span class="muted small">держателей роли: ${hs.length} · ${launchText(rid)}</span></p>
     ${dirty ? `<div class="ld-bar" role="status"><b>Не сохранено: ${esc(newsText(ch))}</b><span>Затронет ${who}${ch.rem.length ? ' · уберётся '+esc(ch.rem.map(nm).join(', ')) : ''}</span>
       <span class="ld-r"><button class="btn" onclick="DB.ldCancel()">Отменить</button><button class="btn primary" onclick="DB.ldSave()">Сохранить</button></span></div>` : ''}
     <table class="list"><tr><th>#</th><th>Элемент</th><th>Отвечает?</th><th></th></tr>${L.map((k,i)=>{ const t = tileById(k), fresh = D && !base.includes(k);
@@ -4910,16 +5147,29 @@ function adminStand(){ const was = JSON.parse(USERS_SEED).filter(([, rs])=>rs.in
   return `${was.map(id=>{ const u = USERS.find(x=>x.id===id), on = u && isAdmin(u);
       return `<div style="margin:4px 0">${esc(u ? u.name : id)} — ${on ? `держатель <button class="btn sm" onclick="DB.standRoleOff('${id}','adm')">Снять роль</button>` : `роль снята <button class="btn sm" onclick="DB.standRoleOn('${id}','adm')">Вернуть роль</button>`}</div>`; }).join('')}
     <div class="why">Держателей роли сейчас: ${hs.length}. Каждый — соавтор всех отчётов каталога, владелец — собравший; правят каталог, отчёты и раскладки ролей все держатели. Роль сняли — отчёты каталога во владении переходят к другому держателю; последнего держателя снять нельзя.</div>`; }
+// модули-владельцы объектов статистики (у эпизодов просрочки — свои ворота: ядро расчёта) и их объекты словами
+function standOwners(){ const m = new Map(); Object.values(OBJECTS).filter(O=>!O.gate).forEach(O=>{ if(!m.has(O.owner)) m.set(O.owner, []); m.get(O.owner).push(O.name.toLowerCase()); });
+  return [...m].map(([o, xs])=>[o, xs.join(', ')]); }
 function renderStand(){
   const chk = (k, label) => `<label class="opt"><input type="checkbox" ${STAND[k]?'checked':''} onchange="DB.stand('${k}', this.checked)"> ${label}</label><br>`;
   $('v-stand').innerHTML = `<div class="banner info">Стенд макета: здесь меняется то, что в системе зависит от соседей и сбоев. Пользователю этот экран не нужен.</div>
-    <div class="form-step"><h4>Готовность соседей (запуск волнами)</h4>${[1,2,3].map(w=>`<label class="opt"><input type="radio" name="wv" ${STAND.wave===w?'checked':''} onchange="DB.stand('wave', ${w})"> волна ${w}</label>`).join('')}
-      <div class="why">Волна 1 — кредит, платёж, поступление, залог, требование, дело взыскания, заявка на реструктуризацию. Волна 2 — заявка на кредит, комиссия, заключение, объект имущества. Волна 3 — обязательство, задание.</div>
+    <div class="form-step"><h4>Запуск: готовность соседей и плиток</h4>${chk('reportsReady','модуль отчётности и отчёты каталога готовы — предусловие всего дашборда')}
+      <div class="why">Плитка — ссылка на отчёт. Без отчётности у всех ролей минимальная раскладка с пояснением, в каталоге плитки ждут соседа.</div>
+      <div style="margin-top:8px">${standOwners().map(([o, objs])=>`<label class="opt"><input type="checkbox" ${STAND.down[o]?'':'checked'} onchange="DB.standDown('${esc(o)}', this.checked)"> модуль «${esc(o)}» объявил статистике: ${esc(objs)}</label><br>`).join('')}</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
-      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div></div>
+      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
+      <table class="list" style="margin-top:10px;max-width:760px"><tr><th>Роль</th><th>Отвечает плиток</th><th>Раскладка</th><th>Прогноз</th></tr>${ROLES.filter(R=>S.declared[R.id]).map(R=>{ const L = roleLaunch(R.id);
+        return `<tr><td>${esc(R.name)}</td><td class="n">${L.n} из ${L.of}</td><td>${L.ok ? '<span class="ok">своя</span>' : 'минимальная'}</td><td>${WAVE_FORECAST[R.id] ? 'волна '+WAVE_FORECAST[R.id] : '—'}</td></tr>`; }).join('')}</table>
+      <div class="why">Роль получает свою объявленную раскладку, когда отвечает не меньше половины её плиток (плитки «ждёт меня» — ссылки на очереди модулей — не в счёте); неотвечающие стоят черновиками, до того — минимальная. Волны — прогноз порядка, а не даты: волна 1 — Руководство, Куратор кредита, Бухгалтерия, Залог, Проблемные кредиты; волна 2 — Кредитный специалист, Комиссия, Отдел · заключения, Головной офис, Специалист по имуществу, у Руководства — плитки имущества; волна 3 — Отчётность и «Мои задания» у всех.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
-      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>
+      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label><br>
+      ${chk('partDown','статистика ответила на вид полосы не целиком: у Таблицы — колонка «'+IND[PART_COL].name+'» (где её нет — самая крупная строка), у Разреза — самый крупный узел, у Карты — самая крупная строка')}
+      ${chk('baseDown','нет ответа на дату базы (на 30.09 у остатка, за прошлый период у потока)')}
+      ${chk('overload','отчётность перегружена: вопросы ждут в очереди')}
+      ${chk('slow','медленная отчётность: «Сумма» полосы — через 1,5 с, база — через 3 с, Движение — через 12 с')}
+      <div style="margin:6px 0 2px"><button class="btn" onclick="DB.standFresh()">Пришли новые данные</button> <span class="muted small">данные — на ${esc(nowTime())}</span></div>
+      <div class="why">Часть без ответа — «—» на её месте с причиной в подсказке; итог по ней — «—», остальное как посчитано, вид не гаснет. Нет базы — «Изменение» и Движение погашены, у плитки «без сдвига», точка Ряда на эту дату — «—». Перегруз: свежий ответ (не старше минуты) показывается как обычно, вопросы, которые надо задать, ждут в очереди («Прошло 2 минуты» — и «сегодня» встаёт в очередь): последний ответ из кэша со своей датой и «⚠ устарело · на …, сейчас считается», нет его — скелет и «в очереди»; полоса — только скелет и «в очереди»; «Повторить» — только при ошибке доставки. Медленная отчётность: строка полосы сразу, тело — серый скелет формы вида, «Сумма» раньше базы, дольше 10 с — «считается дольше обычного · Отменить». Новые данные: открытая полоса и плитка над ней держат снимок — в строке полосы «есть данные на … · Обновить»; закреплённая раскрытой на своём экране обновляется сама, пока в ней не провалились вглубь.</div>
       <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается. Остаток и очереди на нём (у Бухгалтерии — «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». Поток «сегодня» («Поступило сегодня») отвечает отказом с причиной: за сегодня — после ночного прогона, за вчера — число серой подсказкой. «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
     <div class="form-step"><h4>Пользователи: администраторы дашборда</h4>${adminStand()}</div>
     <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
@@ -4931,10 +5181,12 @@ function renderStand(){
          ['archive','Отправить в архив отчёт «'+standTitle('r-claims')+'»'], ['delete','Удалить отчёт «'+standTitle('r-claims')+'»'], ['reset','Вернуть отчёты как были']]
         .map(([k, label])=>`<div style="margin:4px 0"><button class="btn" onclick="DB.standReport('${k}')">${esc(label)}</button></div>`).join('')}
       <div class="why">Сейчас: ${['r-portfolio','r-claims'].map(id=>{ const r = reportById(id); return r ? '«'+esc(r.title)+'» в. '+r.version+' · '+REPORT_STATE[r.state]+' · плиток '+tilesOfReport(id).length : '«'+esc(standTitle(id))+'» удалён'; }).join('; ')}. Отчёт с плитками не удаляется — только в архив.</div></div>
-    <div class="form-step"><h4>Начало дня</h4><button class="btn" onclick="DB.morning()">Наступило утро</button>
-      <div class="why">Раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся. Ночной снимок не запускается.</div></div>
+    <div class="form-step"><h4>Ночной прогон и начало дня</h4><button class="btn" onclick="DB.nightCheckRun()">Ночной прогон: снимок, сигналы, прогрев</button> <button class="btn" onclick="DB.morning()">Наступило утро</button>
+      <div class="why">${S.warm ? `Прогрето ${S.warm.n} ${plural(S.warm.n, 'ответ', 'ответа', 'ответов')} для ${S.warm.m} ${plural(S.warm.m, 'держателя', 'держателей', 'держателей')} (в ${esc(S.warm.at)}) — закрытые даты плиток объявленных раскладок ролей: база сдвига, вчера, прошлый месяц; в кэше до следующего прогона.` : 'Ночного прогрева ещё не было.'}
+        ${S.dawn ? `Утро: к отчётности ушло ${S.dawn.requests} ${plural(S.dawn.requests, 'запрос', 'запроса', 'запросов')}${S.dawn.warm ? ` — только «сегодня»; без прогрева было бы ${S.dawn.today + S.dawn.closed}` : ` — «сегодня» ${S.dawn.today} и закрытые даты ${S.dawn.closed}; с ночным прогревом было бы ${S.dawn.today}`}.` : ''}</div>
+      <div class="why">Прогрев — только объявленные раскладки ролей в охвате каждого держателя; личные плитки, свои экраны и полоса — по требованию, общий кэш тот же. Утром раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся.</div></div>
     <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')} ${chk('noAnswer','источник не ответил по нескольким кредитам на одну из дат')} ${chk('bigOther','комиссии без потоков: у части кредитов крупное начисление комиссий, Остаток получает большое «прочее»')}
-      <button class="btn" onclick="DB.nightCheckRun()">Ночной снимок и проверка сигналов</button> <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
+      <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
       <div class="why">Кэш: попаданий ${S.cacheHits}, расчётов ${S.cacheMiss}. Ключ — «вопрос + охват», охваты не смешиваются.</div></div>`;
 }
 
@@ -4957,7 +5209,7 @@ if(HAS_DOM){ document.addEventListener('mousemove', e=>{ const el = e.target.clo
 
 /* ================= API (onclick и смоук) ================= */
 // вид плитки — полосой под рядом: в ряду одна, в разных рядах может быть по одной; путь, выбор и вид живут в S.open
-function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(t.id); if(!S.open[t.id]) countOpen(t.id); const o = openStrip(id, kind); unmarkNew(S.userId, t.id); view = 'home'; render();
+function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(t.id); if(!S.open[t.id]) countOpen(t.id); const o = openStrip(id, kind); loadOf(o); unmarkNew(S.userId, t.id); view = 'home'; render();   // вопрос полосы — с клика
   if(HAS_DOM){ const el = document.querySelector('[data-strip="'+id+'"]'); if(el) el.scrollIntoView({ block:'nearest' }); else toast('Плитки «'+t.title+'» нет на этом экране'); }
   return o; }
 function closeStrip(id){ delete S.open[id]; render(); }
@@ -4979,7 +5231,7 @@ const api = {
   // модель
   TODAY, STAND, OBJECTS, DIMS, OBJ_DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, VIEW_KINDS, DECLARED_SEED,
   seed:()=>{ seed(); draft=null; rdraft=null; rcOpen=false; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
-  roleHasLayout, tileAnswers, catalogFor, canSee, shiftsFor, autocheck, saveTile, editTile, propose, whereUsed, withdrawTile:withdraw,
+  roleHasLayout, roleLaunch, WAVE_FORECAST, warmPlan, morningLoad, nowTime, filterOff, baseDownOf, tileAsks, loadOf:(id)=>loadOf(S.open[id]), tileAnswers, catalogFor, canSee, shiftsFor, autocheck, saveTile, editTile, propose, whereUsed, withdrawTile:withdraw,
   catalogView, CAT_SECTIONS, catSection, paramChips, catNum, indsFor, reportsWith, draftWith, acceptProposal, rejectProposal, proposalCheck, proposalsWaiting, dupOf, qSig, personalReport,
   opens90, daysSince, withdrawCandidate, swapGoneOf:swapGone, applyDeclared, declaredSave, layoutDiff, roleHolders, roleNewsShow, roleNewsClose, isNewTile, unmarkNew, newsText, newsBanner, goneHTML,
   catalogHTML, builderHTML, registryHTML, layoutsHTML, proposalHTML, get page(){ return view; },
@@ -5007,7 +5259,16 @@ const api = {
   // смена пользователя стенда — его вход: открыта последняя открытая им вкладка (нет её — первая роль), фильтры вкладок — с чистого листа
   switchUser:(id)=>{ S.userId=id; Object.keys(S.panels).forEach(k=>{ if(k.startsWith(id+'|')) delete S.panels[k]; }); S.tab = S.lastTab[id] || null; S.arrange=false; S.newsFlash = null; S.layoutDraft = null;
     resetOpen(); draft=null; rdraft=null; if(['registry','layouts','journal'].includes(view) && !isAdmin(user())) view='home'; render(); },
-  refresh:()=>{ S.cache.clear(); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
+  // «Обновить» в шапке — человек сам попросил: числа запрошены заново, открытые полосы берут новые данные (путь и вид остаются)
+  refresh:()=>{ S.cache.clear(); Object.values(S.open).forEach(o=>{ o.snap = snapNow(); }); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
+  // «Обновить» на плашке полосы: снимок — на сейчас, путь, вид и выбор остаются
+  stripRefresh:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; o.snap = snapNow(); loadOf(o); render(); return { ok:true, at:o.snap.at, path:o.path.slice(), kind:o.kind }; },
+  // медленная отчётность без страницы: часы полосы вперёд на ms (на странице идут сами); «Отменить» — к прежнему вопросу полосы, первого нет — закрыть
+  loadTick:(ms)=>{ S.ms += ms; render(); return S.ms; },
+  loadCancel:(id)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; const p = o.prev;
+    if(!p){ closeStrip(id); toast('Запрос отменён — полоса закрыта'); return { closed:true }; }
+    Object.assign(o, { kind:p.kind, sel:p.sel, path:p.path, prev:null }); o.load = { sig:loadSig(o), t0:-1e12, kind:o.kind, sel:p.sel, path:p.path, done:true };
+    render(); toast('Запрос отменён — полоса вернулась к «'+VIEW_NAMES[o.kind]+'»'); return { back:o.kind }; },
   // поле фильтра вкладки: значение или список значений; пустое — поле снято
   setPanel:(k,v)=>{ S.panel = Object.assign({}, S.panelRaw, { [k]:v }); render(); return S.panelRaw; }, clearPanel:()=>{ S.panel = {}; render(); },
   setFilter:(p)=>{ S.panel = p || {}; render(); return S.panelRaw; }, openFilter, screenMenu:(e)=>openScreenMenu(e), screenMenuItems,
@@ -5044,41 +5305,42 @@ const api = {
   // плашка правки раскладки роли у держателя
   newsShow:()=>{ const N = roleNewsShow(S.userId, curRole()); render(); if(HAS_DOM && N && N.add.length){ const el = document.querySelector('.tile.flash'); if(el) el.scrollIntoView({ block:'nearest' }); } return N; },
   newsClose:()=>{ const r = roleNewsClose(S.userId, curRole()); render(); return r; },
-  primary:(id)=>primaryClick(id), menu:(e,id)=>openMenu(e,id), stripMenu:(e,id)=>openStripMenu(e,id), close:closeOverlay,
+  primary:(id)=>primaryClick(id), menu:(e,id)=>openMenu(e,id), stripMenu:(e,id)=>inSnap(id, ()=>openStripMenu(e,id)), close:closeOverlay,
   who:(id,d,v,d2,v2,path)=>{ countClick(id); return openWho(id, d ? { d, v, d2, v2 } : null, path); },
   whoMonth:(id,m,line)=>{ countClick(id); return openWho(id, line ? { m, line } : { m }); },
   // узлы и кнопки полосы несут её путь
-  whoAt:(id,d,v,d2,v2)=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), d ? { d, v, d2, v2 } : {});
-    return openWho(id, Object.keys(node).length ? node : null, (o || {}).path); },
+  // списки из открытой полосы — из её снимка данных
+  whoAt:(id,d,v,d2,v2)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), d ? { d, v, d2, v2 } : {});
+    return openWho(id, Object.keys(node).length ? node : null, (o || {}).path); }),
   // «☰ N» в строке полосы: главное число узла на дату плитки (то же, что число рядом), каким бы ни был вид
-  whoNode:(id)=>{ countClick(id); const o = S.open[id]; return openWho(id, null, (o || {}).path); },
-  whoMonthAt:(id,m,line)=>{ countClick(id); const o = S.open[id], b = stripNode(tileById(id), o, user(), S.panel);
-    return openWho(id, Object.assign({ m }, line ? { line } : {}, b.of ? { of:b.of } : {}), (o || {}).path); },
+  whoNode:(id)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id]; return openWho(id, null, (o || {}).path); }),
+  whoMonthAt:(id,m,line)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], b = stripNode(tileById(id), o, user(), S.panel);
+    return openWho(id, Object.assign({ m }, line ? { line } : {}, b.of ? { of:b.of } : {}), (o || {}).path); }),
   // поток Движения открытой полосы (key — ключ потока из res.move, 'other' — «прочее»; mv — месяц движения, по умолчанию выбранный в полосе): кто в этом потоке
   // «☰» строки «пришли из / ушли в» узла Разреза: dir — 'from' | 'to', v2 — значение (null — охват)
-  whoMoveAt:(id,d,v,dir,v2,fd)=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), { d, v, [dir]:v2===undefined ? null : v2 }, fd ? { fd } : {});
-    return openWho(id, node, (o || {}).path); },
-  whoFlowAt:(id,key,mv)=>{ countClick(id); const o = S.open[id], t = tileById(id), s = viewSel(t, 'move', o && o.sel, user(), (o || {}).path || [], S.panel);
-    return openWho(id, { flow:key, mv:mv!==undefined ? mv : s.month }, (o || {}).path); },
+  whoMoveAt:(id,d,v,dir,v2,fd)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), { d, v, [dir]:v2===undefined ? null : v2 }, fd ? { fd } : {});
+    return openWho(id, node, (o || {}).path); }),
+  whoFlowAt:(id,key,mv)=>inSnap(id, ()=>{ countClick(id); const o = S.open[id], t = tileById(id), s = viewSel(t, 'move', o && o.sel, user(), (o || {}).path || [], S.panel);
+    return openWho(id, { flow:key, mv:mv!==undefined ? mv : s.month }, (o || {}).path); }),
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),
   openReport, drill, reportView, reportChangedFor, rowLabel, scrollEnd,
   registry:(id)=>openRegistry(id), queue:(id)=>openQueue(id),
   openView:openTileView, closeView:closeStrip, pinOpen:(id)=>{ const r = pinOpen(tileArg(id).id); toast(r.error || (r.pinned ? 'Закреплена раскрытой: при входе на экран откроется так же' : 'Откреплена: на экране плитка закрыта')); render(); return r; },
   clickOf:(id, uid, roleId, panel)=>clickOf(tileArg(id), userArg(uid) || user(), roleId, panel || {}),
-  morning:()=>{ resetOpen(); render(); toast('Наступило утро: раскрытые плитки закрыты, закреплённые на экранах открыты, выбор видов помнится'); },
+  morning:()=>{ resetOpen(); const d = morningLoad(); render(); toast('Наступило утро: раскрытые плитки закрыты, закреплённые на экранах открыты, выбор видов помнится; к отчётности — '+d.requests+' '+plural(d.requests, 'запрос', 'запроса', 'запросов')+(d.warm ? ', только «сегодня»' : '')); return d; },
   viewSet:(id, key, value)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' };
-    const r = setViewSel(tileArg(id), o, key, value); if(r.error) toast(r.error);
-    else { const kind = key==='dim' ? (['slice', 'table'].includes(o.kind) ? o.kind : null) : SEL_VIEW[key]; if(kind) remember(id, kind, { [key]:o.sel[key] }); }
+    const r = inSnap(id, ()=>setViewSel(tileArg(id), o, key, value)); if(r.error) toast(r.error);
+    else { const kind = key==='dim' ? (['slice', 'table'].includes(o.kind) ? o.kind : null) : SEL_VIEW[key]; if(kind) remember(id, kind, { [key]:o.sel[key] }); loadOf(o); }
     render(); return r; },
   viewPick:(id, key, el)=>{ const box = el.closest('.ctl');
     return api.viewSet(id, key, key==='dims' ? [...box.querySelectorAll('select')].map(x=>x.value) : [...box.querySelectorAll('input:checked')].map(x=>x.value)); },
   deeper:(id, dim, v, dim2, v2)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' };
-    const r = goDeeper(tileArg(id), o, dim2 ? [{ dim, v }, { dim:dim2, v:v2 }] : [{ dim, v }]); if(r.error) toast(r.error); render(); return r; },
-  crumb:(id, n)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; const r = goCrumb(o, n); render(); return r; },
+    const r = inSnap(id, ()=>goDeeper(tileArg(id), o, dim2 ? [{ dim, v }, { dim:dim2, v:v2 }] : [{ dim, v }])); if(r.error) toast(r.error); else loadOf(o); render(); return r; },
+  crumb:(id, n)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; const r = goCrumb(o, n); loadOf(o); render(); return r; },
   // «Сумма | Изменение» открытой полосы: без m — прочитать (mode — выбор полосы, shown — что рисует вид, в Движении null; off — причина погашенности)
   mode:(id, m)=>{ const o = S.open[id]; if(!o) return { error:'Полоса не открыта' }; const t = tileArg(id);
-    if(m!==undefined){ const r = setViewSel(t, o, 'mode', m); if(r.error) toast(r.error); render(); if(r.error) return r; }
-    const off = changeOff(t, user(), curRole(), S.panel, o.path), mode = modeOf(o.sel);
+    if(m!==undefined){ const r = inSnap(id, ()=>setViewSel(t, o, 'mode', m)); if(r.error) toast(r.error); render(); if(r.error) return r; }
+    const off = inSnap(id, ()=>changeOff(t, user(), curRole(), S.panel, o.path)), mode = modeOf(o.sel);
     return Object.assign(m!==undefined ? { ok:true } : {}, { mode, shown: o.kind==='move' ? null : off ? 'sum' : mode, off:off || null, kind:o.kind }); },
   stripSlot, stripPlace, gridCols,
   stripHTML:(id, uid, roleId)=>{ const items = homeItems(); return stripHTML(id, userArg(uid) || user(), roleId, null, stripPlace(items, id, gridCols(), collapsedNow(), rendersItem)); },
@@ -5090,9 +5352,15 @@ const api = {
   signal:(id, roleId)=>{ const r = signalToggle(id, roleId || (S.tab ? curRole() : null));
     toast(r.error ? r.error : r ? 'Сигналы поставлены: '+r.map(s=>s.label).join(', ')+' — проверка раз в день после ночного снимка' : 'Сигналы сняты'); render(); return r; }, propose:(id)=>{ const r = propose(id); toast(r ? 'Предложено в каталог: ждёт ответа администратора дашборда' : 'Уже предложена или не ваша'); render(); return r; },
   openNotifs, signalOff:(id)=>{ const r = signalRemove(id); toast(r ? 'Сигнал снят' : 'Сигнала нет'); openNotifs(); return r; },
-  nightCheckRun:()=>{ const f = nightCheck(); toast(f.skipped ? f.skipped : (f.length ? 'Сигналов сработало: '+f.length : 'Сигналы проверены — новых нет')+(f.dropped && f.dropped.length ? ' · снято на изменённых плитках: '+f.dropped.length : '')); render(); return f; },
+  nightCheckRun:()=>{ const f = nightCheck(), w = prewarm(); toast(f.skipped ? f.skipped : (f.length ? 'Сигналов сработало: '+f.length : 'Сигналы проверены — новых нет')+(f.dropped && f.dropped.length ? ' · снято на изменённых плитках: '+f.dropped.length : '')
+    +(w.skipped ? '' : ' · прогрето '+w.n+' '+plural(w.n, 'ответ', 'ответа', 'ответов')+' для '+w.m+' '+plural(w.m, 'держателя', 'держателей', 'держателей'))); render(); return f; }, prewarm,
   tick:(m)=>{ tick(m); render(); toast('Прошло '+m+' мин'); },
-  stand:(k,v)=>{ STAND[k]=v; S.cache.clear(); render(); }, standNightOnly:(o,v)=>{ if(v) STAND.nightOnly[o]=true; else delete STAND.nightOnly[o]; S.cache.clear(); render(); },
+  // очередь и медленная отчётность меняют «когда», а не «что»: кэш и последние ответы остаются
+  stand:(k,v)=>{ STAND[k]=v; if(!['overload', 'slow'].includes(k)) S.cache.clear(); render(); },
+  standDown:(owner, ready)=>{ if(ready) delete STAND.down[owner]; else STAND.down[owner] = true; S.cache.clear(); render(); return Object.keys(STAND.down); },
+  // пришли новые данные: время данных +5 минут, кэш «сегодня» истекает; открытые полосы держат снимок
+  standFresh:()=>{ STAND.fresh++; STAND.dataAt = timePlus(5*STAND.fresh); tick(5); render();
+    toast('Пришли данные на '+nowTime()+': открытая полоса держит свой снимок — в её строке «есть данные · Обновить»'); return nowTime(); }, standNightOnly:(o,v)=>{ if(v) STAND.nightOnly[o]=true; else delete STAND.nightOnly[o]; S.cache.clear(); render(); },
   standCircle:(on)=>{ const ok = standCircle(on); render(); return ok; },
   standReport:(k)=>{ const r = standReport(k); toast(r.error || r.msg || (k==='reset' ? 'Отчёты возвращены как в каталоге' : k==='delete' ? 'Отчёт удалён'
       : 'Отчёт «'+r.report.title+'»: версия '+r.report.version+', плиток на нём '+r.tiles.length)); render(); return r; },

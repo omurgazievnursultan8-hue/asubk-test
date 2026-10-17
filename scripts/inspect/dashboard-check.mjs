@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–13, 11–17.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–14, 11–17.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-211, ИДБ-1…ИДБ-19):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-221, ИДБ-1…ИДБ-19):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -104,6 +104,14 @@
 //      перерисовки. Переписаны под данные волны без ослабления: 189, 192, 236, 249, 319 (у семи кредитов месяц выдачи — месяц начала просрочки: база
 //      «Просрочено» на 30.09, «Выдано с начала года», «Поступило · прошлый месяц», план прошлого месяца, «ушли в 181+»), 347 (исключения «выданных
 //      в сентябре» больше нет), 352 (одно открытие снимает метку — счётчик открытий, а не просмотров).
+//   AA волна 14 (17.10.2026), состояния полосы, нагрузка, запуск ДБ-212…ДБ-221, ДБ-Д59, ДБ-Д60: часть вида без ответа — «—» с причиной, остальное как
+//      посчитано (Таблица, Разрез, Карта); нет ответа на дату базы — «без сдвига», «Изменение» и Движение погашены, точка Ряда «—»; снимок открытой
+//      полосы и плашка «есть данные · Обновить», закреплённая раскрытой обновляется сама без пути; загрузка — скелет по частям (часы — модель
+//      частей, DB.loadTick, без ожидания), «Отменить»; ночной прогрев и утро вдвое меньше запросов; перегруз — очередь и последнее число со своей
+//      датой; запуск по отвечающим плиткам (не меньше половины, ссылочные не в счёте), отчётность — предусловие; «у вас пусто» на плитке; погашенный
+//      «Фильтр». Переписаны под модель волны без ослабления: 59, 60, 82 (волны — прогноз: готовность — модули, объявившие объекты статистике,
+//      STAND.down вместо STAND.wave, и число отвечающих плиток роли), 145 (куратор без кредитов — «у вас пусто», законный ноль при непустом
+//      охвате — число), 271 (анимаций три: пульс скелета полосы — тоже только при разрешённом движении), 272 (часы шапки — время данных стенда).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -347,13 +355,16 @@ const asUser = id => { DB.state.userId = id; };
   const em = DB.ask(T('cur-bal'), U('c01'), 'cur', {}); DB.USERS.pop();
   ok(57, em.state === 'empty' && em.visible === 0, 'пустой охват — законный ответ «видно 0», не ошибка (ДБ-3)');
   ok(58, DB.ask(T('zal-ban'), U('u5'), 'zal', {}).state === 'zero', 'ноль — это ответ: «посчитали — нет»');
-  DB.STAND.wave = 2;
-  ok(59, !DB.roleHasLayout('rep') && !DB.tileAnswers(T('rep-od')) && !DB.composeLayout('u2', 'cur').includes('tasks') && DB.roleHasLayout('spec'),
-    'волна 2: отчётность ещё на минимальной раскладке, неотвечающая плитка в раскладку не попадает (ДБ-53, ИДБ-14)');
-  DB.STAND.wave = 1;
-  ok(60, !DB.roleHasLayout('spec') && DB.roleHasLayout('lead') && /не объявлен/.test(DB.ask(T('spec-work'), U('u6'), 'spec', {}).msg),
-    'волна 1: заявка не объявлена — роль на минимальной, отказ называет владельца (ДБ-53)');
-  DB.STAND.wave = 3;
+  // волна 14: волны — прогноз порядка; готовность решают соседи (модули, объявившие объекты статистике) и отвечающие плитки (ДБ-218, ДБ-219)
+  DB.STAND.down = { 'Отчётность':true, 'Задания':true };   // как прогноз волны 2: обязательства и задания ещё не объявлены
+  const L59 = DB.roleLaunch('rep');
+  ok(59, !DB.roleHasLayout('rep') && L59.n === 0 && L59.of === 4 && !DB.tileAnswers(T('rep-od')) && !DB.composeLayout('u2', 'cur').includes('tasks') && DB.roleHasLayout('spec'),
+    `обязательства и задания ещё не объявлены (как прогноз волны 2): у «Отчётности» отвечает ${L59.n} из ${L59.of} плиток — минимальная раскладка, неотвечающая плитка в раскладку не попадает (ДБ-53, ДБ-218, ИДБ-14)`);
+  DB.STAND.down = { 'Заявка на кредит':true, 'Комиссия':true, 'Имущество':true, 'Отчётность':true, 'Задания':true };   // как прогноз волны 1
+  const L60 = DB.roleLaunch('lead');
+  ok(60, !DB.roleHasLayout('spec') && DB.roleHasLayout('lead') && L60.n >= L60.of / 2 && /не объявлен/.test(DB.ask(T('spec-work'), U('u6'), 'spec', {}).msg),
+    `заявка на кредит ещё не объявлена (как прогноз волны 1): «Кредитный специалист» на минимальной, отказ называет владельца; у «Руководства» отвечает ${L60.n} из ${L60.of} — своя раскладка (ДБ-53, ДБ-218)`);
+  DB.STAND.down = {};
 })();
 
 /* ---------- J. Наружу и сигналы ---------- */
@@ -454,12 +465,12 @@ const asUser = id => { DB.state.userId = id; };
   const la = DB.ask(T('lead-ast'), U('u1'), 'lead', {}); const sa = DB.ask(T('ast-count'), ast, 'ast', {});
   ok(81, la.second.value === sa.second.value && la.value === sa.value && sa.second.value === 48,
     `Руководство «На балансе» (стоимость · объектов) и специалист «На учёте» (стоимость · объектов) сходятся: ${sa.second.value} объектов / ${DB.fmtVal(la.value, 'sum')} (урок «демо-числа противоречат»)`);
-  DB.STAND.wave = 1;
+  DB.STAND.down = { 'Заявка на кредит':true, 'Комиссия':true, 'Имущество':true, 'Отчётность':true, 'Задания':true };   // как прогноз волны 1
   const w1 = DB.composeLayout('u1', 'lead');
-  ok(82, !DB.roleHasLayout('ast') && !w1.includes('lead-ast') && !w1.includes('s:Имущество') && w1.includes('lead-rs') && w1.includes('lead-recov')
+  ok(82, !DB.roleHasLayout('ast') && DB.roleLaunch('ast').n === 0 && !w1.includes('lead-ast') && !w1.includes('s:Имущество') && w1.includes('lead-rs') && w1.includes('lead-recov')
     && DB.composeLayout('u2', 'cur').includes('cur-rs') && /не объявлен/.test(DB.ask(T('ast-count'), ast, 'ast', {}).msg),
-    'волна 1: заявка на реструктуризацию и дело уже отвечают; имущество — волна 2: у Руководства секции нет, специалист на минимальной (ДБ-63, ДБ-53)');
-  DB.STAND.wave = 3;
+    'имущество ещё не объявлено (как прогноз волны 1): заявка на реструктуризацию и дело уже отвечают; у Руководства секции «Имущество» нет, специалист на минимальной — ни одна его плитка не отвечает (ДБ-63, ДБ-53, ДБ-218)');
+  DB.STAND.down = {};
   ok(83, DB.ask(T('lead-ast'), U('u3'), 'prob', {}).state === 'noaccess' && DB.ask(T('cur-rs'), U('u3'), 'prob', {}).state === 'noaccess',
     'имущество и реструктуризация закрыты ролям без права на эти объекты — «нет доступа» (ИДБ-4)');
   // ДБ-65: плитки заёмщика
@@ -1092,14 +1103,16 @@ const asUser = id => { DB.state.userId = id; };
   DB.standCircle(false); const back = DB.ask(T('cur-od'), nar, 'cur', {});
   DB.USERS.push({ id:'c99', name:'Куратор без кредитов', roles:['cur'], dept:'rp-nar' });
   const none = DB.ask(T('cur-bal'), U('c99'), 'cur', {}), noneB = DB.ask(T('cur-od'), U('c99'), 'cur', {}); DB.USERS.pop();
+  const zr = DB.ask(T('cur-rc'), nar, 'cur', {});   // волна 14: при непустом охвате по параметру ноль — число
   ok(145, nb0.state === 'ok' && nbKey.state === 'noaccess' && nb1.state === 'noaccess' && BM.test(nb1.msg) && nb1.value === undefined && !nb1.nodes
     && Object.keys(narrowed).join() === 'depts' && narrowed.depts.length === 11 && !narrowed.depts.includes('rp-nar') && narrowed.depts.includes('rp-chu')
     && lay0.includes('cur-od') && lay1.includes('cur-od') && lay1.join() === lay0.join() && lock4.every(r => r.state === 'noaccess' && BM.test(r.msg))
     && ch.state === 'ok' && ch.visible > 0 && ld.state === 'ok' && own.state === 'ok'
     && cat && BM.test(cat.why) && catU2 && catU2.why === null && cs === cat.why
     && rv.noaccess && BM.test(rv.msg) && dr.refused && BM.test(dr.msg) && rg.today === 0 && BM.test(rg.msg)
-    && back.state === 'ok' && none.state === 'zero' && none.value === 0 && none.visible > 0 && (noneB.state === 'ok' || noneB.state === 'zero') && noneB.value === 0,
-    `круг отчёта «Портфель кредитов» сужен без Нарынского РП: куратор Нарынского РП — «${nb1.msg}» на всех четырёх плитках отчёта (Остаток, Просрочено, Сумма под риском, В реструктуризации), плитка стоит в его раскладке и в каталоге называет ту же причину, отчёт, провал и реестр отказывают; Чуйское РП (${ch.visible} в охвате) и Руководство числа видят, плитка другого отчёта («Заёмщиков с просрочкой») куратору открыта; вернули круг — числа вернулись; куратор без кредитов — честный ноль, не ошибка (ДБ-104)`);
+    && back.state === 'ok' && none.state === 'mine0' && none.visible > 0 && none.msg === 'Плитка считает кредиты, где вы куратор; у вас таких нет' && noneB.state === 'mine0' && noneB.msg === none.msg
+    && zr.state === 'zero' && zr.value === 0,
+    `круг отчёта «Портфель кредитов» сужен без Нарынского РП: куратор Нарынского РП — «${nb1.msg}» на всех четырёх плитках отчёта (Остаток, Просрочено, Сумма под риском, В реструктуризации), плитка стоит в его раскладке и в каталоге называет ту же причину, отчёт, провал и реестр отказывают; Чуйское РП (${ch.visible} в охвате) и Руководство числа видят, плитка другого отчёта («Заёмщиков с просрочкой») куратору открыта; вернули круг — числа вернулись; куратор без кредитов — не ошибка и не «0», а «у вас пусто» с причиной («${none.msg}»), у куратора с кредитами «В реструктуризации» — законный 0 (ДБ-104; волна 14 — ДБ-220)`);
 
   // автопроверка публикации: круг покрывает всех держателей ролей, в раскладках которых плитка стоит (или встанет)
   DB.seed(); asUser('u11');
@@ -2768,13 +2781,16 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-166: пульс заготовки и выезд ящика — только при prefers-reduced-motion:no-preference
   const anim = css.split('\n').filter(l => /animation:/.test(l));
+  const animRules = css.match(/\{[^{}]*animation:[^{}]*\}/g) || [];
   ok(271, anim.length === 2 && anim.every(l => l.startsWith('@media (prefers-reduced-motion:no-preference){')) && anim.some(l => /\.tile\.skel \.t-body\{ animation:pulse /.test(l)) && anim.some(l => /\.drawer\{ animation:drIn /.test(l))
+    && anim.some(l => /\.strip \.sk\{ animation:pulse /.test(l)) && animRules.length === 3
     && /@keyframes pulse\{/.test(css) && /@keyframes drIn\{/.test(css) && !/\.animate\(|requestAnimationFrame/.test(src),
-    'анимаций две — пульс заготовки плитки и выезд ящика справа, обе внутри @media (prefers-reduced-motion:no-preference); у кого движение в системе выключено, страница стоит (ДБ-166)');
+    'анимаций три — пульс заготовки плитки, пульс скелета полосы (волна 14) и выезд ящика справа, все внутри @media (prefers-reduced-motion:no-preference); у кого движение в системе выключено, страница стоит (ДБ-166, ДБ-215)');
 
   // ДБ-165: шапка — значки и аватар, меню слева на месте; render() пишет инициалы и «Сегодня …»
   ok(272, (body.match(/class="tbtn"/g) || []).length === 2 && /<label class="whob"[^>]*><span class="ava" id="ava"/.test(body) && /<span id="clock"><\/span>/.test(body) && /<nav class="nav" id="nav"><\/nav>/.test(body)
-    && /\$\('ava'\)\.textContent = u\.name\.split\(/.test(src) && /\$\('clock'\)\.textContent = 'Сегодня '\+TODAY\.label\.replace\(' ', ', '\);/.test(src) && 'Сегодня ' + DB.TODAY.label.replace(' ', ', ') === 'Сегодня 11.10.2026, 14:15'
+    && /\$\('ava'\)\.textContent = u\.name\.split\(/.test(src) && /\$\('clock'\)\.textContent = 'Сегодня '\+TODAY\.label\.replace\(' '\+TODAY\.time, ', '\+nowTime\(\)\);/.test(src)
+    && 'Сегодня ' + DB.TODAY.label.replace(' ' + DB.TODAY.time, ', ' + DB.nowTime()) === 'Сегодня 11.10.2026, 14:15'
     && /\.whob\{[^}]*border-radius:var\(--radius-pill\);/.test(src) && /\.ava\{[^}]*border-radius:50%;/.test(src) && /\.tbtn\{[^}]*border-radius:var\(--r-md\);/.test(src),
     'шапка: две кнопки-значка (обновить, уведомления), пилюля пользователя с аватаром-инициалами и выбором пользователя стенда, часы «Сегодня 11.10.2026, 14:15»; меню слева (nav#nav) осталось (ДБ-165)');
 
@@ -3927,6 +3943,195 @@ const asUser = id => { DB.state.userId = id; };
   ok(359, bR === b0 && b1 === b0 + 1 && b2s === b1 && b3 === b1 + 1 && k3 === 'table' && b4 === b3 && t1 === t0 + 1 && cl >= 3 && !/countView|countOpen/.test(rh) && !/function countView/.test(src)
     && /if\(!S\.open\[t\.id\]\) countOpen\(t\.id\)/.test(src) && /countClick\(tileId\); countOpen\(tileId\);/.test(src) && /\(S\.usage\[t\.id\] \|\| \{\}\)\.opens/.test(src),
     `«Остаток задолженности»: ${b0} — пять перерисовок главной и фильтр — ${bR}; открытие полосы — ${b1}, смена вида в открытой полосе и перерисовка — ${b2s}; закрыли и клик по числу открыл снова (последний вид — Таблица) — ${b3}; клик, закрывший полосу, — ${b4}; клик по числу ссылочной «Мои задания» (очередь) — ${t0} → ${t1}; кликов — отдельный счётчик (${cl}) (ДБ-Д57, ДБ-201, ДБ-51)`);
+  DB.seed();
+})();
+
+/* ---------- AA. Волна 14 (17.10.2026): состояния полосы, нагрузка, запуск — ДБ-212…ДБ-221, ДБ-Д59, ДБ-Д60 ---------- */
+(() => {
+  const u1 = U('u1'), nb = n => Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' '), mln = n => (n / 1e6).toFixed(1).replace('.', ',');
+  const TB = 'table(program;loan.overdue,loan.balance,loan.risk)';
+
+  // ДБ-212: Таблица — колонка «Сумма под риском (залог)» не ответила: в каждой строке и в итоге «—» с причиной, остальные колонки — как посчитано,
+  // ноль и прошлое значение не подставляются, вид не гаснет
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const t0 = DB.at('lead-od', TB, 'u1', 'lead', {}), tt0 = DB.at('lead-od', TB + '.total', 'u1', 'lead', {});
+  DB.stand('partDown', true);
+  const t1 = DB.at('lead-od', TB, 'u1', 'lead', {}), tt1 = DB.at('lead-od', TB + '.total', 'u1', 'lead', {}), vt = DB.view('lead-od', 'table', { dim:'program', cols:['loan.overdue', 'loan.balance', 'loan.risk'] }, [], 'u1', 'lead', {});
+  DB.openView('lead-od', 'table'); DB.viewSet('lead-od', 'cols', ['loan.overdue', 'loan.balance', 'loan.risk']); const hT = DB.stripHTML('lead-od');
+  const tdRisk = [...hT.matchAll(/<td class="dn" data-tip="([^"]*)">—<\/td>/g)].map(x => x[1]);
+  ok(360, vt.state === 'ok' && t1.length === t0.length && t1.every((r, i) => r[1][2] === null && r[1][0] === t0[i][1][0] && r[1][1] === t0[i][1][1]) && t0.every(r => r[1][2] > 0)
+    && tt1[2] === null && tt1[0] === tt0[0] && tt1[1] === tt0[1] && tt1[0] === DB.base('lead-od', 'u1', 'lead', {}).value
+    && tdRisk.length === t1.length + 1 && tdRisk.every(x => x === 'Статистика не ответила по колонке «Сумма под риском (залог)» — на её месте «—»: ни ноль, ни прошлое значение; остальное посчитано')
+    && /<th class="dn" data-tip="Статистика не ответила по колонке[^"]*">Сумма под риском \(залог\)<span class="dn-tag">нет ответа<\/span><\/th>/.test(hT) && !/>0<\/td>/.test(hT.slice(hT.indexOf('<table class="tb"'))),
+    `Таблица «Просрочено» по программам, колонки «Просрочено · Остаток · Сумма под риском»: статистика не ответила по колонке «Сумма под риском» — в ${t1.length} строках и в итоге «—» с причиной в подсказке (было ${mln(tt0[2])} млн — не подставлено), заголовок с «нет ответа»; «Просрочено» ${nb(tt1[0])} и «Остаток» ${nb(tt1[1])} — как без сбоя, итог «Просрочено» = числу плитки; вид не гас (ДБ-212)`);
+
+  // ДБ-212: Разрез — самый крупный узел «—», Карта — самая крупная строка «—» (и её итог), итоги остальных и общий — как есть; узел без ответа
+  // своей строкой, не в «ещё N»; в «Изменении» — тоже «—», не ноль
+  DB.stand('partDown', false); const s0 = DB.at('lead-od', 'slice(bucket)', 'u1', 'lead', {}), sR0 = DB.view('lead-od', 'slice', { dim:'region' }, [], 'u1', 'lead', {}), m0 = DB.view('lead-od', 'map', { dims:['region', 'bucket'] }, [], 'u1', 'lead', {}); DB.stand('partDown', true);
+  const s1 = DB.at('lead-od', 'slice(bucket)', 'u1', 'lead', {}), st1 = DB.at('lead-od', 'slice(bucket).total', 'u1', 'lead', {});
+  const sR = DB.view('lead-od', 'slice', { dim:'region' }, [], 'u1', 'lead', {}), sRc = DB.view('lead-od', 'slice', { dim:'region', mode:'change' }, [], 'u1', 'lead', {});
+  const m1 = DB.view('lead-od', 'map', { dims:['region', 'bucket'] }, [], 'u1', 'lead', {}), di = +Object.keys(m1.heat.down)[0];
+  DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'region'); const hS = DB.stripHTML('lead-od');
+  DB.openView('lead-od', 'map'); const hM = DB.stripHTML('lead-od');
+  const dnS = sR.lines.find(n => n.down), dnSc = sRc.lines.find(n => n.down), big0 = sR0.nodes.slice().sort((a, b) => b.value - a.value)[0];
+  ok(361, s1[4][1] === null && s0[4][1] === Math.max(...s0.map(x => x[1])) && s1.slice(0, 4).every((x, i) => x[1] === s0[i][1]) && st1 === sR0.total.v
+    && dnS && dnS.v === big0.v && dnS.value === null && sR.lines.indexOf(dnS) === sR.lines.length - 2 && sR.lines.at(-1).more === 3 && sR.lines.at(-1).value === sR0.nodes.filter(n => n.v !== big0.v).slice(3).reduce((a, n) => a + n.value, 0)
+    && dnSc && dnSc.delta === null && sRc.state === 'ok'
+    && m1.heat.rows[di] === big0.v && m1.heat.cells[di].every(x => x === null) && m1.heat.rowTot[di].value === null && m1.heat.colTot.every((x, j) => x.value === m0.heat.colTot[j].value) && m1.total.v === m0.total.v
+    && m1.heat.rows.every((r, i) => i === di || m1.heat.cells[i].every((x, j) => x === m0.heat.cells[i][j]))
+    && new RegExp('<div class="rz-r dn" data-tip="Статистика не ответила по узлу «' + big0.label + '»[^"]*"><span class="rz-nm">' + big0.label + '<span class="dn-tag">нет ответа</span></span><span class="rz-v dn">—</span><span class="rz-d dn">—</span>').test(hS)
+    && (hM.match(/<td class="dn"/g) || []).length === m1.heat.cols.length && /<td class="t dn"/.test(hM),
+    `Разрез «Просрочено» по сроку: узел «181+» (${mln(s0[4][1])} млн, самый крупный) — «—», остальные четыре — как без сбоя, итог ${nb(st1)} — число плитки; по области: «${big0.label}» — строкой «—» с «нет ответа» перед «ещё 3» (${mln(sR.lines.at(-1).value)} млн — без неё), в «Изменении» — «—», а не ноль; Карта «область × срок»: строка «${big0.label}» и её итог — «—» в ${m1.heat.cols.length} клетках, итоги столбцов и общий ${nb(m1.total.v)} — как есть (ДБ-212)`);
+
+  // ДБ-213: нет ответа на дату базы — у плитки «без сдвига» с причиной, в полосе «Изменение» погашено той же причиной, открыта «Сумма» (без колонки
+  // разницы), Движение погашено той же причиной, точка Ряда на 30.09 — «—», разница у неё и у октября — «—»; у потока — «за август»
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  DB.openView('lead-od', 'slice'); DB.mode('lead-od', 'change'); const was = DB.mode('lead-od');
+  DB.stand('baseDown', true);
+  const BD = 'нет ответа на 30.09 — статистика не ответила', b13 = DB.base('lead-od', 'u1', 'lead', {}), md = DB.mode('lead-od'), vw = DB.views('lead-od', 'u1', 'lead', [], {});
+  const th13 = DB.tileHTML('lead-od', 'u1', 'lead'), sh13 = DB.stripHTML('lead-od'), sl13 = DB.view('lead-od', 'slice', { dim:'bucket', mode:'change' }, [], 'u1', 'lead', {});
+  const sr13 = DB.view('lead-od', 'series', { points:12, of:'main' }, [], 'u1', 'lead', {}), pts = sr13.series.points, pS = pts.find(p => p.m === -1), pO = pts.find(p => p.m === 0), pA = pts.find(p => p.m === -2);
+  DB.openView('lead-od', 'series'); const shS = DB.stripHTML('lead-od'), colS = (shS.match(/<div class="sr-c" data-m="-1"[\s\S]*?(?=<div class="sr-c)/) || [''])[0]; DB.openView('lead-od', 'slice');
+  const ap = DB.base('acc-prev', 'u4', 'acc', {}), bv = DB.base('lead-bal', 'u1', 'lead', {}).value;
+  DB.stand('baseDown', false); const back13 = DB.mode('lead-od'), b13b = DB.base('lead-od', 'u1', 'lead', {});
+  ok(362, was.shown === 'change' && b13.state === 'ok' && b13.value === b13b.value && b13.shift.none === BD && b13.shift.down
+    && new RegExp('<span class="shift none" data-tip="Без сдвига: ' + BD + '">без сдвига</span>').test(th13)
+    && md.off === BD && md.shown === 'sum' && md.mode === 'change' && vw.find(v => v.kind === 'move').why === BD && vw.filter(v => v.ok).length === 4
+    && new RegExp('<button class="off" aria-disabled="true" data-tip="' + BD + '">Изменение</button>').test(sh13) && !/rz c5/.test(sh13) && /<div class="rz c4">/.test(sh13)
+    && sl13.mode === 'sum' && sl13.baseLabel === undefined && sl13.nodes.every(n => n.delta === undefined)
+    && pS.vals[0] === null && pS.down === BD && pO.delta === null && pO.downD === BD && pA.vals[0] > 0 && pO.vals[0] === b13.value
+    && /<span class="sr-v[^"]*"[^>]*>—<\/span>/.test(colS) && !/sr-hit|☰|Клик/.test(colS) && new RegExp('<span class="sr-d none" data-tip="' + BD + '">—</span>').test(colS)
+    && ap.shift.none === 'нет ответа за август — статистика не ответила' && bv > 0 && back13.shown === 'change' && !back13.off && b13b.shift.delta > 0,
+    `база не отвечает: «Просрочено» ${nb(b13.value)} — «без сдвига» с причиной «${BD}»; в полосе «Изменение» погашено той же причиной, открыта «Сумма» без колонки разницы (выбор «Изменение» полосы помнится — вернули базу, и оно снова на месте), Движение погашено той же причиной, остальные четыре вида открыты; Ряд: точка «сен» — «—» без клика и «☰», разница у октября — «—», август ${mln(pA.vals[0])} млн; поток «Поступило · прошлый месяц» — «${ap.shift.none}» (ДБ-213, ДБ-212)`);
+
+  // ДБ-214: открытая полоса держит снимок («на 14:15»): пришли данные на 14:20 — в строке полосы «есть данные на 14:20 · Обновить», числа полосы и плитки
+  // над ней — прежние, соседняя плитка — новые; «Обновить» берёт новые, путь и вид остаются
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  DB.openView('lead-od', 'slice'); DB.deeper('lead-od', 'bucket', '91–180'); DB.openView('lead-od', 'table');
+  const big = (h, k) => (h.match(new RegExp('data-key="' + k + '"[\\s\\S]*?<span class="big"[^>]*>([^<]*)')) || [])[1], sn = h => (h.match(/<span class="sl-num"[^>]*>([^<]*)/) || [])[1];
+  const pas = h => (h.match(/<span class="sl-pass"[^>]*>([^<]*)/) || [])[1], tot = h => (h.match(/<tr class="tot"><td>итог<\/td><td class="key">(?:<span>)?([^<]*)/) || [])[1];
+  const h0 = DB.homeHTML(), sh0 = DB.stripHTML('lead-od'), od0 = DB.base('lead-od', 'u1', 'lead', {}).value, bal0 = DB.base('lead-bal', 'u1', 'lead', {}).value;
+  const at = DB.standFresh();
+  const h1 = DB.homeHTML(), sh1 = DB.stripHTML('lead-od'), od1 = DB.base('lead-od', 'u1', 'lead', {}).value, bal1 = DB.base('lead-bal', 'u1', 'lead', {}).value;
+  const rf = DB.stripRefresh('lead-od'), sh2 = DB.stripHTML('lead-od'), h2 = DB.homeHTML(), o2 = DB.state.open['lead-od'];
+  ok(363, at === '14:20' && od1 < od0 && bal1 < bal0 && od0 - od1 === bal0 - bal1 && big(h1, 'lead-od') === big(h0, 'lead-od') && big(h1, 'lead-bal') !== big(h0, 'lead-bal')
+    && sn(sh1) === sn(sh0) && tot(sh1) === tot(sh0) && /^на 14:15/.test(pas(sh1)) && /<span class="sl-fresh" role="status">есть данные на 14:20<span class="sep">·<\/span><button class="linky" onclick="DB\.stripRefresh\('lead-od'\)">Обновить<\/button><\/span>/.test(sh1) && !/sl-fresh/.test(sh0)
+    && rf.ok && rf.kind === 'table' && rf.path.length === 1 && rf.path[0].v === '91–180' && o2.kind === 'table' && o2.path[0].v === '91–180' && !/sl-fresh/.test(sh2) && /^на 14:20/.test(pas(sh2)) && sn(sh2) !== sn(sh1)
+    && big(h2, 'lead-od') !== big(h0, 'lead-od') && /Сегодня '\+TODAY\.label\.replace\(' '\+TODAY\.time, ', '\+nowTime\(\)\)/.test(src),
+    `пришли данные на ${at} (у каждого девятого кредита в просрочке — оплата 15 %): «Просрочено» ${nb(od0)} → ${nb(od1)}, «Остаток» — на ту же сумму меньше (${nb(bal0 - bal1)}); открытая полоса «Просрочено › 91–180 · Таблица» держит снимок «на 14:15» — число узла ${sn(sh1)} млн и итог те же, плитка над ней — ${big(h1, 'lead-od')} млн, соседняя «Остаток» — уже ${big(h1, 'lead-bal')} млн; в строке полосы «есть данные на 14:20 · Обновить»; «Обновить» — «на 14:20», узел ${sn(sh2)} млн, путь «91–180» и Таблица остались (ДБ-214)`);
+
+  // ДБ-214, ДБ-122: закреплённая раскрытой плитка своего экрана обновляется сама, пока в ней нет пути вглубь; провалились — держит снимок, как открытая
+  DB.seed(); asUser('u1'); DB.setTab('screen', 'sc1');
+  const ph0 = DB.homeHTML(), pn0 = sn(ph0); DB.standFresh(); const ph1 = DB.homeHTML(), pn1 = sn(ph1);
+  DB.deeper('lead-od', 'program', 'agro'); const ph2 = DB.homeHTML(), pn2 = sn(ph2); DB.standFresh(); const ph3 = DB.homeHTML(), pn3 = sn(ph3);
+  ok(364, !!DB.state.open['lead-od'] && DB.state.open['lead-od'].kind === 'map' && pn1 !== pn0 && !/sl-fresh/.test(ph1) && big(ph1, 'lead-od') === pn1
+    && pn3 === pn2 && /есть данные на 14:25/.test(ph3) && DB.nowTime() === '14:25',
+    `свой экран «Совещание по Ошу», «Просрочено» закреплена раскрытой Картой: пришли данные — полоса и плитка обновились сами (${pn0} → ${pn1} млн), плашки нет; провалились в «Агрокредит» (${pn2} млн) и пришли ещё — держит снимок, «есть данные на 14:25 · Обновить» (ДБ-214, ДБ-122)`);
+
+  // ДБ-215: медленная отчётность — строка полосы сразу (число плитки), тело — серый скелет формы вида (те же строки, без чисел и подсказок);
+  // через 1,5 с — «Сумма», разница «…» и «Изменение …»; через 3 с — целиком; строк столько же на всех шагах (высота не прыгает). Движение — 12 с:
+  // после 10 с «считается дольше обычного · Отменить»; «Отменить» возвращает к прежнему виду, первый запрос — закрывает полосу. Таймеры — модель частей
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('slow', true);
+  DB.openView('lead-od', 'slice');
+  const rows = h => (h.match(/class="rz-r/g) || []).length, l0 = DB.loadOf('lead-od'), w0 = DB.stripHTML('lead-od');
+  DB.loadTick(1499); const w0b = DB.stripHTML('lead-od'); DB.loadTick(1); const l1 = DB.loadOf('lead-od'), w1 = DB.stripHTML('lead-od');
+  DB.loadTick(1500); const l2 = DB.loadOf('lead-od'), w2 = DB.stripHTML('lead-od');
+  const v24 = DB.fmtVal(s0[1][1], 'sum').replace(' млн', '');
+  // выбрано «Изменение»: до базы — скелет формы «Изменения» (её строки идут по разнице и несут подстроки переходов), строк столько же, сколько у ответа
+  DB.closeView('lead-od'); DB.openView('lead-od', 'slice'); DB.mode('lead-od', 'change'); DB.loadTick(1500); const c1 = DB.stripHTML('lead-od'); DB.loadTick(1500); const c2 = DB.stripHTML('lead-od');
+  DB.mode('lead-od', 'sum');
+  DB.openView('lead-od', 'move'); const mv0 = DB.stripHTML('lead-od'); DB.loadTick(9999); const mv1 = DB.stripHTML('lead-od'); DB.loadTick(1); const mv2 = DB.stripHTML('lead-od'), lm = DB.loadOf('lead-od');
+  const cb = DB.loadCancel('lead-od'), afterC = DB.stripHTML('lead-od');
+  DB.closeView('lead-od'); DB.openView('lead-od', 'move'); const cc = DB.loadCancel('lead-od'), closed = !DB.state.open['lead-od'];
+  DB.openView('lead-od', 'move'); DB.loadTick(12000); const mv3 = DB.stripHTML('lead-od');
+  const skB = h => h.slice(h.indexOf('<div class="sk"'), h.indexOf('<div class="sk-st'));
+  ok(365, !l0.sum && l0.next === 1500 && /<div class="strip" data-strip="lead-od" aria-busy="true">/.test(w0) && /<div class="sk" aria-hidden="true">/.test(w0) && />считается…<\/div>/.test(w0)
+    && /<span class="sl-num"[^>]*>179<span class="u">млн<\/span><\/span>/.test(w0) && !new RegExp(v24).test(skB(w0)) && !/data-tip|onclick/.test(skB(w0)) && !/[\p{L}\d]/u.test(skB(w0).replace(/<[^>]*>/g, '')) && !/sl-cnt/.test(w0) && /sk-w/.test(w0b)
+    && l1.sum && !l1.base && !/class="sk"/.test(w1) && /<span class="rz-d pend">…<\/span>/.test(w1) && />Изменение …<\/button>/.test(w1) && new RegExp('>' + v24 + ' млн<').test(w1) && /sl-cnt/.test(w1)
+    && l2.sum && l2.base && l2.next === null && !/pend|aria-busy/.test(w2) && /▼ 199 тыс\./.test(w2) && rows(w0) === rows(w1) && rows(w1) === rows(w2) && rows(w2) === 6
+    && />считается…<\/div>/.test(mv0) && />считается…<\/div>/.test(mv1) && /считается дольше обычного <span class="sep">·<\/span> <button class="linky" onclick="DB\.loadCancel\('lead-od'\)">Отменить<\/button>/.test(mv2) && lm.long && !lm.sum
+    && /<div class="sk" aria-hidden="true">/.test(c1) && /aria-busy="true"/.test(c1) && />Изменение …<\/button>/.test(c1) && !/<div class="sk"/.test(c2) && /rz-mv/.test(c2) && rows(c1) === rows(c2) && (c1.match(/class="rz-mv"/g) || []).length === (c2.match(/class="rz-mv"/g) || []).length
+    && cb.back === 'slice' && !/aria-busy/.test(afterC) && /▼ 199 тыс\./.test(afterC) && cc.closed && closed && /mv-chain/.test(mv3) && !/aria-busy/.test(mv3),
+    `медленная отчётность: открыли «Просрочено» Разрезом — строка сразу (число плитки 179 млн), тело — скелет из ${rows(w0)} серых строк без чисел и подсказок, «считается…»; через 1,5 с — «Сумма» (1–30 — ${v24} млн), разница «…», «Изменение …»; через 3 с — целиком (▼ 199 тыс.), строк на всех шагах ${rows(w2)}; выбрано «Изменение» — до базы скелет его формы (строк — ${rows(c1)}, подстрок переходов — ${(c2.match(/class="rz-mv"/g) || []).length}, как у ответа); Движение: до 10 с «считается…», после — «считается дольше обычного · Отменить», «Отменить» — назад к Разрезу (уже посчитан), открытое первым — полоса закрыта; через 12 с Движение пришло (ДБ-215)`);
+
+  // ДБ-216: ночной прогон прогревает закрытые даты плиток объявленных раскладок в охвате каждого держателя; утром — только «сегодня»: вдвое меньше запросов.
+  // Личные плитки и полоса — по требованию (в кэше их нет); ночной прогон не прошёл — прогрева нет
+  DB.seed(); const P = DB.warmPlan(), dawn0 = DB.morning();
+  DB.seed(); const mHit = DB.state.cacheHits; DB.nightCheckRun(); const W = DB.state.warm, dawn1 = DB.morning();
+  const keys = [...DB.state.cache.keys()], warmEntry = [...DB.state.cache.entries()].find(([k]) => k.startsWith('lead-paid§'));
+  const h0c = DB.state.cacheHits; DB.cachedAsk(T('lead-paid'), u1, 'lead', {}); const hitPaid = DB.state.cacheHits === h0c + 1;
+  const odc = DB.state.cacheMiss; DB.cachedAsk(T('lead-od'), u1, 'lead', {}); const missOd = DB.state.cacheMiss === odc + 1;
+  DB.seed(); DB.STAND.nightRunFailed = true; const wf = DB.prewarm(); DB.STAND.nightRunFailed = false;
+  ok(366, P.holders === 12 && P.closed === 65 && P.today === 65 && W.n === P.closed && W.m === P.holders && W.at === '02:40'
+    && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm && dawn1.requests * 2 === dawn0.requests
+    && warmEntry && warmEntry[1].calcAt === '02:40' && hitPaid && missOd && !keys.some(k => k.startsWith('p-u2-agro§') || /§view§/.test(k)) && keys.length === P.tiles.length
+    && wf.skipped === 'ночной прогон не прошёл — закрытые даты не прогреты' && /Прогрето \$\{S\.warm\.n\}/.test(src) && /<button class="btn" onclick="DB\.morning\(\)">Наступило утро<\/button>/.test(src),
+    `ночной прогон: прогрето ${W.n} ответов для ${W.m} держателей (отчёт + значения параметров + дата + охват; база сдвига, вчера, прошлый месяц) — в кэше до следующего прогона, «Поступило · прошлый месяц» отвечает из кэша (расчёт 02:40), «Просрочено» сегодня — считается; утром к отчётности — ${dawn1.requests} запросов, только «сегодня»; без прогрева — ${dawn0.requests}; личные плитки и полоса не прогреваются; ночной прогон не прошёл — «${wf.skipped}» (ДБ-216, ДБ-52)`);
+
+  // ДБ-217: отчётность перегружена — плитка ждёт в очереди сама: есть последний ответ — он со своей датой, жёлтая рамка и «⚠ устарело · на 14:15, сейчас
+  // считается»; нет — скелет и «в очереди · N-я»; «Повторить» нет; закрытые даты из ночного прогрева — как обычно; полоса — скелет и «в очереди», прошлых
+  // чисел нет; флаг сняли — замена сама. «Ошибка доставки · Повторить» — только когда статистика ответила ошибкой
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.homeHTML(); DB.nightCheckRun();
+  DB.stand('overload', true); const fresh17 = DB.base('lead-od', 'u1', 'lead', {}); DB.tick(2);
+  const b17 = DB.base('lead-od', 'u1', 'lead', {}), th17 = DB.tileHTML('lead-od', 'u1', 'lead'), hh = DB.homeHTML(), paid17 = DB.tileHTML('lead-paid', 'u1', 'lead');
+  DB.openView('lead-bal', 'slice'); const sh17 = DB.stripHTML('lead-bal');
+  asUser('u3'); DB.setTab('role', 'prob'); const hq = DB.homeHTML(), qs = [...hq.matchAll(/<span class="sk-q" data-tip="([^"]*)">в очереди · (\d+)-я<\/span>/g)], rec17 = DB.tileHTML('prob-rec', 'u3', 'prob');
+  DB.stand('overload', false); const hq2 = DB.homeHTML(); asUser('u1'); DB.setTab('role', 'lead'); const th17b = DB.tileHTML('lead-od', 'u1', 'lead');
+  DB.stand('statDown', true); const thE = DB.tileHTML('lead-od', 'u1', 'lead'); DB.stand('statDown', false);
+  ok(367, !fresh17.marks.some(m => /очеред|считается/.test(m.text)) && b17.state === 'ok' && b17.value === fresh17.value && b17.marks[0].text === '⚠ устарело · на 14:15, сейчас считается'
+    && /^<div class="tile stale/.test(th17) && /<span class="pill warn" data-tip="Отчётность перегружена: вопрос ждёт в очереди[^"]*на 14:15\.">⚠ устарело · на 14:15, сейчас считается<\/span>/.test(th17)
+    && !/Повторить/.test(hh + hq) && /Отчётность перегружена — плитки ждут в очереди сами/.test(hh) && !/stale|устарело/.test(paid17)
+    && /aria-busy="true"/.test(sh17) && /<div class="sk-st" role="status">в очереди · \d+-я<\/div>/.test(sh17) && !/sl-num|sl-shift|sl-cnt/.test(sh17) && !/\d,\d млн/.test(sh17.slice(sh17.indexOf('<div class="strip-b">')))
+    && qs.length >= 8 && qs.map(x => +x[2]).join() === qs.map((x, i) => i + 1).join() && qs.every(x => /^Отчётность перегружена/.test(x[1])) && !/sk-q|stale/.test(rec17)
+    && !/sk-q|в очереди/.test(hq2) && !/stale/.test(th17b) && /class="tile err/.test(thE) && /Повторить<\/button>/.test(thE),
+    `перегруз: «Просрочено» — последний ответ ${nb(b17.value)} со своей датой, жёлтая рамка и «⚠ устарело · на 14:15, сейчас считается», без «Повторить»; у Жумабаева (Проблемные кредиты) ответов в кэше нет — ${qs.length} плиток скелетом «в очереди · 1-я…${qs.length}-я», «Взыскано · прошлый месяц» из ночного прогрева — как обычно; полоса «Остаток» — скелет и «в очереди», прошлых чисел нет; флаг сняли — числа заменились сами; «Повторить» — только у ошибки доставки (ДБ-217, ДБ-35)`);
+
+  // ДБ-218: запуск — по отвечающим плиткам, а не по датам волн; предусловие — модуль отчётности и отчёты каталога: без него у всех ролей минимальная
+  // с пояснением, плитки каталога ждут «Отчётность»; роль, у которой отвечает меньше половины плиток, — на минимальной «сейчас отвечают N из M».
+  // Волны — прогноз порядка в тексте стенда
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
+  DB.standDown('Заёмщики', false); DB.standDown('Реструктуризация', false); DB.standDown('Кредиты', false); const less = DB.roleLaunch('cur'), lessL = DB.composeLayout('u2', 'cur'), lessB = DB.minimalBanner('cur');
+  DB.seed(); DB.standDown('Взыскание', false); const pr = DB.roleLaunch('prob'), ld = DB.roleLaunch('lead');
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('reportsReady', false);
+  const rr = ['lead', 'cur', 'prob', 'acc', 'zal', 'spec', 'com', 'gof', 'otd', 'rep', 'ast'].map(r => DB.roleLaunch(r)), hR = DB.homeHTML(), aR = DB.ask(T('lead-bal'), u1, 'lead', {}), tR = DB.ask(T('tasks'), U('u2'), 'cur', {});
+  const cR = DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }).rows.filter(x => x.t.kind !== 'link'), lR = DB.composeLayout('u1', 'lead');
+  DB.stand('reportsReady', true);
+  ok(368, !less.ok && less.n === 0 && lessL.join() === 'tasks,p-u2-agro' && /Раскладка роли «Куратор кредита» встанет, когда ответит не меньше половины её плиток: сейчас отвечают 0 из 12 — показана минимальная\./.test(lessB)
+    && !pr.ok && pr.n === 3 && pr.of === 12 && ld.ok && ld.n === 9 && ld.of === 13
+    && rr.every(x => !x.ok && x.why === 'reports') && /Модуль отчётности и отчёты каталога ещё не готовы — у всех ролей минимальная раскладка/.test(hR) && !/Добавить плитки из каталога/.test(hR)
+    && lR.join() === 'tasks' && aR.state === 'refusal' && /модуль отчётности и отчёты каталога ещё не готовы/.test(aR.msg) && /владелец — модуль «Отчётность»/.test(aR.msg) && tR.state === 'ok'
+    && cR.length > 50 && cR.every(x => x.status === 'wait' || x.status === 'no') && cR.filter(x => x.status === 'wait').every(x => x.owner === 'Отчётность')
+    && !('wave' in DB.STAND) && !/ROLE_CORE_WAVE|STAND\.wave/.test(src) && /Волны — прогноз порядка, а не даты/.test(src) && DB.WAVE_FORECAST.rep === 3 && DB.WAVE_FORECAST.lead === 1,
+    `отчётность не готова — у всех ${rr.length} ролей минимальная с пояснением, «Мои задания» отвечают (очередь модуля, не отчёт), ${cR.filter(x => x.status === 'wait').length} плиток каталога ждут «Отчётность»; взыскание не объявило объекты — у Проблемных кредитов отвечает ${pr.n} из ${pr.of}: минимальная, у Руководства ${ld.n} из ${ld.of} — своя; у Куратора без кредитов, заёмщиков и реструктуризации — «сейчас отвечают 0 из 12»; волны — прогноз порядка в тексте стенда (ДБ-218, ДБ-53, ДБ-50, ИДБ-14)`);
+
+  // ДБ-219: «большинство» — не меньше половины плиток объявленной раскладки; плитки «ждёт меня» (ссылки на очереди модулей) в счёте нет
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
+  DB.standDown('Заёмщики', false); DB.standDown('Реструктуризация', false); const half = DB.roleLaunch('cur'), halfL = DB.composeLayout('u2', 'cur');
+  T('cur-risk').state = 'draft'; const under = DB.roleLaunch('cur'), underL = DB.composeLayout('u2', 'cur'); T('cur-risk').state = 'published';
+  DB.seed(); const zl = DB.roleLaunch('zal'), zlLinks = DB.DECLARED_SEED.zal.filter(k => !k.startsWith('s:') && T(k).kind === 'link').length;
+  DB.standDown('Залог', false); const zl0 = DB.roleLaunch('zal');
+  ok(369, half.ok && half.n === 6 && half.of === 12 && halfL.filter(k => !k.startsWith('s:') && T(k).owner === 'catalog' && T(k).kind !== 'link').length === 6
+    && !under.ok && under.n === 5 && under.of === 12 && underL.join() === 'tasks,p-u2-agro'
+    && zl.ok && zl.n === 1 && zl.of === 1 && zlLinks === 7 && !zl0.ok && zl0.n === 0 && /n\*2 >= of && n>0/.test(src),
+    `Куратор без заёмщиков и реструктуризации: отвечает ${half.n} из ${half.of} — ровно половина, своя раскладка (${half.n} плиток и «Мои задания»); ещё одна плитка черновиком — ${under.n} из ${under.of}, минимальная; у Залога в счёте одна плитка из восьми (семь «ждёт меня», с «Моими заданиями», не считаются): отвечает — своя, залог не объявлен — 0 из 1, минимальная (ДБ-219, ДБ-218)`);
+
+  // ДБ-220 (ДБ-Д59): плитка при пустом охвате по её параметру — серое «у вас пусто» с причиной, как в каталоге; ноль при непустом охвате — числом
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openCatalogFor(); DB.addFromCatalog('cur-od'); DB.go('home');
+  const b20 = DB.base('cur-od', 'u1', 'lead', {}), h20 = DB.homeHTML(), c20 = DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }).rows.find(x => x.t.id === 'cur-od');
+  const tile20 = DB.tileHTML('cur-od', 'u1', 'lead');
+  const w20 = DB.drill('cur-od', u1, 'lead', {}), b2 = DB.base('cur-od', 'u2', 'cur', {}), z30 = DB.base('cur-rc', 'c30', 'cur', {}), zh = DB.tileHTML('cur-rc', 'c30', 'cur');
+  ok(370, b20.state === 'mine0' && DB.composeLayout('u1', 'lead').includes('cur-od') && /data-key="cur-od"[^>]*>[\s\S]*?<span class="mine0"[^>]*>у вас пусто</.test(h20) && /<div class="t-row"><span class="mine0" data-tip="Плитка считает кредиты, где вы куратор; у вас таких нет">у вас пусто<\/span><\/div>/.test(tile20)
+    && !/посчитали — нет|class="big"/.test(tile20) && c20.empty === 'Плитка считает кредиты, где вы куратор; у вас таких нет' && w20.number === 0 && w20.matches && w20.list.length === 0
+    && b2.state === 'ok' && b2.value > 0 && z30.state === 'zero' && /<span class="note">посчитали — нет<\/span>/.test(zh),
+    `Асанов (Руководство) поставил из каталога «Просрочено · куратор: я»: на главной — серое «у вас пусто» с подсказкой «${c20.empty}», как в каталоге, а не «0 · посчитали — нет»; «кто в этом числе» — пустой список; у Бековой та же плитка — ${nb(b2.value)}; у Тойчиевой «В реструктуризации» — законный 0 «посчитали — нет» (кредиты есть) (ДБ-220, ДБ-211, ДБ-Д59)`);
+
+  // ДБ-221 (ДБ-Д60): фильтра не из чего выбрать — у плиток вкладки нет области, подразделения и программы: «Фильтр» погашен с подсказкой, окна нет
+  DB.seed(); const fo = {};
+  [['u7', 'com'], ['u9', 'otd'], ['u10', 'rep'], ['u1', 'lead'], ['u2', 'cur']].forEach(([id, r]) => { asUser(id); DB.setTab('role', r); fo[r] = { off:DB.filterOff(U(id), r), btn:(DB.topHTML().match(/<button class="btn sm fbtn[^>]*>/) || [''])[0] }; });
+  const OFF = '<button class="btn sm fbtn" aria-disabled="true" data-tip="У плиток этой вкладки нет области, подразделения и программы">';
+  ok(371, ['com', 'otd', 'rep'].every(r => fo[r].off && fo[r].btn === OFF) && ['lead', 'cur'].every(r => !fo[r].off && /onclick="DB\.openFilter\(\)"/.test(fo[r].btn) && !/aria-disabled/.test(fo[r].btn))
+    && /\.btn:disabled,\.btn\[aria-disabled="true"\]\{ color:var\(--text-disabled\);/.test(src) && /if\(filterOff\(user\(\), curRole\(\)\)\) return toast\(NO_FILTER\);/.test(src),
+    'Комиссия, Отдел · заключения, Отчётность: в охвате нет ни одного значения области, подразделения и программы — «Фильтр» погашен (серый, без окна) с подсказкой «У плиток этой вкладки нет области, подразделения и программы»; у Руководства и Куратора — обычная кнопка (ДБ-221, ДБ-210, ДБ-Д60)');
   DB.seed();
 })();
 
