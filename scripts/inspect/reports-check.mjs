@@ -76,7 +76,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const ref = RP.publishChecks('t-ref');
   const sub = ref.find(c => c.check === 'подстановка');
   const bas = ref.find(c => c.check === 'основание');
-  ok(5, sub && has(sub.why, 'в макете {{остаток_осн}}') && has(sub.why, 'такого поля не объявляет'),
+  ok(5, sub && has(sub.why, 'в макете ${Кредит.ОстатокОсн}') && has(sub.why, 'такого поля не объявляет'),
     `подстановка не из перечня названа дословно: «${sub ? sub.why : '—'}»`);
   ok(6, bas && has(bas.why, 'сослаться на пункт нормы может только публикующий'),
     `норму называет публикующий, а не автор черновика: «${bas ? bas.why.slice(0, 70) : '—'}…»`);
@@ -180,22 +180,27 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   ok(21, !gone.ok, `выпуск по неопубликованному/неисполнимому шаблону отклонён: «${gone.why.slice(0, 60)}…»`);
 })();
 
-/* ---------- F. Бланк: два замка, подстановки, серии и номера (§8, ИО-9) ---------- */
+/* ---------- F. Бланк: два замка, подстановки, номер у документооборота ---------- */
 (() => {
   RP.seed();
   as('clerk');
-  const before = RP.TPL('t-notice').series.next;
+  const docs0 = RP.state.docs.length;
   const pre = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'предварительный' });
-  ok(22, pre.ok && RP.ISS(pre.id).number === null && RP.TPL('t-notice').series.next === before,
-    `перепечатка предварительного бланка номера не сжигает: следующий по-прежнему ${before} — ИО-9, ADR-0161 §5`);
+  ok(22, pre.ok && RP.ISS(pre.id).number === null && RP.ISS(pre.id).doc === null &&
+        RP.state.docs.length === docs0 && RP.state.templates.every(t => t.series === undefined),
+    `серий исходящих у бланков нет, а предварительный выпуск документа не заводит вовсе — ` +
+    `перепечатывай сколько нужно`);
 
   const fin = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный' });
-  const f = RP.ISS(fin.id);
-  ok(23, fin.ok && f.number === 'УВ-2026/037' && RP.TPL('t-notice').series.next === before + 1 &&
+  const f = RP.ISS(fin.id), d = RP.DOC(f.doc);
+  ok(23, fin.ok && f.number === null && d && d.kind === 'черновик исходящего' && d.number === null &&
+        d.issue === f.id && d.type === 'Уведомление' && d.to === 'ОсОО «Нарын-Агро»' &&
+        has(fin.note, 'номер выдаст журнал документооборота') &&
         f.snapshot && f.recipient && f.recipient.name === 'ОсОО «Нарын-Агро»' &&
         f.recipient.ref === 'su-2' && f.recipient.role === 'заёмщик' && f.recipient.viaObject === 'kr-2',
-    `номер ${f.number} потрачен ВМЕСТЕ со снимком; получатель бланка — ССЫЛКА на лицо ` +
-    `(${f.recipient.ref}, роль «${f.recipient.role}»), объект — только дорога к нему (ИО-5, ИО-28)`);
+    `окончательный выпуск бланка с внешним получателем стал черновиком исходящего ${d.id} ` +
+    `(«${d.type}», ${d.attach}); номера у снимка нет; получатель — ССЫЛКА на лицо ` +
+    `(${f.recipient.ref}, роль «${f.recipient.role}»), объект — только дорога к нему`);
 
   const addr = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный', recipient:'a-mf' });
   ok(24, !addr.ok && has(addr.why, 'справочника адресатов сдачи') &&
@@ -203,12 +208,15 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `бланку адресат сдачи не выбирается: получателя объявляет РЕДАКЦИЯ одним из четырёх видов — ` +
     `«${addr.why.slice(0, 70)}…» (ИО-5, ADR-0168 §1)`);
 
-  const noNum = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный' });
-  const dup   = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/014' });
-  const good  = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/015' });
-  ok(25, !noNum.ok && has(noNum.why, 'журнал исходящих ведёт канцелярия') &&
-        !dup.ok && has(dup.why, 'система номера не выдаёт, но дубль ловит') && good.ok,
-    `ручная серия: номер вводит канцелярия, система его не выдаёт, но дубль ловит — ADR-0161 §6`);
+  const hand = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/015' });
+  const good = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  const gd = RP.DOC(RP.ISS(good.id).doc);
+  const reg = RP.registerDoc(gd.id), again = RP.registerDoc(gd.id);
+  ok(25, !hand.ok && has(hand.why, 'здесь не вводится') && good.ok && reg.ok &&
+        RP.DOC(gd.id).number === reg.number && RP.DOC(gd.id).kind === 'исходящий' &&
+        RP.issueNumber(good.id) === reg.number && !again.ok,
+    `ручной серии нет: номер рукой не вводится, его ставит документооборот при регистрации после ` +
+    `подписи (${reg.number}) — выпуск видит его через ссылку на документ`);
 
   as('user');                                   // dep-prom; kr-4 — dep-admin
   const lock = RP.issue('t-notice', { params:{ obj:'kr-4' }, kind:'предварительный' });
@@ -360,8 +368,13 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const draft = RP.callSeamOut('анализ', 'reportDraft', 't-avg');
   const wrong = RP.callSeamOut('задачи', 'reportTemplate', 't-overdue');
   const tpl = RP.reportTemplate('t-overdue');
-  ok(44, card.ok && card.data.length === 1 && card.data[0].number === 'УВ-2026/037',
-    `карточка объекта видит зеркалом, что по кредиту уходило наружу: ${card.data[0].number}`);
+  const dRow = card.data[0];
+  RP.registerDoc(dRow.doc);
+  const card2 = RP.callSeamOut('карточка объекта (ядро)', 'reportIssues', 'kr-2');
+  ok(44, card.ok && card.data.length === 1 && dRow.doc && dRow.number === null &&
+        has(card2.data[0].number, 'Исх-'),
+    `карточка объекта видит зеркалом, что по кредиту уходило наружу: выпуск и документ ${dRow.doc}; ` +
+    `номер (${card2.data[0].number}) появляется, когда документооборот его зарегистрирует`);
   ok(45, !rows.ok && has(rows.why, 'число без паспорта не показывается') &&
         !draft.ok && has(draft.why, 'читается как шаблон') &&
         !wrong.ok && has(wrong.why, 'шов «reportTemplate» не спрашивает'),
@@ -378,7 +391,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const stored = win.RP.state.templates.find(t => t.id === 't-notice').editions[0];
   ok(47, notice.subs.join(',') === 'borrower,no,debt_main' && claim.subs.length === 4 &&
         stored.subs.join(',') === notice.subs.join(','),
-    `список подстановок нигде не ведётся руками: он выведен разбором {{…}} в тексте макета — ` +
+    `список подстановок нигде не ведётся руками: он выведен разбором \${…} в тексте макета — ` +
     `«${notice.subs.join(', ')}» у уведомления, ${claim.subs.length} у претензии (§8)`);
 
   const edit = RP.setLayout('t-notice', 'другой текст');
@@ -388,7 +401,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   as('auth');
   const ne = RP.newEdition('t-notice');
   const again = RP.newEdition('t-notice');
-  const set = RP.setLayout('t-notice', 'УВЕДОМЛЕНИЕ\n\nКому: {{borrower}}\nДоговор {{no}}.');
+  const set = RP.setLayout('t-notice', 'УВЕДОМЛЕНИЕ\n\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}.');
   const after = RP.layoutOf('t-notice');
   ok(49, ne.ok && ne.n === 2 && !again.ok && has(again.why, 'черновая редакция') &&
         set.ok && after.subs.length === 2 && RP.pubEd('t-notice').n === 1,
@@ -402,16 +415,16 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   const fld = RP.insertToken('t-notice', 'field', 'days');
   ok(51, fld.ok && RP.layoutOf('t-notice').subs.indexOf('days') !== -1 &&
-        has(RP.layoutOf('t-notice').text, '{{days}}'),
+        has(RP.layoutOf('t-notice').text, '${Кредит.ДнейПросрочки}'),
     `поле вставляется из публичного перечня ядра и сразу видно разбору: своих полей у бланка нет (ИО-2)`);
 
   const rep = RP.setLayout('t-overdue', 'текст');
   const dx = RP.docxNote();
   const bad = RP.layoutOf('t-ref');
   ok(52, !rep.ok && has(rep.why, 'колонки') && !dx.ok && has(dx.why, 'только pdf') &&
-        bad.subs.indexOf('остаток_осн') !== -1,
+        bad.subs.indexOf('Кредит.ОстатокОсн') !== -1,
     `у отчёта макета нет (состав — колонки и показатели); docx остаётся форматом черновика; ` +
-    `подстановка «остаток_осн» в справке видна разбором как отсутствующая в перечне`);
+    `поле \${Кредит.ОстатокОсн} в справке видно разбором как отсутствующее в перечне`);
 })();
 
 /* ---------- N. Рабочий список: замороженный состав без чисел (§9, ИО-14) ---------- */
@@ -500,7 +513,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
   const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn(), bo = VIEWS.bounds.fn();
   ok(61, has(reg, 'Не видно этой роли') && has(cal, 'Три кнопки, которых в модуле нет') &&
-        has(jr, 'что мы отдали наружу') && has(bl, 'Подстановки — выведены разбором текста') &&
+        has(jr, 'что мы отдали наружу') && has(bl, 'Проверка документом') &&
         has(wl, 'Завести список правилом') && has(bo, 'Чего в макете нет'),
     `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
 })();
@@ -612,15 +625,14 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `в журнале осталась и говорит почему`);
 
   as('clerk');
-  const t = RP.state.templates.find(x => x.id === 't-notice');
-  const before = t.series.next;
+  const before = RP.state.docs.length;
   const ob = RP.order('t-notice', { params:{ obj: RP.objects()[0].id }, kind:'окончательный' });
-  const atOrder = t.series.next;
+  const atOrder = RP.state.docs.length;
   RP.step(ob.id); const done = RP.step(ob.id);
-  ok(74, ob.ok && atOrder === before && t.series.next === before + 1 &&
-        done.rec.number === t.series.prefix + String(before).padStart(3,'0'),
-    `номер серии тратится вместе со снимком, а не при заказе: после заказа следующий остался ` +
-    `${atOrder}, после «готов» стал ${t.series.next}, выпуску достался ${done.rec.number} (ИО-9)`);
+  ok(74, ob.ok && atOrder === before && RP.state.docs.length === before + 1 &&
+        done.rec.doc && done.rec.number === null && RP.DOC(done.rec.doc).issue === ob.id,
+    `черновик исходящего заводится вместе со снимком, а не при заказе: после заказа документов ` +
+    `${atOrder}, после «готов» — ${RP.state.docs.length}; документ ссылается на выпуск ${ob.id}`);
 })();
 
 (() => {
@@ -860,7 +872,7 @@ const DEV = 'изменено — не утверждённый состав';
   const gaps = RP.formGaps();
   const norms = sc.must.filter(r => r.kind === 'норма');
   const forms = RP.forms();
-  ok(102, forms.length === 14 && forms.filter(f => f.obligatory).length === 12 &&
+  ok(102, forms.length === 15 && forms.filter(f => f.obligatory).length === 12 &&
         gaps.length === 2 && gaps.filter(g => g.nowhere).length === 0 &&
         norms.length === gaps.length &&
         norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
@@ -1076,12 +1088,11 @@ const DEV = 'изменено — не утверждённый состав';
   const rep = showTab('отчёт'), bl = showTab('бланк');
   const tables = s => (String(s).match(/<table/g) || []).length;
   const sects = s => (String(s).match(/class="sect"/g) || []).length;
-  ok(151, tables(rep) === 1 && sects(rep) === 2 && tables(bl) === 1 && sects(bl) === 1 &&
-        !has(bl, 'По запросу') && !has(bl, 'Под отбор не попало') &&
-        has(rep, 'Обязательные <span class="n">· 1</span>'),
-    `обязательность делит строки ВНУТРИ одной таблицы: на «Отчётах» одна шапка и два ` +
-    `разделителя, на «Бланках» — один, потому что бланков «по запросу» не существует и ` +
-    `пустой группы нет в разметке вовсе (а не «0 строк» с выдуманной причиной отбора)`);
+  ok(151, tables(rep) === 1 && sects(rep) === 2 && tables(bl) === 1 && sects(bl) === 2 &&
+        has(bl, 'По запросу <span class="n">· 1</span>') && has(bl, 'Кредитный договор') &&
+        !has(bl, 'Под отбор не попало') && has(rep, 'Обязательные <span class="n">· 1</span>'),
+    `обязательность делит строки ВНУТРИ одной таблицы: одна шапка и разделители групп; у бланков ` +
+    `«по запросу» — кредитный договор, необязательный по норме, но печатаемый каждый день`);
 })();
 
 /* ---------- T. Три стола в навигации — раскладка, а не права (ОЧ-55) ---------- */
@@ -1209,10 +1220,11 @@ const DEV = 'изменено — не утверждённый состав';
   ok(134, one.ok && half.cover.got === 1 && half.state === 'ожидается' &&
         half.cover.missing[0].id === 'kr-2' && two.ok && full.cover.got === 2 &&
         full.state === 'сдано' && full.issues.length === 2 &&
-        RP.ISS(one.id).recipient.viaObject && RP.ISS(one.id).number === 'АС-2026/001',
+        RP.ISS(one.id).recipient.viaObject && RP.DOC(RP.ISS(one.id).doc).type === 'Акт сверки' &&
+        RP.DOC(RP.ISS(one.id).doc).kind === 'черновик исходящего',
     `обязательство с полным охватом закрывает не бумага, а ВСЕ бумаги: после первого акта ` +
     `${half.cover.got} из ${half.cover.need} и «${half.state}» с поимённым остатком, после второго — ` +
-    `«${full.state}»; получатель у каждого свой заёмщик, номер из серии (§13.4, ИО-27)`);
+    `«${full.state}»; получатель у каждого свой заёмщик, у каждого акта — свой черновик исходящего`);
 
   const signed = RP.markSigned(prom.id);
   ok(135, !signed.ok && has(signed.why, 'событие контрагента, а не выпуск') &&
@@ -1302,11 +1314,12 @@ const DEV = 'изменено — не утверждённый состав';
   const legal = RP.orgUnits().find(u => u.id === 'dep-legal');
   ok(143, m.ok && rec.recipient.kind === 'подразделение' && rec.recipient.ref === 'dep-legal' &&
         rec.recipient.name === 'Департамент правового обеспечения' && rec.recipient.role === null &&
-        rec.recipient.viaObject === 'kr-2' && rec.number === 'СЗ-2026/001' && rec.snapshot &&
+        rec.recipient.viaObject === 'kr-2' && rec.number === null &&
+        RP.DOC(rec.doc).kind === 'черновик внутреннего документа' && rec.snapshot &&
         legal && legal.credits === false && RP.depts().every(d => d.id !== 'dep-legal'),
     `получатель бывает не лицом: служебная записка ушла ПОДРАЗДЕЛЕНИЮ ссылкой (${rec.recipient.ref}), ` +
-    `номер ${rec.number} потрачен и числа заморожены — «внутрь» не значит «не выпуск» (ADR-0157 §1, ` +
-    `ADR-0168 §1). ДПО кредитов не ведёт и в область видимости не входит (ИО-29)`);
+    `числа заморожены, в документообороте — черновик внутреннего документа, а не исходящего: ` +
+    `«внутрь» не значит «не выпуск». ДПО кредитов не ведёт и в область видимости не входит`);
 
   /* Одна редакция — разные адресаты: получатель вычисляется от объекта.
      Выпустить её в макете некому: круг записки — ДПО, а роли ДПО нет (ОЧ-63). */
@@ -1576,13 +1589,93 @@ const DEV = 'изменено — не утверждённый состав';
     `открыть; общий отчёт выгружается, но не сдаётся — «${sf.why.slice(0, 60)}…»`);
 })();
 
+/* ---- BB. Бланки: ${…} русскими именами, верстальщик «скачать → загрузить → проверить» ---- */
+(() => {
+  RP.seed(); as('clerk');
+  const bad = RP.parseLayout('Кому: ${Заёмщик.ФИО | вин}\nДоговор {{no}}\n${Повтор: каждый Платёж}\n' +
+    '${Если: сумма > 1000}\n${Конец условия}', 'credit');
+  const why = n => (bad.errors.find(e => e.line === n) || {}).why || '';
+  const legacy = RP.state.templates.filter(t => t.editions.some(e => /\{\{/.test(e.layoutText || '')));
+  const good = RP.checkLayout('t-contract');
+  ok(165, has(why(1), 'вид значения «вин» неизвестен') && has(why(2), 'запись {{no}} не принимается') &&
+        has(why(4), 'не из списка') && has(why(5), 'без начала условия') &&
+        bad.errors.some(e => has(e.why, 'повтор не закрыт')) && legacy.length === 0 &&
+        good.errors.length === 0 && good.fields.join() === 'no,issued,borrower,sum,guarantor' &&
+        good.conds.join() === 'есть Поручитель',
+    `синтаксис один — \${…} русским именем: ${bad.errors.length} ошибки с местом (вид значения не из ` +
+    `набора, старая запись {{…}}, условие не из списка, незакрытый повтор); ни в одном бланке {{…}} не осталось`);
+
+  const dl = RP.downloadLayout('t-notice');
+  const up = RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: {{borrower}}\nДоговор ${Кредит.Номер}');
+  const t = RP.TPL('t-notice');
+  const send1 = RP.sendForApproval('t-notice');
+  const up2 = RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}');
+  const send2 = RP.sendForApproval('t-notice');
+  ok(166, dl.ok && has(dl.note, 'Word или LibreOffice') && up.ok && up.errors === 1 &&
+        has(up.note, 'работа сохранена') && RP.draftEd('t-notice').n === 2 && RP.pubEd('t-notice').n === 1 &&
+        !send1.ok && has(send1.why, 'стр. 2') && up2.ok && up2.errors === 0 && send2.ok && t.asked === true,
+    `файл ходит «скачать → поправить → загрузить»: загрузка с ошибкой легла черновиком ред. 2 ` +
+    `(прежняя печатается), ошибка закрыла только отправку на утверждение — «${send1.why.slice(0, 60)}…»`);
+
+  const pal = RP.palette('t-contract', '', 'kr-6');
+  const roles = pal.map(g => g.role);
+  const guar = pal.find(g => g.role === 'Поручитель').items[0];
+  const found = RP.palette('t-contract', 'сумма', 'kr-6');
+  const cp = RP.copyToken('Кредит.Сумма', 'число и прописью');
+  ok(167, roles.join() === 'Кредит,Заёмщик,Поручитель,Платёж — в повторе' && guar.ru === 'Поручитель.ФИО' &&
+        guar.example === 'Асанов Т. К.' && found.every(g => g.items.every(x => has(x.ru.toLowerCase() + x.name.toLowerCase(), 'сумма'))) &&
+        found.length === 2 && cp.ok && cp.token === '${Кредит.Сумма | число и прописью}',
+    `палитра полей — по ролям (${roles.join(' · ')}), с примером значения на живом объекте ` +
+    `(«${guar.example}») и поиском; «копировать» отдаёт готовую метку ${cp.token}`);
+
+  RP.state.view = 'blank'; RP.state.sel.blank = 't-contract';
+  RP.state.sel.blankObj = 'kr-6'; RP.state.sel.blankVals = true;
+  const withG = win.VIEWS.blank.fn();
+  RP.state.sel.blankObj = 'kr-2';
+  const noG = win.VIEWS.blank.fn();
+  RP.state.sel.blankVals = false;
+  const names = win.VIEWS.blank.fn();
+  RP.state.sel.blank = 't-recon'; RP.state.sel.blankVals = true; RP.state.sel.blankObj = 'kr-2';
+  const recon = win.VIEWS.blank.fn();
+  ok(168, has(withG, 'выполнено, раздел войдёт') && has(withG, '>Асанова Т. К.</span>') &&
+        has(withG, 'шесть миллионов двести тысяч') && has(withG, '«01» июля 2025 г.') && has(withG, 'lcheck sample') &&
+        has(noG, 'не выполнено, раздела не будет') && has(names, '${Поручитель.ФИО | род.}') &&
+        !has(names, 'lcheck sample') && has(recon, 'повтор · каждый платёж · строк 4') &&
+        has(recon, 'Ошибок нет'),
+    `проверка — документ: поля подсвечены, вид значения применён («Асанова Т. К.», сумма прописью, ` +
+    `дата словами), условие о поручителе выполнено у КД-2025/126 и не выполнено у КД-2024/203, ` +
+    `повтор акта сверки дал 4 строки платежей; на примерах — «ОБРАЗЕЦ», переключатель «имена / значения»`);
+
+  RP.seed(); as('clerk');
+  const c = RP.issue('t-contract', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  const n = RP.issue('t-notice', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  as('auth'); RP.state.sel.regTab = 'бланк';
+  const reg = win.VIEWS.registry.fn();
+  ok(169, c.ok && c.rec.number === 'КД-2025/126' && c.rec.doc === null && has(c.note, 'реквизит кредита') &&
+        n.ok && n.rec.number === null && RP.DOC(n.rec.doc).kind === 'черновик исходящего' &&
+        has(reg, 'реквизит кредита — номер договора') && has(reg, 'номер при регистрации после подписи') &&
+        !has(src, 'series') && !/серия «|ручная серия|Серия и номер/.test(src),
+    `у договора номер — реквизит кредита (${c.rec.number}), в журналы документооборота он не идёт; ` +
+    `у уведомления — черновик исходящего без номера; серий исходящих в макете нет`);
+
+  RP.seed(); as('auth');
+  RP.newEdition('t-claim');
+  RP.state.templates.find(x => x.id === 't-claim').editions.find(e => e.state === 'черновик')
+    .layoutText = 'ПРЕТЕНЗИЯ\nКому: ${Заёмщик.ФИО | вин}\n${Если: есть Поручитель}\nтекст';
+  const ch = RP.publishChecks('t-claim').filter(x => x.check === 'проверка макета');
+  ok(170, ch.length === 2 && ch.some(x => has(x.why, 'стр. 2')) && ch.some(x => has(x.why, 'условие не закрыто')) &&
+        !RP.publish('t-claim').ok,
+    `утверждение повторяет проверку документом: ошибка с местом («${ch[0].why.slice(0, 50)}…») ` +
+    `не пускает редакцию в печать`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-10-17 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-10-17 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
