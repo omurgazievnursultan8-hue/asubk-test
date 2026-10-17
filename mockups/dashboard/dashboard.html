@@ -213,6 +213,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .tile .passport{ font-size:12px; line-height:1.4; color:var(--text-muted); border-top:1px solid var(--asubk-grid-line); padding-top:6px; margin-top:4px; font-variant-numeric:tabular-nums; white-space:normal; }
 .tile .state-msg{ font-size:13px; line-height:1.45; color:var(--text-secondary); }
 .tile .state-msg b{ color:var(--text-heading); font-weight:600; }
+.tile .state-sub{ color:var(--text-muted); white-space:nowrap; }
 .tile.skel .t-body{ background:var(--surface-sunk); border-radius:var(--r-md); margin:8px 0 2px; min-height:52px; }
 @media (prefers-reduced-motion:no-preference){ .tile.skel .t-body{ animation:pulse 1.1s ease-in-out infinite alternate; } }
 @keyframes pulse{ from{ opacity:1; } to{ opacity:.45; } }
@@ -572,7 +573,7 @@ function progOf(id){ return PROGRAMS.find(x=>x.id===id) || PROGRAMS_CLOSED.find(
 /* ================= Пользователи и роли ================= */
 // Роли — системные роли модуля пользователей. Дашборд своих ролей не заводит.
 const ROLES = [
-  { id:'lead', name:'Руководство', scope:'all' },
+  { id:'lead', name:'Руководство', scope:'all', gen:'Руководства' },
   { id:'cur', name:'Куратор кредита', scope:'dept' },
   { id:'prob', name:'Проблемные кредиты', scope:'dept' },
   { id:'acc', name:'Бухгалтерия', scope:'all' },
@@ -583,7 +584,7 @@ const ROLES = [
   { id:'otd', name:'Отдел · заключения', scope:'dept' },
   { id:'rep', name:'Отчётность', scope:'dept' },
   { id:'ast', name:'Специалист по имуществу', scope:'dept' },
-  { id:'an', name:'Аналитик', scope:'all' },
+  { id:'an', name:'Аналитик', scope:'all', copyOf:'lead' },   // своей объявленной раскладки нет — минимальная и «+ экран — копия «Руководства»»
   { id:'adm', name:'Администратор дашборда', scope:'all', admin:true },
   { id:'sys', name:'Системный администратор', scope:'none' },
 ];
@@ -623,6 +624,9 @@ const CURATORS = [{ id:'u2', name:'Бекова А. Т.', dept:'rp-chu' }];
   RPS.forEach((d,i)=>{ for(let k=0;k<3;k++){ CURATORS.push({ id:'c'+i+k, name:fam[(i*3+k)%fam.length]+' '+'АБВГДЕЖЗИКЛМ'[(i+k)%12]+'.', dept:d.id }); } }); r(); })();
 // куратор Нарынского РП входит в систему сам: его кредиты уже есть в данных, заданий у него нет
 { const c = CURATORS.find(x=>x.dept==='rp-nar'); USERS.push({ id:c.id, name:c.name, roles:['cur'], dept:c.dept }); }
+// второй держатель роли «Администратор дашборда»: держателей несколько, на запуске два; заданий у неё нет
+USERS.push({ id:'u13', name:'Бейшеналиева Ж. Т.', roles:['adm','an'], dept:'go' });
+const USERS_SEED = JSON.stringify(USERS.map(u=>[u.id, u.roles]));   // роли пользователей стенда: seed() возвращает их, снятые на стенде роли — тоже
 function userName(id){ const u = USERS.find(x=>x.id===id) || CURATORS.find(x=>x.id===id); return u ? u.name : id; }
 
 /* ================= Данные стенда (то, что знает «статистика») ================= */
@@ -798,13 +802,14 @@ function genMore(loans, claims, measures){
     rsapps.push({ id:'ЗР-'+(400+i), loan:l.id, borrower:l.borrower, curator:l.curator, dept:l.dept, region:l.region, stage:RS_STAGES[s], outcome,
       multi, inWork, regDays, late, outAt, outDay, base:Math.round(l.balance*(1+q()*0.3)), from:(outAt||0) - Math.ceil(regDays/30) }); }
   DATA.rsapp = rsapps;
-  // --- эпизод просрочки: открытый — у каждого кредита в просрочке ровно один; вылеченные — в прошлом ---
+  // --- эпизод просрочки: открытый — у каждого кредита в просрочке ровно один; вылеченные — в прошлом. Это и есть просрочка кредита:
+  //     дни просрочки в строке кредита на дату — длительность тянущегося на эту дату эпизода (spellDays), эпизода нет — 0 ---
   const dayBack = n=>{ let m = 0, d = TODAY.day - n; while(d<=0){ m--; d += DAYS_IN[monthOf(m).mi]; } return { m, d }; };
   const spells = []; const busy = new Map(); const sid = ()=>'ЭП-'+(10000+spells.length);
   const join = l=>({ loan:l.id, region:l.region, dept:l.dept, curator:l.curator, program:l.program });   // через ключ кредита
   loans.forEach(l=>{ if(!l.overdueDays) return; const f = dayBack(l.overdueDays);
     spells.push(Object.assign({ id:sid() }, join(l), { layer: l.hasClaim && q()<0.3 ? 'по решению суда' : 'свободный', state:'тянется',
-      fromM:f.m, fromDay:f.d, cureM:null, cureDay:null, days:l.overdueDays, peak:l.overdue, from:f.m })); });
+      fromM:f.m, fromDay:f.d, cureM:null, cureDay:null, days:l.overdueDays, peak:l.overdue, from:f.m, why:null })); });
   const clean = loans.filter(l=>!l.overdueDays);
   for(let m=-23;m<=0;m++){ const n = Math.round(150*(0.94+q()*0.12));
     for(let k=0;k<n;k++){ const l = clean[Math.floor(q()*clean.length)]; const dim = DAYS_IN[monthOf(m).mi]; const day = 1+Math.floor(q()*dim);
@@ -812,8 +817,16 @@ function genMore(loans, claims, measures){
       if(l.from>m || cm>0 || (cm===0 && cd>=TODAY.day)) continue;          // тянулся бы сегодня — а кредит без просрочки
       const a = m*31+day, b = cm*31+cd; const sp = busy.get(l.id) || [];
       if(sp.some(([x,y])=>a<=y+1 && b>=x-1)) continue; sp.push([a,b]); busy.set(l.id, sp);
-      spells.push(Object.assign({ id:sid() }, join(l), { layer:'свободный', state:'вылечен', fromM:m, fromDay:day, cureM:cm, cureDay:cd,
-        days:len, peak:Math.round(l.balance*0.04*(0.3+q())), from:m })); } }
+      // короткая просрочка уходит почти всегда платежом; решение и списание — в основном у долгой
+      const id = sid(); spells.push(Object.assign({ id }, join(l), { layer:'свободный', state:'вылечен', fromM:m, fromDay:day, cureM:cm, cureDay:cd,
+        days:len, peak:Math.round(l.balance*0.04*(0.3+q())), from:m, why:epWhy(id, [1,4,8]) })); } }
+  // давние долгие эпизоды — в том же перечне: до двух у кредита, кончились до сегодня и до тянущегося, с короткими не пересекаются.
+  // Своего пика у них нет — просрочено на дату берётся из остатка по сроку (строка кредита)
+  const curedOf = new Map(); spells.forEach(s=>{ if(s.state!=='вылечен') return; if(!curedOf.has(s.loan)) curedOf.set(s.loan, []); curedOf.get(s.loan).push(s); });
+  loans.forEach(l=>{ const eps = (curedOf.get(l.id) || []).slice();
+    for(const n of ['', 2]){ const o = oldEpisode(l, eps, n); if(!o) continue; eps.push(o);
+      spells.push(Object.assign({ id:sid() }, join(l), { layer:'свободный', state:'вылечен', fromM:o.fromM, fromDay:o.fromDay, cureM:o.cureM, cureDay:o.cureDay,
+        days:o.len, peak:null, from:o.fromM, why:o.why })); } });
   DATA.spell = spells;
   // --- объект имущества: всё ведёт Управление по работе с активами (правило холдинга по умолчанию) ---
   const IMK = [['Недвижимость',45],['Земельный участок',20],['Транспорт',15],['Оборудование',12],['Скот',8]];
@@ -842,21 +855,28 @@ function pstateAt(b, m){ if(b.firstM===null || b.firstM>m) return NO_CONTRACTS;
 function lactAt(l, m){ return l.closed && l.to<=m ? 'закрыт' : 'действующий'; }
 // Строка кредита на конец месяца m (m ≤ 0, 0 — сегодня): то, что статистика хранит в строке дня, — дни просрочки, просрочено, сумма под
 // риском, остаток, признак «реструктуризирован», состояние, погашено и списано нарастающим итогом, подразделение, куратор, категория.
-// Сегодняшняя строка — поля кредита как есть. Прошлое восстановлено из того, что стенд уже знает: тянущийся эпизод просрочки стареет
-// по календарю (на 30.09 — на 11 дней моложе), вылеченные эпизоды перечня — прошлая короткая просрочка; у части кредитов — давняя
-// долгая просрочка, кончившаяся до сегодня. У каждой ушедшей просрочки своя причина: погасил, реструктурирован (признак включается,
-// просрочка снимается целиком), списан, прочее (ушла без платежа). У малой доли кредитов — передача из другого подразделения или от
-// другого куратора. Без случайных чисел — из ключа кредита (хеш); прочие данные стенда не сдвигаются.
+// Сегодняшняя строка — поля кредита как есть. Просрочка в прошлом — из перечня эпизодов того же кредита (DATA.spell): дни просрочки на
+// конец месяца — длительность эпизода, тянувшегося на эту дату (тянущийся сегодня на 30.09 — на 11 дней моложе; вылеченный — короткая
+// или давняя долгая просрочка), эпизода нет — 0. Одна просрочка у кредита и у эпизода: Движение, Разрез по сроку и плитки эпизодов видят
+// одно и то же. У каждой ушедшей просрочки своя причина (поле эпизода): погасил, реструктурирован (признак включается, просрочка
+// снимается целиком), списан, прочее (ушла без платежа). У малой доли кредитов — передача из другого подразделения или от другого
+// куратора. Без случайных чисел — из ключа кредита (хеш); прочие данные стенда не сдвигаются.
 const isLoanRow = r=>!!r && typeof r.id==='string' && r.id.startsWith('КД-');
 const OD_RATE = d=>d>180 ? 0.38 : d>90 ? 0.28 : d>30 ? 0.17 : 0.09;          // доля просроченного в остатке по сроку — как в данных стенда
 const catOfDays = d=>d<=30 ? RISK_CATS[1] : d<=90 ? RISK_CATS[2] : d<=180 ? RISK_CATS[3] : RISK_CATS[4];
 const SNAP = new WeakMap(), SNAP_LO = -48;
-let SPELLS_OF = null;                                                        // вылеченные эпизоды перечня по кредиту
+let SPELLS_OF = null;                                                        // эпизоды перечня по кредиту — тянущийся и вылеченные
 function backDays(m){ let n = m<0 ? TODAY.day : 0; for(let k=m+1;k<0;k++) n += DAYS_IN[monthOf(k).mi]; return n; }   // дней от конца месяца m до сегодня
-function epDays(s, m){ if(s.fromM>m || s.cureM<=m) return 0;                   // эпизод тянется на конец месяца m — дней с его начала
-  let n = DAYS_IN[monthOf(s.fromM).mi] - s.fromDay; for(let k=s.fromM+1;k<=m;k++) n += DAYS_IN[monthOf(k).mi]; return Math.max(1, n); }
+// длительность эпизода на конец месяца m (0 — сегодня): эпизод тянется, если начался не позже этой даты и не вылечен к ней; дней — от
+// начала до этой даты, в день начала — 1. Не начался или вылечен — 0. Одна функция и у строки кредита, и у эпизода: кредит в просрочке
+// с того месяца, в котором эпизод «вышел в просрочку», и до того, в котором он «вылечен»
+function spellDays(s, m){ if(s.fromM>m || (s.cureM!==null && s.cureM<=m)) return 0;
+  let n = (m===0 ? TODAY.day : DAYS_IN[monthOf(m).mi]) - s.fromDay; for(let k=s.fromM;k<m;k++) n += DAYS_IN[monthOf(k).mi]; return Math.max(1, n); }
+function spellsOfLoan(id){ if(!SPELLS_OF){ SPELLS_OF = new Map(); DATA.spell.forEach(s=>{ if(!SPELLS_OF.has(s.loan)) SPELLS_OF.set(s.loan, []); SPELLS_OF.get(s.loan).push(s); }); }
+  return SPELLS_OF.get(id) || []; }
 function epWhy(id, w){ const h = hash(id+'|why')%100; return h<w[0] ? 'списан' : h<w[1] ? 'реструктурирован' : h<w[2] ? 'прочее' : 'погасил'; }
-// давняя долгая просрочка кредита: началась до двух лет назад, кончилась до сегодня и до тянущейся просрочки, с эпизодами перечня не пересекается
+// давняя долгая просрочка кредита: началась до двух лет назад, кончилась до сегодня и до тянущейся просрочки, с эпизодами перечня не
+// пересекается; встаёт в перечень эпизодов при посеве стенда (genMore)
 function oldEpisode(row, sps, n){
   const h = k=>hash(row.id+'|o'+k+n), d0 = row.overdueDays || 0;
   if(row.closed || h('old')%100 >= (n ? 60 : 80)) return null;
@@ -867,13 +887,10 @@ function oldEpisode(row, sps, n){
   if(cureM>0 || ago <= (d0>0 ? d0 + 15 : 0)) return null;
   const a = fromM*31 + fromDay, b = cureM*31 + cureDay;
   if(sps.some(s=>a<=s.cureM*31+s.cureDay+1 && b>=s.fromM*31+s.fromDay-1)) return null;
-  return { id:row.id+'|old'+n, fromM, fromDay, cureM, cureDay, why:epWhy(row.id+'|old'+n, [10,25,30]) };
+  return { fromM, fromDay, cureM, cureDay, len, why:epWhy(row.id+'|old'+n, [10,25,30]) };
 }
 function loanHist(row){
-  if(!SPELLS_OF){ SPELLS_OF = new Map(); DATA.spell.forEach(s=>{ if(s.state!=='вылечен') return; if(!SPELLS_OF.has(s.loan)) SPELLS_OF.set(s.loan, []); SPELLS_OF.get(s.loan).push(s); }); }
-  const h = k=>hash(row.id+'|'+k), d0 = row.overdueDays || 0, sps = SPELLS_OF.get(row.id) || [];
-  const eps = sps.map(s=>Object.assign({ why:epWhy(s.id, [1,4,8]) }, s));   // короткая просрочка уходит почти всегда платежом; решение и списание — в основном у долгой
-  for(const n of ['', 2]){ const o = oldEpisode(row, eps, n); if(o) eps.push(o); }          // до двух давних эпизодов, не пересекаются
+  const h = k=>hash(row.id+'|'+k), d0 = row.overdueDays || 0, eps = spellsOfLoan(row.id), open = eps.find(s=>s.state==='тянется') || null;
   const lo = Math.max(SNAP_LO, row.from===undefined ? SNAP_LO : row.from), out = new Map();
   // передача: из другого подразделения (2 %) или от другого куратора того же подразделения (4 %) в месяц tm; до него — прежние
   let tm = null, pDept = row.dept, pCur = row.curator;
@@ -888,14 +905,13 @@ function loanHist(row){
     // доля просроченного у кончившихся эпизодов — от прежней оценки остатка (просрочено — своё поле строки, от потоков не выводится)
     const balance = m===0 ? row.balance : Math.round(row.balance * (1 + m*0.004) * jitter(row, 'm'+m+'balance', 0.03*Math.min(1, (Math.abs(m)+1)/4)));
     let days = 0, overdue = 0;
-    if(m===0){ days = d0; overdue = row.overdue || 0; }
-    else if(d0 - backDays(m) > 0){ days = d0 - backDays(m);                // тянущийся эпизод на конец месяца m
-      overdue = Math.round((row.overdue || 0) * OD_RATE(days) / OD_RATE(d0) * jitter(row, 'od'+m, 0.08)); }
-    else { const ep = eps.find(s=>epDays(s, m)>0);                           // кончившийся эпизод, тянувшийся на конец месяца m
-      if(ep){ days = epDays(ep, m); overdue = ep.peak ? Math.round(ep.peak * (0.55 + 0.45*Math.min(1, days/ep.days)))
-        : Math.round(balance * OD_RATE(days) * jitter(row, 'oo'+m, 0.1)); } }
+    if(m===0){ days = d0; overdue = row.overdue || 0; }                       // сегодня: дни — длительность тянущегося эпизода (d0)
+    else { const ep = eps.find(s=>spellDays(s, m)>0);                         // эпизод, тянувшийся на конец месяца m
+      if(ep){ days = spellDays(ep, m);
+        overdue = ep===open ? Math.round((row.overdue || 0) * OD_RATE(days) / OD_RATE(d0) * jitter(row, 'od'+m, 0.08))
+          : ep.peak ? Math.round(ep.peak * (0.55 + 0.45*Math.min(1, days/ep.days))) : Math.round(balance * OD_RATE(days) * jitter(row, 'oo'+m, 0.1)); } }
     // ушла просрочка за месяц m — причина эпизода, тянувшегося на конец прошлого месяца
-    const left = prev && prev.overdue>0 && overdue===0 ? eps.find(s=>epDays(s, m-1)>0) : null, why = left ? left.why : null;
+    const left = prev && prev.overdue>0 && overdue===0 ? eps.find(s=>spellDays(s, m-1)>0) : null, why = left ? left.why : null;
     if(why==='реструктурирован' || (restrM!==null && m>=restrM)) restr = true;
     // потоки месяца: начислено %, погашено по графику («прочее» — ушла без платежа), списано (пока кредит в 181+, и списанная просрочка),
     // погашенная просрочка, начисленные комиссии и расходы взыскания (потоков у ядра нет — они и есть малое «прочее» Остатка)
@@ -935,8 +951,17 @@ function loanAt(row, m){ let H = SNAP.get(row); if(!H || H.big!==!!STAND.bigOthe
   return H.out.get(Math.min(0, Math.max(H.lo, m))); }
 // потоки кредита за месяц m из той же истории, что и остаток: issued, acc, paid, wr, sm — целыми; до окна истории — нули
 function loanFlow(row, key, m){ loanAt(row, m); const x = SNAP.get(row).fl.get(m); return x ? x[key] : 0; }
-// значение разреза кредита на месяц m — из его строки на дату; у прочих объектов разрез без истории — сегодняшнее значение
-const atLoan = (d, f)=>(r, m)=>{ if(!isLoanRow(r)) return dimValue(d, r); const v = loanAt(r, m)[f], E = DIMS[d].empty; return (v===null || v===undefined) && E ? E : v; };
+// объекты кредита — платёж, эпизод просрочки, заявка на реструктуризацию, предмет залога: подразделение и куратор у них на дату — из строки
+// их кредита на ту же дату (ключ кредита и дата), своей истории этих полей нет; переданный кредит переносит их с собой с даты передачи
+const LOAN_KEYED = { payment:true, spell:true, rsapp:true, coll:true }, LOAN_KEYED_RE = /^(ПЛ|ЭП|ЗР|ПЗ)-/;
+let LOAN_BY = null;
+function loanRowOf(r){ if(!r || typeof r.loan!=='string' || !LOAN_KEYED_RE.test(r.id)) return null;
+  if(!LOAN_BY || LOAN_BY.n!==DATA.loan.length){ LOAN_BY = new Map(DATA.loan.map(l=>[l.id, l])); LOAN_BY.n = DATA.loan.length; }
+  return LOAN_BY.get(r.loan) || null; }
+// значение разреза кредита на месяц m — из его строки на дату; via — то же у объектов кредита (через его строку); у прочих объектов
+// разрез без истории — сегодняшнее значение
+const atLoan = (d, f, via)=>(r, m)=>{ const l = isLoanRow(r) ? r : via ? loanRowOf(r) : null; if(!l) return dimValue(d, r);
+  const v = loanAt(l, m)[f], E = DIMS[d].empty; return (v===null || v===undefined) && E ? E : v; };
 const DEBT_STEPS = ['до 1 млн','1–10 млн','10–50 млн','50+ млн'];
 function debtStep(v){ return !(v>0) ? null : v<1e6 ? DEBT_STEPS[0] : v<1e7 ? DEBT_STEPS[1] : v<5e7 ? DEBT_STEPS[2] : DEBT_STEPS[3]; }
 const HIST_STEPS = ['без просрочек','1–30','31–90','91+'];
@@ -1061,14 +1086,15 @@ function objReady(o){ const O = OBJECTS[o]; return O.wave <= STAND.wave && (!O.g
 // невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
 // at — значение на конец месяца: у срока, категории, подразделения, куратора и состояния кредита — из строки кредита на эту дату (rowAt), поэтому
 // число на базе группируется по значению на дату базы: кредит, перешедший из 31–90 в 91–180, даёт «−» в одной строке и «+» в другой.
+// Подразделение и куратор платежа, эпизода, обращения и предмета залога на дату — из строки их кредита (viaLoan): переданный кредит уносит их с собой.
 const BUCKETS = ['нет просрочки','1–30','31–90','91–180','181+'];
 function bucketOf(d){ return d<=0 ? BUCKETS[0] : d<=30 ? BUCKETS[1] : d<=90 ? BUCKETS[2] : d<=180 ? BUCKETS[3] : BUCKETS[4]; }
 const COHORTS = ['2019','2020','2021','2022','2023','2024','2025','2026'];
 const DIMS = {
   region:  { name:'Область', field:'region', values:REGIONS },
-  dept:    { name:'Подразделение', field:'dept', label:deptName, at:atLoan('dept', 'dept'), rowAt:true },
+  dept:    { name:'Подразделение', field:'dept', label:deptName, at:atLoan('dept', 'dept', true), rowAt:true, viaLoan:true },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
-  curator: { name:'Куратор', field:'curator', label:userName, at:atLoan('curator', 'curator'), rowAt:true },
+  curator: { name:'Куратор', field:'curator', label:userName, at:atLoan('curator', 'curator', true), rowAt:true, viaLoan:true },
   category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории', at:atLoan('category', 'category'), rowAt:true },
   bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS, at:atLoan('bucket', 'bucket'), rowAt:true },
   lstatus: { name:'Состояние кредита', field:'status', values:['Обычный','В реструктуризации','Во взыскании','Закрыт'], at:atLoan('lstatus', 'status'), rowAt:true },
@@ -1323,7 +1349,7 @@ function flowIn(row, I, period){
     if(I.kind==='event'){
       const at = I.atField ? row[I.atField] : row.at; if(at!==m) continue;
       const day = (I.dayField ? row[I.dayField] : row.day) || (1 + hash(row.id)%28);
-      if(m===0 && (P.today ? day!==TODAY.day : day>TODAY.day)) continue;
+      if(m===0 && (P.today ? day!==(P.day || TODAY.day) : day>TODAY.day)) continue;   // day — один день текущего месяца (вчера у отказа ночного источника)
       any = true; s += I.agg==='count' ? 1 : (row[I.field]||0);
     } else {
       if(!flows(row, m)) continue;
@@ -1368,13 +1394,15 @@ function visibleFor(user, roleId, obj){
   if(sc==='deptTree'){ const t = subtree(user.dept); return rows.filter(r=>t.includes(r.dept)); }
   return rows.filter(r=>r.dept===user.dept);
 }
-// разрез с историей у объекта: у кредита срок, категория, подразделение, куратор, состояние — из его строки на дату (rowAt);
-// у залога и заёмщика те же поля без истории — на любую дату сегодняшнее значение; состояния (портфеля, договора, программы) — с историей
-function dimHist(obj, d){ const D = DIMS[d]; return !!(D && D.at) && (!D.rowAt || obj==='loan'); }
-// охват роли по подразделению с историей: у кредита подразделение на дату — из его строки (переданный кредит до передачи — у прежнего);
-// видимость через другой объект, участие и «свои» — сегодняшние
-function scopeHist(roleId, obj){ const O = OBJECTS[obj]; if(['self','open','via'].includes(O.vis)) return false;
-  const sc = scopeOf(roleId, obj); return (sc==='dept' || sc==='deptTree') && dimHist(obj, 'dept'); }
+// разрез с историей у объекта: у кредита срок, категория, подразделение, куратор, состояние — из его строки на дату (rowAt); у объектов
+// кредита (платёж, эпизод, заявка на реструктуризацию, предмет залога) подразделение и куратор — из строки их кредита на ту же дату (viaLoan);
+// у заёмщика те же поля без истории — на любую дату сегодняшнее значение; состояния (портфеля, договора, программы) — с историей
+function dimHist(obj, d){ const D = DIMS[d]; return !!(D && D.at) && (!D.rowAt || obj==='loan' || (!!LOAN_KEYED[obj] && !!D.viaLoan)); }
+// охват роли по подразделению с историей: у кредита подразделение на дату — из его строки (переданный кредит до передачи — у прежнего),
+// у объектов кредита — из строки их кредита, в том числе у эпизода, видимого через кредит; участие и «свои» — сегодняшние
+function scopeObj(obj){ const O = OBJECTS[obj]; return O.vis==='via' && O.via==='loan' && LOAN_KEYED[obj] ? 'loan' : obj; }
+function scopeHist(roleId, obj){ const O = OBJECTS[obj], so = scopeObj(obj); if(['self','open'].includes(O.vis) || (O.vis==='via' && so===obj)) return false;
+  const sc = scopeOf(roleId, so); return (sc==='dept' || sc==='deptTree') && dimHist(obj, 'dept'); }
 // охват смотрящего на дату m: env — { base, user, roleId }; ok(r, m) — строка в охвате хотя бы одной роли на ту дату, rows(m) — строки охвата
 // на ту дату (на сегодня — env.base); hist — охват может меняться между датами. Права «что видно сегодня» (реестр, список на сегодня) — по сегодняшнему
 const SCOPE_AT = new WeakMap();
@@ -1385,7 +1413,7 @@ function scopeEnv(env, obj){
   let E = byEnv.get(k); if(E) return E;
   const rs = viewerRoles(env.user, env.roleId).filter(x=>hasRight(x, obj)), hs = rs.filter(x=>scopeHist(x, obj)), u = env.user;
   const today = new Set(rs.filter(x=>!scopeHist(x, obj)).flatMap(x=>visibleFor(u, x, obj).map(r=>r.id)));
-  const one = (x, r, m)=>{ const d = dimAt('dept', r, m); return scopeOf(x, obj)==='deptTree' ? subtree(u.dept).includes(d) : d===u.dept; };
+  const one = (x, r, m)=>{ const d = dimAt('dept', r, m); return scopeOf(x, scopeObj(obj))==='deptTree' ? subtree(u.dept).includes(d) : d===u.dept; };
   let now = null; const at = new Map();
   const ok = (r, m)=>!m ? (now || (now = new Set(env.base.map(x=>x.id)))).has(r.id) : today.has(r.id) || hs.some(x=>one(x, r, m));
   E = { hist:hs.length>0, ok: hs.length ? ok : ()=>true,
@@ -1483,6 +1511,20 @@ function fmtDelta(d, unit){ if(unit==='pct') return (d>0?'▲ ':d<0?'▼ ':'')+(
   return (d>0?'▲ ':d<0?'▼ ':'')+fmtVal(Math.abs(d), unit); }
 
 /* ================= Паспорт ================= */
+// поток «сегодня» на источнике, который обновляется только ночью: значение на 02:00 — поступления с 00:00 до 02:00, почти ноль весь день
+// и читается как «ничего не поступило». Ответ — отказ с причиной; вчерашнее (закрытое ночным прогоном) число — серой подсказкой.
+// Остаток на таком источнике — по-прежнему число на 02:00 с меткой «◷ только ночью»; Ряд потока — помесячно, его это не касается
+const NIGHT_WHAT = { receipt:'поступления', payment:'платежи' };
+function nightFlowOf(q){ const ctx = ctxOf(q); return !!ctx.period && ctx.period==='today' && q.format!=='series' && nightOnlyOf(q); }
+function nightRefusal(res, q, I, rows, ctx){
+  const what = NIGHT_WHAT[I.obj] || '«'+I.name.toLowerCase()+'»', src = OBJECTS[I.obj].owner, k = '__yday';
+  let yv = null;
+  if(!STAND.nightRunFailed){ PERIODS[k] = { months:[0], partial:true, today:true, day:TODAY.day - 1 };
+    try { yv = aggregate(rows, I, { period:k, tf:ctx.tf }).value || 0; } finally { delete PERIODS[k]; } }
+  const yday = yv===null ? 'за вчера — ещё нет: ночной прогон 11.10 не прошёл' : 'за вчера — '+fmtVal(yv, I.unit);
+  const reason = what[0].toUpperCase()+what.slice(1)+' за сегодня — после ночного прогона: источник «'+src+'» обновляется только ночью';
+  delete res.rows;                                                         // «кто в этом числе» за сегодня — тоже после ночного прогона
+  return Object.assign(res, { state:'refusal', night:{ reason, yday, value:yv, unit:I.unit }, msg:'Не отвечается: '+what+' за сегодня — после ночного прогона; '+yday+'. Источник «'+src+'» обновляется только ночью.' }); }
 // число «сегодня»: остаток на текущий момент или незакрытый период потока
 function liveOf(q){ const ctx = ctxOf(q); return ctx.period ? !!PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day); }
 // источник без журнала изменений днём не опрашивается: его колонки в сегодняшней строке держат значение на 02:00 — это план, не сбой
@@ -1684,6 +1726,7 @@ function answer(q0, user, roleId, panel){
   res.stale = staleOf(q0);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(q), cm = ctxMonth(ctx), dv = (d, r)=>dimAt(d, r, cm);
+  if(nightFlowOf(q)) return nightRefusal(res, q, I, rows, ctx);
   // строки на другую дату (база сдвига и разницы, точка Ряда): охват роли по подразделению и панель по полю с историей — на ту дату
   const env = { base, user, roleId, panel }, rowsAt = m=>panelRowsAt(rows, I.obj, panel, env, q.filter, m);
   Object.defineProperty(res, 'rowsAt', { value:rowsAt, enumerable:false, configurable:true });   // строки на дату — счёту «☰» точек Ряда
@@ -2046,7 +2089,7 @@ function mvRowsOf(o){
         .forEach(([k, v])=>out.push(row(k, (dir==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(d, v), dir==='in' ? '+' : '−', 'scope',
           dir==='in' ? 'на '+from+' — «'+dimLabel(d, v)+'», '+mvWhen(M)+' — в этом узле' : 'на '+from+' — в этом узле, '+mvWhen(M)+' — «'+dimLabel(d, v)+'»'))); });
     return out; };
-  const who = o.I.obj==='borrower' ? 'сменился ведущий куратор' : 'сменился куратор или подразделение';
+  const who = o.I.obj==='borrower' ? 'сменился ведущий куратор' : LOAN_KEYED[o.I.obj] ? 'их кредит передан другому подразделению или куратору — объект перешёл вместе с ним' : 'сменился куратор или подразделение';
   rows.push(...vals('in'));
   if(o.scopeCan || cnt('scopeIn')) rows.push(row('scopeIn', 'пришли в охват', '+', 'scope', 'на '+from+' вне охвата плитки, '+mvWhen(M)+' в нём: '+who+(o.Md.flows ? '; число на '+from+', потоки периода — здесь' : '')));
   rows.push(...vals('out'));
@@ -2474,6 +2517,7 @@ const MINIMAL = ['tasks'];
 let S;
 function seed(){
   REPORTS.splice(0, REPORTS.length, ...JSON.parse(REPORTS_SEED));   // правки отчётов и созданные на ходу не переходят между прогонами
+  JSON.parse(USERS_SEED).forEach(([id, roles])=>{ const u = USERS.find(x=>x.id===id); if(u) u.roles = roles.slice(); });   // снятые на стенде роли возвращаются
   TILES.splice(0, TILES.length, ...JSON.parse(TILES_SEED));
   Object.keys(STAND).forEach(k=>{ delete STAND[k]; }); Object.assign(STAND, JSON.parse(STAND_SEED));
   // panels — фильтр вкладки до конца сеанса (ключ «человек|вкладка»); lastTab — последняя открытая вкладка человека и collapsed —
@@ -2483,7 +2527,6 @@ function seed(){
     overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{} };
   // S.panel — фильтр текущей вкладки; запись нормализует: значения поля — список, пустые поля выброшены
   Object.defineProperty(S, 'panel', { get:()=>panelOfTab(), set:v=>{ S.panels[tabKey()] = normPanel(v); }, enumerable:false, configurable:true });
-  S.declared.an = S.declared.lead.slice();                    // Аналитик стартует с копии «Руководства», дальше живёт отдельно
   S.overlays['u2|cur'] = { order:[], hidden:[], added:['p-u2-agro'] };
   // область задана фильтром экрана, поэтому в паре Карты её нет: «программа × срок»
   S.screens.u1 = [{ id:'sc1', name:'Совещание по Ошу', items:['lead-od','lead-bal'], filter:{ region:['Ошская'] },
@@ -2530,6 +2573,7 @@ function arrangeAdd(roleId, tileId){ const ov = overlay(user().id, roleId); if(c
 function arrangeSection(roleId, name){ const key = 's:'+name; const ov = overlay(user().id, roleId); ov.added.push(key); return key; }
 function resetDeclared(roleId){ delete S.overlays[user().id+'|'+roleId]; journal('вернул как объявлено', roleName(roleId)); }
 function roleName(id){ return (ROLES.find(r=>r.id===id)||{}).name || id; }
+function roleGen(id){ const R = ROLES.find(r=>r.id===id) || {}; return R.gen || R.name || id; }   // «копия «Руководства»»
 
 /* ================= Свои экраны (до 5) ================= */
 function screens(uid){ return S.screens[uid] || (S.screens[uid] = []); }
@@ -2542,6 +2586,14 @@ function tabSnapshot(){ const tab = curTab(), u = user(), sc = tab.kind==='scree
   const items = sc ? sc.items.slice() : composeLayout(u.id, tab.id).filter(k=>!k.startsWith('x:'));
   return { items, filter:normPanel(S.panel), pinned: sc && sc.pinned ? sc.pinned : {}, name:(tabsFor(u).find(t=>t.kind===tab.kind && t.id===tab.id) || {}).name || '' }; }
 function screenById(id){ return screens(user().id).find(s=>s.id===id); }
+// «+ экран — копия «Руководства»» у роли без своей раскладки с образцом (Аналитик): у держателя «Руководства» — его вкладка с личной
+// перекладкой, иначе — объявленная раскладка «Руководства» (отвечающие плитки). Экран свой: смотрит правами всех ролей человека, фильтра нет
+function copyRoleScreen(roleId){ const u = user(), from = (ROLES.find(r=>r.id===roleId) || {}).copyOf;
+  if(!from) return { error:'У роли «'+roleName(roleId)+'» нет образца для копии' };
+  const own = u.roles.includes(from), items = own ? composeLayout(u.id, from).filter(k=>!k.startsWith('x:')) : declaredItems(from).slice();
+  const sc = createScreen('Копия «'+roleGen(from)+'»', { items, filter:null, pinned:{} }); if(sc.error) return sc;
+  journal('создал свой экран', sc.name+' · '+(own ? 'с вкладки «'+roleName(from)+'»' : 'с объявленной раскладки «'+roleGen(from)+'»'));
+  return { screen:sc, source: own ? 'tab' : 'declared' }; }
 function screenAdd(id, tileId){ const sc = screenById(id); if(sc && !sc.items.includes(tileId)) sc.items.push(tileId); }
 function screenRemove(id, key){ const sc = screenById(id); if(sc){ sc.items = sc.items.filter(k=>k!==key); if(sc.pinned) delete sc.pinned[key]; } }
 function screenSaveFilter(id){ const sc = screenById(id); if(sc) sc.filter = panelOn(S.panel) ? normPanel(S.panel) : null; }
@@ -2600,6 +2652,7 @@ const tilesWord = n=>n+' '+(n%10===1 && n%100!==11 ? 'плитка' : n%10>=2 &&
 function tilesOfReport(reportId){ return TILES.filter(t=>t.kind!=='link' && t.report===reportId && t.state!=='withdrawn'); }
 function reportEdit(id, change, who){
   const r = reportById(id); if(!r) return { error:'Отчёта нет в каталоге' }; const c = change || {}; let what;
+  if(who && !canEditReport(r, who)) return { error:'Отчёт «'+r.title+'» правят владелец и соавторы: '+[r.owner, ...reportCoauthors(r)].map(userName).join(', ') };
   if(c.filter){ r.filter = cp(c.filter); what = 'фильтр'; }
   else if(c.removeCol){
     if(!r.cols.includes(c.removeCol)) return { error:'В отчёте «'+r.title+'» нет такой колонки' };
@@ -2643,7 +2696,7 @@ function reportView(tileId, u, roleId, panel){
   const panelText = ans.panelApplied && ans.panelApplied.length ? 'фильтр: '+ans.panelText : 'без фильтра';
   S.seen[u.id+'|'+r.id] = r.version;
   return { tile:t.id,
-    report:{ id:r.id, title:r.title, state:r.state, shelf:r.shelf, shelfName:SHELF_LABEL[r.shelf] || r.shelf, ownerName:userName(r.owner), version:r.version, changed:r.changed, changedText:changedText(r.changed) },
+    report:{ id:r.id, title:r.title, state:r.state, shelf:r.shelf, shelfName:SHELF_LABEL[r.shelf] || r.shelf, ownerName:userName(r.owner), coauthors:reportCoauthors(r).map(userName), version:r.version, changed:r.changed, changedText:changedText(r.changed) },
     desc:OBJECTS[r.obj].name+' · '+r.cols.map(i=>IND[i].name).join(', ')+(dims ? ' · по '+r.dims.map(d=>DIMS[d].name).join(' × ') : ''),
     cols:r.cols.map(i=>({ id:i, name:IND[i].name, unit:IND[i].unit })),
     filterText:r.filter.map(condText), params, panelText, answer:ans };
@@ -2853,7 +2906,8 @@ function autocheck(d){
   else if(live && d.shift && d.shift!=='period') checks.push({ ok:false, text:'база сдвига задана, а сдвига у плитки нет: '+sh[0].why });
   checks.push(...tlChecks(d), ...viewChecks(d, r));
   const pv = live ? baseOf(d, u, null, {}) : { state:'broken', msg:nc.find(x=>!x.ok).text };   // предпросмотр — основа целиком
-  checks.push({ ok: !['refusal','error','broken'].includes(pv.state), text:'предпросмотр без отказа'+(pv.state==='refusal' || pv.state==='broken' ? ': '+pv.msg : '') });
+  // отказ ночного источника на «сегодня» — по плану, не изъян плитки: источник может стать ночным и после публикации, отказ — на показе
+  checks.push({ ok: !['refusal','error','broken'].includes(pv.state) || !!pv.night, text:'предпросмотр без отказа'+(pv.night ? ' (за сегодня — после ночного прогона, так задумано)' : pv.state==='refusal' || pv.state==='broken' ? ': '+pv.msg : '') });
   checks.push({ ok: !!(d.title||'').trim(), text:'есть подпись' });
   checks.push(...circleCheck(d));
   const why = reportBroken(d); if(why && checks.every(x=>x.ok)) checks.push({ ok:false, text:why });   // сломанное, что не назвали пункты выше
@@ -2893,6 +2947,27 @@ function editTile(id, patch){ // правка значений параметр�
   x.version++; journal('изменил плитку (версия '+x.version+')', x.title); return { tile:x };
 }
 function isAdmin(u){ return u.roles.some(r=>(ROLES.find(x=>x.id===r)||{}).admin); }
+// держатели роли «Администратор дашборда» — их несколько, у каждого одно и то же право: правка плиток каталога, его отчётов и раскладок ролей
+function adminHolders(){ return USERS.filter(isAdmin); }
+// соавторы отчёта: у общего отчёта каталога — все держатели роли, кроме владельца (по роли, а не списком: новый держатель сразу соавтор,
+// снятый — сразу нет); владелец — собравший; у личного отчёта — названные автором (на стенде таких нет)
+function reportCoauthors(r){ if(!r) return []; return r.shelf==='catalog' ? adminHolders().map(u=>u.id).filter(id=>id!==r.owner) : (r.coauthors || []).slice(); }
+function canEditReport(r, uid){ return !!r && (r.owner===uid || reportCoauthors(r).includes(uid)); }
+// стенд модуля «Пользователи»: снять и назначить роль. Последнего держателя «Администратора дашборда» снять нельзя — каталог, его отчёты
+// и раскладки ролей остались бы без хозяина; у снятого держателя отчёты каталога во владении переходят к другому держателю
+function roleOff(uid, roleId){ const u = USERS.find(x=>x.id===uid), R = ROLES.find(x=>x.id===roleId);
+  if(!u || !R || !u.roles.includes(roleId)) return { error:'У пользователя нет такой роли' };
+  let to = null, moved = [];
+  if(R.admin){ const rest = adminHolders().filter(x=>x.id!==uid);
+    if(!rest.length) return { refused:true, msg:'Последнего держателя роли «'+R.name+'» снять нельзя: каталог плиток, его отчёты и раскладки ролей останутся без хозяина. Сначала назначьте роль другому человеку.' };
+    to = rest[0].id; moved = REPORTS.filter(r=>r.shelf==='catalog' && r.owner===uid); moved.forEach(r=>{ r.owner = to; }); }
+  u.roles = u.roles.filter(x=>x!==roleId); S.cache.clear();
+  journal('снял роль', u.name+' · «'+R.name+'»'+(to ? ' · отчётов каталога передано во владение '+userName(to)+': '+moved.length : ''));
+  return { ok:true, to, reports:moved.map(r=>r.id) }; }
+function roleOn(uid, roleId){ const u = USERS.find(x=>x.id===uid), R = ROLES.find(x=>x.id===roleId);
+  if(!u || !R || u.roles.includes(roleId)) return { error:'Роль уже назначена' };
+  u.roles = ROLES.map(x=>x.id).filter(id=>id===roleId || u.roles.includes(id)); S.cache.clear();
+  journal('назначил роль', u.name+' · «'+R.name+'»'); return { ok:true }; }
 function propose(id){ const t = tileById(id); if(!t || t.owner!==user().id) return false; t.proposed = true;
   S.proposals.push({ tile:id, from:user().id, at:TODAY.label }); journal('предложил плитку в каталог', t.title); return true; }
 // в каталог — только плитка на отчёте, открытом не одному автору; автопроверка — как у публикации
@@ -3458,7 +3533,7 @@ function homeHTML(){
   const minimal = tab.kind==='role' && !roleHasLayout(roleId);
   const banners = [];
   if(STAND.statDown) banners.push('<div class="banner err">Статистика не отвечает — плитки показывают «ошибка доставки», а не прошлые числа.</div>');
-  if(minimal) banners.push('<div class="banner info">Для роли «'+esc(roleName(roleId))+'» раскладка ещё не объявлена — показана минимальная. <button class="linky" onclick="DB.go(\'catalog\')">Добавить плитки из каталога →</button></div>');
+  if(minimal) banners.push(minimalBanner(roleId));
   const html = `${topHTML(u, tab, roleId, sc)}
     ${banners.join('')}
     ${hiddenChips(u, roleId)}
@@ -3466,6 +3541,12 @@ function homeHTML(){
     ${items.length ? '' : '<p class="muted">Здесь пока пусто. <button class="linky" onclick="DB.openCatalogFor()">Добавить плитки из каталога</button></p>'}`;
   return { html, items, anyOpen, cols, col };
 }
+// роль без своей раскладки — минимальная: «Мои задания» и «добавить из каталога»; у роли с образцом (Аналитик) — ещё «+ экран — копия
+// «Руководства»»; у роли, чьё ядро ещё не готово, раскладка объявлена, но не показана
+function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {};
+  const head = S.declared[roleId] ? 'Для роли «'+esc(roleName(roleId))+'» раскладка ещё не объявлена — показана минимальная.' : 'У роли «'+esc(roleName(roleId))+'» своей раскладки нет — показана минимальная.';
+  const copy = R.copyOf ? ` <span class="sep">·</span> <button class="linky" onclick="DB.copyRoleScreen('${roleId}')"${tipAttr('Свой экран — копия раскладки «'+roleGen(R.copyOf)+'»; дальше живёт отдельно')}>+ экран — копия «${esc(roleGen(R.copyOf))}»</button>` : '';
+  return `<div class="banner info">${head} <button class="linky" onclick="DB.go('catalog')">Добавить плитки из каталога →</button>${copy}</div>`; }
 function renderHome(again){
   const h = homeHTML(); $('v-home').innerHTML = h.html;
   h.items.forEach(k=>{ if(!k.startsWith('s:') && !k.startsWith('x:') && !inShut(h.items, k, h.col)) countView(k); });
@@ -3523,6 +3604,7 @@ function tlTip(t, res){ const x = tlText(t); return TL_WORD[res.tl]+' · '+(x.le
 // тело плитки в состоянии без числа: текст состояния и кнопка, если она есть
 function stateBody(t, res, o){
   if(o && o.preview) return `<div class="state-msg"><b>${STATE_WORD[res.state] || 'Нет ответа'}.</b> ${esc(res.msg || '')}</div>`;
+  if(res.night) return `<div class="state-msg"><b>${STATE_WORD[res.state]}.</b> ${esc(res.night.reason)}; <span class="state-sub">${esc(res.night.yday)}</span></div>`;   // вчерашнее число — серой подсказкой
   return `<div class="state-msg"><b>${STATE_WORD[res.state]}.</b> ${esc(res.msg)}</div>
     ${res.state==='error'?'<div><button class="btn sm" onclick="event.stopPropagation();DB.refresh()">Повторить</button></div>':''}
     ${res.state==='broken'?`<div><button class="btn sm" onclick="event.stopPropagation();DB.hide('${t.id}')">Скрыть у себя</button></div>`:''}
@@ -4140,7 +4222,7 @@ function openReport(tileId){
   if(v.noaccess){ toast(v.msg); return v; }
   const kv = (k, h) => `<div class="k">${k}</div><div>${h}</div>`;
   drawer('Отчёт «'+esc(v.report.title)+'»', `${v.report.state==='archived' ? '<div class="banner warn">Отчёт в архиве: плитки на нём сломаны, новую плитку на нём не поставить.</div>' : ''}<div class="kv">
-    ${kv('Полка', esc(v.report.shelfName))}${kv('Владелец', esc(v.report.ownerName))}
+    ${kv('Полка', esc(v.report.shelfName))}${kv('Владелец', esc(v.report.ownerName))}${v.report.coauthors.length ? kv('Соавторы', esc(v.report.coauthors.join(', '))) : ''}
     ${kv('Версия', 'в. '+v.report.version+(v.report.changed ? ' · '+esc(v.report.changedText) : ''))}${kv('Состав', esc(v.desc))}
     ${kv('Фильтр отчёта', v.filterText.length ? v.filterText.map(x=>`<span class="chip cond">${esc(x)}</span>`).join(' ') : 'нет')}
     ${kv('Параметры плитки', v.params.length ? v.params.map(p=>esc(p.name)+': <b>'+esc(p.value)+'</b>').join('<br>') : 'отчёт параметров не объявил')}
@@ -4382,9 +4464,9 @@ function reportsTable(){
   const rs = REPORTS.filter(r=>r.shelf==='catalog' || tilesOfReport(r.id).length);
   return `<h4 style="margin:18px 0 6px">Отчёты каталога и личные отчёты на плитках</h4>
     <p class="muted small">Отчёты ведёт модуль «Отчётность»: правка отчёта доходит до каждой плитки на нём, отчёт с плитками не удаляется — только в архив.</p>
-    <table class="list"><tr><th>Отчёт</th><th>Владелец</th><th>Круг</th><th>Версия</th><th>Состояние</th><th>Кормит плитки</th><th class="n">Сломано</th></tr>
-    ${rs.map(r=>{ const ts = tilesOfReport(r.id), bad = ts.filter(t=>reportBroken(t));
-      return `<tr><td>${esc(r.title)}<div class="muted small">${SHELF_LABEL[r.shelf] || r.shelf}</div></td><td class="small">${esc(userName(r.owner))}</td><td class="small">${esc(circleWord(r))}</td>
+    <table class="list"><tr><th>Отчёт</th><th>Владелец и соавторы</th><th>Круг</th><th>Версия</th><th>Состояние</th><th>Кормит плитки</th><th class="n">Сломано</th></tr>
+    ${rs.map(r=>{ const ts = tilesOfReport(r.id), bad = ts.filter(t=>reportBroken(t)), co = reportCoauthors(r);
+      return `<tr><td>${esc(r.title)}<div class="muted small">${SHELF_LABEL[r.shelf] || r.shelf}</div></td><td class="small">${esc(userName(r.owner))}${co.length ? `<div class="muted">соавторы: ${esc(co.map(userName).join(', '))}</div>` : ''}</td><td class="small">${esc(circleWord(r))}</td>
       <td class="small">в. ${r.version}${r.changed ? `<div class="muted">${esc(changedText(r.changed))}</div>` : ''}</td><td>${REPORT_STATE[r.state]}${r.cols.some(i=>STAND.withdrawn[i]) ? `<div class="bad small">выведен показатель: ${esc(r.cols.filter(i=>STAND.withdrawn[i]).map(i=>IND[i].name).join(', '))}</div>` : ''}</td>
       <td class="small">${ts.length ? `<details><summary>${tilesWord(ts.length)}</summary>${ts.map(t=>`<div class="${reportBroken(t) ? 'bad' : ''}">${esc(t.title)}</div>`).join('')}</details>` : '—'}</td>
       <td class="n ${bad.length ? 'bad' : ''}">${bad.length}</td></tr>`; }).join('')}</table>`;
@@ -4418,6 +4500,11 @@ function circleNarrowed(){ return !!((reportById(NARROW.report) || {}).circle ||
 function standCircle(on){ const r = reportById(NARROW.report); if(!r) return false;
   r.circle = on ? { depts:DEPTS.filter(d=>d.id!==NARROW.dept).map(d=>d.id) } : { all:true }; S.cache.clear(); return true; }
 const standTitle = id=>REPORT_TITLES[id] || id;
+// держатели роли «Администратор дашборда»: снять и вернуть роль (модуль «Пользователи»); последнего снять нельзя
+function adminStand(){ const was = JSON.parse(USERS_SEED).filter(([, rs])=>rs.includes('adm')).map(([id])=>id), hs = adminHolders();
+  return `${was.map(id=>{ const u = USERS.find(x=>x.id===id), on = u && isAdmin(u);
+      return `<div style="margin:4px 0">${esc(u ? u.name : id)} — ${on ? `держатель <button class="btn sm" onclick="DB.standRoleOff('${id}','adm')">Снять роль</button>` : `роль снята <button class="btn sm" onclick="DB.standRoleOn('${id}','adm')">Вернуть роль</button>`}</div>`; }).join('')}
+    <div class="why">Держателей роли сейчас: ${hs.length}. Каждый — соавтор всех отчётов каталога, владелец — собравший; правят каталог, отчёты и раскладки ролей все держатели. Роль сняли — отчёты каталога во владении переходят к другому держателю; последнего держателя снять нельзя.</div>`; }
 function renderStand(){
   const chk = (k, label) => `<label class="opt"><input type="checkbox" ${STAND[k]?'checked':''} onchange="DB.stand('${k}', this.checked)"> ${label}</label><br>`;
   $('v-stand').innerHTML = `<div class="banner info">Стенд макета: здесь меняется то, что в системе зависит от соседей и сбоев. Пользователю этот экран не нужен.</div>
@@ -4428,7 +4515,8 @@ function renderStand(){
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>
-      <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается, плитки «сегодня» на нём (у Бухгалтерии — «Поступило сегодня», «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
+      <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается. Остаток и очереди на нём (у Бухгалтерии — «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». Поток «сегодня» («Поступило сегодня») отвечает отказом с причиной: за сегодня — после ночного прогона, за вчера — число серой подсказкой. «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
+    <div class="form-step"><h4>Пользователи: администраторы дашборда</h4>${adminStand()}</div>
     <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
     <div class="form-step"><h4>Круг отчёта</h4><label class="opt"><input type="checkbox" ${circleNarrowed()?'checked':''} onchange="DB.standCircle(this.checked)"> Сузить круг отчёта «${esc((reportById(NARROW.report)||{}).title)}»: без ${esc(NARROW.of)}</label>
       <div class="why">Плитки на этом отчёте не прячутся: у подразделения вне круга они пишут «Нельзя: отчёт не открыт вашему подразделению». Новая плитка на этом отчёте для роли с держателями в таком подразделении не проходит автопроверку.</div></div>
@@ -4494,7 +4582,12 @@ const api = {
   view:(id, kind, sel, path, uid, roleId, panel)=>cachedView(tileArg(id), kind, sel, path, userArg(uid), roleId, panel),
   at:atOf, compile, pickValues:(d, obj, uid)=>pickValues(d, obj, uid ? userArg(uid) : null), dimsFor:(id, path, panel)=>dimsFor(tileArg(id), path, panel), colsFor:(id)=>colsFor(tileArg(id)), viewSel,
   REPORTS, R, reportById, questionOf, answer, QUEUES, queueById, queueOf, tilesOfReport, reportEdit, reportDelete, reportBroken,
-  resetDeclaredFor:(roleId)=>resetDeclared(roleId), blankDraft, blankReportDraft, stripReportDraft, TILE_EDIT, reportsFor, pinFromReport, rcheck:checkReportDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
+  resetDeclaredFor:(roleId)=>resetDeclared(roleId), adminHolders, reportCoauthors, canEditReport, roleOff, roleOn, spellDays, spellsOfLoan, loanRowOf, LOAN_KEYED, nightFlowOf, minimalBanner,
+  copyRoleScreen:(roleId)=>{ const r = copyRoleScreen(roleId || curRole()); if(r.error){ toast(r.error); return r; } goTab('screen', r.screen.id); resetOpen(); render();
+    toast('Экран «'+r.screen.name+'»: '+(r.source==='tab' ? 'копия вашей вкладки' : 'копия объявленной раскладки')+'; дальше живёт отдельно'); return r; },
+  standRoleOff:(uid, roleId)=>{ const r = roleOff(uid, roleId); toast(r.msg || r.error || 'Роль снята'+(r.to ? ': отчёты каталога — во владении '+userName(r.to) : ''));
+    if(['registry','layouts','journal'].includes(view) && !isAdmin(user())) view='home'; render(); return r; },
+  standRoleOn:(uid, roleId)=>{ const r = roleOn(uid, roleId); toast(r.error || 'Роль назначена'); render(); return r; }, blankDraft, blankReportDraft, stripReportDraft, TILE_EDIT, reportsFor, pinFromReport, rcheck:checkReportDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
   // UI
   go:(v)=>{ view=v; if(v!=='catalog') catalogTarget=null; render(); },
   // вкладка: фильтр у неё свой до конца сеанса — переключение его не сбрасывает
