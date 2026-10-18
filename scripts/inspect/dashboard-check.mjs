@@ -144,7 +144,7 @@
 //      плитки, и «за 12 месяцев»; дата базы — началом дня («на 01.10»), на плитке — словами («за год»), в подсказке — интервал; переключатель
 //      «Сравнить» в шапке (как задано · пять баз с датами), потоки не трогает, едет в ссылке, вкладка и меню — снова «как задано»;
 //      Движение — окно от базы до даты плитки, сумма строк = сдвигу; база до запуска (стенд) — итог легаси или «без сдвига» с причиной;
-//      прогрев всех баз, штамп выгрузки, точка базы в Ряде, переоценка — в «прочем» до потока ядра. Прежние проверки 23, 100, 132, 156,
+//      прогрев всех баз, штамп выгрузки, точка базы в Ряде, переоценка — в «прочем» до потока ядра; #423 — находки ревью. Прежние проверки 23, 100, 132, 156,
 //      170, 192, 210, 216, 236, 249, 256, 306, 331, 337, 362, 366, 375, 376, 388, 401, 409–412 читают новые подписи («за месяц», «на 01.10»)
 //      и пять баз; 331 читает свой список вкладок, а не переключатель; 366 — прогрев 158 вопросов вместо 65.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
@@ -4891,6 +4891,25 @@ const asUser = id => { DB.state.userId = id; };
   lead(); DB.setCmp('yearStart'); const ob = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move.rows.find(r => r.key === 'other');
   ok(422, ob && /курсовая/.test(ob.tip) && !/переоценк/.test(tipOf(DB.tileHTML('lead-bal', 'u1', 'lead'))),
     `курс: потока курсовой разницы ядро не отдаёт — переоценка в «прочем» Движения «Остатка» («${ob && ob.tip}»), подсказка сдвига её не называет (ДБ-273)`);
+
+  // ревью волны 19: кэш различает «как задано» и выбор той же базы (окно Движения другое); свой экран с базой до запуска не падает; конец
+  // Движения по переключателю — дата плитки; у плитки на 30.09 с панелью по подразделению число, сдвиг и Движение — по строкам на свои даты;
+  // у последнего закрытого дня потоки окна — по его день; база без ответа гасит Движение плитки на 30.09; штамп Движения — окно, у потока
+  // строки «Сравнение» нет; удаление и создание своего экрана сбрасывают переключатель
+  lead(); DB.openView('lead-bal', 'move'); DB.viewSet('lead-bal', 'month', -1); const r0 = DB.view('lead-bal', 'move', DB.state.open['lead-bal'].sel, [], 'u1', 'lead', {}).move;
+  DB.setCmp('prevMonthEnd'); const r1 = DB.view('lead-bal', 'move', DB.state.open['lead-bal'].sel, [], 'u1', 'lead', {}).move;
+  DB.setCmp('yearStart'); DB.openView('lead-od', 'move'); DB.viewSet('lead-od', 'month', -1); DB.whoAt('lead-od'); const we = DB.whoPanel(), cE = DB.view('lead-od', 'move', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}).move.cntEnd;
+  const ex = DB.exportTile('lead-od', 'xlsx', 'lead', DB.state.open['lead-od']), ep = DB.exportTile('lead-paid', 'xlsx', 'lead');
+  const sc = DB.createScreen('Мой экран', null); DB.setTab('screen', sc.id); DB.screenAdd('lead-bal'); DB.STAND.launch = -7; DB.setCmp('yearStart');
+  let own = true; try { DB.homeHTML(); } catch(e) { own = false; } DB.STAND.launch = null; DB.deleteScreen(); const delCmp = DB.state.cmp;
+  lead(); const PC = { dept:['rp-chu'] }, tp = pme('lead-bal'); DB.setCmp('prevMonthEnd'); const bp = DB.ask(tp, u1, 'lead', PC), mp = DB.view(tp, 'move', null, [], 'u1', 'lead', PC).move;
+  const tc = cd('lead-bal'), mc = DB.view(tc, 'move', null, [], 'u1', 'lead', {}).move, mt = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move, fl = (m, k) => m.rows.find(r => r.key === k).v;
+  DB.setCmp(null); DB.stand('baseDown', true); const vd = DB.views(tp, 'u1', 'lead').find(v => v.kind === 'move'); DB.stand('baseDown', false);
+  ok(423, r0.M === -1 && r1.M === 0 && r1.B === -1 && !we.node && (we.refused ? we.count : we.rows.length) === cE
+    && ex.stamp.includes('Вид: Движение с 01.01 по сегодня') && ex.stamp.includes('Сравнение: за год (на 01.01) — переключатель экрана') && !ep.stamp.some(x => /^Сравнение:/.test(x))
+    && own && delCmp === null && near(bp.value, mp.end) && near(bp.shift.delta, mp.end - mp.start) && near(bp.shift.base, mp.start)
+    && mc.D === 10 && Math.abs(fl(mc, 'issued')) < Math.abs(fl(mt, 'issued')) && near(sum(mc.rows.map(r => r.v)), mc.end - mc.start) && !vd.ok && /нет ответа на 01\.09/.test(vd.why),
+    `ревью: «как задано» → «за месяц» — окно Движения сменилось с сентября на «с 01.10 по сегодня» (кэш различает); конец Движения «за год» — список на дату плитки (${we.refused ? we.count : we.rows.length} объектов, как «☰» конца); свой экран с базой до запуска рисуется; у плитки на 30.09 с панелью «Чуйское РП» число ${mln(bp.value)} = концу Движения, сдвиг = разнице; у закрытого дня потоки — по 10.10 (выдано ${mln(fl(mc, 'issued'))} против ${mln(fl(mt, 'issued'))} по сегодня); база без ответа гасит Движение плитки на 30.09; штамп — окно Движения, у потока строки «Сравнение» нет; удаление своего экрана — «как задано»`);
   DB.seed();
 })();
 
