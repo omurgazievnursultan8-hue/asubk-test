@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–18, 11–17.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–19, 11–18.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-259, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-278, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -140,6 +140,13 @@
 //      закрытием и курсом каждой («Изменение» строки, точки Ряда, строки Ряда по разрезу; строка Движения, «пришли из», ячейка Переходов — те же даты,
 //      что у плиток «на 30.09» и «сегодня»); штамп «Выгрузить список», журнал выгрузок и журнал действий — тот же паспорт; ссылка другого дня —
 //      конец дня ссылки у «сегодня», точка 31.08 остаётся 31.08; плашка карточки — дата списка; курс — на дату паспорта, у периода — на его конец.
+//   AF волна 19 (18.10.2026), ДБ-260…ДБ-278: база сдвига остатка — начало месяца, квартала, полугодия, года, в котором лежит дата
+//      плитки, и «за 12 месяцев»; дата базы — началом дня («на 01.10»), на плитке — словами («за год»), в подсказке — интервал; переключатель
+//      «Сравнить» в шапке (как задано · пять баз с датами), потоки не трогает, едет в ссылке, вкладка и меню — снова «как задано»;
+//      Движение — окно от базы до даты плитки, сумма строк = сдвигу; база до запуска (стенд) — итог легаси или «без сдвига» с причиной;
+//      прогрев всех баз, штамп выгрузки, точка базы в Ряде, переоценка — в «прочем» до потока ядра. Прежние проверки 23, 100, 132, 156,
+//      170, 192, 210, 216, 236, 249, 256, 306, 331, 337, 362, 366, 375, 376, 388, 401, 409–412 читают новые подписи («за месяц», «на 01.10»)
+//      и пять баз; 331 читает свой список вкладок, а не переключатель; 366 — прогрев 158 вопросов вместо 65.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -259,8 +266,9 @@ const asUser = id => { DB.state.userId = id; };
     && DB.shiftsFor(withParams(rcp, { period:'prevMonth' }))[0].id === 'period',
     'сдвиг у неполного периода погашен с причиной — неполный с полным не сравнивается; плитка с таким периодом отвечает, сдвиг на ней погашен с той же причиной; у прошлого месяца есть (ДБ-21, ИДБ-11)');
   const sb = DB.shiftsFor(DB.blankDraft('r-loans')), sbp = DB.shiftsFor(withParams(DB.blankDraft('r-loans'), { date:'prevMonthEnd' }));
-  ok(23, sb.length === 3 && sb.every(x => x.ok) && sbp.find(x => x.id === 'prevMonthEnd').ok === false,
-    'у остатка ровно три базы сдвига: конец прошлого месяца, начало года, год назад; база, совпавшая с датой плитки, погашена (ДБ-21)');
+  ok(23, sb.map(x => x.id).join() === 'prevMonthEnd,quarterStart,halfStart,yearStart,yearAgo' && sb.map(x => x.label).join() === 'за месяц,за квартал,за полугодие,за год,за 12 месяцев'
+    && sb.every(x => x.ok) && sbp.length === 5 && sbp.every(x => x.ok),
+    'у остатка пять баз сдвига: за месяц, за квартал, за полугодие, за год, за 12 месяцев; база считается от даты плитки — у плитки на 30.09 ни одна не совпадает с датой (ДБ-21, ДБ-260, ДБ-263, ДБ-270)');
   ok(24, Q('cur-plan1').share.join() === 'loan.paidPlanned,loan.plan' && DB.IND['loan.expected'] && T('lead-paid').second.share[1] === 'loan.expected'
     && !Object.values(DB.IND).some(i => /цел|target/i.test(i.id + i.name)),
     'план-факт — «План» кредита и «Ожидалось по графику»; «целевого показателя» нет, цель — только лимит программы (ДБ-22, ДБ-23)');
@@ -634,9 +642,9 @@ const asUser = id => { DB.state.userId = id; };
   const fm = DB.views(tb({ id:'tb100' }), 'u1', 'lead').find(x => x.kind === 'move');
   const sPm = DB.ask(tb({ shift:'prevMonthEnd' }), U('u1'), 'lead', {});
   const sYs = DB.ask(tb({ shift:'yearStart' }), U('u1'), 'lead', {});
-  ok(100, fm.ok && fm.why === null && DB.shiftsFor(tb({})).length === 3 && DB.shiftsFor(tb({})).every(x => x.ok)
+  ok(100, fm.ok && fm.why === null && DB.shiftsFor(tb({})).length === 5 && DB.shiftsFor(tb({})).every(x => x.ok)
     && sPm.shift.base === at(-1) && sYs.shift.base === at(-10) && sPm.shift.base !== sYs.shift.base && sPm.value === 903,
-    `сдвиг счёта клиентов — как у остатков, «действующий» на дату базы: к 30.09 ${sPm.shift.base}, к началу года ${sYs.shift.base}, сейчас ${sPm.value} (ДБ-77, ДБ-78)`);
+    `сдвиг счёта клиентов — как у остатков, «действующий» на дату базы: за месяц (на 01.10) ${sPm.shift.base}, за год (на 01.01) ${sYs.shift.base}, сейчас ${sPm.value} (ДБ-77, ДБ-78, ДБ-260)`);
   // ДБ-79: «Работать со списком» — реестр заёмщиков с фильтром плитки
   const reg = DB.registryList(T('prob-dead'), U('u3'), 'prob', {});
   ok(101, reg.registry === 'Реестр заёмщиков' && reg.today === pdP.value && reg.slice === pdP.value,
@@ -917,7 +925,7 @@ const asUser = id => { DB.state.userId = id; };
   const pg = DB.publishDraftId(dg.id), pb = DB.publishDraftId(db.id); asUser('u1');
   ok(132, pg === true && T(dg.id).state === 'published' && pb.error && bad(pb, /два разных разреза/) && T(db.id).state === 'draft' && bad(c5, /до четырёх колонок/)
     && bad(cm, /одного рода/) && bad(cm, /колонки из отчёта/) && bad(ctm, /одного рода с главным/) && bad(cf, /два разных разреза/) && bad(cf2, /два разных разреза/)
-    && bad(cpd, /% от итога группы/) && bad(cpc, /% от итога группы/) && bad(cnt, /подпись/) && bad(arch, /действует/) && bad(csh, /база совпадает/) && csy.ok
+    && bad(cpd, /% от итога группы/) && bad(cpc, /% от итога группы/) && bad(cnt, /подпись/) && bad(arch, /действует/) && csh.ok && csy.ok
     && good.ok && good.preview.state === 'ok' && good.preview.value === sum(lt.map(x => x[1])) && odN(gv)
     && gpct.ok && gpct.preview.value === lbo.value && gpct.preview.num === lbo.num,
     'автопроверка плитки: пятая колонка Таблицы, второе число и колонка Таблицы другого рода, Карта из одного разреза, «% от итога группы» не по разрезу отчёта или по несуществующей ячейке, база сдвига на дату плитки, без подписи, отчёт в архиве — отказ с причиной; годный черновик проходит, предпросмотр — основа, равная числам каталога; черновик каталога публикуется той же автопроверкой (ДБ-109, ДБ-30, ДБ-127)');
@@ -1343,8 +1351,8 @@ const asUser = id => { DB.state.userId = id; };
     && gone.every(g => g.b.state === 'ok' && g.b.value > 0 && /не объявил дату/.test(g.b.shift.none)
       && ['series', 'move'].every(k => { const x = g.v.find(y => y.kind === k); return x && !x.ok && /не объявил дату/.test(x.why); })) && risk.state === 'ok'
     && nb.state === 'ok' && nb.value > 0 && /не объявил дату/.test(nb.shift.none) && !nvw('series').ok && /не объявил дату/.test(nvw('series').why) && !nvw('move').ok && /не объявил дату/.test(nvw('move').why) && nvw('slice').ok
-    && noFmt && rcOk && !sp.error && sp.tile.shift === 'yearStart' && sa.state === 'ok' && sa.shift && sa.shift.label === 'к началу года',
-    `правка «Карта на одном разрезе», «дата x», чужой параметр, плитка без главного числа — отказ с причиной, плитка не тронута; отчёт без даты — у «Просрочено» и «Остатка» число остаётся, сдвиг, Ряд и Движение гаснут с причиной «${gone[0].v.find(y => y.kind === 'move').why}» (ДБ-115, ДБ-119); конструктор отчётности формата не принимает; «Сохранить и поставить» с датой «конец прошлого месяца» ставит базу сдвига «к началу года» (ДБ-113, ДБ-110, ДБ-107, ДБ-109, ДБ-115)`);
+    && noFmt && rcOk && !sp.error && !sp.tile.shift && sa.state === 'ok' && sa.shift && sa.shift.label === 'за месяц' && sa.shift.at === 'на 01.09',
+    `правка «Карта на одном разрезе», «дата x», чужой параметр, плитка без главного числа — отказ с причиной, плитка не тронута; отчёт без даты — у «Просрочено» и «Остатка» число остаётся, сдвиг, Ряд и Движение гаснут с причиной «${gone[0].v.find(y => y.kind === 'move').why}» (ДБ-115, ДБ-119); конструктор отчётности формата не принимает; «Сохранить и поставить» с датой «конец прошлого месяца» оставляет базу «за месяц» — от даты плитки, на 01.09 (ДБ-270, ДБ-113, ДБ-110, ДБ-107, ДБ-109, ДБ-115)`);
   // сигналы: снять можно у сломанной плитки и по одному; ночная проверка снимает сигналы изменённой и снятой плитки и пишет об этом строку
   DB.seed(); asUser('u1');
   const s0 = DB.signalToggle('lead-od', 'lead'); DB.reportEdit('r-portfolio', { removeParam:'curator' }); const brk = DB.reportBroken(T('lead-od')), off = DB.signalToggle('lead-od', 'lead'), n0 = DB.state.signals.length;
@@ -1499,7 +1507,7 @@ const asUser = id => { DB.state.userId = id; };
   const GONE = /class="(?:mini|vbar|vb)[ "]|<rect |class="dot"|tl-note|class="tile[^"]*\btl-|class="passport"|class="sub /;   // удалено: мини-ряд, кнопки видов, полоса и точка светофора, строки паспорта и порога
   const bare = sweep.filter(x => GONE.test(x.h) || ((x.h.match(/class="t-row"/g) || []).length + (x.h.match(/class="t-body"/g) || []).length) !== 1 || !/class="t-name"/.test(x.h)
     || /class="tile[^"]*\b(w2|h2)\b/.test(x.h) || /Развернуть|⤢/.test(x.h));
-  ok(170, /<span class="big"[^>]*>[\d\s]+<span class="u">млн<\/span><\/span>/.test(hod) && /<span class="shift up-bad"[^>]*><span class="a">▲<\/span> [\d,]+ млн к 30\.09<\/span>/.test(hod)
+  ok(170, /<span class="big"[^>]*>[\d\s]+<span class="u">млн<\/span><\/span>/.test(hod) && /<span class="shift up-bad"[^>]*><span class="a">▲<\/span> [\d,]+ млн за месяц<\/span>/.test(hod)
     && /<div class="second"><span><b><span class="chipv yellow"[^>]*>[\d,]+\s%<\/span><\/b> портфеля <span class="thr">· &gt;\s4\s%<\/span><\/span><\/div>/.test(hod)
     && !/class="big"[^>]*><span class="chipv/.test(hod) && /class="tile" data-key="lead-od"/.test(hod) && !GONE.test(hod) && !/<rect /.test(hod + hln + htk) && !/sl-views/.test(hod)
     && ko.map(v => v.name).join() === NAMES && ko.every(v => !v.off) && kl.map(v => v.name).join() === NAMES && kl.find(v => v.name === 'Движение').off && /потоки/.test(kl.find(v => v.name === 'Движение').tip) && kl.filter(v => v.off).length === 1
@@ -1837,7 +1845,7 @@ const asUser = id => { DB.state.userId = id; };
   // у Бековой — 1): было 9 649 146 и 169 129 709, у Куратора 667 800 и 8 054 492. Волна 13 (ДБ-Д56): кредит выдан не позже начала просрочки —
   // КД-3190 и КД-2865 на 30.09 уже есть: база 171 238 348 → 172 942 108, сдвиг 7 540 507 → 5 836 747; «Поступило» — КД-2865 платит с сентября:
   // база августа 104 653 028 → 104 697 272, сдвиг 60 501 → 154 956; у Куратора (Бекова) не изменилось
-  ok(192, at('lead-od', 'shift') === 5836747 && bd.shift.delta === 5836747 && sh(bd, 172942108) && bd.shift.label === 'к 30.09' && at('cur-od', 'shift', 'u2', 'cur') === 254136 && sh(cd, 8468156)
+  ok(192, at('lead-od', 'shift') === 5836747 && bd.shift.delta === 5836747 && sh(bd, 172942108) && bd.shift.label === 'за месяц' && at('cur-od', 'shift', 'u2', 'cur') === 254136 && sh(cd, 8468156)
     && at('lead-paid', 'shift') === 154956 && sh(pd, 104697272) && pd.shift.label === 'к августу' && !('pp' in bd.shift),
     'сдвиг «Просрочено» и «Поступило» — по главному числу в сомах (было — п.п. доли: 0,116 → 7,5 млн, −0,522 → 60 501, у Куратора 0,114 → 254 136; волна 10: база — строки кредитов на 30.09; волна 12 — дни просрочки на 30.09 из эпизодов: было 9,6 млн и 667 800; волна 13 — выдача не позже начала просрочки: 7,5 млн → 5,8 млн, 60 501 → 154 956); доля — во втором числе без собственного сдвига');
   const m1 = at('lead-borr', 'move(-1)');
@@ -2178,7 +2186,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.dSecond('of', 'loan.balance'); DB.dTl('on', 'second'); DB.dTl('red', '>', '100'); const tl2 = DB.draft.tl; DB.dView('series', 'of', 'second'); DB.dView('map', 'dims', ['region', 'program']);
   DB.dTitle('проба'); const acx = DB.autocheck(DB.draft), saved = DB.saveDraft('personal').tile;
   const ed = DB.editTile(saved.id, { title:'проба 2' }), script = src.match(/<script>([\s\S]*?)<\/script>/)[1];
-  ok(210, s0 === 'prevMonthEnd' && s1 === 'yearStart' && sOff === undefined && s2 === 'yearStart' && pc2.pct.dim === 'bucket' && pc2.pct.cells.join() === '181+' && pc2.label === 'от итога группы'
+  ok(210, s0 === 'prevMonthEnd' && s1 === 'prevMonthEnd' && sOff === 'prevMonthEnd' && s2 === 'prevMonthEnd' && pc2.pct.dim === 'bucket' && pc2.pct.cells.join() === '181+' && pc2.label === 'от итога группы'
     && tl2.on === 'second' && tl2.red.join() === '>,100' && acx.ok && saved && saved.second.of === 'loan.balance' && saved.views.map.dims.join() === 'region,program' && saved.views.series.of === 'second'
     && ed.tile && noOld() && !['legacyToTile', 'tileModel', 'formatsFor', 'FORMAT_NAMES', 'SIZE', 'dCol', 'dLevel', 'dTop', 'dShare', 'dPct', 'dSet'].some(k => k in DB)
     && ['dMain', 'dSecond', 'dShift', 'dTl', 'dView', 'dTitle', 'dParam', 'saveAsReport'].every(k => typeof DB[k] === 'function')
@@ -2279,7 +2287,7 @@ const asUser = id => { DB.state.userId = id; };
     && x3.stamp.length === 8 && x3.stamp[3] === 'Вид: Разрез по «Срок просрочки»' && !has(x3, /^Путь:/) && JSON.stringify(DB.state.exportLog[2].path) === '[]'
     && x4.stamp[3] === 'Вид: Таблица по «Программа»: Просрочено · Кредитов · Остаток задолженности · доля портфеля' && x4.rows[0].join() === 'Программа,Просрочено,Кредитов,Остаток задолженности,доля портфеля' && x4.rows[x4.rows.length - 1][4] === DB.fmtVal(sec.value, 'pct')
     && /items\.push\(\['⤓ Выгрузить', `DB\.openExport\('\$\{id\}','xlsx',true\)`/.test(src.slice(src.indexOf('function openStripMenu('), src.indexOf('// подгонка строки полосы по ширине'))) && !/openExport/.test(hf)
-    && xb.stamp.length === 7 && !has(xb, /^(Вид|Путь):/) && Lb.view === null && Lb.path.length === 0 && xb.rows.length === 3 && xb.rows[0][0] === 'Просрочено' && xb.rows[1][0] === 'портфеля' && /^сдвиг к 30\.09$/.test(xb.rows[2][0]) && xb.view === null
+    && xb.stamp.length === 7 && !has(xb, /^(Вид|Путь):/) && Lb.view === null && Lb.path.length === 0 && xb.rows.length === 3 && xb.rows[0][0] === 'Просрочено' && xb.rows[1][0] === 'портфеля' && /^сдвиг за месяц$/.test(xb.rows[2][0]) && xb.view === null
     && oa.view === 'table' && ob.view === null && x5.stamp[1] === 'Вид: Разрез по «Срок ожидания»' && !has(x5, /^Отчёт:/) && !has(x5, /на время просмотра/) && x5.rows.length === 4 && x5.rows[3].join() === 'итог,16'
     && x6.refused && /не объявила разрезов/.test(x6.msg) && DB.exportTile.length === 3,
     `выгрузка из открытой полосы «Просрочено › Ошская › 181+» по подразделению: «${x1.stamp[3]}», «${x1.stamp[4]}», «${x1.stamp[5]}» — штамп из десяти строк, в выгрузке — подразделения строк пути: ${nDept} из ${nAll}, первым «${x1.rows[0][0]}» (путь сужает список разреза без своего списка; фильтр плитки — нет; ДБ-169), итог ${tot1} = числу узла; разрез отчёта — без пометки; Таблица — «${x4.stamp[3].slice(5, 28)}…» с колонкой «доля»; журнал выгрузок несёт вид и путь (у выгрузки с плитки — пусто, штамп из семи строк: главное, второе число, сдвиг); у ссылочной — без строки «Отчёт», погашенный вид не выгружается; колонки Таблицы в штампе — с показателя плитки (волна 7, ДБ-156); «⤓ Выгрузить» — пункт «⋯» полосы, подвала нет (ДБ-129, ДБ-113, ДБ-146)`);
@@ -2495,9 +2503,9 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-140: сдвиг в единицах главного числа с базой, процент — в подсказке
   const tipOf = h => (/<span class="shift[^"]*" data-tip="([^"]*)"/.exec(h) || [])[1] || '';
   const bl = DB.base('lead-od', 'u1', 'lead').shift;
-  ok(236, sh(hod).slice(1).join('|') === '▲|' + DB.fmtVal(bl.delta, 'sum') + ' ' + bl.label && sh(hod)[2] === '5,8 млн к 30.09' && sh(DB.tileHTML('lead-claims', 'u1', 'lead')).slice(1).join('|') === '▲|8 к 30.09' && sh(hborr).slice(1).join('|') === '▼|4 к 30.09'
-    && sh(hc1).slice(1).join('|') === '▼|0,7 п.п. к августу' && sh(hpaid)[2] === '155 тыс. к августу' && !/%/.test(sh(hod)[2]) && /^Изменение \+3,4 % к 30\.09 · было 173 млн$/.test(tipOf(hod)) && /п\.п\.|%/.test(tipOf(hc1)) && !/\d\s?%\s?к/.test(sh(hc1)[2]),
-    'сдвиг считается в единицах главного числа и называет базу: «▲ 5,8 млн к 30.09» у суммы, «▲ 8 к 30.09» у счёта, «▼ 0,7 п.п. к августу» у доли; процент изменения «+3,4 %» и «было 173 млн» — в подсказке (ДБ-140; волна 7; волна 10 — база по строкам кредитов на дату; волна 12 — дни просрочки на 30.09 из эпизодов: было «▲ 9,6 млн», «+5,7 %», «было 169 млн»; волна 13 — выдача не позже начала просрочки: было «▲ 7,5 млн», «+4,4 %», «было 171 млн», у «Поступило» «61 тыс.»)');
+  ok(236, sh(hod).slice(1).join('|') === '▲|' + DB.fmtVal(bl.delta, 'sum') + ' ' + bl.label && sh(hod)[2] === '5,8 млн за месяц' && sh(DB.tileHTML('lead-claims', 'u1', 'lead')).slice(1).join('|') === '▲|8 за месяц' && sh(hborr).slice(1).join('|') === '▼|4 за месяц'
+    && sh(hc1).slice(1).join('|') === '▼|0,7 п.п. к августу' && sh(hpaid)[2] === '155 тыс. к августу' && !/%/.test(sh(hod)[2]) && /^Изменение \+3,4 % за месяц: с 01\.10 по сегодня · было 173 млн$/.test(tipOf(hod)) && /п\.п\.|%/.test(tipOf(hc1)) && !/\d\s?%\s?к/.test(sh(hc1)[2]),
+    'сдвиг считается в единицах главного числа и называет базу словами: «▲ 5,8 млн за месяц» у суммы, «▲ 8 за месяц» у счёта, «▼ 0,7 п.п. к августу» у доли; процент изменения «+3,4 %», интервал «с 01.10 по сегодня» и «было 173 млн» — в подсказке (ДБ-269) (ДБ-140; волна 7; волна 10 — база по строкам кредитов на дату; волна 12 — дни просрочки на 30.09 из эпизодов: было «▲ 9,6 млн», «+5,7 %», «было 169 млн»; волна 13 — выдача не позже начала просрочки: было «▲ 7,5 млн», «+4,4 %», «было 171 млн», у «Поступило» «61 тыс.»)');
 
 
   // ДБ-141: показ решает только автор плитки; смотрящему — «Скрыть у себя»
@@ -2604,11 +2612,11 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-borr', 'slice'); DB.viewSet('lead-borr', 'dim', 'dept'); DB.mode('lead-borr', 'change');
   const bo = DB.state.open['lead-borr'], hbr = tab(DB.stripHTML('lead-borr', 'u1', 'lead')), vbr = V('lead-borr', 'slice', bo.sel, bo.path); DB.state.open = {};
   const bd = vbr.lines.filter(l => !l.more).map(l => l.delta), mi = vbr.lines.findIndex(l => l.more), vmi = vch.lines.findIndex(l => l.more);
-  ok(249, vch.mode === 'change' && vch.baseLabel === 'к 30.09' && vsm.mode === 'sum' && vsm.baseLabel === 'к 30.09' && near(vch.total.delta, nb.shift.delta, 1) && near(sum(vch.nodes.map(n => n.delta)), vch.total.delta, 1) && near(vch.total.delta, 975213, 1)
+  ok(249, vch.mode === 'change' && vch.baseLabel === 'за месяц' && vsm.mode === 'sum' && vsm.baseLabel === 'за месяц' && near(vch.total.delta, nb.shift.delta, 1) && near(sum(vch.nodes.map(n => n.delta)), vch.total.delta, 1) && near(vch.total.delta, 975213, 1)
     && shown.every((l, i) => !i || l.delta <= shown[i - 1].delta) && vch.lines.length === 4 && vch.lines.filter(l => l.more).length === 1 && vch.lines[vmi].more === 3 && vch.lines[vmi - 1].delta >= 0 && vch.lines[vmi + 1].delta <= 0 && hidden.length === 3 && Math.min(...shown.map(absd)) >= Math.max(...hidden.map(absd)) && shown.map(l => l.label).join() === 'Агрокредит,Малый бизнес,Промышленность'
-    && /<div class="rz c[45] chg">/.test(hch) && /<span>к 30\.09<\/span>/.test(hch) && /class="rz-d bad"[^>]*>▲ 1,5 млн<\/span>/.test(hch) && /class="rz-z"/.test(hch)
+    && /<div class="rz c[45] chg">/.test(hch) && /<span>за месяц<\/span>/.test(hch) && /class="rz-d bad"[^>]*>▲ 1,5 млн<\/span>/.test(hch) && /class="rz-z"/.test(hch)
     && vbr.mode === 'change' && bd.some(d => d > 0) && bd.some(d => d < 0) && bd.every((d, i) => !i || d <= bd[i - 1]) && (hbr.match(/class="rz-f[^"]*\bneg\b/g) || []).length >= 1 && (mi < 0 || (vbr.lines[mi - 1].delta >= 0 || vbr.lines[mi + 1].delta <= 0)),
-    `«Просрочено › Ошская» по программам: рядом с суммой колонка разницы «к 30.09», итог разницы ${DB.fmtVal(vch.total.delta, 'sum')} = сдвигу плитки на панели «Ошская» и сумме по программам (Агрокредит +1,5, Малый бизнес +0,3, Промышленность −1,3, остальные три сливаются в «ещё 3» между ростом и падением; волна 10 — база по строкам кредитов на 30.09; волна 12 — дни просрочки на 30.09 из эпизодов: было 2,8 млн, Агрокредит +1,9 первым; волна 13 — выдача не позже начала просрочки: КД-3190 (Ошская, Экспорт) на 30.09 уже в просрочке — было 2,4 млн, Экспорт +1,8 первым); «Изменение» ставит первыми самые большие сдвиги в любую сторону, рисует их полосами от нулевой линии, у заёмщиков с просрочкой есть и рост, и падение — порядок от роста к падению (ДБ-153, ДБ-160; волна 7: было сумма без разницы)`);
+    `«Просрочено › Ошская» по программам: рядом с суммой колонка разницы «за месяц», итог разницы ${DB.fmtVal(vch.total.delta, 'sum')} = сдвигу плитки на панели «Ошская» и сумме по программам (Агрокредит +1,5, Малый бизнес +0,3, Промышленность −1,3, остальные три сливаются в «ещё 3» между ростом и падением; волна 10 — база по строкам кредитов на 30.09; волна 12 — дни просрочки на 30.09 из эпизодов: было 2,8 млн, Агрокредит +1,9 первым; волна 13 — выдача не позже начала просрочки: КД-3190 (Ошская, Экспорт) на 30.09 уже в просрочке — было 2,4 млн, Экспорт +1,8 первым); «Изменение» ставит первыми самые большие сдвиги в любую сторону, рисует их полосами от нулевой линии, у заёмщиков с просрочкой есть и рост, и падение — порядок от роста к падению (ДБ-153, ДБ-160; волна 7: было сумма без разницы)`);
 
   // ДБ-154: Карта — итоги справа и снизу, в ячейке одно число, «Изменение» красит по разнице
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
@@ -2696,8 +2704,8 @@ const asUser = id => { DB.state.userId = id; };
   const hbs = stripOf('lead-bal', 'slice'), hbt = stripOf('lead-bal', 'table');
   ok(256, /<div class="rz-r rz-tot">/.test(hbk) && /<tr class="tot">/.test(htS) && /<tr class="tr"><td class="rl">итог<\/td>/.test(hms) && /<div class="rz-r mv-e" data-edge="end">/.test(hmo) && /<tr class="tot">[\s\S]*<span class="s2/.test(htS) && /<td class="t"[^>]*>[^<]*<span class="s2/.test(hms)
     && vbk.baseLabel === DB.base('lead-od', 'u1', 'lead').shift.label && V('lead-paid', 'slice', { dim:'program', mode:'change' }).baseLabel === DB.base('lead-paid', 'u1', 'lead').shift.label && DB.base('lead-paid', 'u1', 'lead').shift.label === 'к августу' && vsc.baseLabel === 'к прошлому месяцу' && vsr.baseLabel === 'к прошлому месяцу'
-    && /<span class="rz-v">3\s856 млн<\/span>/.test(hbs) && /<tr class="tot">[\s\S]*3\s856 млн/.test(hbt) && !/млрд/.test(hbs + hbt) && /<span>к 30\.09<\/span>/.test(hbk) && /<span class="rz-hd"|<div class="rz-hd">[\s\S]*<span>к 30\.09<\/span>/.test(hbk),
-    'строка «итог» остаётся в Разрезе, Таблице, Карте и Движении (в Карте и Таблице под значением мелко второе число), суммы в полосе по правилу единиц — «3 856 млн» без «млрд»; база разницы — база сдвига плитки («к 30.09» у остатка и просрочки, «к августу» у поступлений за прошлый месяц), в Ряде — «к прошлому месяцу» (ДБ-160, ДБ-137; волна 7). В описании решения пример «531,6 млн» противоречит правилу от 100 млн (целые) — по движку «532 млн»');
+    && /<span class="rz-v">3\s856 млн<\/span>/.test(hbs) && /<tr class="tot">[\s\S]*3\s856 млн/.test(hbt) && !/млрд/.test(hbs + hbt) && /<span>за месяц<\/span>/.test(hbk) && /<span class="rz-hd"|<div class="rz-hd">[\s\S]*<span>за месяц<\/span>/.test(hbk),
+    'строка «итог» остаётся в Разрезе, Таблице, Карте и Движении (в Карте и Таблице под значением мелко второе число), суммы в полосе по правилу единиц — «3 856 млн» без «млрд»; база разницы — база сдвига плитки («за месяц» у остатка и просрочки, «к августу» у поступлений за прошлый месяц), в Ряде — «к прошлому месяцу» (ДБ-160, ДБ-137; волна 7). В описании решения пример «531,6 млн» противоречит правилу от 100 млн (целые) — по движку «532 млн»');
 
   // ДБ-Д37: «☰ N» у суммы считает объекты с вкладом, а не весь фильтр отчёта
   const sl0 = /<button class="sl-cnt"[^>]*onclick="DB\.whoNode\('lead-od'\)"><span>([\d\s]+)<\/span><\/button>/.exec(hroot), lay = all.filter(x => T(x.id).kind !== 'link');
@@ -3249,7 +3257,7 @@ const asUser = id => { DB.state.userId = id; };
   const sb = V('lead-od', 'slice', { dim:'bucket', mode:'change' }), g1 = grp('bucket', -1), g0 = grp('bucket', 0);
   const n31 = sb.nodes.find(n => n.v === '31–90'), n91 = sb.nodes.find(n => n.v === '91–180'), xT = listOf({ d:'bucket', v:'31–90', to:'91–180' }), xF = listOf({ d:'bucket', v:'91–180', from:'31–90' });
   const xInT = xT.list.find(x => x.r.id === X.id), xInF = xF.list.find(x => x.r.id === X.id);
-  ok(306, sb.mode === 'change' && sb.baseLabel === 'к 30.09' && sb.nodes.every(n => near(n.value, g0.get(n.v) || 0) && near(n.base, g1.get(n.v) || 0)) && near(sum(sb.nodes.map(n => n.delta)), sb.total.delta) && near(sb.total.delta, sh().delta)
+  ok(306, sb.mode === 'change' && sb.baseLabel === 'за месяц' && sb.nodes.every(n => near(n.value, g0.get(n.v) || 0) && near(n.base, g1.get(n.v) || 0)) && near(sum(sb.nodes.map(n => n.delta)), sb.total.delta) && near(sb.total.delta, sh().delta)
     && moved.length === 5 && xInT && near(xInT.v, -od(X, -1)) && xInF && near(xInF.v, od(X, 0)) && entry(n31, 'to', '91–180').cnt === moved.length && entry(n91, 'from', '31–90').cnt === moved.length
     && near(entry(n31, 'to', '91–180').sum, -sum(moved.map(r => od(r, -1)))) && near(entry(n91, 'from', '31–90').sum, sum(moved.map(r => od(r, 0)))) && xT.matches && xF.matches,
     `«Изменение» Разреза «Просрочено» по сроку: число узла — по сегодняшней корзине, база — по корзине на 30.09 (строка кредита на ту дату); ${X.id}: ${DB.loanAt(X, -1).days} дн. → ${DB.loanAt(X, 0).days} дн. даёт ${fm(-od(X, -1))} в «31–90» и +${fm(od(X, 0))} в «91–180»; так перешли ${moved.length} кредитов; разницы узлов (${sb.nodes.map(n => fm(n.delta)).join(' · ')}) в сумме ${fm(sb.total.delta)} = сдвигу плитки (ДБ-175)`);
@@ -3522,7 +3530,7 @@ const asUser = id => { DB.state.userId = id; };
     `верх отвечает «что я сейчас вижу» одним рядом: вкладки, охват, «Фильтр», «⋯»; строки охвата с кнопками и карточки фильтра нет; до первой строки содержимого (заголовок секции «Картина портфеля») — шапка ${budget.head} + отступ ${budget.wrap} + ряд ${Math.max(budget.row, budget.tab)} + ${budget.gap} = ${toFirst} px ≤ 150 (было 286) (ДБ-184, ДБ-196)`);
 
   // ДБ-185: роли первыми, свои экраны со значком, «+ экран» последним; на телефоне — тот же набор списком
-  const tb = [...hH.matchAll(/<button class="tab([^"]*)"[^>]*>([^<]+)<\/button>/g)].map(x => [x[1].trim(), x[2]]), opts = [...hH.matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(x => x[1]);
+  const tb = [...hH.matchAll(/<button class="tab([^"]*)"[^>]*>([^<]+)<\/button>/g)].map(x => [x[1].trim(), x[2]]), opts = [...((hH.match(/<label class="scr-pick">[\s\S]*?<\/select>/) || [''])[0]).matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(x => x[1]);
   const T1 = DB.tabsFor(u1);
   ok(331, tb.map(x => x[1]).join(' · ') === 'Руководство · Аналитик · Совещание по Ошу · + экран' && tb[0][0].includes('active') && tb[2][0].includes('own') && !tb[0][0].includes('own') && tb.at(-1)[0] === 'add'
     && /<nav class="tabs" aria-label="Экраны">/.test(hH) && /aria-current="true"/.test(hH) && opts.join() === T1.map(t => t.kind + ':' + t.id).join() + ',new'
@@ -3598,7 +3606,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.setPanel('region', [JA]);
   DB.setTab('role', 'an'); const anP = JSON.stringify(DB.state.panel); DB.setTab('screen', 'sc1'); const scP = DB.state.panel.region.join();
   DB.setPanel('program', ['agro']); DB.setTab('role', 'lead'); const leadP = DB.state.panel.region.join(); DB.setTab('screen', 'sc1'); const scP2 = JSON.stringify(DB.state.panel);
-  ok(337, anP === '{}' && scP === OSH && leadP === JA && scP2 === JSON.stringify({ region:[OSH], program:['agro'] }) && Object.keys(DB.state.panels).length === 3 && /setTab:\(kind,id\)=>\{ goTab\(kind, id\); view='home'; resetOpen\(\); render\(\); \}/.test(src),
+  ok(337, anP === '{}' && scP === OSH && leadP === JA && scP2 === JSON.stringify({ region:[OSH], program:['agro'] }) && Object.keys(DB.state.panels).length === 3 && /setTab:\(kind,id\)=>\{ goTab\(kind, id\); view='home'; S\.cmp = null; resetOpen\(\); render\(\); \}/.test(src),
     `фильтр живёт у вкладки: «Руководство» — «${leadP}», «Аналитик» — без фильтра, «Совещание по Ошу» открылся сохранённым «${scP}», дописанная программа пережила уход на «Руководство» и возврат; переключение ничего не сбрасывает (ДБ-191)`);
 
   // ДБ-192: «+ экран» — копия текущей вкладки с фильтром (по умолчанию) или пустой; копия — снимок
@@ -4019,10 +4027,10 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
   DB.openView('lead-od', 'slice'); DB.mode('lead-od', 'change'); const was = DB.mode('lead-od');
   DB.stand('baseDown', true);
-  const BD = 'нет ответа на 30.09 — статистика не ответила', b13 = DB.base('lead-od', 'u1', 'lead', {}), md = DB.mode('lead-od'), vw = DB.views('lead-od', 'u1', 'lead', [], {});
+  const BD = 'нет ответа на 01.10 — статистика не ответила', b13 = DB.base('lead-od', 'u1', 'lead', {}), md = DB.mode('lead-od'), vw = DB.views('lead-od', 'u1', 'lead', [], {});
   const th13 = DB.tileHTML('lead-od', 'u1', 'lead'), sh13 = DB.stripHTML('lead-od'), sl13 = DB.view('lead-od', 'slice', { dim:'bucket', mode:'change' }, [], 'u1', 'lead', {});
   const sr13 = DB.view('lead-od', 'series', { points:12, of:'main' }, [], 'u1', 'lead', {}), pts = sr13.series.points, pS = pts.find(p => p.m === -1), pO = pts.find(p => p.m === 0), pA = pts.find(p => p.m === -2);
-  DB.openView('lead-od', 'series'); const shS = DB.stripHTML('lead-od'), colS = (shS.match(/<div class="sr-c" data-m="-1"[\s\S]*?(?=<div class="sr-c)/) || [''])[0]; DB.openView('lead-od', 'slice');
+  DB.openView('lead-od', 'series'); const shS = DB.stripHTML('lead-od'), colS = (shS.match(/<div class="sr-c[^"]*" data-m="-1"[\s\S]*?(?=<div class="sr-c)/) || [''])[0]; DB.openView('lead-od', 'slice');
   const ap = DB.base('acc-prev', 'u4', 'acc', {}), bv = DB.base('lead-bal', 'u1', 'lead', {}).value;
   DB.stand('baseDown', false); const back13 = DB.mode('lead-od'), b13b = DB.base('lead-od', 'u1', 'lead', {});
   ok(362, was.shown === 'change' && b13.state === 'ok' && b13.value === b13b.value && b13.shift.none === BD && b13.shift.down
@@ -4093,11 +4101,11 @@ const asUser = id => { DB.state.userId = id; };
   const h0c = DB.state.cacheHits; DB.cachedAsk(T('lead-paid'), u1, 'lead', {}); const hitPaid = DB.state.cacheHits === h0c + 1;
   const odc = DB.state.cacheMiss; DB.cachedAsk(T('lead-od'), u1, 'lead', {}); const missOd = DB.state.cacheMiss === odc + 1;
   DB.seed(); DB.STAND.nightRunFailed = true; const wf = DB.prewarm(); DB.STAND.nightRunFailed = false;
-  ok(366, P.holders === 12 && P.closed === 65 && P.today === 65 && W.n === P.closed && W.m === P.holders && W.at === '02:40'
-    && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm && dawn1.requests * 2 === dawn0.requests
+  ok(366, P.holders === 12 && P.closed === 158 && P.today === 65 && W.n === P.closed && W.m === P.holders && W.at === '02:40'
+    && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm
     && warmEntry && warmEntry[1].calcAt === '02:40' && hitPaid && missOd && !keys.some(k => k.startsWith('p-u2-agro§') || /§view§/.test(k)) && keys.length === P.tiles.length
     && wf.skipped === 'ночной прогон не прошёл — закрытые даты не прогреты' && /Прогрето \$\{S\.warm\.n\}/.test(src) && /<button class="btn" onclick="DB\.morning\(\)">Наступило утро<\/button>/.test(src),
-    `ночной прогон: прогрето ${W.n} ответов для ${W.m} держателей (отчёт + значения параметров + дата + охват; база сдвига, вчера, прошлый месяц) — в кэше до следующего прогона, «Поступило · прошлый месяц» отвечает из кэша (расчёт 02:40), «Просрочено» сегодня — считается; утром к отчётности — ${dawn1.requests} запросов, только «сегодня»; без прогрева — ${dawn0.requests}; личные плитки и полоса не прогреваются; ночной прогон не прошёл — «${wf.skipped}» (ДБ-216, ДБ-52)`);
+    `ночной прогон: прогрето ${W.n} ответов для ${W.m} держателей (отчёт + значения параметров + дата + охват; у остатка — все пять баз сравнения, базы с одной датой — один вопрос, ДБ-268; вчера, прошлый месяц) — в кэше до следующего прогона, «Поступило · прошлый месяц» отвечает из кэша (расчёт 02:40), «Просрочено» сегодня — считается; утром к отчётности — ${dawn1.requests} запросов, только «сегодня»; без прогрева — ${dawn0.requests}; личные плитки и полоса не прогреваются; ночной прогон не прошёл — «${wf.skipped}» (ДБ-216, ДБ-52)`);
 
   // ДБ-217: отчётность перегружена — плитка ждёт в очереди сама: есть последний ответ — он со своей датой, жёлтая рамка и «⚠ устарело · на 14:15, сейчас
   // считается»; нет — скелет и «в очереди · N-я»; «Повторить» нет; закрытые даты из ночного прогрева — как обычно; полоса — скелет и «в очереди», прошлых
@@ -4231,16 +4239,16 @@ const asUser = id => { DB.state.userId = id; };
   const whyN = T5.gone.every(g => sum(Object.values(g.why)) === g.n) && T5.neu.every(g => sum(Object.values(g.why)) === g.n) && T5.neu[ix('1–30')].why['новые в просрочке'] === T5.neu[ix('1–30')].n;
   const wc = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:['31–90', '91–180'] }), wg = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:['181+', null] }), wn = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:[null, '1–30'] });
   DB.openView('lead-od', 'map'); DB.viewSet('lead-od', 'axes', 'trans'); const ht = DB.stripHTML('lead-od'), mt = DB.mode('lead-od');
-  const cls = (a, b) => (ht.match(new RegExp('<td class="c (hm-[a-z]\\d)"[^>]*data-tip="' + a + ' на 30\\.09 → ' + b + ' сегодня')) || [])[1];
+  const cls = (a, b) => (ht.match(new RegExp('<td class="c (hm-[a-z]\\d)"[^>]*data-tip="' + a + ' на 01\\.10 → ' + b + ' сегодня')) || [])[1];
   const lb = V('lead-bal', 'map', { axes:'trans', tdim:'bucket' }).trans, li = lb.vals.indexOf('31–90'), lj = lb.vals.indexOf('нет просрочки');
   DB.openView('lead-bal', 'map'); DB.viewSet('lead-bal', 'axes', 'trans'); const hb = DB.stripHTML('lead-bal');
   ok(375, tr.state === 'ok' && tr.axes === 'trans' && tr.mode === null && totOk && near(T5.base, bs.shift.base) && near(T5.now, bs.value)
     && near(c34.base, -outE.sum) && c34.n === outE.cnt && near(c34.now, inE.sum) && c34.n === inE.cnt && whyN
     && wc.matches && wc.list.length === c34.n && near(wc.sum, c34.base) && wg.matches && wg.list.length === T5.gone[ix('181+')].n && wn.matches && near(wn.sum, T5.neu[ix('1–30')].now)
     && !/class="strip-mode"/.test(ht) && mt.shown === null && /^hm-r\d$/.test(cls('31–90', '91–180')) && /^hm-s\d$/.test(cls('91–180', '91–180'))
-    && /<td class="c hm-x\d"[^>]*data-tip="181\+ на 30\.09 → ушли/.test(ht) && /<td class="c hm-x\d"[^>]*data-tip="новые → 1–30 сегодня/.test(ht)
-    && lb.cells[li][lj].n > 0 && new RegExp('<td class="c hm-g\\d"[^>]*data-tip="31–90 на 30\\.09 → нет просрочки сегодня').test(hb),
-    `«Просрочено» срок на 30.09 × сегодня: итоги строк = Разрез на 30.09 (${T5.vals.map((v, i) => mln(T5.rowTot[i].value)).join(' · ')}), столбцов — сегодня (${T5.colTot.map(c => mln(c.value)).join(' · ')}), всего ${mln(T5.base)} → ${mln(T5.now)} = база и число плитки; 31–90 → 91–180: ☰ ${c34.n}, ${mln(c34.base)} млн на 30.09 = «ушли в 91–180» узла 31–90, ${mln(c34.now)} млн сегодня = «пришли из 31–90» узла 91–180; «ушли» и «новые» с причинами; правее диагонали красным, левее (у «Остатка» 31–90 → нет просрочки) — зелёным, диагональ — синяя; «Сумма | Изменение» нет (ДБ-223, ДБ-233)`);
+    && /<td class="c hm-x\d"[^>]*data-tip="181\+ на 01\.10 → ушли/.test(ht) && /<td class="c hm-x\d"[^>]*data-tip="новые → 1–30 сегодня/.test(ht)
+    && lb.cells[li][lj].n > 0 && new RegExp('<td class="c hm-g\\d"[^>]*data-tip="31–90 на 01\\.10 → нет просрочки сегодня').test(hb),
+    `«Просрочено» срок на 01.10 (база — начало дня, строка 30.09) × сегодня: итоги строк = Разрез на базу (${T5.vals.map((v, i) => mln(T5.rowTot[i].value)).join(' · ')}), столбцов — сегодня (${T5.colTot.map(c => mln(c.value)).join(' · ')}), всего ${mln(T5.base)} → ${mln(T5.now)} = база и число плитки; 31–90 → 91–180: ☰ ${c34.n}, ${mln(c34.base)} млн на 01.10 = «ушли в 91–180» узла 31–90, ${mln(c34.now)} млн сегодня = «пришли из 31–90» узла 91–180; «ушли» и «новые» с причинами; правее диагонали красным, левее (у «Остатка» 31–90 → нет просрочки) — зелёным, диагональ — синяя; «Сумма | Изменение» нет (ДБ-223, ДБ-233)`);
 
   // ДБ-223: Переходы — у остатка-суммы или счёта с базой, по разрезу со значением на дату базы; иначе кнопка осей погашена с причиной
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
@@ -4253,7 +4261,7 @@ const asUser = id => { DB.state.userId = id; };
     && tod.ok && tod.dims.includes('bucket') && tod.dims.includes('category') && !tod.dims.includes('region') && !tod.dims.includes('program')
     && er2.error && /нет значения на дату базы/.test(er2.error) && /value="bucket"/.test(selT) && !/value="region"|value="program"/.test(selT)
     && /<button class="off" aria-disabled="true" data-tip="Переходы недоступны: у потока нет значения на дату базы/.test(hp) && ep.error
-    && !tdn.ok && /нужна база: нет ответа на 30\.09/.test(tdn.why)
+    && !tdn.ok && /нужна база: нет ответа на 01\.10/.test(tdn.why)
     && deepT.state === 'ok' && deepT.trans.vals.every((v, i) => near(deepT.trans.colTot[i].value, (deepR.nodes.find(n => n.v === v) || {}).value || 0) && near(deepT.trans.rowTot[i].value, (deepR.nodes.find(n => n.v === v) || {}).base || 0)),
     `Переходы: у потока («Поступило») — «${tp.why}», у доли — «${ts.why}», у наибольшего — нет; разрезы — только со значением на дату базы (${tod.dims.join(', ')}), «Область» не предлагается; нет ответа на 30.09 — «${tdn.why}»; на пути «Ошская» итоги = Разрез узла на две даты (ДБ-223, ДБ-175)`);
 
@@ -4439,7 +4447,7 @@ const asUser = id => { DB.state.userId = id; };
   const ccl = DB.whoList('lead-claims', 'u1', 'lead', {}, null, [], { mode:'change' }), bcl = DB.base('lead-claims', 'u1', 'lead');
   ok(388, mc.mode === 'change' && ms.mode === 'sum' && near(mc.sum, nb.delta) && mc.conv.matches && mc.rows.every(x => x.v !== 0) && consist
     && near(fromSum, nb.moves.from.find(x => x.v === '31–90').sum) && near(toSum, nb.moves.to.find(x => x.v === '181+').sum)
-    && mc.valCols.map(c => c[1]).join(' · ') === 'на 30.09 · сейчас · разница · как изменился' && mc.rows.every((x, i) => i === 0 || Math.abs(mc.rows[i - 1].v) >= Math.abs(x.v))
+    && mc.valCols.map(c => c[1]).join(' · ') === 'на 01.10 · сейчас · разница · как изменился' && mc.rows.every((x, i) => i === 0 || Math.abs(mc.rows[i - 1].v) >= Math.abs(x.v))
     && ccl.rows.length === Math.abs(bcl.shift.delta) && ccl.rows.every(x => x.how === 'новый' && x.v === 1) && /изменились · \+8 = изменению числа/.test(ccl.conv.text),
     `«Просрочено» по сроку, «Изменение»: «☰» узла 91–180 — ${mc.rows.length} объектов с разницей (${hows.join(', ')}), сумма разниц ${DB.fmtVal(mc.sum, 'sum')} = изменению строки; «пришёл из 31–90» = «пришли из» узла, «перешёл в 181+» = «ушли в»; «Сумма» в полосе — список на дату; у «Во взыскании» — ${ccl.rows.length} новых требований (ДБ-239, ДБ-252)`);
 
@@ -4617,7 +4625,7 @@ const asUser = id => { DB.state.userId = id; };
   const hv = DB.view('lead-od', 'map', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}).heat, j0 = hv.cols.indexOf(DB.loanAt(l0, 0).bucket);
   DB.whoAt('lead-od', 'big', hv.rows[0], 'bucket', hv.cols[j0]); const bm = W();
   ok(401, b0.mode === 'change' && b0.rows.length === 1 && b0.rows[0].id === n0.v && near(b0.rows[0].a, DB.loanAt(l0, -1).overdue) && near(b0.rows[0].n, n0.value) && near(b0.sum, n0.delta) && b0.conv.matches
-    && cols(b0) === 'на 30.09 · сейчас · разница · как изменился' && br.mode === 'change' && br.refused && br.count === restBoth && br.count > restNow
+    && cols(b0) === 'на 01.10 · сейчас · разница · как изменился' && br.mode === 'change' && br.refused && br.count === restBoth && br.count > restNow
     && bs.mode === 'sum' && bs.rows.length === 1 && near(bs.sum, n0.value) && bt.mode === 'change' && bt.conv.matches && near(bt.sum, tv.deltas[0]) && bm.mode === 'change' && bm.conv.matches && near(bm.sum, hv.deltas[0][j0]),
     `«Просрочено» по «крупнейшим», «Изменение»: строка «${n0.label}» (${mln(n0.delta)}) — «☰» объясняет разницу: «${b0.conv.text}», на 30.09 ${mln(b0.rows[0].a)} → сейчас ${mln(b0.rows[0].n)}; «остальные ${restNow}» — ${br.count} объектов обеих дат (и ушедшие из числа), выше порога — отказ; строка Таблицы и ячейка Карты «крупнейшие × срок» — тоже разница; в «Сумме» — «${bs.conv.text}» (ДБ-Д68, ДБ-239, ИДБ-21)`);
 
@@ -4699,6 +4707,8 @@ const asUser = id => { DB.state.userId = id; };
   // паспорт по частям: дата с закрытием · курс · охват и фильтр; две даты — «база → число» у даты и у курса, охват один раз
   const parts = p => { const i = p.indexOf(' · сом, курс '), j = p.indexOf(' · видно'); return { d:p.slice(0, i), c:p.slice(i + 13, j), tail:p.slice(j) }; };
   const two = (a, b) => { const A = parts(a), B = parts(b); return A.d + ' → ' + B.d + ' · сом, курс ' + A.c + ' → ' + B.c + B.tail; };
+  // дата базы сравнения пишется началом дня, закрытие — месяца строки базы (ДБ-269, ДБ-278): паспорт плитки «на 30.09» → база «на 01.10 · сентябрь …»
+  const toBase = p => p.replace(/^на 30\.09 · месяц (не )?закрыт/, (x, n) => 'на 01.10 · сентябрь ' + (n || '') + 'закрыт');
   const at = (id, p, path) => DB.ask(withParams(T(id), p), u1, 'lead', {}, path).passport;
   const mEnd = m => 'на ' + DB.monthEndLabel(m) + ' · месяц ' + (DB.monthClosed(m) ? 'закрыт' : 'не закрыт');
 
@@ -4731,12 +4741,12 @@ const asUser = id => { DB.state.userId = id; };
   strip('lead-od', 'move'); DB.whoFlowAt('lead-od', 'down'); const cM = W();
   lead(); strip('lead-od', 'map', [['axes', 'trans']]); DB.whoTrans('lead-od', 'bucket', '31–90', '91–180'); const cT = W();
   const cI = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'bucket', v:'91–180', from:'31–90' }, [], {});
-  ok(409, cO.passport === two(pPme, pToday) && hO === cO.passport && cO.valCols[0][1] === 'на 30.09' && cO.passport.startsWith(cO.valCols[0][1] + ' · ') && cO.conv.matches
+  ok(409, cO.passport === two(toBase(pPme), pToday) && hO === cO.passport && cO.valCols[0][1] === 'на 01.10' && cO.passport.startsWith(cO.valCols[0][1] + ' · ') && cO.conv.matches
     && cP.passport === mEnd(-3) + ' → ' + mEnd(-2) + ' · сом, курс ' + DB.monthEndLabel(-3) + ' → ' + DB.monthEndLabel(-2) + parts(pToday).tail && cP.conv.matches
     && cF.passport === 'июль · месяц закрыт → август · месяц закрыт · сом, курс 31.07 → 31.08' + parts(pPrev).tail && cF.valCols[0][1] === 'за июль' && cF.conv.matches
     && cS.passport === 'август · месяц закрыт → ' + parts(pPrev).d + ' · сом, курс 31.08 → ' + parts(pPrev).c + parts(pPrev).tail
     && cR.passport === mEnd(m0) + ' → ' + parts(pToday).d + ' · сом, курс ' + DB.monthEndLabel(m0) + ' → ' + parts(pToday).c + parts(pToday).tail && cR.conv.matches
-    && cM.passport === two(pAllB, pAll) && cT.passport === two(pAllB, pAll) && cI.passport === two(pAllB, pAll) && cM.conv.matches && cT.conv.matches && cI.conv.matches,
+    && cM.passport === two(toBase(pAllB), pAll) && cT.passport === two(toBase(pAllB), pAll) && cI.passport === two(toBase(pAllB), pAll) && cM.conv.matches && cT.conv.matches && cI.conv.matches,
     `две даты — база → число: Ошская в «Изменении» — «${cO.passport}» (${cO.conv.text}); точка Ряда 31.08 — «${parts(cP.passport).d}»; «Поступило» › Туризм за август — «${parts(cF.passport).d} · курс ${parts(cF.passport).c}», Разрез Туризма — «${parts(cS.passport).d}»; строка Ряда по разрезу — «${parts(cR.passport).d}»; строка Движения, «пришли из 31–90» и ячейка Переходов — те же две даты, что у плиток «на 30.09» и «сегодня» (ДБ-258)`);
 
   // ДБ-259: «Выгрузить список» — в штампе паспорт списка слово в слово (у точки — её дата, у «Изменения» — обе), строка «Список» с узлом; журнал выгрузок
@@ -4747,7 +4757,7 @@ const asUser = id => { DB.state.userId = id; };
   const pass = e => e.stamp.filter(s => /^Паспорт: /.test(s));
   ok(410, pass(eP).length === 1 && pass(eP)[0] === 'Паспорт: ' + wP.passport && eP.stamp.includes('Список: Просрочено › Ошская › на конец 31.08') && !eP.stamp.some(s => /день не закрыт/.test(s))
     && lgP.list.passport === wP.passport && jP.action === 'выгрузил список' && jP.detail.endsWith(' · ' + wP.passport) && eP.csv.includes('# Паспорт: ' + wP.passport)
-    && pass(eC).length === 1 && pass(eC)[0] === 'Паспорт: ' + wC.passport && / → /.test(wC.passport) && eC.stamp.includes('Список: Просрочено › Ошская · изменение к 30.09') && lgC.list.passport === wC.passport,
+    && pass(eC).length === 1 && pass(eC)[0] === 'Паспорт: ' + wC.passport && / → /.test(wC.passport) && eC.stamp.includes('Список: Просрочено › Ошская · изменение за месяц') && lgC.list.passport === wC.passport,
     `штамп выгрузки списка — с той же датой, что шапка: точка 31.08 — «${pass(eP)[0]}», «Список: Просрочено › Ошская › на конец 31.08»; «Изменение» Ошской — «${pass(eC)[0]}»; строка журнала выгрузок — тот же паспорт (ДБ-259, ИДБ-10)`);
 
   // ссылка другого дня и того же дня (ДБ-253, ДБ-254) на списке не на дату плитки: «Изменение» — база 30.09 и конец дня ссылки, курс 30.09 → 10.10, «на
@@ -4758,7 +4768,7 @@ const asUser = id => { DB.state.userId = id; };
   lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2); const lnP = DB.copyLink(); DB.stand('linkNextDay', true); DB.openLink(lnP); const lP = W(); DB.stand('linkNextDay', false);
   lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', 0); const lnZ = DB.copyLink(); DB.stand('linkNextDay', true); DB.openLink(lnZ); const lZ = W(); DB.stand('linkNextDay', false);
   lead(); strip('lead-od', 'series', [['of', 'main']]); DB.state.open['lead-od'].path = OSH.slice(); DB.whoMonthAt('lead-od', -2); const lnS = DB.copyLink(); DB.standFresh(); DB.openLink(lnS); const lS = W(), lSh = DB.whoHTML();
-  ok(411, lC.link && lC.link.day === '10.10' && /^на 30\.09 · месяц не закрыт → на конец 10\.10 · день закрыт · сом, курс 30\.09 → 10\.10 · видно /.test(lC.passport) && lC.conv.matches
+  ok(411, lC.link && lC.link.day === '10.10' && /^на 01\.10 · сентябрь не закрыт → на конец 10\.10 · день закрыт · сом, курс 30\.09 → 10\.10 · видно /.test(lC.passport) && lC.conv.matches
     && lH.includes('<span class="wp-meta">по ссылке · ' + lC.passport + ' <button class="linky" onclick="DB.stripRefresh(\'lead-od\')">на сегодня</button>') && lE.stamp.includes('Паспорт: ' + lC.passport)
     && !lR.link && lR.passport === cO.passport && lP.passport === p2 && lZ.passport.startsWith('на конец 10.10 · день закрыт · сом, курс 10.10 · видно ') && lZ.head.node === 'на конец 10.10'
     && lS.link && lS.link.from === '14:15' && lS.passport === p2 && lSh.includes('<span class="wp-meta">по ссылке от 14:15 · ' + p2),
@@ -4774,11 +4784,113 @@ const asUser = id => { DB.state.userId = id; };
   lead(); const fxOf = p => parts(p).c, bal = p => DB.ask(withParams(T('lead-bal'), p), u1, 'lead', {}).passport, paid = p => DB.ask(withParams(T('lead-paid'), p), u1, 'lead', {}).passport;
   const cd = bal({ date:'closedDay' }); DB.STAND.nightRunFailed = true; const cdF = bal({ date:'closedDay' }); DB.STAND.nightRunFailed = false;
   ok(412, /^Из дашборда: Просрочено › Ошская › на конец 31\.08 — вклад [^;]+; в карточке сейчас /.test(kP.plate) && !/14:15/.test(kP.plate)
-    && /^Из дашборда: Просрочено › Ошская › на конец 31\.08 — изменение к 31\.07 [^;]+;/.test(kPc.plate) && /^Из дашборда: Просрочено › Ошская на 14:15 — изменение к 30\.09 [^;]+;/.test(kC.plate)
-    && /с 30\.09 по сегодня — вклад /.test(kM.plate) && !/сегодня на 14:15/.test(kM.plate)
+    && /^Из дашборда: Просрочено › Ошская › на конец 31\.08 — изменение к 31\.07 [^;]+;/.test(kPc.plate) && /^Из дашборда: Просрочено › Ошская на 14:15 — изменение за месяц [^;]+;/.test(kC.plate)
+    && /с 01\.10 по сегодня — вклад /.test(kM.plate) && !/сегодня на 14:15/.test(kM.plate)
     && fxOf(cd) === '10.10' && /^на 10\.10 \(вчера\)/.test(cd) && fxOf(cdF) === '09.10' && /^на 09\.10/.test(cdF) && fxOf(bal({})) === '11.10' && fxOf(bal({ date:'prevMonthEnd' })) === '30.09'
     && fxOf(paid({ period:'curMonth' })) === '11.10' && fxOf(paid({ period:'ytd' })) === '11.10' && fxOf(paid({})) === '30.09' && fxOf(paid({ period:'prevYear' })) === '31.12.2025',
     `плашка карточки — дата списка: «${kP.plate.split(' — ')[0]}», в «Изменении» — «${kPc.plate.split(';')[0]}»; курс на дату паспорта: «последний закрытый день» — ${fxOf(cd)} (при сбое прогона ${fxOf(cdF)}), «текущий месяц» и «с начала года» — ${fxOf(paid({ period:'curMonth' }))}, «прошлый год» — ${fxOf(paid({ period:'prevYear' }))} (ДБ-Д72, ДБ-Д73, ДБ-59)`);
+  DB.seed();
+})();
+
+/* ---------- AF. Волна 19: с чем сравнивать — месяц, квартал, полугодие, год; переключатель «Сравнить» (ДБ-260…ДБ-278) ---------- */
+(() => {
+  const u1 = U('u1'), lead = () => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); };
+  const near = (a, b) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.5, mln = v => DB.fmtVal(v, 'sum');
+  const pme = id => withParams(T(id), { date:'prevMonthEnd' }), cd = id => withParams(T(id), { date:'closedDay' });
+  const shOf = (t, uid = 'u1', role = 'lead') => DB.ask(t, U(uid), role, {}).shift;
+  const tipOf = h => (/class="shift[^"]*" data-tip="([^"]*)"/.exec(h) || [])[1] || '';
+  const txtOf = h => ((/<span class="shift[^"]*"[^>]*>([\s\S]*?)<\/span><\/div>/.exec(h) || [])[1] || '').replace(/<[^>]+>/g, '');
+
+  // ДБ-260, ДБ-264, ДБ-270: пять баз — начало периода, в котором лежит дата плитки, и «за 12 месяцев»; дата базы — начало дня
+  lead();
+  const want = { today:['на 01.10', 'на 01.10', 'на 01.07', 'на 01.01', 'на 01.10.2025'], pme:['на 01.09', 'на 01.07', 'на 01.07', 'на 01.01', 'на 01.10.2025'] };
+  const got = { today:[], pme:[], cd:[] }, sr = DB.view('lead-od', 'series', { points:24, of:'main' }, [], 'u1', 'lead', {}).series.points, ptv = m => (sr.find(p => p.m === m) || { vals:[] }).vals[0];
+  let baseOk = true;
+  DB.CMP_ORDER.forEach((k, i) => { DB.setCmp(k); const a = shOf(T('lead-od')), b = shOf(pme('lead-od')), c = shOf(cd('lead-od'));
+    got.today.push(a.at); got.pme.push(b.at); got.cd.push(c.at);
+    const bm = DB.baseMonth(k, { m:0 }); if(a.base !== ptv(bm)) baseOk = false; });
+  ok(413, got.today.join() === want.today.join() && got.pme.join() === want.pme.join() && got.cd.join() === want.today.join() && baseOk
+    && DB.baseMonth('yearAgo', { m:0 }) === -13 && DB.baseMonth('yearAgo', { m:-1 }) === -13 && DB.baseMonth('quarterStart', { m:-1 }) === -4 && DB.baseMonth('prevMonthEnd', { m:-1 }) === -2,
+    `базы — от даты плитки, дата базы — начало дня: у «сегодня» ${got.today.join(' · ')}; у плитки на 30.09 — ${got.pme.join(' · ')} (сентябрь, III квартал, второе полугодие, год, ровно 12 месяцев); у последнего закрытого дня — как у «сегодня»; база = точке Ряда на конец того месяца (ДБ-260, ДБ-264, ДБ-270)`);
+
+  // ДБ-261, ДБ-265, ДБ-274: переключатель в шапке — «как задано» и пять баз с датами под кнопками; все плитки-остатки — на одну базу
+  lead(); const h0 = DB.topHTML(), lay = DB.composeLayout('u1', 'lead').filter(k => !k.startsWith('s:'));
+  const stocks = lay.filter(k => { const q = DB.questionOf(T(k)); return q && q.inds && DB.IND[q.inds[0]].kind === 'stock' && !DB.IND[q.inds[0]].currentOnly; });
+  const own0 = stocks.map(k => DB.base(k, 'u1', 'lead').shift.label);
+  DB.setCmp('yearStart'); const h1 = DB.topHTML(), all1 = stocks.map(k => DB.base(k, 'u1', 'lead').shift).filter(x => !x.none);
+  const btns = [...h0.matchAll(/<button class="([^"]*)" aria-pressed="(true|false)"[^>]*><span>([^<]+)<\/span><small>([^<]+)<\/small><\/button>/g)].map(x => [x[1], x[2], x[3], x[4]]);
+  ok(414, DB.state.cmp === 'yearStart' && btns.length === 6 && btns.map(b => b[2] + ' ' + b[3]).join(' · ') === 'как задано база автора · за месяц 01.10 · за квартал 01.10 · за полугодие 01.07 · за год 01.01 · за 12 месяцев 01.10.25'
+    && btns[0][1] === 'true' && btns.slice(1).every(b => b[1] === 'false' && !/off/.test(b[0])) && /<div class="cmp" role="group" aria-label="Сравнить">/.test(h0) && /<label class="cmp-pick">/.test(h0)
+    && /aria-pressed="true"[^>]*><span>за год</.test(h1) && own0.every(l => l === 'за месяц') && all1.length === stocks.length && all1.every(x => x.label === 'за год' && x.at === 'на 01.01'),
+    `«Сравнить» в шапке: ${btns.map(b => b[2] + ' (' + b[3] + ')').join(' · ')}; экран открыт «как задано» (у плиток — база автора), «за год» — у всех ${stocks.length} плиток-остатков «Руководства» сдвиг «за год» на 01.01; совпадающие даты видны под кнопками, кнопки не гаснут (ДБ-261, ДБ-265, ДБ-274)`);
+
+  // ДБ-262: потоки переключатель не трогает — период автора и сравнение с предыдущим таким же
+  lead(); const p0 = DB.base('lead-paid', 'u1', 'lead').shift, i0 = DB.base('lead-issued', 'u1', 'lead').shift;
+  const pAll = DB.CMP_ORDER.map(k => { DB.setCmp(k); const p = DB.base('lead-paid', 'u1', 'lead').shift, i = DB.base('lead-issued', 'u1', 'lead').shift; return p.label === p0.label && p.delta === p0.delta && i.none === i0.none; });
+  DB.setCmp('yearStart'); DB.openView('lead-od', 'series'); const sv = DB.view('lead-od', 'series', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {});
+  ok(415, p0.label === 'к августу' && /неполный период/.test(i0.none) && pAll.every(Boolean) && sv.baseLabel === 'к прошлому месяцу',
+    `потоки не меняются при любой базе: «Поступило · прошлый месяц» — ${p0.label}, «Выдано с начала года» — без сдвига (неполный период); Ряд сравнивает с прошлой точкой (ДБ-262)`);
+
+  // ДБ-269, ДБ-278: на плитке — словами, в подсказке — интервал; колонка полосы — словами, список «Изменения» — «на 01.01», закрытие — месяца строки базы
+  lead(); DB.setCmp('yearStart'); const ht = DB.tileHTML('lead-od', 'u1', 'lead'), bo = DB.base('lead-od', 'u1', 'lead').shift;
+  DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'region'); DB.mode('lead-od', 'change'); const vs = DB.view('lead-od', 'slice', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {});
+  DB.whoAt('lead-od', 'region', 'Ошская'); const wc = DB.whoPanel();
+  ok(416, /^▲ [\d,]+ млн за год$/.test(txtOf(ht)) && /^Изменение \+[\d,]+ % за год: с 01\.01 по сегодня · было \d+ млн$/.test(tipOf(ht)) && bo.from === '01.01' && bo.to === 'сегодня'
+    && vs.baseLabel === 'за год' && vs.baseAt === 'на 01.01' && /<span>за год<\/span>/.test(DB.stripHTML('lead-od')) && wc.valCols[0][1] === 'на 01.01'
+    && /^на 01\.01 · декабрь 2025 закрыт → на 14:15 · день не закрыт · сом, курс 31\.12\.2025 → 11\.10/.test(wc.passport) && wc.conv.matches,
+    `подписи: «${txtOf(ht)}», подсказка «${tipOf(ht)}»; Разрез — колонка «за год», список «Изменения» Ошской — колонка «на 01.01», «${wc.passport.split(' · сом')[0]}» (ДБ-269, ДБ-278)`);
+
+  // ДБ-271: Движение следует переключателю — окно от базы до даты плитки, сумма строк = сдвигу; у плитки на 30.09 «за квартал» — с 01.07 по 30.09
+  lead(); DB.setCmp('yearStart'); DB.openView('lead-od', 'move'); const mv = DB.view('lead-od', 'move', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {}).move, hm = DB.stripHTML('lead-od');
+  DB.whoFlowAt('lead-od', 'new'); const wbig = DB.whoPanel(), rn = mv.rows.find(r => r.kind === 'event' && r.cnt > 0 && r.cnt <= 150);   // за год «новых» больше порога — честный отказ
+  DB.whoFlowAt('lead-od', rn.key); const wn = DB.whoPanel();
+  const mb = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move, sb = DB.base('lead-bal', 'u1', 'lead').shift;
+  DB.setCmp('quarterStart'); const tq = pme('lead-od'), mq = DB.view(tq, 'move', null, [], 'u1', 'lead', {}).move, sq = shOf(tq), vq = DB.views(tq, 'u1', 'lead').find(v => v.kind === 'move');
+  DB.setCmp(null); const vmo = DB.views(pme('lead-od'), 'u1', 'lead').find(v => v.kind === 'move'), m0 = DB.view('lead-od', 'move', null, [], 'u1', 'lead', {}).move;
+  ok(417, mv.M === 0 && mv.B === -10 && near(mv.end - mv.start, bo.delta) && near(sum(mv.rows.map(r => r.v)), bo.delta) && /<div class="mv-cap"><b>с 01\.01 по сегодня<\/b>/.test(hm) && /за год · с 01\.01/.test(hm) && !/>прошлый<\/button>/.test(hm)
+    && wbig.refused && wbig.count === mv.rows.find(r => r.key === 'new').cnt && wn.head.node === rn.name + ' · с 01.01 по сегодня' && near(wn.rows.reduce((a, x) => a + x.v, 0), rn.v) && wn.conv.matches
+    && near(sum(mb.rows.map(r => r.v)), sb.delta) && mb.rows.some(r => r.key === 'other')
+    && vq.ok && mq.M === -1 && mq.B === -4 && near(sum(mq.rows.map(r => r.v)), sq.delta) && sq.at === 'на 01.07' && vmo.ok && m0.B === -1,
+    `Движение «за год»: с 01.01 по сегодня, ${mln(mv.start)} → ${mln(mv.end)}, сумма строк = сдвигу ${mln(bo.delta)}; «☰» строки «${rn.name}» — её объекты, у «новых» за год (${wbig.count}) — отказ выше порога; «Остаток» — потоками, сумма = сдвигу; плитка на 30.09 «за квартал» — с 01.07 по 30.09; «как задано» — месяц, как прежде (ДБ-271)`);
+
+  // ДБ-272: база до запуска — итог легаси, где он есть; нет — «без сдвига» с причиной; Движение, «Изменение», список — погашены
+  lead(); DB.STAND.launch = -7; DB.setCmp('yearStart');
+  const lb = DB.base('lead-bal', 'u1', 'lead').shift, lc = DB.base('lead-claims', 'u1', 'lead').shift, hl = DB.tileHTML('lead-bal', 'u1', 'lead'), hc = DB.tileHTML('lead-claims', 'u1', 'lead');
+  const lv = DB.views('lead-bal', 'u1', 'lead').find(v => v.kind === 'move'); DB.openView('lead-bal', 'slice'); const lm = DB.mode('lead-bal');
+  const lw = DB.whoList('lead-bal', 'u1', 'lead', {}, null, [], { mode:'change' });
+  DB.setCmp('halfStart'); const lh = DB.base('lead-bal', 'u1', 'lead').shift; DB.STAND.launch = null;
+  DB.switchUser('u2'); DB.STAND.launch = -7; DB.setCmp('yearStart'); const lu = DB.base('cur-od', 'u2', 'cur').shift; DB.STAND.launch = null;
+  ok(418, lb.legacy && lb.label === 'за год' && /база — итог легаси; редакции формы разные$/.test(tipOf(hl)) && lc.none && lc.legacy && /^до запуска системы 01\.03\.2026 — только итоги легаси: /.test(lc.none)
+    && /<span class="shift none" data-tip="Без сдвига: до запуска системы 01\.03\.2026/.test(hc) && !lv.ok && /объектов до запуска нет/.test(lv.why) && /объектов до запуска нет/.test(lm.off) && lm.shown === 'sum'
+    && !lh.legacy && !lh.none && lh.at === 'на 01.07' && lu.none && /по охвату роли не собирались/.test(lu.none),
+    `база до запуска 01.03.2026: «Остаток» — от итога легаси с пометкой «${tipOf(hl).split(' · ').pop()}»; «Во взыскании» — «${lc.none}»; у Куратора — «${lu.none.split(': ').pop()}»; Движение и «Изменение» — «${lv.why}»; «за полугодие» (01.07) — после запуска, как обычно (ДБ-272)`);
+
+  // ДБ-267, ДБ-275: выбор едет в ссылке; вкладка, меню и вход — снова «как задано»; умолчания у экрана нет
+  lead(); DB.setCmp('halfStart'); const link = DB.linkOf(); DB.setTab('role', 'lead'); const afterTab = DB.state.cmp;
+  DB.openLink(link); const afterLink = DB.state.cmp, lhh = DB.base('lead-od', 'u1', 'lead').shift.label; DB.go('catalog'); const afterGo = DB.state.cmp; DB.go('home');
+  DB.setCmp('yearAgo'); DB.switchUser('u2'); const afterUser = DB.state.cmp; DB.switchUser('u1');
+  const fresh = DB.USERS.every(u => u.roles.every(r => { DB.switchUser(u.id); DB.setTab('role', r); return DB.state.cmp === null; })); DB.switchUser('u1');
+  ok(419, JSON.parse(decodeURIComponent(link.slice(4))).cmp === 'halfStart' && afterTab === null && afterLink === 'halfStart' && lhh === 'за полугодие' && afterGo === null && afterUser === null && fresh,
+    'выбор живёт на экране и едет в ссылке: по ссылке — «за полугодие», как у отправителя; переход на вкладку, в каталог и смена пользователя — снова «как задано»; у раскладки ролей своего умолчания нет (ДБ-267, ДБ-275)');
+
+  // ДБ-268: прогрев — все пять баз у плиток-остатков; базы с одной датой — один вопрос
+  lead(); const P = DB.warmPlan(), asks = DB.tileAsks(T('lead-od'), u1, 'lead').map(a => a.key.split('|').pop()), asP = DB.tileAsks(T('lead-paid'), u1, 'lead').map(a => a.key.split('|').pop());
+  ok(420, asks.join(' · ') === 'today · база на 01.10 · база на 01.07 · база на 01.01 · база на 01.10.2025' && asP.length === 2 && P.closed === 158,
+    `прогрев: у «Просрочено» — ${asks.slice(1).join(', ')} («за месяц» и «за квартал» — одна дата, один вопрос); у потока — одна база периода; всего ${P.closed} вопросов на закрытые даты (ДБ-268)`);
+
+  // ДБ-276, ДБ-277: штамп выгрузки несёт базу экрана; в Ряде точка базы отмечена
+  lead(); const e0 = DB.exportTile('lead-od', 'xlsx', 'lead'); DB.setCmp('yearStart'); const e1 = DB.exportTile('lead-od', 'xlsx', 'lead');
+  DB.openView('lead-od', 'series'); DB.viewSet('lead-od', 'of', 'main'); const hs = DB.stripHTML('lead-od'), vsr = DB.view('lead-od', 'series', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {});
+  DB.setCmp(null); const hs0 = DB.stripHTML('lead-od');
+  ok(421, !e0.stamp.some(x => /^Сравнение:/.test(x)) && e1.stamp.includes('Сравнение: за год (на 01.01) — переключатель экрана') && e1.rows.some(r => r[0] === 'сдвиг за год')
+    && vsr.baseM && vsr.baseM.m === -10 && /<div class="sr-c base" data-m="-10"[^>]*data-tip="[^"]*База сдвига плитки — за год: конец этого месяца, на 01\.01/.test(hs) && (hs.match(/class="sr-c[^"]* base"/g) || []).length === 1
+    && /<div class="sr-c base" data-m="-1"/.test(hs0),
+    'штамп выгрузки: «Сравнение: за год (на 01.01) — переключатель экрана», строка «сдвиг за год»; «как задано» — строки нет. В Ряде «Просрочено» отмечена точка базы: «за год» — декабрь, «как задано» (за месяц) — сентябрь (ДБ-276, ДБ-277)');
+
+  // ДБ-273: переоценка — из потока курсовой разницы ядра; пока его нет — в «прочем», подсказка сдвига её не называет
+  lead(); DB.setCmp('yearStart'); const ob = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move.rows.find(r => r.key === 'other');
+  ok(422, ob && /курсовая/.test(ob.tip) && !/переоценк/.test(tipOf(DB.tileHTML('lead-bal', 'u1', 'lead'))),
+    `курс: потока курсовой разницы ядро не отдаёт — переоценка в «прочем» Движения «Остатка» («${ob && ob.tip}»), подсказка сдвига её не называет (ДБ-273)`);
   DB.seed();
 })();
 
