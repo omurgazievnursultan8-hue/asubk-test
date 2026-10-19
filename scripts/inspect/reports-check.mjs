@@ -32,6 +32,8 @@
 // итоги шире зоны, журнал просмотров, тяжёлый показ в фоне, валюта, жизнь общего, сводная, план и перечень номеров,
 // «Обязательство» строками, пакет и отвалившееся, круг, сигнал и выгрузка с плитки, кто утверждает, PDF + XLSX; события
 // месяцу без событий; личный отчёт на экране показа; «действующие», заготовки и реестр имущества в конструкторе.
+// Волна 46 (#299): служебных экранов нет (ГМ-1, ГМ-2) — «Швы и соседи» и «Границы макета» убраны, меню — три стола;
+// #60, #61, #76, #124, #125 переписаны на десять экранов; отказы легаси — кнопками на рабочих экранах.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -542,16 +544,16 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     try { const html = VIEWS[v].fn(); total += html.length;
       if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(60, bad.length === 0 && names.length === 12,
-    `двенадцать экранов × все роли = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(60, bad.length === 0 && names.length === 10,
+    `десять экранов × все роли = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
-  const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn(), bo = VIEWS.bounds.fn();
+  const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn();
   ok(61, has(reg, 'Не видно этой роли') && has(cal, 'Три кнопки, которых в модуле нет') &&
         has(jr, 'что мы отдали наружу') && has(bl, 'Проверка документом') &&
-        has(wl, 'Завести список правилом') && has(bo, 'Чего в макете нет'),
-    `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
+        has(wl, 'Завести список правилом'),
+    `отказы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
 })();
 
 /* ---------- R. Волна 4: итоги уровней, лист выгрузки, выпуск заданием ---------- */
@@ -681,14 +683,14 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)`);
 
   const V = win.VIEWS;
-  const b = V.builder.fn(), i = V.issue.fn(), bo = V.bounds.fn(), w = V.worklists.fn();
+  const b = V.builder.fn(), i = V.issue.fn(), w = V.worklists.fn();
   RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
   const j = V.journal.fn(), i2 = V.issue.fn();
   ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Задания на выпуск') &&
         has(i, 'Итог по «') && has(i2, 'Шаг задания') && has(j, 'задание: заказан') &&
-        has(bo, 'Отказы, вычитанные из легаси') && has(w, 'Завести список правилом'),
+        has(b, 'Сложить итоги уровней самим') && has(w, 'Завести список правилом'),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
-    `состояния задания в выпуске и журнале, отказы легаси на границах`);
+    `состояния задания в выпуске и журнале, отказы легаси там, где их просят`);
 })();
 
 /* ---------- W. Экран крутится без границ, замок — на сдаче (ОГ-Д2) ---------- */
@@ -1143,20 +1145,20 @@ const DEV = 'изменено — не утверждённый состав';
     items: [...ch.matchAll(/data-v="([a-z]+)"/g)].map(m => m[1]) }));
   const titles = groups.map(g => g.title);
 
-  ok(124, groups.length === 4 &&
-        titles.join(' · ') === 'Смотреть и сдавать · Настраивать · След · Границы' &&
+  ok(124, groups.length === 3 &&
+        titles.join(' · ') === 'Смотреть и сдавать · Настраивать · След' &&
         groups.every(g => g.hint.trim().length > 10),
-    `навигация разложена на три стола заказчика плюс служебный: ${titles.join(' · ')}; ` +
+    `навигация разложена на три стола заказчика: ${titles.join(' · ')}; ` +
     `у каждого подписано, чей это стол`);
 
   const flat = groups.flatMap(g => g.items);
   const uniq = [...new Set(flat)];
   const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
-  ok(125, flat.length === 12 && uniq.length === 12 && missing.length === 0 &&
-        groups.map(g => g.items.length).join('/') === '5/4/1/2' && flat.indexOf('dash') === -1 &&
+  ok(125, flat.length === 10 && uniq.length === 10 && missing.length === 0 &&
+        groups.map(g => g.items.length).join('/') === '5/4/1' && flat.indexOf('dash') === -1 &&
         groups[0].items.indexOf('subs') !== -1,
-    `перегруппировка ничего не потеряла и не задвоила: все 12 экранов ровно по разу, ` +
-    `раскладка 5 / 4 / 1 / 2 — «Подписки и сигналы» на столе «Смотреть и сдавать»; экрана «Дашборд» в модуле нет`);
+    `перегруппировка ничего не потеряла и не задвоила: все 10 экранов ровно по разу, ` +
+    `раскладка 5 / 4 / 1 — «Подписки и сигналы» на столе «Смотреть и сдавать»; экрана «Дашборд» в модуле нет`);
 
   // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
   const nastr = groups[1].items;
@@ -3396,13 +3398,31 @@ const DEV = 'изменено — не утверждённый состав';
     `просмотров и события декабря 2024; список из перечня; архив общего; номеров решений в новых карточках нет`);
 })();
 
+/* ---------- PP. Волна 46: служебных экранов нет (ГМ-1, ГМ-2) ---------- */
+(() => {
+  RP.seed(); as('auth');
+  const V = win.VIEWS;
+  const keys = Object.keys(V);
+  const gone = ['Швы и соседи', 'Границы макета', 'data-v="seams"', 'data-v="bounds"'].filter(x => has(src, x));
+  const seamFns = ['seamsIn', 'consumers', 'noSeamOut', 'callSeamOut', 'ownQuery', 'ownFormula']
+    .filter(f => typeof RP[f] !== 'function');
+  const b = V.builder.fn(), w = V.worklists.fn(), j = V.journal.fn();
+  const ready = RP.state.issues.some(i => i.state === 'готов');
+  ok(299, keys.length === 10 && keys.indexOf('seams') === -1 && keys.indexOf('bounds') === -1 && gone.length === 0 &&
+        seamFns.length === 0 && has(b, 'RP.doFold(') && has(b, 'RP.doBands(') && has(b, 'RP.doColDate(') &&
+        has(w, 'RP.doRuleList()') && ready && has(j, 'RP.doSheetIssue('),
+    `служебных экранов нет: меню и экраны — только приложения (${keys.length}); швы живут в коде модуля ` +
+    `(${6 - seamFns.length} из 6 функций), отказы легаси — кнопками на рабочих экранах: сложить итоги, итог перед ` +
+    `уровнями, столбец на свою дату — в редакции; правило списком — в рабочих списках; лист у сданного — в журнале`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-10-17 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-10-19 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-10-17 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-10-19 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
