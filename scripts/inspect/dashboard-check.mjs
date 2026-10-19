@@ -1524,7 +1524,7 @@ const asUser = id => { DB.state.userId = id; };
   // раскрытие: в ряду одна плитка, в разных рядах по одной, не хранится; в странице нет «Развернуть», ⤢, размеров плиток главной и фильтра форматов
   DB.openView('lead-od', 'map'); DB.openView('lead-issued', 'table'); const one = Object.keys(DB.state.open).sort().join() + ':' + DB.state.open['lead-issued'].kind;
   DB.closeView('lead-issued'); DB.closeView('lead-od'); const none = Object.keys(DB.state.open).length; DB.openView('lead-od', 'series'); DB.seed();
-  const cat = src.slice(src.indexOf('function renderCatalog('), src.indexOf('/* ---------- Своя плитка')), reg = src.slice(src.indexOf('function renderRegistry('), src.indexOf('function renderLayouts('));
+  const cat = src.slice(src.indexOf('function catalogHTML('), src.indexOf('/* ---------- Своя плитка')), reg = src.slice(src.indexOf('function renderRegistry('), src.indexOf('function renderLayouts('));
   ok(171, one === 'lead-issued,lead-od:table' && none === 0 && Object.keys(DB.state.open).length === 0 && !/Развернуть|⤢|DB\.expand|catFormat|openExpand/.test(src)
     && !/FORMAT_NAMES|SIZE\[/.test(cat) && /Основа/.test(cat) && /Основа/.test(reg) && !/FORMAT_NAMES/.test(reg),
     'раскрыто по одной плитке в ряду, ✕ закрывает, seed() сбрасывает; в странице нет «Развернуть», ⤢, DB.expand и фильтра форматов; каталог и реестр показывают «Основа» вместо формата и размера (ДБ-117, ДБ-118)');
@@ -3702,10 +3702,10 @@ const asUser = id => { DB.state.userId = id; };
   const s13 = DB.base('lead-od', 'u13', null), l13 = DB.base('lead-od', 'u1', 'lead');
   for (let i = DB.screens('u13').length; i < 5; i++) DB.createScreen('x' + i, null); const c3 = DB.copyRoleScreen('an'); asUser('u1');
   ok(344, !DB.state.declared.an && !DB.roleHasLayout('an') && DB.composeLayout('u1', 'an').join() === 'tasks' && /своей раскладки нет — показана минимальная/.test(hAn)
-    && /Добавить плитки из каталога →/.test(bAn) && />\+ экран — копия «Руководства»<\/button>/.test(bAn) && !/копия/.test(bAdm) && /onclick="DB\.copyRoleScreen\('an'\)"/.test(hAn)
+    && !/каталог/.test(bAn) && /<button class="add-cell" onclick="DB\.openCatalogFor\(\)" aria-label="Добавить плитку из каталога во вкладку «Аналитик»">\+ плитка<\/button>/.test(hAn) && />\+ экран — копия «Руководства»<\/button>/.test(bAn) && !/копия/.test(bAdm) && /onclick="DB\.copyRoleScreen\('an'\)"/.test(hAn)
     && c1.source === 'tab' && sc1.name === 'Копия «Руководства»' && sc1.items.join() === leadMine.join() && !sc1.items.includes('lead-risk') && !sc1.filter && DB.screens('u1').length === n0 + 1 && onIt
     && c2.source === 'declared' && c2.screen.items.join() === decl.join() && decl.includes('lead-risk') && s13.value === l13.value && c3.error === 'Своих экранов не больше пяти',
-    `у «Аналитика» своей раскладки нет: минимальная «Мои задания», сообщение «своей раскладки нет», «Добавить плитки из каталога →» и «+ экран — копия «Руководства»» (у роли без образца — без копии); у Асанова (есть «Руководство») экран «${sc1.name}» — его вкладка с личной перекладкой (${sc1.items.length} элементов, скрытая «Сумма под риском» не скопирована), фильтра нет, вкладка открыта; у ${u13.name} (без «Руководства») — объявленная раскладка «Руководства» (${c2.screen.items.length} элементов), «Просрочено» на экране — ${fm(s13.value)}, как у «Руководства»; шестой экран — «${c3.error}» (ДБ-204, ДБ-50, ДБ-192)`);
+    `у «Аналитика» своей раскладки нет: минимальная «Мои задания», сообщение «своей раскладки нет», ячейка «+ плитка» в сетке и «+ экран — копия «Руководства»» (у роли без образца — без копии); у Асанова (есть «Руководство») экран «${sc1.name}» — его вкладка с личной перекладкой (${sc1.items.length} элементов, скрытая «Сумма под риском» не скопирована), фильтра нет, вкладка открыта; у ${u13.name} (без «Руководства») — объявленная раскладка «Руководства» (${c2.screen.items.length} элементов), «Просрочено» на экране — ${fm(s13.value)}, как у «Руководства»; шестой экран — «${c3.error}» (ДБ-204, ДБ-50, ДБ-192)`);
 
   // ДБ-205: поток «сегодня» на ночном источнике — отказ с причиной и вчерашним числом серой подсказкой; остаток — число на 02:00 с «◷ только ночью»
   DB.seed(); asUser('u4'); DB.setTab('role', 'acc'); const u4 = U('u4');
@@ -3786,7 +3786,7 @@ const asUser = id => { DB.state.userId = id; };
   const rowOf = (html, id) => { const i = html.indexOf('data-tile="' + id + '"'); return i < 0 ? '' : html.slice(i, html.indexOf('</div></div>', html.indexOf('class="cat-a"', i)) + 12); };
 
   // ДБ-197, ДБ-280: каталог — витрина готовых плиток («возьми и поставь»); пустой поиск ведёт в витрину отчётности с тем же запросом, там «📌»
-  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.go('catalog');
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openCatalogFor();
   const h0 = DB.catalogHTML(), add0 = (h0.match(/onclick="DB\.addFromCatalog\('[^']+'\)"[^>]*>Добавить</g) || []).length;
   DB.catSearch('ожидалось по графику'); const hE = DB.catalogHTML(), vE = DB.catalogView(u1, { q:'ожидалось по графику' });
   const fr = DB.findReports(), sh = DB.state && DB.reportSearch(u1, 'ожидалось по графику').map(r => r.id);
@@ -3900,7 +3900,8 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-208, ДБ-283: на телефоне каталог — просмотр и «Добавить»; реестр плиток, «Настроить» и «Опубликовать в каталог» — только на компьютере; разделы — списком в шапке
   DB.seed(); asUser('u11');
   const css = src.slice(src.indexOf('<style>'), src.indexOf('</style>')), phone = css.slice(css.indexOf('@media (max-width:600px){'));
-  const rH3 = DB.registryHTML(), cH3 = DB.catalogHTML(); DB.catSearch('нет такой плитки нигде'); const cE = DB.catalogHTML();
+  const rH3 = DB.registryHTML(); asUser('u1'); DB.setTab('role', 'lead');   // каталог — для вкладки, где есть что добавить: у «Системного администратора» Шамшиева её нет
+  const cH3 = DB.catalogHTML(); DB.catSearch('нет такой плитки нигде'); const cE = DB.catalogHTML();
   const menuSrc = src.slice(src.indexOf('function openMenu('), src.indexOf('function screenMenuItems('));
   ok(354, /\.desk-only\{ display:none !important; \} \.phone-only\{ display:block; \}/.test(phone)
     && /const phone = HAS_DOM && window\.matchMedia\('\(max-width:600px\)'\)\.matches;/.test(menuSrc) && /if\(!phone && canConfigure\(t, u\)/.test(menuSrc) && /if\(!phone\) items\.push\(\['Опубликовать в каталог'/.test(menuSrc)
@@ -4874,11 +4875,11 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-267, ДБ-275: выбор едет в ссылке; вкладка, меню и вход — снова «как задано»; умолчания у экрана нет
   lead(); DB.setCmp('halfStart'); const link = DB.linkOf(); DB.setTab('role', 'lead'); const afterTab = DB.state.cmp;
-  DB.openLink(link); const afterLink = DB.state.cmp, lhh = DB.base('lead-od', 'u1', 'lead').shift.label; DB.go('catalog'); const afterGo = DB.state.cmp; DB.go('home');
+  DB.openLink(link); const afterLink = DB.state.cmp, lhh = DB.base('lead-od', 'u1', 'lead').shift.label; DB.openCatalogFor(); const afterCat = DB.state.cmp; DB.close(); DB.go('stand'); const afterGo = DB.state.cmp; DB.go('home');
   DB.setCmp('yearAgo'); DB.switchUser('u2'); const afterUser = DB.state.cmp; DB.switchUser('u1');
   const fresh = DB.USERS.every(u => u.roles.every(r => { DB.switchUser(u.id); DB.setTab('role', r); return DB.state.cmp === null; })); DB.switchUser('u1');
-  ok(419, JSON.parse(decodeURIComponent(link.slice(4))).cmp === 'halfStart' && afterTab === null && afterLink === 'halfStart' && lhh === 'за полугодие' && afterGo === null && afterUser === null && fresh,
-    'выбор живёт на экране и едет в ссылке: по ссылке — «за полугодие», как у отправителя; переход на вкладку, в каталог и смена пользователя — снова «как задано»; у раскладки ролей своего умолчания нет (ДБ-267, ДБ-275)');
+  ok(419, JSON.parse(decodeURIComponent(link.slice(4))).cmp === 'halfStart' && afterTab === null && afterLink === 'halfStart' && lhh === 'за полугодие' && afterCat === 'halfStart' && afterGo === null && afterUser === null && fresh,
+    'выбор живёт на экране и едет в ссылке: по ссылке — «за полугодие», как у отправителя; панель каталога выбор не трогает; переход на вкладку, в другой раздел и смена пользователя — снова «как задано»; у раскладки ролей своего умолчания нет (ДБ-267, ДБ-275)');
 
   // ДБ-268: прогрев — все пять баз у плиток-остатков; базы с одной датой — один вопрос
   lead(); const P = DB.warmPlan(), asks = DB.tileAsks(T('lead-od'), u1, 'lead').map(a => a.key.split('|').pop()), asP = DB.tileAsks(T('lead-paid'), u1, 'lead').map(a => a.key.split('|').pop());
@@ -5000,6 +5001,58 @@ const asUser = id => { DB.state.userId = id; };
     && /history\.replaceState\(null, '', view==='stand' \? '#stand' : location\.pathname\+location\.search\)/.test(src)
     && /<h4>Запуск: готовность модулей и плиток<\/h4>/.test(src) && !/соседи и сбои/.test(src),
     'стенд макета не в меню: открывается адресом dashboard.html#stand, пункт «Стенд: другие модули и сбои» виден, пока экран открыт; уход со стенда снимает #stand');
+})();
+
+/* ---------- AH. Волна 21 (19.10.2026): вход в каталог — ячейка «+ плитка» на главной, каталог — панель (ДБ-287…ДБ-291) ---------- */
+(() => {
+  const u1 = U('u1');
+  // ДБ-287: пункта «Каталог плиток» в меню нет, страницы каталога нет
+  ok(432, /const nav = \[\['home','Главная'\]\];/.test(src) && !/id="v-catalog"|catalog:render|\['catalog',|function renderCatalog|catalogTarget|'Каталог плиток'/.test(src),
+    'меню «Главная» без «Каталога плиток»: страницы каталога нет, он открывается с главной (ДБ-287)');
+
+  // ДБ-288: ячейка «+ плитка» — одна, последней в сетке, называет вкладку; пока не готова отчётность — её нет
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const g0 = DB.homeHTML(), grid0 = g0.slice(g0.indexOf('<div class="grid" id="grid">')), n0 = (g0.match(/class="add-cell"/g) || []).length;
+  const lastAt = grid0.lastIndexOf('<button class="add-cell"'), endsWith = /<button class="add-cell" onclick="DB\.openCatalogFor\(\)" aria-label="Добавить плитку из каталога во вкладку «Руководство»">\+ плитка<\/button><\/div>\s*$/.test(grid0);
+  DB.stand('reportsReady', false); const gR = DB.homeHTML(); DB.stand('reportsReady', true);
+  ok(433, n0 === 1 && lastAt > 0 && endsWith && !/add-cell/.test(gR) && !/arrange-only" onclick="DB\.openCatalogFor/.test(src) && /\.add-cell\{[^}]*border:1\.5px dashed/.test(src),
+    'ячейка «+ плитка» — одна, последней в сетке «Руководства», пунктиром, называет вкладку; пока отчётность не готова — её нет; в «Переложить» кнопки каталога нет (ДБ-288, ДБ-290)');
+
+  // ДБ-288: полоса последнего ряда — после ячейки, если в ряду есть место; ряд полон — ячейка новым рядом после полосы
+  DB.seed(); asUser('u1');
+  const sc3 = DB.createScreen('Три', { items:['lead-od','lead-bal','lead-borr'], filter:null, pinned:{} }); DB.setTab('screen', sc3.id); DB.openView('lead-borr', 'slice');
+  const h3 = DB.homeHTML(), i3c = h3.indexOf('class="add-cell"'), i3s = h3.indexOf('data-strip="lead-borr"');
+  const sc4 = DB.createScreen('Четыре', { items:['lead-od','lead-bal','lead-borr','lead-risk'], filter:null, pinned:{} }); DB.setTab('screen', sc4.id); DB.openView('lead-risk', 'slice');
+  const h4 = DB.homeHTML(), i4c = h4.indexOf('class="add-cell"'), i4s = h4.indexOf('data-strip="lead-risk"');
+  ok(434, DB.gridCols() === 4 && i3s > 0 && i3c > 0 && i3c < i3s && i4s > 0 && i4c > i4s && /во вкладку «Четыре»/.test(h4),
+    'три плитки и полоса третьей: ячейка в том же ряду, полоса — под рядом; четыре плитки — ряд полон, ячейка новым рядом после полосы; на своём экране ячейка называет экран (ДБ-288)');
+
+  // ДБ-289: «+ плитка» — панель каталога поверх главной для текущей вкладки; «Добавить» ставит плитку в её конец, панель открыта
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const tg = DB.openCatalogFor(), sh0 = DB.sheet, hC = DB.catalogHTML(), tt = DB.catTitle(), before = DB.composeLayout('u1', 'lead').length;
+  DB.addFromCatalog('cur-od'); const after = DB.composeLayout('u1', 'lead'), sh1 = DB.sheet;
+  ok(435, tg.kind === 'role' && tg.id === 'lead' && DB.page === 'home' && sh0 && sh0.kind === 'cat' && /Добавленная встаёт в конец вкладки «Руководство»/.test(hC)
+    && after.length === before + 1 && after[after.length - 1] === 'cur-od' && sh1 && sh1.kind === 'cat'
+    && tt === 'Каталог · во вкладку «Руководство»' && /toast\('Добавлено в конец вкладки «'\+tabName\(tg\)\+'»'\)/.test(src),
+    'панель «Каталог · во вкладку «Руководство»» поверх главной (раздел — главная); «Добавить» ставит «Просрочено · куратор: я» в конец вкладки, панель остаётся открытой (ДБ-289)');
+
+  // ДБ-290, ДБ-291: «найти в каталоге» из уведомления — та же панель с поиском; пустой поиск — витрина отчётности на месте панели;
+  // закрыть — главная без панели; на телефоне панель на весь экран
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur'); const q = DB.catFind('Агрокредит'), shF = DB.sheet;
+  DB.catSearch('нет такой плитки нигде'); const rq = DB.findReports(), shR = DB.sheet; DB.close(); const shX = DB.sheet;
+  ok(436, q === 'Агрокредит' && shF.kind === 'cat' && shF.target.id === 'cur' && DB.page === 'home' && Array.isArray(rq) && shR.kind === 'rq' && shR.q === 'нет такой плитки нигде' && shX === null
+    && /\.drawer\.cat-d\{ width:100vw;/.test(src) && /onclick="DB\.close\(\);DB\.catFind\(/.test(src),
+    'из уведомления «найти в каталоге» — панель каталога вкладки «Куратор кредита» с поиском «Агрокредит»; пустой поиск — витрина отчётности на месте панели, одна панель за раз; на телефоне панель на весь экран (ДБ-290, ДБ-291)');
+
+  // ревью волны 21: после смены пользователя на реестре цель панели — открытая вкладка, а не пустая; плитка, вставшая в свёрнутую
+  // последнюю секцию, её раскрывает; уход с главной закрывает панель каталога
+  DB.seed(); asUser('u11'); DB.go('registry'); DB.switchUser('u13'); DB.catFind('Просрочено'); const shU = DB.sheet, tU = DB.catTitle();
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); const lastSec = DB.composeLayout('u1', 'lead').filter(k => k.startsWith('s:')).pop();
+  const shut = DB.toggleSection(lastSec); DB.openCatalogFor(); DB.addFromCatalog('cur-od'); const opened = !Object.keys(DB.state.collapsed).some(k => k.endsWith('|' + lastSec) && DB.state.collapsed[k]);
+  ok(437, shU && shU.target && shU.target.id && !/«»/.test(tU) && shut === true && opened && DB.composeLayout('u1', 'lead').slice(-1)[0] === 'cur-od'
+    && /if\(sheet && sheet\.kind==='cat' && view!=='home'\) closeOverlay\(\);/.test(src) && /data-add="\$\{t\.id\}"/.test(src) && /id="cat-only"/.test(src),
+    `ревью: после смены пользователя на реестре — «${tU}», а не пустая вкладка; плитка в свёрнутой «${lastSec.slice(2)}» раскрывает секцию; уход с главной закрывает панель; фокус после «Добавить» — на следующую «Добавить»`);
+  DB.seed();
 })();
 
 /* ---------- отчёт ---------- */
