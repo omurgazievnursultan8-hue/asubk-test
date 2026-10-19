@@ -40,6 +40,10 @@
 // Волна 48 (блок RR, #308–#316): страница «Отчётность» — каталог (ВТ-1…ВТ-14): четыре полки одним рядом, «Мои» —
 // своё · избранное · недавние, одна шапка строки, поиск по всем полкам, «⋯», «Недоступно» свёрнутой группой; очередь
 // каталога — в реестре; #103, #121, #123, #152, #160, #161, #268, #279, #283, #296, #298 — на новую витрину.
+// Волна 49 (блок SS, #317–#328): входящие от дашборда (ОД-38…ОД-51, ADR-0320) — вторая семья относительных значений
+// от даты вопроса, ответ через дату запуска строками переноса, дата ответа называет строку и месяц, «Сравнение» с пятью
+// базами, адрес витрины с запросом, «📌» с проверкой и умолчаниями, черновик дашборда в конструкторе, «отвечает»,
+// публикация своей плитки в каталог; #314 — «📌» на выведенный показатель теперь отказ.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -3627,7 +3631,9 @@ const DEV = 'изменено — не утверждённый состав';
   RP.uiSub('t-npl');
   const subOn = RP.mySubs().some(x => x.tpl === 't-npl') && has(rowOf(showTab('мои'), 'Доля проблемных кредитов'), 'class="bell"');
   RP.uiSub('t-npl'); const subOff = !RP.mySubs().some(x => x.tpl === 't-npl');
-  RP.uiPin('t-npl'); const pinned = RP.tilesOf('t-npl').length === 1;
+  /* «📌» из меню: «Доля проблемных кредитов» выведена — плитке нечего показать (ОД-47); свой рабочий отчёт ставится. */
+  RP.uiPin('t-npl'); RP.uiPin('t-osh');
+  const pinned = RP.tilesOf('t-npl').length === 0 && RP.tilesOf('t-osh').length === 1;
   ok(314, mains === rows && has(npl, 'Открыть кругу') && has(npl, 'Предложить в каталог') && has(npl, 'Удалить') &&
         has(npl, 'Подписаться') && has(npl, '📌 На дашборд') && has(npl, 'class="more"') &&
         has(ovr, 'Подписаться') && !has(ovr, 'Удалить') && !has(ovr, 'Открыть кругу') && subOn && subOff && pinned,
@@ -3664,6 +3670,193 @@ const DEV = 'изменено — не утверждённый состав';
         shared.every((r, i) => !i || shared[i - 1].users >= r.users),
     `ВТ-12, ВТ-13: «Собрать отчёт» стоит на каждой полке у каждой роли, карточек-пояснений нет; обязательные бланки — по коду ` +
     `(${codes.slice(0, 3).join(', ')}…), общие — по числу пользующихся`);
+})();
+
+/* ---------- SS. Волна 49: входящие от дашборда — база сравнения и своя плитка (ОД-38…ОД-51) ---------- */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox);
+  const KB = win.KB;
+  const strip = h => String(h).replace(/<!--[\s\S]*?-->/g, '');
+  const BASES = ['начало месяца', 'начало квартала', 'начало полугодия', 'начало года', 'год назад'];
+  const at = D => BASES.map(b => RP.anchorDate(b, D)).join(' ');
+
+  RP.seed(); as('auth');
+  const q = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'@конец прошлого месяца' },
+    dates:['@конец прошлого месяца', '@начало квартала', '@начало года'], stats:['s-portfolio'] });
+  /* Дата вопроса — уже подставленная: на 01.07 лежит июнь, начало квартала — 01.04. */
+  const q2 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'@начало квартала' },
+    dates:['@начало квартала', '@начало квартала'], stats:['s-portfolio'] });
+  /* Первая дата конкретная — она и есть дата вопроса, а не дата параметра. */
+  const q3 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'2026-08-01' },
+    dates:['2026-03-01', '@год назад', '@начало года'], stats:['s-portfolio'] });
+  const pq = RP.resolveParams({ asOf:'@начало полугодия' });
+  ok(317, at('2026-10-01') === '2026-09-01 2026-07-01 2026-07-01 2026-01-01 2025-10-01' &&
+        at('2026-10-18') === '2026-10-01 2026-10-01 2026-07-01 2026-01-01 2025-10-01' &&
+        at('2026-01-01') === '2025-12-01 2025-10-01 2025-07-01 2025-01-01 2025-01-01' &&
+        pq.ok && pq.params.asOf === '2026-07-01' && has(pq.rel[0], '(от 24.08.2026)') &&
+        q.ok && q.dates.join() === '2026-08-01,2026-07-01,2026-01-01' &&
+        q.relative.some(x => has(x, 'начало квартала = 01.07.2026 (от 01.08.2026)')) &&
+        q2.ok && q2.dates.join() === '2026-04-01,2026-04-01' && q2.relative.some(x => has(x, '(от 01.07.2026)')) &&
+        q3.ok && q3.dates.join() === '2026-03-01,2025-03-01,2026-01-01',
+    `ОД-38, ОД-39: вторая семья — начало месяца · квартала · полугодия · года и «год назад» от даты вопроса; ` +
+    `период — по дню строки: на 01.10 — сентябрь (начало месяца 01.09, квартала 01.07), на 18.10 — октябрь (01.10 и 01.10); ` +
+    `без даты вопроса — от сегодня; в ответе даты — от уже подставленной даты параметра`);
+
+  as('user');
+  const cols = RP.setTimeCols('t-osh', [{ id:'d', kind:'на дату', at:'отчётная дата', name:'На отчётную дату' },
+    { id:'h', kind:'на дату', at:'начало полугодия', name:'На начало полугодия' },
+    { id:'y', kind:'аналогичный период', of:'d', name:'Год назад' }]);
+  const tt = D => ((RP.show('t-osh', { asOf:D, dept:'' }).data || {}).timeTable || { cols:[] }).cols.map(c => c.at).join(' ');
+  const t8 = tt('2026-08-01'), t6 = tt('2026-06-01');
+  ok(318, cols.ok && t8 === '2026-08-01 2026-07-01 2025-08-01' && t6 === '2026-06-01 2026-01-01 2025-06-01',
+    `ОД-40, ОД-41: колонка-дата «начало полугодия» законна (на 01.08 — 01.07, на 01.06 — 01.01); «аналогичный период» ` +
+    `на дату — по «год назад»: последний конец месяца не позже даты минус год (${t8})`);
+
+  RP.seed(); as('auth');
+  const tot = { path:[], stat:'s-portfolio' };
+  const ans = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-08-01', '2026-01-01', '2025-06-01'], stats:['s-portfolio'] });
+  const v = ans.ok ? ans.answers.map(a => a.stats[0].value).join(' ') : '';
+  const two = RP.reportAnswer({ tpl:'t-overdue', form:'объекты на двух датах', params:{}, node: tot, a:'2025-06-01', b:'2026-08-01' });
+  const fall = RP.reportAnswer({ tpl:'t-overdue', form:'провал', params:{ asOf:'2025-10-01' },
+    twist:{ stats:['s-portfolio', 's-overdue-sum'] }, node: tot });
+  ok(319, v === '64100000 77000000 86550000' && two.ok && two.movement.equal && two.items.length > 0 &&
+        two.sources.join() === 'из легаси,свой' && has(two.formNote, 'редакции формы разные') &&
+        has(two.movement.chain, '= 64 100 000') && fall.ok && fall.items.length > 0 &&
+        has(ans.formNote, 'из легаси — 01.01.2026, 01.06.2025; свои — 01.08.2026'),
+    `ОД-42: ответ, провал и «объекты на двух датах» через дату запуска отвечаются строками переноса; Движение сходится ` +
+    `(${two.movement && two.movement.chain}); даты по разные стороны запуска — «редакции формы разные»`);
+
+  const gone = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2025-08-01'], stats:['s-portfolio'] });
+  const twoGone = RP.reportAnswer({ tpl:'t-overdue', form:'объекты на двух датах', params:{}, node: tot, a:'@год назад', b:'2026-08-01' });
+  /* Строка переноса без колонки-источника «выдано»: в легаси её не собирали. */
+  const kept = ev("HIST['2025-10-01']['kr-1'].i_issued_som");
+  ev("delete HIST['2025-10-01']['kr-1'].i_issued_som");
+  const pre = RP.reportAnswer({ tpl:'t-overdue', form:'объекты на двух датах', params:{}, node: tot, a:'2025-10-01', b:'2026-08-01' });
+  ev("HIST['2025-10-01']['kr-1'].i_issued_som = " + kept);
+  const preRow = pre.ok ? pre.movement.rows.find(r => r.kind === 'до запуска') : null;
+  ok(320, gone.ok && gone.answers[0].gap === 'в легаси не собиралось' && !twoGone.ok && has(twoGone.why, 'в легаси не собиралось') &&
+        pre.ok && pre.movement.equal && preRow && preRow.name === 'до запуска не перенесено' && preRow.ids.join() === 'kr-1' &&
+        !pre.movement.rows.some(r => r.kind === 'нет ответа'),
+    `ОД-43: чего перенос не дал — пусто с причиной: итога июля 2025 нет — «в легаси не собиралось», и «год назад» от 01.08.2026 ` +
+    `отказывается тем же; строка переноса без колонки-источника — «до запуска не перенесено» (${preRow && preRow.value}), а не «нет ответа источника»`);
+
+  const di = ans.ok ? ans.dateInfo.map(x => x.text) : [];
+  const sep = RP.dateInfo('2026-09-01');
+  ok(321, di[0] === 'на 01.08.2026 (начало дня) — строка 31.07.2026 · июль 2026 закрыт' &&
+        di[1] === 'на 01.01.2026 (начало дня) — строка 31.12.2025 · декабрь 2025 — из легаси' &&
+        sep.state === 'не закрыт' && sep.month === 'август 2026' && ans.passport.dateInfo.length === 3 &&
+        ans.answers[1].info.source === 'из легаси',
+    `ОД-44: каждая дата ответа называет строку, месяц и его состояние — закрыт · не закрыт · из легаси; то же — в паспорте`);
+
+  RP.seed(); as('auth');
+  const cb = RP.cmpBases({ asOf:'2026-08-01' }), cbNow = RP.cmpBases({});
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.top = false;
+  RP.state.sel.time = 'сравнение'; RP.state.sel.cmpBase = 'начало года';
+  const sY = win.VIEWS.issue.fn();
+  RP.state.sel.cmpBase = 'год назад'; const s12 = win.VIEWS.issue.fn();
+  RP.state.sel.cmpBase = null; const sOwn = win.VIEWS.issue.fn();
+  RP.state.sel.time = null;
+  ok(322, cb.map(b => b.label + ':' + b.a).join(' ') ===
+          'за месяц:2026-07-01 за квартал:2026-07-01 за полугодие:2026-07-01 за год:2026-01-01 за 12 месяцев:2025-08-01' &&
+        has(sY, 'за год<small>на 01.01.2026</small>') && has(sY, 'сравнение: 01.01.2026 → 01.08.2026') &&
+        has(sY, 'База — из легаси; редакции формы разные') && has(s12, 'в легаси не собиралось') &&
+        has(sOwn, 'свои даты') && has(sOwn, 'сравнение: 01.06.2026 → 01.08.2026') && cbNow.length === 0,
+    `ОД-45: «Сравнение» в окне отчёта — пять баз с датой под кнопкой; база «за год» — 01.01.2026 из легаси с пометкой; ` +
+    `«за 12 месяцев» на 01.08.2025 — «в легаси не собиралось»; «свои даты» — прежние`);
+
+  RP.seed(); as('user');
+  const addr = RP.showcaseAddress('просрочка');
+  const op = RP.openAddress(addr), scQ = win.VIEWS.showcase.fn();
+  const op2 = RP.openAddress('#otchetnost?q=' + encodeURIComponent('ипотека марсиан')), sc0 = win.VIEWS.showcase.fn();
+  const bad = RP.openAddress('#dashboard?q=x');
+  ok(323, addr === '#otchetnost?q=%D0%BF%D1%80%D0%BE%D1%81%D1%80%D0%BE%D1%87%D0%BA%D0%B0' && op.ok && op.q === 'просрочка' &&
+        RP.state.view === 'showcase' && has(scQ, 'value="просрочка"') && has(scQ, 'Сбросить') && !has(scQ, 'Ничего не найдено') &&
+        op2.ok && has(sc0, 'Ничего не найдено по «ипотека марсиан»') && has(sc0, 'Нужного отчёта нет — соберите его') &&
+        !bad.ok && RP.showcaseAddress('') === '#otchetnost',
+    `ОД-46: адрес витрины принимает запрос — витрина открывается с ним в поиске по всем полкам; ничего не найдено — ` +
+    `«Ничего не найдено» и «Собрать отчёт»; чужой адрес — отказ`);
+
+  RP.seed(); as('auth');
+  const pOv = RP.pinToDashboard('t-overdue', null, { asOf:'2026-08-24' }, 'Главная');
+  const pPay = RP.pinToDashboard('t-pay04', null, {}, 'Главная');
+  const pAvg = RP.pinToDashboard('t-avg', null, {}, 'Главная');
+  const pNpl = RP.pinToDashboard('t-npl', null, {}, 'Главная');
+  const pBl = RP.pinToDashboard('t-notice', null, {}, 'Главная');
+  as('head');
+  const hid = RP.TPL('t-osh'), pHid = RP.pinToDashboard('t-osh', null, {}, 'Главная');
+  as('user');
+  const pView = RP.pinToDashboard('t-portfolio', 'ВД-1', {}, 'Главная');
+  ok(324, pOv.ok && pOv.tile.main === 's-overdue-sum' && pOv.tile.second === 's-overdue-cnt' &&
+        pPay.ok && pPay.tile.main === 's-portfolio' && pPay.tile.second === 's-overdue-sum' &&
+        pAvg.ok && pAvg.tile.second === null && !pNpl.ok && has(pNpl.why, 'плитке нечего показать') &&
+        !pBl.ok && has(pBl.why, 'бланк') && hid && !pHid.ok && has(pHid.why, 'не видно') &&
+        pView.ok && pView.tile.label === 'Портфель — мой отдел',
+    `ОД-47: «📌» проверяет бланк, видимость и числовую колонку — ответ не проверяет (плитка на 24.08 без снимка стоит); ` +
+    `главное число — первая колонка, второе — следующая того же сорта, иначе нет; подпись — имя отчёта или вида`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.time = null; RP.state.sel.rel = 'date';
+  RP.doPin();
+  const tScr = RP.tilesOf('t-overdue').slice(-1)[0] || {};
+  const iss = win.VIEWS.issue.fn();
+  RP.state.sel.rel = null;
+  RP.go('showcase'); const after = win.VIEWS.showcase.fn();
+  RP.uiPin('t-portfolio'); const tMenu = RP.tilesOf('t-portfolio').slice(-1)[0] || {};
+  const scPin = win.VIEWS.showcase.fn();
+  ok(325, tScr.params && tScr.params.asOf === '@конец прошлого месяца' && tScr.main === 's-overdue-sum' &&
+        has(iss, 'Плитка на главной') && has(iss, 'Настроить ↗') && !has(after, 'Плитка на главной') &&
+        tMenu.params && Object.keys(tMenu.params).length === 0 && has(scPin, 'Плитка на главной · '),
+    `ОД-48, ОД-Д1: из окна отчёта плитка берёт значения как на экране — относительное остаётся относительным ` +
+    `(«@конец прошлого месяца», а не 01.08.2026); из «⋯» витрины — умолчания; плашка «Плитка на главной · Настроить ↗» ` +
+    `гаснет при переходе`);
+
+  RP.seed(); as('auth');
+  const fd = RP.openDraftFromDashboard({ object:'credit', stats:['s-overdue-sum', 's-npl'], cuts:['dept', 'late'],
+    filters:[{ field:'dept', op:'равно', value:'rep-osh' }], path:'Просрочка › Ош' });
+  const st = win.S();
+  const dr = win.VIEWS.draft.fn();
+  const fdBad = RP.openDraftFromDashboard({ object:'луна', stats:[] });
+  /* Отказ без показателя не трогает открытый черновик. */
+  const fdNo = RP.openDraftFromDashboard({ object:'credit', stats:['нет-такого'], cuts:[] });
+  const draftKept = win.S().stats.join() === 's-overdue-sum' && win.S().cuts.length === 2 && win.S().fromDash.path === 'Просрочка › Ош';
+  KB.saveDraft('Просрочка Ош'); const dr2 = win.VIEWS.draft.fn();
+  ok(326, fd.ok && RP.state.view === 'draft' && st.object === 'credit' && st.stats.join() === 's-overdue-sum' &&
+        st.cuts.map(c => c.id).join() === 'dept,late' && st.filters.length === 1 && fd.lost.length === 1 &&
+        has(dr, 'Черновик с дашборда') && has(dr, 'Просрочка › Ош') && has(dr, 'Не принято: выведен') &&
+        !/ADR-\d|ИО-\d/.test(strip(dr).match(/Черновик с дашборда[\s\S]*?<\/div><\/div>/)[0]) &&
+        !fdBad.ok && !fdNo.ok && draftKept && !has(dr2, 'Черновик с дашборда'),
+    `ОД-49: черновик полосы дашборда открывается в конструкторе отчётности — объект, показатель, разрезы, фильтр по пути; ` +
+    `не принятое названо; после «Сохранить черновик» плашка уходит`);
+
+  RP.seed(); as('auth');
+  const r1 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-08-01'], stats:['s-portfolio'] });
+  const r2 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2025-08-01'], stats:['s-portfolio'] });
+  const r3 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-08-24'], stats:['s-portfolio'] });
+  const r4 = RP.reportAnswer({ tpl:'t-npl', form:'ответ', params:{}, dates:['2026-08-01'], stats:['s-npl'] });
+  const r5 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['@послезавтра'], stats:['s-portfolio'] });
+  ok(327, r1.responds.yes && r1.responds.why === null && r2.responds.yes && has(r2.responds.why, 'в легаси не собиралось') &&
+        !r3.responds.yes && has(r3.responds.why, 'снимка нет') && !r4.responds.yes && has(r4.responds.why, 'снят') &&
+        !r5.ok && !r5.responds.yes && has(r5.responds.why, 'послезавтра'),
+    `ОД-50: «отвечает» — по дате вопроса: число или пусто по закону — да; снимка нет, показатель снят, значение вне набора — ` +
+    `нет с причиной; отказ несёт признак тоже`);
+
+  RP.seed(); as('buh');
+  const avg = RP.state.templates.find(t => t.id === 't-avg');
+  RP.state.templates.push(Object.assign(JSON.parse(JSON.stringify(avg)), { id:'t-bek', owner:'Бекова Н.', name:'Мой срез просрочки' }));
+  RP.pinToDashboard('t-bek', null, {}, 'Главная');
+  const noRole = RP.publishTileToCatalog('t-bek', []);
+  const hint = RP.publishTileToCatalog('t-bek', ['Куратор кредитов']);
+  const pub = RP.publishTileToCatalog('t-bek', ['Куратор кредитов'], { force:true });
+  const copy = pub.ok ? RP.TPL(pub.id) : null;
+  const onShared = RP.publishTileToCatalog('t-sh-plan', ['Куратор кредитов']);
+  as('user'); const notHolder = RP.publishTileToCatalog('t-avg', ['Куратор кредитов']);
+  ok(328, !noRole.ok && hint.hint && pub.ok && copy && copy.level === 'общий' && copy.owner === 'Бекова Н.' &&
+        copy.circle.join() === 'dep-prom,dep-admin,rep-osh' && RP.tilesOf(pub.id).length === 1 && RP.tilesOf('t-bek').length === 0 &&
+        RP.TPL('t-bek').owner === 'Бекова Н.' && onShared.ok && onShared.onto === 't-sh-plan' && !notHolder.ok,
+    `ОД-51: держатель роли каталога публикует свою плитку — личный отчёт копируется в общий, как при «Принять», без очереди; ` +
+    `круг — подразделения держателей ролей плитки; похожий — подсказка; на общем копии нет; не держатель — предлагает`);
 })();
 
 /* ---- отчёт ---- */
