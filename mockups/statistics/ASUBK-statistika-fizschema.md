@@ -909,8 +909,10 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `new_rows` | integer | новых строк событий |
 | `corr_rows` | integer | строк-поправок |
 | `markers` | integer | поставлено маркеров |
+| `tied`, `untied` | integer | у `overdue_spell`: кредитов сверено с эпизодами по правилу «в просрочке» (`ADR-0318` §3) и не сверено — у строки кредита или его эпизодов нет величин; расхождения — поимённо в `stat_run_item` |
 
 - `CHECK`: `storage = 'state'` → `new_rows` и `corr_rows` равны `NULL`.
+- `CHECK`: `object <> 'overdue_spell'` → `tied` и `untied` равны `NULL`.
 - В конце `nightly` счётчики сверяются: `owner_total` = пересчитано + упало + дата появления
   не наступила + без даты появления. Не сошлось — `failed`, дата не публикуется.
 - У `live` счётчики копятся за сутки, `owner_total` равен `NULL`, сверки нет.
@@ -923,8 +925,10 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `object` | text |
 | `object_id` | uuid |
 | `target_id` | uuid |
-| `kind` | text CHECK: `not_born` · `no_birth` · `failed` |
+| `kind` | text CHECK: `not_born` · `no_birth` · `failed` · `tie_mismatch` |
 | `detail` | text |
+
+- `tie_mismatch` — кредит, у которого строка кредита и эпизоды разошлись по правилу «в просрочке»: `object` = `credit`, `object_id` — кредит, `detail` — какое условие нарушено. Расхождение статус прогона не меняет: прогон остаётся `done`, расхождение видно в журнале.
 
 Журналы прогона хранятся всегда.
 
