@@ -15,7 +15,12 @@
 //     сходится с ответом на дату на ОБОИХ концах · обращений столько, сколько форм вопроса;
 //   списание (9): решение НАЗЫВАЕТ, свод снимает только ЧИСЛИВШЕЕСЯ, а разница предъявлена
 //     своим именем. Хранимым не является, но и второго безбраузерного сторожа у швов нет,
-//     а ячейка в минусе от чужого решения — ровно та ошибка, ради которой заведён этот файл.
+//     а ячейка в минусе от чужого решения — ровно та ошибка, ради которой заведён этот файл;
+//   эпизоды просрочки (10): девятый шов склеивает эпизоды из проекции и ничего не хранит ·
+//     «в просрочке» у среза и у эпизода совпадает на каждый день жизни (ИЯ-24) · дни
+//     просрочки и длительность — разные величины · слой режет эпизод · закрытый кредит
+//     закрывает эпизод своей датой · отказы и «эпизодов нет» различаются · ретро-факт
+//     меняет ключ эпизода · спор эпизод не рвёт.
 // Zero-dep: макет исполняется в node:vm без DOM, как в mirror-check.mjs.
 //   node scripts/inspect/calc-core-check.mjs
 import { readFileSync } from 'node:fs';
@@ -451,6 +456,169 @@ const FX6 = C.fixationValue(K6, P('05.2026'));
 ok('фиксация закрытого периода несёт обе величины',
   near(FX6.writtenOff, H6.debt.principal.written) && FX6.writeOffExcess > 0.005,
   'снято ' + FX6.writtenOff + ', излишек ' + FX6.writeOffExcess);
+C.calcReset();
+
+/* ---- 10. ЭПИЗОДЫ ПРОСРОЧКИ — девятый шов overdueSpells (ADR-0317) ---------------
+   Эпизод не хранится: шов склеивает его из строк проекции на время ответа. Поэтому и
+   проверяется не «эпизод записан», а что склейка согласна со срезом долга на КАЖДЫЙ день
+   жизни кредита (ИЯ-24), что слой режет эпизод, а статья — нет, и что ретро-факт меняет
+   эпизод, а не дописывает его. Сценарии меняют факты и прогоняют проекцию заново; в
+   конце блока факты возвращаются как были, чтобы порядок блоков не значил ничего. */
+console.log('\n10. ЭПИЗОДЫ ПРОСРОЧКИ');
+const SP_FROM = '01.01.2023';
+const K7 = C.FIXTURE.find(c => c.id === 'K-7'), KC1 = C.FIXTURE.find(c => c.id === 'K-C1');
+const spRun = () => { C.calcReset(); C.projReset(); C.projRun(C.FIXTURE, { on: C.TODAY }); };
+const spAsk = (o) => C.overdueSpells(C.FIXTURE, Object.assign({ from: SP_FROM, to: C.TODAY }, o || {}));
+const spOf = (a, id) => a.body.spells.filter(s => s.credit === id);
+const spDebtOverdue = (c, day) => { const d = C.calcDebt(c, day);
+  return ARTS9.reduce((s, k) => s + ((d.articles[k] || {}).overdue || 0), 0); };
+const spTieAll = (spells) => {               // каждый день жизни, до закрытия
+  const bad = [];
+  for (const c of C.FIXTURE){
+    const end = c.closure && c.closure.date ? PD(c.closure.date) : PD(C.TODAY);
+    for (let t = PD(c.date).getTime(); t < end.getTime(); t += 86400000){
+      const D = C.fd(new Date(t)), x = C.spellTie(c, D, spells);
+      if (!x.ok) bad.push(c.id + ' ' + D);
+    }
+  }
+  return bad;
+};
+
+spRun();
+const spRows = () => C.FIXTURE.reduce((s, c) => s + C.projRowsOf(c.id).length, 0), spRows0 = spRows();
+C.projQueriesReset();
+const SP0 = spAsk();
+ok('РЯ-46 · весь отбор — одно обращение к хранилищу', C.projQueries() === 1 && SP0.answered,
+  'обращений ' + C.projQueries() + ', кредитов ' + SP0.body.counts.answered);
+ok('РЯ-46 · эпизоды не хранятся: ответ не дописал проекцию ни строкой',
+  spRows() === spRows0 && spAsk().body.spells.length === SP0.body.spells.length, 'строк проекции ' + spRows0);
+const s7 = spOf(SP0, 'K-7'), sc1 = spOf(SP0, 'K-C1'), s6 = spOf(SP0, 'K-6b');
+ok('РЯ-48 · К-7 в просрочке с 12.02.2026 и не выходил — один эпизод, тянется',
+  s7.length === 1 && s7[0].from === '12.02.2026' && s7[0].state === 'тянется',
+  s7.map(s => s.from + '→' + (s.to || 'тянется')).join('; '));
+ok('РЯ-48/РЯ-51 · К-С1: 15.03.2026 → 23.07.2026, закрыт погашением — вылечен',
+  sc1.length === 1 && sc1[0].from === '15.03.2026' && sc1[0].to === '23.07.2026'
+    && sc1[0].closedBy === 'погашением' && sc1[0].cured === true,
+  sc1.map(s => s.from + '→' + s.to + ' ' + s.closedBy).join('; '));
+ok('РЯ-50 · длительность без дня закрытия: 15.03 → 23.07 = 130',
+  sc1.length === 1 && sc1[0].days === DD(PD('15.03.2026'), PD('23.07.2026')) && sc1[0].days === 130,
+  'дней ' + (sc1[0] || {}).days);
+ok('РЯ-52 · закрытый кредит закрывает эпизод своей датой: К-6б 25.04.2023 → 15.05.2026 списанием',
+  s6.length === 1 && s6[0].from === '25.04.2023' && s6[0].to === '15.05.2026' && s6[0].closedBy === 'списанием'
+    && !s6[0].cured,
+  s6.map(s => s.from + '→' + s.to + ' ' + s.closedBy).join('; '));
+ok('РЯ-52/РЯ-53 · день закрытия в эпизод не входит — и пик не позже кануна закрытия',
+  s6.length === 1 && PD(s6[0].peakOn) < PD(s6[0].to) && SP0.body.spells.every(s => !s.to || PD(s.peakOn) < PD(s.to)),
+  'К-6б пик ' + (s6[0] || {}).peak + ' на ' + (s6[0] || {}).peakOn);
+ok('РЯ-51 · у каждого закрытого эпизода причина названа', SP0.body.spells.every(s => !s.to || C.SPELL_REASONS
+  .concat([C.SPELL_CLOSED_CREDIT]).includes(s.closedBy)));
+ok('РЯ-52 · после закрытия эпизод не тянется и не открывается заново',
+  SP0.body.spells.filter(s => s.credit === 'K-6b' && C.pd(s.from) >= PD('15.05.2026')).length === 0);
+
+const tie0 = spTieAll(SP0.body.spells);
+ok('РЯ-49 · ИЯ-24: «в просрочке» у среза и у эпизода совпадает на каждый день жизни',
+  tie0.length === 0, 'нарушений ' + tie0.length + (tie0.length ? ': ' + tie0.slice(0, 3).join(', ') : ''));
+const t6 = C.spellTie(C.FIXTURE.find(c => c.id === 'K-6b'), '10.04.2026', SP0.body.spells);
+ok('РЯ-49 · дни просрочки и длительность — две величины: К-6б на 10.04.2026',
+  t6.ok && t6.days === 959 && t6.since === '25.08.2023' && t6.spellDays === 1081 && t6.spellFrom === '25.04.2023',
+  'дней просрочки ' + t6.days + ' (с ' + t6.since + '), длительность ' + t6.spellDays + ' (с ' + t6.spellFrom + ')');
+const t7a = C.spellTie(K7, '12.02.2026', SP0.body.spells);
+ok('РЯ-49 · в первый день эпизода дни просрочки и длительность равны', t7a.inDebt && t7a.days === t7a.spellDays,
+  'дней ' + t7a.days + ', длительность ' + t7a.spellDays);
+
+/* пик — наибольшая просроченная часть слоя на конец дня: не меньше уровня на любой день
+   эпизода и равен срезу в свою дату */
+const pk = sc1[0];
+let pkBad = 0;
+for (let t = PD(pk.from).getTime(); t < PD(pk.to).getTime(); t += 86400000)
+  if (spDebtOverdue(KC1, C.fd(new Date(t))) > pk.peak + 0.0051) pkBad++;
+ok('РЯ-53 · пик не ниже просроченного ни на один день эпизода и равен срезу на дату пика',
+  pkBad === 0 && near(pk.peak, spDebtOverdue(KC1, pk.peakOn)),
+  'пик ' + pk.peak + ' на ' + pk.peakOn + ', срез ' + R2(spDebtOverdue(KC1, pk.peakOn)));
+
+/* отрезок вопроса и три ответа без эпизода */
+const SPn = spAsk({ from: '23.07.2026' });
+const ofCr = (a, id) => a.body.credits.find(x => x.credit === id) || {};
+ok('РЯ-54 · закрытый до начала отрезка эпизод в ответ не входит — «эпизодов нет», а не выпал',
+  ofCr(SPn, 'K-C1').state === 'эпизодов нет' && ofCr(SPn, 'K-C1').count === 0
+    && !SPn.body.dropped.some(x => x.credit === 'K-C1'),
+  JSON.stringify(ofCr(SPn, 'K-C1')));
+ok('РЯ-54 · эпизод, начавшийся до отрезка, приходит целиком — с настоящей датой начала',
+  spOf(SPn, 'K-7').length === 1 && spOf(SPn, 'K-7')[0].from === '12.02.2026');
+const SPe = spAsk({ from: null, to: '01.01.2026' });
+ok('РЯ-54 · кредит, которого ещё не было, отличен от «эпизодов нет»',
+  ofCr(SPe, 'K-C1').state === 'кредита ещё не было', ofCr(SPe, 'K-C1').state);
+const SPh = spAsk({ to: '31.12.2026' });
+ok('РЯ-54 · дата позже горизонта — отказ по каждому кредиту названной причиной',
+  SPh.body.dropped.length === 5 && SPh.body.dropped.every(x => /горизонт/.test(x.refused)),
+  (SPh.body.dropped[0] || {}).refused);
+C.projOrderRebuild('K-7', CACTOR, 'РП-201');
+const SPr = spAsk();
+ok('РЯ-54 · кредит под перестроением выпадает с причиной, остальные отвечены',
+  SPr.body.dropped.length === 1 && /перестроение/.test(SPr.body.dropped[0].refused)
+    && SPr.body.counts.answered === 4 && spOf(SPr, 'K-7').length === 0,
+  SPr.body.dropped.map(x => x.credit + ': ' + x.refused).join('; '));
+
+/* РЯ-47 · слой режет эпизод: решение суда по К-4 уводит просроченное в слой решения */
+const K4c = K4.mirror.court;
+K4.mirror.court = [{ date: '20.05.2026', kind: 'Решение суда', il: 'ИЛ-2026/118', amount: 300000 }];
+spRun();
+const SPc = spAsk(), s4 = spOf(SPc, 'K-4');
+const s4f = s4.find(s => s.layerKind === 'свободный'), s4c = s4.find(s => s.layerKind === 'по решению суда');
+ok('РЯ-47 · решение суда: свободный эпизод закрыт переводом в другой слой, эпизод слоя решения открыт той же датой',
+  s4.length === 2 && s4f && s4f.to === '20.05.2026' && s4f.closedBy === 'переводом в другой слой' && !s4f.cured
+    && s4c && s4c.from === '20.05.2026' && s4c.state === 'тянется',
+  s4.map(s => s.layerKind + ' ' + s.from + '→' + (s.to || 'тянется') + ' ' + (s.closedBy || '')).join('; '));
+const tieC = spTieAll(SPc.body.spells);
+ok('РЯ-47 · ИЯ-24 держится и с двумя слоями — на каждый день', tieC.length === 0, 'нарушений ' + tieC.length);
+K4.mirror.court = K4c;
+
+/* РЯ-51 · платёж, погасивший всю просрочку К-7, закрывает эпизод погашением; следующий
+   неоплаченный срок открывает новый эпизод того же слоя */
+const k7p = K7.mirror.payments;
+spRun();
+const cureAmt = R2(spDebtOverdue(K7, '20.04.2026'));
+K7.mirror.payments = k7p.concat([{ num: 2, date: '20.04.2026', bindDate: null, amount: cureAmt, currency: null,
+  rate: null, reg: 'Импорт ЦК', match: 'Подтверждён ЦК', dispute: null, frozen: false, method: 'денежными средствами' }]);
+spRun();
+const SPk = spAsk(), s7k = spOf(SPk, 'K-7');
+ok('РЯ-51 · погасил всю просрочку 20.04.2026 — эпизод 12.02 → 20.04 закрыт погашением, 67 дней',
+  s7k.length === 2 && s7k[0].from === '12.02.2026' && s7k[0].to === '20.04.2026'
+    && s7k[0].closedBy === 'погашением' && s7k[0].cured && s7k[0].days === 67,
+  'платёж ' + cureAmt + ' · ' + s7k.map(s => s.from + '→' + (s.to || 'тянется') + ' ' + (s.closedBy || '') + ' ' + s.days).join('; '));
+ok('РЯ-48 · следующий неоплаченный срок — новый эпизод, а не продолжение старого',
+  s7k.length === 2 && C.pd(s7k[1].from) > PD('20.04.2026') && s7k[1].state === 'тянется', s7k[1] && s7k[1].from);
+ok('РЯ-48 · ИЯ-24 держится и на разрыве', spTieAll(SPk.body.spells).length === 0);
+
+/* РЯ-56 · ретро-факт: платёж К-С1 в срок 15.03 переносит начало — у эпизода другой ключ,
+   старого нет совсем */
+K7.mirror.payments = k7p;
+const kc1p = KC1.mirror.payments;
+spRun();
+const dueAmt = R2(spDebtOverdue(KC1, '15.03.2026'));
+KC1.mirror.payments = kc1p.concat([{ num: 9, date: '15.03.2026', bindDate: null, amount: dueAmt, currency: null,
+  rate: null, reg: 'Импорт ЦК', match: 'Подтверждён ЦК', dispute: null, frozen: false, method: 'денежными средствами' }]);
+const SPs = spAsk();
+ok('РЯ-54 · вход изменился после прогона — ответ предварительный с названной проблемой',
+  SPs.preliminary === true && SPs.problems.some(p => p.code === 'mirrorStale'),
+  SPs.problems.map(p => p.code).join(','));
+spRun();
+const SPt = spAsk(), sc1t = spOf(SPt, 'K-C1');
+ok('РЯ-56 · ретро-платёж в срок сдвинул начало: эпизода с 15.03.2026 больше нет',
+  sc1t.length >= 1 && !sc1t.some(s => s.from === '15.03.2026') && C.pd(sc1t[0].from) > PD('15.03.2026'),
+  'платёж ' + dueAmt + ' · ' + sc1t.map(s => s.from + '→' + (s.to || 'тянется')).join('; '));
+KC1.mirror.payments = kc1p;
+
+/* РЯ-57 · спор не рвёт эпизод: окно спора считается днями «из них спорных» */
+const p7 = K7.mirror.payments[0], p7d = p7.dispute;
+p7.dispute = { from: '01.03.2026', to: '31.03.2026', status: 'Ожидает решения комиссии' };
+spRun();
+const s7d = spOf(spAsk(), 'K-7');
+ok('РЯ-57 · окно спора 01.03 → 31.03.2026 внутри эпизода: эпизод один, спорных 30 дней',
+  s7d.length === 1 && s7d[0].from === '12.02.2026' && s7d[0].disputedDays === 30,
+  s7d.map(s => s.from + '→' + (s.to || 'тянется') + ', спорных ' + s.disputedDays).join('; '));
+p7.dispute = p7d;
+spRun();
 C.calcReset();
 
 console.log('\nХРАНИМОЕ · ' + (fail ? fail + ' проверок провалено' : 'все проверки сошлись'));
