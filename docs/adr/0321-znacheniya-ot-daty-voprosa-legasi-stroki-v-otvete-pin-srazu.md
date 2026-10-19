@@ -2,7 +2,8 @@
 
 **Статус:** принято · 2026-10-19 · модуль «Отчётность», межмодульный (дашборд, статистика) · автогриллинг входящих от
 дашборда, волна 49: решения приняты Claude рекомендованным вариантом, владелец может переиграть; `ОД-38` и `ОД-42` — на
-подтверждение · **дополняет** [ADR-0304](./0304-plitka-smotryashchiy-otcheta-pyatyy-shov-reportanswer.md) п. 3 и
+подтверждение · **дашборд принял** `ОД-38`…`ОД-51` 19.10.2026 — `ДБ-323`…`ДБ-333` (уточнение `ДБ-272` по `ОД-42` —
+`ДБ-323`, на подтверждение владельцу дашборда) · **дополняет** [ADR-0304](./0304-plitka-smotryashchiy-otcheta-pyatyy-shov-reportanswer.md) п. 3 и
 [ADR-0315](./0315-potoki-dvizheniya-k-kazhdomu-obektu-uzla-net-obektov-v-otvete-periody.md) п. 6 (закрытый набор
 относительных значений — вторая семья) · **применяет** [ADR-0311](./0311-itog-mesyacu-iz-legasi-novoy-versiey-migracii.md)
 п. 4 и [ADR-0207](./0207-legasi-istoriya-gruzitsya-zamorozhennymi-strokami.md) п. 2, 6 к ответу через дату запуска ·
