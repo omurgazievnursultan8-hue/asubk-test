@@ -1003,13 +1003,14 @@ function genMore(loans, claims, measures){
     rsapps.push({ id:'ЗР-'+(400+i), loan:l.id, borrower:l.borrower, curator:l.curator, dept:l.dept, region:l.region, stage:RS_STAGES[s], outcome,
       multi, inWork, regDays, late, outAt, outDay, base:Math.round(l.balance*(1+q()*0.3)), from:(outAt||0) - Math.ceil(regDays/30) }); }
   DATA.rsapp = rsapps;
-  // --- эпизод просрочки: открытый — у каждого кредита в просрочке ровно один; вылеченные — в прошлом. Это и есть просрочка кредита:
-  //     дни просрочки в строке кредита на дату — длительность тянущегося на эту дату эпизода (spellDays), эпизода нет — 0 ---
+  // --- эпизод просрочки (перечень ядра): тянущийся — у каждого кредита в просрочке ровно один; закрытые — в прошлом, с причиной закрытия.
+  //     Кредит в просрочке на дату тогда и только тогда, когда на эту дату тянется его эпизод. Дни просрочки строки кредита и длительность
+  //     эпизода — два числа: у части кредитов после частичного погашения дни меньше длительности на lag дней (epLoanDays) ---
   const spells = []; const busy = new Map(); const sid = ()=>'ЭП-'+(10000+spells.length);
   const join = l=>({ loan:l.id, region:l.region, dept:l.dept, curator:l.curator, program:l.program });   // через ключ кредита
   loans.forEach(l=>{ if(!l.overdueDays) return; const f = dayBack(l.overdueDays);
     spells.push(Object.assign({ id:sid() }, join(l), { layer: l.hasClaim && q()<0.3 ? 'по решению суда' : 'свободный', state:'тянется',
-      fromM:f.m, fromDay:f.d, cureM:null, cureDay:null, days:l.overdueDays, peak:l.overdue, from:f.m, why:null })); });
+      fromM:f.m, fromDay:f.d, closeM:null, closeDay:null, days:l.overdueDays, lag:0, peak:l.overdue, from:f.m, why:null, closedBy:null })); });
   const clean = loans.filter(l=>!l.overdueDays);
   for(let m=-23;m<=0;m++){ const n = Math.round(150*(0.94+q()*0.12));
     for(let k=0;k<n;k++){ const l = clean[Math.floor(q()*clean.length)]; const dim = DAYS_IN[monthOf(m).mi]; const day = 1+Math.floor(q()*dim);
@@ -1018,15 +1019,21 @@ function genMore(loans, claims, measures){
       const a = m*31+day, b = cm*31+cd; const sp = busy.get(l.id) || [];
       if(sp.some(([x,y])=>a<=y+1 && b>=x-1)) continue; sp.push([a,b]); busy.set(l.id, sp);
       // короткая просрочка уходит почти всегда платежом; решение и списание — в основном у долгой
-      const id = sid(); spells.push(Object.assign({ id }, join(l), { layer:'свободный', state:'вылечен', fromM:m, fromDay:day, cureM:cm, cureDay:cd,
-        days:len, peak:Math.round(l.balance*0.04*(0.3+q())), from:m, why:epWhy(id, [1,4,8]) })); } }
+      const id = sid(), why = epWhy(id, [1,4,8]); spells.push(Object.assign({ id }, join(l), { layer:'свободный', state:'закрыт', fromM:m, fromDay:day, closeM:cm, closeDay:cd,
+        days:len, lag:0, peak:Math.round(l.balance*0.04*(0.3+q())), from:m, why, closedBy:CLOSED_BY[why] })); } }
   // давние долгие эпизоды — в том же перечне: до двух у кредита, кончились до сегодня и до тянущегося, с короткими не пересекаются.
   // Своего пика у них нет — просрочено на дату берётся из остатка по сроку (строка кредита)
-  const curedOf = new Map(); spells.forEach(s=>{ if(s.state!=='вылечен') return; if(!curedOf.has(s.loan)) curedOf.set(s.loan, []); curedOf.get(s.loan).push(s); });
-  loans.forEach(l=>{ const eps = (curedOf.get(l.id) || []).slice();
+  const closedOf = new Map(); spells.forEach(s=>{ if(s.state!=='закрыт') return; if(!closedOf.has(s.loan)) closedOf.set(s.loan, []); closedOf.get(s.loan).push(s); });
+  loans.forEach(l=>{ const eps = (closedOf.get(l.id) || []).slice();
     for(const n of ['', 2]){ const o = oldEpisode(l, eps, n); if(!o) continue; eps.push(o);
-      spells.push(Object.assign({ id:sid() }, join(l), { layer:'свободный', state:'вылечен', fromM:o.fromM, fromDay:o.fromDay, cureM:o.cureM, cureDay:o.cureDay,
-        days:o.len, peak:null, from:o.fromM, why:o.why })); } });
+      spells.push(Object.assign({ id:sid() }, join(l), { layer:'свободный', state:'закрыт', fromM:o.fromM, fromDay:o.fromDay, closeM:o.closeM, closeDay:o.closeDay,
+        days:o.len, lag:0, peak:null, from:o.fromM, why:o.why, closedBy:CLOSED_BY[o.why] })); } });
+  // частичное погашение у четверти кредитов в просрочке: эпизод начался на lag дней раньше срока самого раннего неисполненного платежа —
+  // в том же месяце (строки на конец месяца не меняются) и не ближе двух дней к концу прежнего эпизода кредита
+  const lastEnd = new Map(); spells.forEach(s=>{ if(s.state==='закрыт') lastEnd.set(s.loan, Math.max(lastEnd.get(s.loan) ?? -Infinity, dayNo(s.closeM, s.closeDay))); });
+  spells.forEach(s=>{ if(s.state!=='тянется' || hash(s.loan+'|lag')%100>=25) return;
+    const lag = Math.min(s.fromDay - 1, dayNo(s.fromM, s.fromDay) - (lastEnd.get(s.loan) ?? -Infinity) - 2, 10 + hash(s.loan+'|lagn')%21);
+    if(lag>=10){ s.fromDay -= lag; s.days += lag; s.lag = lag; } });
   DATA.spell = spells;
   // --- объект имущества: всё ведёт Управление по работе с активами (правило холдинга по умолчанию) ---
   const IMK = [['Недвижимость',45],['Земельный участок',20],['Транспорт',15],['Оборудование',12],['Скот',8]];
@@ -1055,26 +1062,36 @@ function pstateAt(b, m){ if(b.firstM===null || b.firstM>m) return NO_CONTRACTS;
 function lactAt(l, m){ return l.closed && l.to<=m ? 'закрыт' : 'действующий'; }
 // Строка кредита на конец месяца m (m ≤ 0, 0 — сегодня): то, что статистика хранит в строке дня, — дни просрочки, просрочено, сумма под
 // риском, остаток, признак «реструктуризирован», состояние, погашено и списано нарастающим итогом, подразделение, куратор, категория.
-// Сегодняшняя строка — поля кредита как есть. Просрочка в прошлом — из перечня эпизодов того же кредита (DATA.spell): дни просрочки на
-// конец месяца — длительность эпизода, тянувшегося на эту дату (тянущийся сегодня на 30.09 — на 11 дней моложе; вылеченный — короткая
-// или давняя долгая просрочка), эпизода нет — 0. Одна просрочка у кредита и у эпизода: Движение, Разрез по сроку и плитки эпизодов видят
-// одно и то же. У каждой ушедшей просрочки своя причина (поле эпизода): погасил, реструктурирован (признак включается, просрочка
-// снимается целиком), списан, прочее (ушла без платежа). У малой доли кредитов — передача из другого подразделения или от другого
-// куратора. Без случайных чисел — из ключа кредита (хеш); прочие данные стенда не сдвигаются.
+// Сегодняшняя строка — поля кредита как есть. Просрочка в прошлом — из перечня эпизодов того же кредита (DATA.spell): кредит в просрочке
+// на конец месяца, если на эту дату тянулся его эпизод (тянущийся сегодня, закрытый — короткая или давняя долгая просрочка); эпизода нет —
+// дней 0. Дни просрочки на эту дату — epLoanDays: длительность эпизода, а после частичного погашения — на lag дней меньше. Движение, Разрез
+// по сроку и плитки эпизодов видят один и тот же набор кредитов в просрочке. У каждой ушедшей просрочки своя причина (поле эпизода why):
+// погасил, реструктурирован (признак включается, просрочка снимается целиком), списан, прочее (ушла без платежа). У малой доли кредитов —
+// передача из другого подразделения или от другого куратора. Без случайных чисел — из ключа кредита (хеш); прочие данные стенда не сдвигаются.
 const isLoanRow = r=>!!r && typeof r.id==='string' && r.id.startsWith('КД-');
 const OD_RATE = d=>d>180 ? 0.38 : d>90 ? 0.28 : d>30 ? 0.17 : 0.09;          // доля просроченного в остатке по сроку — как в данных стенда
 const catOfDays = d=>d<=30 ? RISK_CATS[1] : d<=90 ? RISK_CATS[2] : d<=180 ? RISK_CATS[3] : RISK_CATS[4];
 const SNAP = new WeakMap(), SNAP_LO = -48;
-let SPELLS_OF = null;                                                        // эпизоды перечня по кредиту — тянущийся и вылеченные
+let SPELLS_OF = null;                                                        // эпизоды перечня по кредиту — тянущийся и закрытые
 function backDays(m){ let n = m<0 ? TODAY.day : 0; for(let k=m+1;k<0;k++) n += DAYS_IN[monthOf(k).mi]; return n; }   // дней от конца месяца m до сегодня
-// длительность эпизода на конец месяца m (0 — сегодня): эпизод тянется, если начался не позже этой даты и не вылечен к ней; дней — от
-// начала до этой даты, в день начала — 1. Не начался или вылечен — 0. Одна функция и у строки кредита, и у эпизода: кредит в просрочке
-// с того месяца, в котором эпизод «вышел в просрочку», и до того, в котором он «вылечен»
-function spellDays(s, m){ if(s.fromM>m || (s.cureM!==null && s.cureM<=m)) return 0;
+// длительность эпизода на конец месяца m (0 — сегодня): эпизод тянется, если начался не позже этой даты и не закрыт к ней; дней — от
+// начала до этой даты, в день начала — 1. Не начался или закрыт — 0. Кредит в просрочке с того месяца, в котором эпизод «вышел в
+// просрочку», и до того, в котором он закрыт
+function spellDays(s, m){ if(s.fromM>m || (s.closeM!==null && s.closeM<=m)) return 0;
   let n = (m===0 ? TODAY.day : DAYS_IN[monthOf(m).mi]) - s.fromDay; for(let k=s.fromM;k<m;k++) n += DAYS_IN[monthOf(k).mi]; return Math.max(1, n); }
 function spellsOfLoan(id){ if(!SPELLS_OF){ SPELLS_OF = new Map(); DATA.spell.forEach(s=>{ if(!SPELLS_OF.has(s.loan)) SPELLS_OF.set(s.loan, []); SPELLS_OF.get(s.loan).push(s); }); }
   return SPELLS_OF.get(id) || []; }
+// дни просрочки строки кредита на конец месяца m по его эпизоду: от срока самого раннего неисполненного платежа. Пока частичного погашения
+// не было — равны длительности; после него (длительность больше lag) срок самого раннего неисполненного сдвинулся на lag дней вперёд.
+// Эпизод тянется — дней не меньше одного: «в просрочке» у кредита и у эпизода одно
+function epLoanDays(s, m){ const d = spellDays(s, m); return s.lag && d>s.lag ? d - s.lag : d; }
+// номер дня относительно сегодня (сегодня — 0, вчера — −1)
+function dayNo(m, d){ return m<0 ? d - DAYS_IN[monthOf(m).mi] - backDays(m) : d - TODAY.day; }
 function epWhy(id, w){ const h = hash(id+'|why')%100; return h<w[0] ? 'списан' : h<w[1] ? 'реструктурирован' : h<w[2] ? 'прочее' : 'погасил'; }
+// чем закрыт эпизод — по причине ухода просрочки; «прочее» стенда (перевод долга) у ядра — закрытием кредита. Перевод в другой слой стенд
+// не порождает: слой эпизода — у тянущегося
+const SP_CLOSED = ['погашением','списанием','реструктуризацией','переводом в другой слой','закрытием кредита'];
+const CLOSED_BY = { 'погасил':'погашением', 'списан':'списанием', 'реструктурирован':'реструктуризацией', 'прочее':'закрытием кредита' };
 // давняя долгая просрочка кредита: началась до двух лет назад, кончилась до сегодня и до тянущейся просрочки, с эпизодами перечня не
 // пересекается; встаёт в перечень эпизодов при посеве стенда (genMore)
 function oldEpisode(row, sps, n){
@@ -1082,12 +1099,12 @@ function oldEpisode(row, sps, n){
   if(row.closed || h('old')%100 >= (n ? 60 : 80)) return null;
   const fromM = -(1 + h('os')%24), fromDay = 1 + h('osd')%28, len = 45 + Math.floor(Math.pow((h('ol')%1000)/1000, 0.8)*380);
   if(row.from!==undefined && fromM<=row.from) return null;
-  let cureM = fromM, cureDay = fromDay + len; while(cureDay > DAYS_IN[monthOf(cureM).mi]){ cureDay -= DAYS_IN[monthOf(cureM).mi]; cureM++; }
-  const ago = cureM<0 ? backDays(cureM) + DAYS_IN[monthOf(cureM).mi] - cureDay : TODAY.day - cureDay;   // дней от конца до сегодня
-  if(cureM>0 || ago <= (d0>0 ? d0 + 15 : 0)) return null;
-  const a = fromM*31 + fromDay, b = cureM*31 + cureDay;
-  if(sps.some(s=>a<=s.cureM*31+s.cureDay+1 && b>=s.fromM*31+s.fromDay-1)) return null;
-  return { fromM, fromDay, cureM, cureDay, len, why:epWhy(row.id+'|old'+n, [10,25,30]) };
+  let closeM = fromM, closeDay = fromDay + len; while(closeDay > DAYS_IN[monthOf(closeM).mi]){ closeDay -= DAYS_IN[monthOf(closeM).mi]; closeM++; }
+  const ago = closeM<0 ? backDays(closeM) + DAYS_IN[monthOf(closeM).mi] - closeDay : TODAY.day - closeDay;   // дней от конца до сегодня
+  if(closeM>0 || ago <= (d0>0 ? d0 + 15 : 0)) return null;
+  const a = fromM*31 + fromDay, b = closeM*31 + closeDay;
+  if(sps.some(s=>a<=s.closeM*31+s.closeDay+1 && b>=s.fromM*31+s.fromDay-1)) return null;
+  return { fromM, fromDay, closeM, closeDay, len, why:epWhy(row.id+'|old'+n, [10,25,30]) };
 }
 function loanHist(row){
   const h = k=>hash(row.id+'|'+k), d0 = row.overdueDays || 0, eps = spellsOfLoan(row.id), open = eps.find(s=>s.state==='тянется') || null;
@@ -1105,9 +1122,9 @@ function loanHist(row){
     // доля просроченного у кончившихся эпизодов — от прежней оценки остатка (просрочено — своё поле строки, от потоков не выводится)
     const balance = m===0 ? row.balance : Math.round(row.balance * (1 + m*0.004) * jitter(row, 'm'+m+'balance', 0.03*Math.min(1, (Math.abs(m)+1)/4)));
     let days = 0, overdue = 0;
-    if(m===0){ days = d0; overdue = row.overdue || 0; }                       // сегодня: дни — длительность тянущегося эпизода (d0)
+    if(m===0){ days = d0; overdue = row.overdue || 0; }                       // сегодня: дни просрочки кредита как есть (d0)
     else { const ep = eps.find(s=>spellDays(s, m)>0);                         // эпизод, тянувшийся на конец месяца m
-      if(ep){ days = spellDays(ep, m);
+      if(ep){ days = epLoanDays(ep, m);
         overdue = ep===open ? Math.round((row.overdue || 0) * OD_RATE(days) / OD_RATE(d0) * jitter(row, 'od'+m, 0.08))
           : ep.peak ? Math.round(ep.peak * (0.55 + 0.45*Math.min(1, days/ep.days))) : Math.round(balance * OD_RATE(days) * jitter(row, 'oo'+m, 0.1)); } }
     // ушла просрочка за месяц m — причина эпизода, тянувшегося на конец прошлого месяца
@@ -1334,7 +1351,7 @@ const OBJECTS = {
   payment: { name:'Платёж', wave:1, vis:'dept', owner:'Платежи', registry:'Реестр платежей', events:true },
   coll:    { name:'Предмет залога', wave:1, vis:'dept', owner:'Залог', registry:'Реестр предметов залога' },
   rsapp:   { name:'Заявка на реструктуризацию', wave:1, vis:'dept', owner:'Реструктуризация', registry:'Реестр заявок на реструктуризацию' },
-  // волна эпизодов — не номер, а готовность ядра: таблица статистики объявлена, строк нет, пока ядро не отдаёт перечень
+  // ворота эпизодов — готовность ядра: ядро отдаёт перечень (так по умолчанию); выключены на стенде — таблица статистики объявлена, строк нет
   spell:   { name:'Эпизод просрочки', wave:1, gate:'spells', vis:'via', via:'loan', viaKey:'loan', owner:'Ядро расчёта', registry:'Перечень эпизодов просрочки', events:true,
              gateMsg:'ядро расчёта ещё не отдаёт перечень эпизодов просрочки — объект статистики объявлен, строк нет' },
   app:     { name:'Заявка на кредит', wave:2, vis:'dept', owner:'Заявка на кредит', registry:'Реестр заявок' },
@@ -1357,7 +1374,8 @@ OBJECTS.receipt.flows = { 'receipt.unalloc': [
   { key:'returned', name:'возвращено', src:'Возвращено из ожидания', col:'recRet', sg:-1, tip:'возвращено плательщику из ожидания' } ] };
 // объект отвечает, когда его модуль-владелец объявил его статистике (стенд: STAND.down) и, если у объекта есть ворота, они открыты;
 // волна объекта — прогноз порядка, а не дата: готовность решает сосед
-function objReady(o){ const O = OBJECTS[o]; return !STAND.down[O.owner] && (!O.gate || !!STAND[O.gate]); }
+// объект, видимый через другой (эпизод — через кредит), без того объекта не отвечает: охват смотрящего не к чему приложить
+function objReady(o){ const O = OBJECTS[o]; return !STAND.down[O.owner] && (!O.gate || !!STAND[O.gate]) && (!O.via || objReady(O.via)); }
 // Список значений разреза ведёт статистика и держит его полным: у срока просрочки первая корзина — «нет просрочки», у статусов — весь
 // справочник. Где признак к части объектов не применим, «пусто» — последнее значение списка со своим именем (empty); где пусто
 // невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
@@ -1379,7 +1397,7 @@ const DIMS = {
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
   curator: { name:'Куратор', field:'curator', label:userName, at:atLoan('curator', 'curator', true), rowAt:true, viaLoan:true },
   category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории', at:atLoan('category', 'category'), rowAt:true },
-  bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS, at:atLoan('bucket', 'bucket'), rowAt:true },
+  bucket:  { name:'Дни просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS, at:atLoan('bucket', 'bucket'), rowAt:true },
   lstatus: { name:'Состояние кредита', field:'status', values:['Обычный','В реструктуризации','Во взыскании','Закрыт'], at:atLoan('lstatus', 'status'), rowAt:true },
   bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
   bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null || r.worstDays===undefined ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS,
@@ -1440,7 +1458,8 @@ const DIMS = {
   cstate:  { name:'Состояние дела', field:'state', ordered:true, values:['открыто','карантин','закрыто'] },
   cbasis:  { name:'Основание открытия дела', field:'basis' },
   layer:   { name:'Слой долга', field:'layer' },
-  spstate: { name:'Состояние эпизода', field:'state', ordered:true, values:['тянется','вылечен'] },
+  spstate: { name:'Состояние эпизода', field:'state', ordered:true, values:['тянется','закрыт'] },
+  spclose: { name:'Чем закрыт', field:'closedBy', ordered:true, values:SP_CLOSED, empty:'не закрыт' },
   imstate: { name:'Состояние объекта', field:'state', ordered:true, values:[...IM_ACTIVE,'снят с учёта','разделён','принятие не состоялось'] },
   imkind:  { name:'Вид имущества', field:'kind' },
   big:     { name:'Крупнейшие', big:true, ordered:true, get values(){ return BIG ? [...BIG.order, BIG_REST] : [BIG_REST]; },
@@ -1453,7 +1472,7 @@ const OBJ_DIMS = {
   claim:['phase','leadDept','region'], measure:['mkind','region'], receipt:['source'], payment:['pkind','region','dept'],
   coll:['ckind','region','dept'], app:['astatus','astage','program','region','dept','afunnel'], comm:['commission','decision'],
   concl:['verdict'], oblig:['ostate'], task:[],
-  case:['cstate','cbasis','region'], rsapp:['rstage','routcome','dept','curator'], spell:['spstate','layer','region','dept','program','curator'],
+  case:['cstate','cbasis','region'], rsapp:['rstage','routcome','dept','curator'], spell:['spstate','spclose','layer','region','dept','program','curator'],
   asset:['imstate','imkind','region','dept'],
 };
 // поля, по которым работает панель фильтров экрана; у заёмщика «Область» — территория регистрации лица
@@ -1578,8 +1597,8 @@ ind('rsapp.late',     { obj:'rsapp', name:'Регламентный срок н�
   req:'признака «регламентный срок нарушен» в схеме статистики ещё нет — реструктуризация ставит его флагом, статистике его надо взять' });
 ind('rsapp.outcomes', { obj:'rsapp', name:'Исходов', kind:'event', atField:'outAt', dayField:'outDay', where:r=>!!r.outcome });
 ind('spell.in',       { obj:'spell', name:'Вышли в просрочку', kind:'event', atField:'fromM', dayField:'fromDay', dir:'up_bad' });
-ind('spell.cured',    { obj:'spell', name:'Вылечены', kind:'event', atField:'cureM', dayField:'cureDay', dir:'up_good', where:r=>r.state==='вылечен',
-  req:'даты лечения эпизода в схеме статистики ещё нет — нужна с корзинами год · квартал · месяц' });
+ind('spell.cured',    { obj:'spell', name:'Вылечены', kind:'event', atField:'closeM', dayField:'closeDay', dir:'up_good', where:r=>r.closedBy==='погашением' });
+ind('spell.closed',   { obj:'spell', name:'Закрыто эпизодов', kind:'event', atField:'closeM', dayField:'closeDay', where:r=>r.state==='закрыт' });
 ind('spell.open',     { obj:'spell', name:'Эпизодов тянется', where:r=>r.state==='тянется', dir:'up_bad' });
 const IM_ON = r=>r.active;
 ind('asset.count',    { obj:'asset', name:'Объектов на учёте', where:IM_ON });
@@ -1597,7 +1616,7 @@ ind('asset.days',     { obj:'asset', name:'Наибольший срок на у
 // (вопросы ждут в очереди); slow — медленная отчётность (части полосы приходят с задержкой); dayEnd — ответ «сегодня» на конец закрытого дня
 // (снимок полосы и списка, открытых по ссылке другого дня); linkNextDay — ссылку открыли на следующий день: стенд живёт одним днём, поэтому
 // ссылка считается скопированной вчера (10.10) в то же время
-const STAND = { down:{}, reportsReady:true, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
+const STAND = { down:{}, reportsReady:true, spells:true, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
   partDown:false, baseDown:false, launch:null, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{}, dayEnd:null, linkNextDay:false };
 const STAND_SEED = JSON.stringify(STAND);
 // время данных стенда: «сегодня» заморожено, пришедшие новые данные сдвигают время расчёта на 5 минут
@@ -2088,6 +2107,8 @@ function answer(q0, user, roleId, panel){
   if(q.reportId && !STAND.reportsReady){ res.state='refusal'; res.msg='Не отвечается: '+REPORTS_WAIT+'; владелец — модуль «Отчётность».'; return res; }
   if(STAND.down[O.owner]){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
   if(O.gate && !STAND[O.gate]){ res.state='refusal'; res.msg='Не отвечается: '+O.gateMsg+'; владелец — модуль «'+O.owner+'».'; return res; }
+  const V = O.via && OBJECTS[O.via];
+  if(V && !objReady(O.via)){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+V.name+'» ещё не объявлен, а «'+O.name+'» виден через него; владелец — модуль «'+V.owner+'».'; return res; }
   if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
   const base = rowsFor(user, roleId, I.obj);
   if(base===null){ res.state='noaccess'; res.msg='Нельзя: объект «'+O.name+'» не открыт вашей роли.'; return res; }
@@ -2428,7 +2449,7 @@ const MV_MODELS = {
   // Просрочено: каждый кредит — в одной строке
   transitions: { money:false,
     rows: [
-      ['new', 'новые в просрочке', '+', 'event', (M, B)=>'просрочены '+mvWhen(M)+', на '+startLabel(B)+' — нет; кто вышел и вылечился внутри периода — плитка „Вышли в просрочку“'],
+      ['new', 'новые в просрочке', '+', 'event', (M, B)=>'просрочены '+mvWhen(M)+', на '+startLabel(B)+' — нет; кто вышел в просрочку и ушёл из неё внутри периода — плитка „Вышли в просрочку“'],
       ['paid', 'погасили', '−', 'event', (M, B)=>'просрочка на '+startLabel(B)+' была, '+mvWhen(M)+' нет; выросло погашено'],
       ['restr', 'реструктурированы', '−', 'event', ()=>'просрочку сняло решение о реструктуризации — включился признак'],
       ['written', 'списаны', '−', 'event', ()=>'просрочка ушла списанием — выросло списано'],
@@ -2792,7 +2813,8 @@ const LIST_DECL = {
   coll:    { label:r=>r.id, weight:W('Стоимость', (r, m)=>m ? collAt(r, m).value : r.value || 0),
     cols:[LC('loan', 'Кредит', r=>r.loan), LC('kind', 'Вид залога', r=>r.kind, { dim:'ckind' }), LC('dept', 'Подразделение', (r, m)=>deptName(dimAt('dept', r, m)), { dim:'dept' })] },
   rsapp:   { label:r=>r.id, cols:[LC('loan', 'Кредит', r=>r.loan), LC('stage', 'Стадия', r=>r.stage, { dim:'rstage' }), LC('outcome', 'Исход', r=>r.outcome || '—', { dim:'routcome' })] },
-  spell:   { label:r=>r.id, cols:[LC('loan', 'Кредит', r=>r.loan), LC('state', 'Состояние', r=>r.state, { dim:'spstate' }), LC('days', 'Дней', r=>r.days, { num:true, unit:'days' })] },
+  spell:   { label:r=>r.id, cols:[LC('loan', 'Кредит', r=>r.loan), LC('layer', 'Слой долга', r=>r.layer, { dim:'layer' }), LC('from', 'Начало', r=>dmy(r.fromM, r.fromDay)),
+    LC('days', 'Длительность', r=>r.days, { num:true, unit:'days' }), LC('state', 'Состояние', r=>r.state, { dim:'spstate' }), LC('closedBy', 'Чем закрыт', r=>r.closedBy || '—', { dim:'spclose' })] },
   app:     { label:r=>r.id+' от '+dmy(r.at, r.day), weight:W('Запрошено', r=>r.requested || 0),
     cols:[LC('program', 'Программа', r=>r.program==='none' ? 'без программы' : progName(r.program), { dim:'program' }), LC('status', 'Статус', r=>r.status, { dim:'astatus' }), LC('dept', 'Подразделение', r=>deptName(r.dept), { dim:'dept' })] },
   comm:    { label:r=>r.id, weight:W('Сумма', r=>r.sum || 0), cols:[LC('commission', 'Комиссия', r=>r.commission, { dim:'commission' }), LC('status', 'Статус', r=>r.status), LC('decision', 'Решение', r=>r.decision || '—', { dim:'decision' })] },
@@ -3034,7 +3056,7 @@ R('r-borover',  { title:'Заёмщики по договорам с проср�
 R('r-boworst',  { title:'Клиенты по худшей просрочке', obj:'borrower', cols:['borrower.count'], dims:['bodays'], filter:[cp(ACT_B),{ f:'worstDays', op:'gt', v:0 }], params:pStock(true) });
 R('r-bodebt',   { title:'Клиенты по совокупному долгу', obj:'borrower', cols:['borrower.count','borrower.total'], dims:['bdebt'], filter:[cp(ACT_B)], params:pStock(true) });
 R('r-claims',   { title:'Требования', obj:'claim', cols:['claim.count','claim.amount','claim.since','claim.realization'], dims:['phase','leadDept'], params:pStock(false) });
-R('r-spells',   { title:'Эпизоды просрочки', obj:'spell', cols:['spell.in','spell.cured'], params:pFlow(true) });
+R('r-spells',   { title:'Эпизоды просрочки', obj:'spell', cols:['spell.in','spell.cured','spell.closed'], params:pFlow(true) });
 R('r-cases',    { title:'Дела взыскания', obj:'case', cols:['case.paid','case.base','case.open','case.quar','case.court','case.exp'], params:pStock(false) });
 R('r-rsapps',   { title:'Обращения о реструктуризации', obj:'rsapp', cols:['rsapp.inWork','rsapp.late','rsapp.multi','rsapp.count'], dims:['rstage'], params:pStock(true) });
 R('r-assets',   { title:'Имущество на балансе', obj:'asset', cols:['asset.count','asset.value','asset.kpOverdue','asset.claimRest'], dims:['imstate'], params:pStock(false) });
@@ -5761,7 +5783,7 @@ const ROW_LABEL = {
   task:r=>r.dueIn<0 ? 'просрочено' : r.hot ? 'горит' : '', receipt:r=>r.source, payment:r=>r.kind, measure:r=>r.kind,
   borrower:r=>r.region+' · '+pstateAt(r, 0)+(r.overCredits ? ' · договоров с просрочкой '+r.overCredits : '')+(r.pers!=='действует' ? ' · лицо: '+r.pers : ''),
   program:r=>r.name+' · '+r.state+' · '+r.source+(r.pendDays!==null && r.pendDays!==undefined ? ' · до окончания '+r.pendDays+' дн.' : ''),
-  case:r=>r.borrower+' · кредитов '+(r.loans || []).length, rsapp:r=>r.stage+(r.outcome ? ' · '+r.outcome : ''), spell:r=>r.loan+' · '+r.state, asset:r=>r.kind+' · '+r.state };
+  case:r=>r.borrower+' · кредитов '+(r.loans || []).length, rsapp:r=>r.stage+(r.outcome ? ' · '+r.outcome : ''), spell:r=>r.loan+' · '+(r.closedBy ? 'закрыт '+r.closedBy : r.state), asset:r=>r.kind+' · '+r.state };
 function rowLabel(obj, r){ const f = ROW_LABEL[obj]; return f ? f(r) : ''; }
 // предложение с одной точкой в конце, даже если причина уже кончается точкой
 const sentence = s => String(s).replace(/[.\s]+$/, '')+'.';
@@ -6275,7 +6297,7 @@ function renderStand(){
       <div class="why">Плитка — ссылка на отчёт. Без отчётности у всех ролей минимальная раскладка с пояснением, в каталоге плитки ждут соседа.</div>
       <div style="margin-top:8px">${standOwners().map(([o, objs])=>`<label class="opt"><input type="checkbox" ${STAND.down[o]?'':'checked'} onchange="DB.standDown('${esc(o)}', this.checked)"> модуль «${esc(o)}» объявил статистике: ${esc(objs)}</label><br>`).join('')}</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
-      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
+      <div class="why">Выключено — ядро ещё не отдаёт перечень эпизодов: объект статистики объявлен, а строк нет, плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
       <table class="list" style="margin-top:10px;max-width:760px"><tr><th>Роль</th><th>Отвечает плиток</th><th>Раскладка</th><th>Прогноз</th></tr>${ROLES.filter(R=>S.declared[R.id]).map(R=>{ const L = roleLaunch(R.id);
         return `<tr><td>${esc(R.name)}</td><td class="n">${L.n} из ${L.of}</td><td>${L.ok ? '<span class="ok">своя</span>' : 'минимальная'}</td><td>${WAVE_FORECAST[R.id] ? 'волна '+WAVE_FORECAST[R.id] : '—'}</td></tr>`; }).join('')}</table>
       <div class="why">Роль получает свою объявленную раскладку, когда отвечает не меньше половины её плиток (плитки «ждёт меня» — ссылки на очереди модулей — не в счёте); неотвечающие стоят черновиками, до того — минимальная. Волны — прогноз порядка, а не даты: волна 1 — Руководство, Куратор кредита, Бухгалтерия, Залог, Проблемные кредиты; волна 2 — Кредитный специалист, Комиссия, Отдел · заключения, Головной офис, Специалист по имуществу, у Руководства — плитки имущества; волна 3 — Отчётность и «Мои задания» у всех.</div></div>
@@ -6478,7 +6500,7 @@ const api = {
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),
   openReport, drill, reportView, reportChangedFor, rowLabel, scrollEnd,
   whoList:(id, uid, roleId, panel, node, path, opt)=>whoList(tileArg(id), userArg(uid) || user(), roleId, panel || {}, node || null, path || [], opt || {}),
-  chgRows, chgNumber, nameAt, borrowerOf, objLabel, LIST_DECL, listFieldsOf, declFlows, MV_NOFLOWS,
+  chgRows, chgNumber, nameAt, borrowerOf, objLabel, LIST_DECL, listFieldsOf, declFlows, MV_NOFLOWS, dmy, objReady,
   registry:(id)=>openRegistry(id), queue:(id)=>openQueue(id),
   openView:openTileView, closeView:closeStrip, pinOpen:(id)=>{ const r = pinOpen(tileArg(id).id); toast(r.error || (r.pinned ? 'Закреплена раскрытой: при входе на экран откроется так же' : 'Откреплена: на экране плитка закрыта')); render(); return r; },
   clickOf:(id, uid, roleId, panel)=>clickOf(tileArg(id), userArg(uid) || user(), roleId, panel || {}),
