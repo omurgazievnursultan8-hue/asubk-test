@@ -345,7 +345,7 @@ const SEAMS = ['statSlice','statSeries','statRows'];
 const NEIGHBOURS = [
   {id:'ядро',          name:'Ядро расчёта', asks:true,  layer:'учёт',
    seams:['calcDebt','calcPortfolio','calcPledge','calcSchedule','calcAllocation',
-          'calcCoverage','calcForecast','calcAccrual']},
+          'calcCoverage','calcForecast','calcAccrual','overdueSpells']},
   {id:'классификация', name:'Классификация', asks:true,  layer:'классификация', seams:['riskCategory']},
   {id:'погашения',     name:'Погашения',     asks:true,  layer:'учёт', seams:['payAlloc','receiptSplit']},
   {id:'кураторство',   name:'Кураторство',   asks:true,  layer:null,   seams:['leadCurator']},
@@ -788,16 +788,24 @@ const REGISTRY = [
    since:'2020-01-01', buckets:['год','квартал'], owner:'Сотрудники'},
 
   /* ================ разрезы ЭПИЗОДА ПРОСРОЧКИ ================= */
-  /* Строк у объекта нет: перечня эпизодов владелец не отдаёт (P20-R33). */
+  /* Список эпизодов и их величины отдаёт ядро методом API overdueSpells. Кредит, слой и дата начала —
+     ключ эпизода, поэтому «поле»; остальное — ответ ядра на дату строки. */
   {kind:'разрез', id:'d-ocredit', col:'d_credit', vtype:'ref', obj:'obj-odue', name:'Кредит эпизода просрочки', src:'поле', key:'credit',
    since:'2020-01-01', owner:'Кредиты'},
   {kind:'разрез', id:'d-olayer', col:'d_layer', vtype:'code', obj:'obj-odue', name:'Слой долга эпизода', src:'поле', key:'layer',
    since:'2020-01-01', owner:'Ядро расчёта',
-   note:'ТЗ 18 §5 — дни просрочки считаются ВНУТРИ слоя от своей даты, а не от самой ранней по кредиту'},
-  {kind:'разрез', id:'d-ofrom', col:'d_from', vtype:'date', obj:'obj-odue', name:'Дата выхода в просрочку', src:'поле', key:'from',
+   note:'свободный · по решению суда; решение суда закрывает эпизод свободного слоя и открывает эпизод своего'},
+  {kind:'разрез', id:'d-ofrom', col:'d_from', vtype:'date', obj:'obj-odue', name:'Дата начала эпизода просрочки', src:'поле', key:'from',
    since:'2020-01-01', buckets:['год','квартал','месяц'], owner:'Ядро расчёта'},
-  {kind:'разрез', id:'d-ostate', col:'d_state', vtype:'code', obj:'obj-odue', name:'Состояние эпизода просрочки', src:'история', key:'ostate',
-   since:'2020-01-01', owner:'Ядро расчёта', note:'тянется · вылечен'},
+  {kind:'разрез', id:'d-ostate', col:'d_state', vtype:'code', obj:'obj-odue', name:'Состояние эпизода просрочки', src:'шов', seam:'overdueSpells', field:'state',
+   since:'2020-01-01', owner:'Ядро расчёта', note:'тянется · закрыт'},
+  {kind:'разрез', id:'d-oby', col:'d_closed_by', vtype:'code', obj:'obj-odue', name:'Чем закрыт эпизод просрочки', src:'шов', seam:'overdueSpells', field:'closedBy',
+   since:'2020-01-01', owner:'Ядро расчёта',
+   note:'погашением · списанием · реструктуризацией · переводом в другой слой · закрытием кредита; вылеченные — закрытые погашением'},
+  {kind:'разрез', id:'d-oto', col:'d_to', vtype:'date', obj:'obj-odue', name:'Дата закрытия эпизода просрочки', src:'шов', seam:'overdueSpells', field:'to',
+   since:'2020-01-01', buckets:['год','квартал','месяц'], owner:'Ядро расчёта'},
+  {kind:'разрез', id:'d-olegacy', col:'d_legacy_start', vtype:'bool', obj:'obj-odue', name:'Начало эпизода — по данным переноса', src:'поле', key:'legacy',
+   since:'2020-01-01', owner:'Ядро расчёта'},
   {kind:'разрез', id:'d-oecur', col:'cur', vtype:'cur', obj:'obj-odue', name:'Валюта кредита эпизода', src:'поле', key:'cur',
    since:'2020-01-01', owner:'Кредиты'},
 
@@ -1142,14 +1150,17 @@ const REGISTRY = [
   {kind:'показатель', id:'a-maxstenure', name:'Наибольший стаж', obj:'obj-staff', src:'агрегат', grp:'кадры', fn:'max', over:'m-stenure'},
   {kind:'показатель', id:'a-sumsrate', name:'Ставок, итого', obj:'obj-staff', src:'агрегат', grp:'кадры', fn:'sum', over:'m-srate'},
 
-  /* --- эпизод просрочки: объявлен, ждёт владельца (P20-R33) ---------------- */
-  {kind:'показатель', id:'m-oedays', col:'i_days', vtype:'int', name:'Длительность эпизода просрочки', obj:'obj-odue', type:'число', src:'поле', grp:'просрочка',
-   key:'days', unit:'дн.', note:'у тянущегося эпизода — дней на дату среза, у вылеченного — дней до лечения'},
-  {kind:'показатель', id:'m-oepeak', col:'i_peak', vtype:'money_cur', name:'Пик просроченной суммы эпизода', obj:'obj-odue', type:'сумма', src:'поле', grp:'просрочка',
-   key:'peak', money:true, unit:'валюта кредита эпизода'},
+  /* --- эпизод просрочки: величины — ответ ядра на дату строки ------------------ */
+  {kind:'показатель', id:'m-oedays', col:'i_days', vtype:'int', name:'Длительность эпизода просрочки', obj:'obj-odue', type:'число', src:'шов', grp:'просрочка',
+   seam:'overdueSpells', field:'days', unit:'дн.', note:'у тянущегося — дней на дату среза, у закрытого — до дня закрытия, без него'},
+  {kind:'показатель', id:'m-oddays', col:'i_disputed_days', vtype:'int', name:'Из них спорных дней эпизода', obj:'obj-odue', type:'число', src:'шов', grp:'просрочка',
+   seam:'overdueSpells', field:'disputedDays', unit:'дн.'},
+  {kind:'показатель', id:'m-oepeak', col:'i_peak', vtype:'money_cur', name:'Пик просроченной суммы эпизода', obj:'obj-odue', type:'сумма', src:'шов', grp:'просрочка',
+   seam:'overdueSpells', field:'peak', money:true, unit:'валюта кредита эпизода'},
   {kind:'показатель', id:'a-avgoedays', name:'Средняя длительность эпизода', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'avg', over:'m-oedays'},
   {kind:'показатель', id:'a-maxoedays', name:'Наибольшая длительность эпизода', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'max', over:'m-oedays'},
-  {kind:'показатель', id:'a-sumoepeak', name:'Пик просрочки, итого', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'sum', over:'m-oepeak'}
+  {kind:'показатель', id:'a-sumoepeak', name:'Пик просрочки, итого', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'sum', over:'m-oepeak'},
+  {kind:'показатель', id:'a-sumoddays', name:'Спорных дней эпизодов, всего', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'sum', over:'m-oddays'}
 ];
 
 /* ------------------------- РЕЕСТР ОБЪЕКТОВ -------------------------- */
@@ -1308,15 +1319,15 @@ const OBJECTS = [
    scope:[{kind:'open', reason:'реестр сотрудников — общее знание: список кадров есть рабочий экран поиска (ТЗ 11 §4.2)'}],
    dims:['d-sunit','d-spost','d-shr','d-savail','d-sacct','d-sassign','d-shired'],
    inds:['m-stenure','m-srate','a-count','a-avgstenure','a-maxstenure','a-sumsrate']},
-  /* Эпизод просрочки — кредит × слой × непрерывный период. Строк нет: `calcDebt` отдаёт
-     просрочку на дату, перечня эпизодов не отдаёт никто (заявка P20-R33). */
+  /* Эпизод просрочки — кредит × слой × непрерывный период. Список отдаёт ядро методом
+     overdueSpells (`list`): владелец списка молчит — новых эпизодов в прогоне нет. */
   {id:'obj-odue', name:'Эпизод просрочки', plural:'эпизоды просрочки', owner:'Ядро расчёта',
-   refName:'кредит · слой · дата выхода',
+   refName:'кредит · слой · дата начала',
    born:{src:'поле', key:'from'},
-   pending:{owner:'Ядро расчёта', seam:'overdueSpells', ask:'P20-R33'},
+   list:{nb:'ядро', seam:'overdueSpells'},
    scope:[{kind:'via', obj:'obj-credit', key:'d-ocredit'}],
-   dims:['d-ocredit','d-olayer','d-ofrom','d-ostate','d-oecur'],
-   inds:['m-oedays','m-oepeak','a-count','a-avgoedays','a-maxoedays','a-sumoepeak']}
+   dims:['d-ocredit','d-olayer','d-ofrom','d-ostate','d-oby','d-oto','d-olegacy','d-oecur'],
+   inds:['m-oedays','m-oddays','m-oepeak','a-count','a-avgoedays','a-maxoedays','a-sumoepeak','a-sumoddays']}
 ];
 
 /* ====== ПУБЛИЧНЫЙ ПЕРЕЧЕНЬ ПОЛЕЙ КАРТОЧКИ: ОБЪЯВЛЯЕТ ВЛАДЕЛЕЦ ====== */
@@ -1820,9 +1831,12 @@ const WORLD = {
      sacct:[['2024-11-10','активна']], sassign:[['2024-11-04','основное'],['2026-02-01','и.о.']],
      rate:[['2024-11-04',1]]}, {})
 ],
-/* ЭПИЗОД ПРОСРОЧКИ: демо-данных у объекта нет — списка эпизодов не отдаёт ни один метод API (P20-R33). */
-'obj-odue': []
 };
+/* ЭПИЗОД ПРОСРОЧКИ: списка в демо-данных нет — его отдаёт ядро методом API overdueSpells на дату вопроса.
+   Здесь — эпизоды, которые ядро знает на сегодняшний день стенда: ими пользуются экраны и отбор кандидатов.
+   Свойство вычисляемое и в отпечаток демо-данных не входит: эпизоды выводятся из кредитов и фактов ядра. */
+Object.defineProperty(WORLD, 'obj-odue', {enumerable: false, configurable: true,
+  get: () => CORE.spellItems(ST.state ? ST.state.today : ANCHOR)});
 
 /* ================= ЯДРО РАСЧЁТА (МОДЕЛЬ МЕТОДОВ API) ================= */
 /* Семь статей задолженности в порядке очереди ТЗ 18 §5.1. */
@@ -1845,6 +1859,22 @@ const PAY_SPLIT = {
 };
 /* Доля платежа, пришедшаяся на слой ВЗЫСКАНИЯ. «Взыскано» мерой не хранится нигде — оно свёртка платежей, разнесённых на слой, и платёж обязан нести эту разбивку, иначе величина неисчислима. */
 const PAY_LAYER = {'по решению суда': 1, 'за счёт реализации залога': 1};
+/* ЭПИЗОДЫ ПРОСРОЧКИ — ФАКТЫ ЯДРА, КОТОРЫХ ЛИНЕЙНАЯ МОДЕЛЬ «ДНИ НА ДАТУ» НЕ ВИДИТ. `past` — эпизоды, закрытые до
+   запуска статистики; `start` — эпизод тянется с `from`, а частичное погашение `shift` сдвинуло срок самого
+   раннего неоплаченного обязательства (дни просрочки с этого дня меньше длительности эпизода); `court` — долг
+   перешёл под решение суда: эпизод свободного слоя закрыт переводом, у слоя суда свой эпизод. Спорные дни —
+   у свободного слоя. Все даты фактов — до запуска: прежние числа строк кредита не сдвигаются. */
+/* Запомненные ответы ядра об эпизодах и пики — кэш, а не вход сборки демо-данных. */
+const SPELL_CACHE = new Map(), PEAK_CACHE = new Map();
+const SPELL_FACTS = {
+  'КД-2021/012': {past:[{from:'2025-06-02', to:'2025-08-15', by:'списанием'}]},
+  'КД-2023/210': {past:[{from:'2025-09-10', to:'2025-10-02', by:'погашением'}],
+                  start:{from:'2025-12-01', shift:'2026-02-05'}, disputed:31},
+  'КД-2022/065': {court:{on:'2026-03-02', name:'2-418/2026'}, disputed:90},
+  'КД-2024/117': {past:[{from:'2026-02-10', to:'2026-03-05', by:'погашением'}]},
+  'КД-2025/043': {past:[{from:'2025-11-17', to:'2025-12-01', by:'погашением'},
+                        {from:'2026-01-19', to:'2026-02-20', by:'реструктуризацией'}]}
+};
 
 const CORE = {
   calls: 0,
@@ -1926,11 +1956,11 @@ const CORE = {
       {som: {value: CORE.flowSom(item, get, dateISO), round: CORE.SOM_ROUNDING.id, flow: true}});
   },
   /* Раскладка долга по семи статьям. */
-  debtParts(item, dateISO){
+  debtParts(item, dateISO, noCure){
     const r2 = x => Math.round(x * 100) / 100;
     const P = CORE.grow(item, 'principal', dateISO) || 0;
     const A = CORE.grow(item, 'interest', dateISO) || 0;
-    const d = Math.round(CORE.grow(item, 'daysOverdue', dateISO) || 0);
+    const d = CORE.daysOn(item, dateISO, noCure);
     const amt = item.f.amount || 0;
     const rest = {
       collection:  d > 180 ? r2(amt * 0.004) : 0,
@@ -1981,6 +2011,101 @@ const CORE = {
       out['over_' + a] = CORE.cell(item, p.over[a], dateISO);
     });
     return out;
+  },
+  /* ------ ДНИ ПРОСРОЧКИ НА ДАТУ ------
+     Линейная модель, поправленная фактами эпизодов, и демо-платёж, погасивший всю просроченную часть:
+     с его дня просрочки нет. `noCure` — те же дни без этого платежа (ими платёж и проверяется). */
+  daysOn(item, dateISO, noCure){
+    const F = SPELL_FACTS[item.id] || {};
+    const past = (F.past || []).find(s => s.from <= dateISO && dateISO < s.to);
+    if(past) return daysBetween(past.from, dateISO);
+    const cure = noCure ? null : CORE.cureOf(item);
+    if(cure && dateISO >= cure) return 0;
+    if(F.start && F.start.from <= dateISO && dateISO < F.start.shift) return daysBetween(F.start.from, dateISO);
+    return Math.round(CORE.grow(item, 'daysOverdue', dateISO) || 0);
+  },
+  /* День демо-платежа, который покрыл всю просроченную часть на конец предыдущего дня. */
+  cureOf(item){
+    const list = ST.state && ST.state.pays ? ST.state.pays[item.id] : null;
+    if(!list || !list.length) return null;
+    const hit = list.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).find(p =>
+      CORE.daysOn(item, p.date, true) > 0 && p.amount >= CORE.debtParts(item, dayShift(p.date, -1), true).overdue);
+    return hit ? hit.date : null;
+  },
+  /* ------ МЕТОД API overdueSpells: ЭПИЗОДЫ ПРОСРОЧКИ ------
+     Множество — все кредиты, отрезок — от начала истории по дату вопроса; ответ — эпизоды целиком, с настоящей
+     датой начала. Закрытый после даты вопроса приходит тянущимся: будущего ответ не знает. Ответ на дату
+     запоминается: одна дата — одно обращение, сколько бы эпизодов ни читали строки. */
+  spellCalls: 0,
+  /* Отпечаток фактов, из которых выводятся эпизоды: кредиты, факты ядра и демо-платежи. */
+  factsStamp(){
+    const P = (ST.state && ST.state.pays) || {};
+    return JSON.stringify([(WORLD['obj-credit'] || []).map(c => [c.id, c.f.cdate, c.f.cur, c.f.amount, c.k]),
+      SPELL_FACTS, Object.keys(P).sort().map(k => [k, P[k].map(p => [p.date, p.amount])])]);
+  },
+  spellsAt(dateISO){
+    const key = dateISO+'|'+CORE.factsStamp();
+    if(SPELL_CACHE.has(key)) return SPELL_CACHE.get(key);
+    CORE.calls++; CORE.spellCalls++;
+    const list = [];
+    (WORLD['obj-credit'] || []).forEach(item => {
+      if(item.f.cdate <= dateISO) CORE.spellsOf(item, dateISO).forEach(x => list.push(x));
+    });
+    const items = list.map(x => ({id: x.id, f: {credit: x.credit, layer: x.layer, court: x.court, from: x.from,
+      cur: x.cur, legacy: x.legacy}, h: {}, k: {}}));
+    const ans = {spells: list, items, byId: list.reduce((m, x) => (m[x.id] = x, m), {})};
+    /* Кэш ограничен: каждый демо-платёж даёт новые ключи. */
+    if(SPELL_CACHE.size > 600){ SPELL_CACHE.clear(); PEAK_CACHE.clear(); }
+    SPELL_CACHE.set(key, ans);
+    return ans;
+  },
+  spellItems(dateISO){ return CORE.spellsAt(dateISO).items; },
+  spellsOf(item, dateISO){
+    const F = SPELL_FACTS[item.id] || {};
+    const [base, per30] = (item.k || {}).daysOverdue || [0, 0];
+    /* Срок самого раннего неоплаченного обязательства по линейной модели — день, где дни просрочки равны нулю. */
+    const due = per30 > 0 ? dayShift(ANCHOR, -Math.round(base * 30 / per30)) : base > 0 ? dayShift(ANCHOR, -base) : null;
+    const cure = CORE.cureOf(item);
+    const raw = (F.past || []).map(x => ({layer:'свободный', court:null, from: x.from, to: x.to, by: x.by}));
+    const from = F.start ? F.start.from : due;
+    if(from && F.court && cure && cure <= F.court.on){
+      raw.push({layer:'свободный', court:null, from, to: cure, by:'погашением', disputed: F.disputed});
+    } else if(from && F.court){
+      raw.push({layer:'свободный', court:null, from, to: F.court.on, by:'переводом в другой слой', disputed: F.disputed});
+      raw.push({layer:'по решению суда', court: F.court.name, from: F.court.on, to: cure, by: cure ? 'погашением' : null});
+    } else if(from) raw.push({layer:'свободный', court:null, from, to: cure, by: cure ? 'погашением' : null, disputed: F.disputed});
+    /* В день срока просроченной части ещё нет — эпизод открыт со следующего дня; у слоя суда долг переходит
+       уже просроченным, и эпизод открыт в день решения. */
+    return raw.filter(x => x.court ? x.from <= dateISO : x.from < dateISO).map(x => {
+      const closed = !!x.to && x.to <= dateISO;
+      /* День закрытия в эпизод не входит — ни в длительность, ни в пик. */
+      const days = daysBetween(x.from, closed ? x.to : dateISO);
+      return {id: item.id+' · '+(x.court ? 'суд № '+x.court : 'свободный')+' · '+fmt(x.from),
+        credit: item.id, layer: x.layer, court: x.court, from: x.from, cur: item.f.cur || 'KGS', legacy: false,
+        state: closed ? 'закрыт' : 'тянется', closedBy: closed ? x.by : null, to: closed ? x.to : null,
+        days, disputedDays: Math.min(days, x.disputed || 0),
+        peak: CORE.spellPeak(item, x, closed ? dayShift(x.to, -1) : dateISO)};
+    });
+  },
+  /* Пик — наибольшая просроченная часть на конец дня с начала эпизода по `upto`; считается один раз на эпизод и день. */
+  spellPeak(item, x, upto){
+    if(upto < x.from) return 0;
+    const key = item.id+'|'+x.from+'|'+CORE.factsStamp();
+    if(!PEAK_CACHE.has(key)) PEAK_CACHE.set(key, {upto: dayShift(x.from, -1), max: 0, at: {}});
+    const m = PEAK_CACHE.get(key);
+    while(m.upto < upto){
+      m.upto = dayShift(m.upto, 1);
+      m.max = Math.max(m.max, CORE.debtParts(item, m.upto).overdue);
+      m.at[m.upto] = m.max;
+    }
+    return m.at[upto] != null ? m.at[upto] : m.max;
+  },
+  /* Чтение строки эпизода: клетки из запомненного ответа на дату. Эпизода нет в ответе — клеток нет. */
+  overdueSpells(item, dateISO){
+    const x = CORE.spellsAt(dateISO).byId[item.id];
+    if(!x) return null;
+    return {state: {value: x.state}, closedBy: {value: x.closedBy}, to: {value: x.to},
+      days: {value: x.days}, disputedDays: {value: x.disputedDays}, peak: CORE.cell(item, x.peak, dateISO)};
   },
   calcAccrual(item, dateISO){ CORE.calls++;
     return {interest: CORE.flowCell(item, d => CORE.grow(item, 'interest', d), dateISO)}; },
@@ -2328,6 +2453,7 @@ const CORE = {
     calcAllocation:['issuedTotal','repaidTotal'],
     calcCoverage:  ['secured','liquid','riskSum','required','state'],
     calcForecast:  ['expected','fullInDays'],
+    overdueSpells: ['state','closedBy','to','days','disputedDays','peak'],
     calcAccrual:   ['interest'],
     riskCategory:  ['category','subgroup'],
     payAlloc:      ['collection','charges','principal','interest','penalty','judicial','free'],
@@ -2410,6 +2536,10 @@ const CORE = {
 };
 ST.coreCalls = () => CORE.calls;
 ST.resetCoreCalls = () => { CORE.calls = 0; };
+ST.spellCalls = () => CORE.spellCalls;
+/* Сброс запомненных ответов ядра об эпизодах: следующий вопрос на дату — снова обращение к ядру. */
+ST.resetSpells = () => { CORE.spellCalls = 0; SPELL_CACHE.clear(); PEAK_CACHE.clear(); };
+ST.spellsAt = dateISO => clone(CORE.spellsAt(dateISO).spells);
 /* ======================= РЕЕСТР: ДОСТУП ============================= */
 const clone = x => JSON.parse(JSON.stringify(x));
 const uniq = a => a.filter((x,i) => a.indexOf(x) === i);
@@ -2533,8 +2663,6 @@ const RELEASE = {id:'макет · миграция № 1', tables:{
     ['object_id','target_id','slice_date','run_id','src_curation','src_detail','is_partial','now_cols','cur','rate','rate_date'],
     {ref:['d_kind','d_outcome','d_reg_unit','d_reg_unit_parent','d_reg_curator'],
      code:['d_mstate'], id:['d_credit'], bool:['d_primary'], money_cur:['i_claim']})},
-  /* Таблица есть и у «Эпизода просрочки», хотя строк в неё не пишет никто: объект
-     создаётся таблицей строк, а метода API у модуля-владельца нет — это и значит `pending`. */
   'obj-app':        {table:'stat_row_app',        storage:'state',       cols: relCols(
     ['object_id','slice_date','run_id','src_app','src_detail','is_partial','now_cols','cur','rate','rate_date'],
     {ref:['d_unit','d_unit_parent','d_spec','d_program','d_terr_region','d_terr_district','d_borrower'],
@@ -2559,8 +2687,8 @@ const RELEASE = {id:'макет · миграция № 1', tables:{
      int:['i_tenure_days'], num:['i_rate']})},
   'obj-odue':       {table:'stat_row_overdue_spell', storage:'state',    cols: relCols(
     ['object_id','slice_date','run_id','src_core','src_detail','is_partial','now_cols','cur','rate','rate_date'],
-    {ref:['d_credit'], code:['d_layer','d_state'], date:['d_from'],
-     money_cur:['i_peak'], int:['i_days']})}
+    {ref:['d_credit'], code:['d_layer','d_state','d_closed_by'], date:['d_from','d_to'], bool:['d_legacy_start'],
+     money_cur:['i_peak'], int:['i_days','i_disputed_days']})}
 }};
 /* ЗАКРЫТЫЙ СЛОВАРЬ — СПИСОК ЗНАЧЕНИЙ В РЕЛИЗЕ. Колонка вида `code` — `text` + CHECK: значения задаёт модель, и новое значение приходит релизом вместе с правкой модели, а не записью реестра. */
 const RELEASE_CHECKS = {
@@ -2601,7 +2729,8 @@ const RELEASE_CHECKS = {
                      d_acct:['активна','заблокирована','не заведена'],
                      d_assign_kind:['основное','совмещение','и.о.']},
   'obj-odue':       {d_layer:['свободный','по решению суда'],
-                     d_state:['тянется','вылечен']}
+                     d_state:['тянется','закрыт'],
+                     d_closed_by:['погашением','списанием','реструктуризацией','переводом в другой слой','закрытием кредита']}
 };
 Object.keys(RELEASE.tables).forEach(o => { RELEASE.tables[o].checks = clone(RELEASE_CHECKS[o] || {}); });
 /* Физические колонки записи. */
@@ -3188,7 +3317,7 @@ function lastRowBefore(st, objId, ref, dateISO){
 /* Счётчики записываются поимённо и одними и теми же полями у обеих функций записи строки — прогона и закрытия периода. `partial` и `filled` — сколько строк записано неполными и сколько дозаполнено; `skip` — «не названа, не обходилась» (у ретро и дневного пересчёта); `written` — записано всего. */
 function newTally(){ return {n:0, kept:0, unborn:0, noborn:0, same:0, born:0, have:0,
                              partial:0, skip:0, written:0, corr:0, marks:0,
-                             rewrote:[], filled:[], created:[]}; }
+                             rewrote:[], filled:[], created:[], dropped:[]}; }
 /* Счётчики по способу хранения: `new_rows` (новые строки событий) и `corr_rows` (поправки) — только у событий, `markers` — у всех. */
 function partOf(o, t){
   const store = storageOf(o.id), ev = store === 'event_delta' || store === 'event_full';
@@ -3196,11 +3325,11 @@ function partOf(o, t){
           same: t.same, born: t.born, have: t.have, partial: t.partial, skip: t.skip,
           written: t.written, rewrote: t.rewrote, filled: t.filled,
           new_rows: ev ? t.born : null, corr_rows: ev ? t.corr : null, markers: t.marks,
-          created: t.created};
+          created: t.created, dropped: t.dropped};
 }
 /* До даты появления строки нет — это третье состояние, не «пусто» и не «ноль». */
-function eachAlive(o, dateISO, t, fn){
-  (WORLD[o.id] || []).forEach(item => {
+function eachAlive(o, dateISO, t, fn, st, silent){
+  listOf(o, dateISO, st, silent).forEach(item => {
     const bornAt = bornOn(o, item, dateISO);
     if(bornAt == null){ t.noborn++; return; }
     /* Объект, появившийся в день X, виден уже в строке за X: строка описывает конец дня. */
@@ -3208,6 +3337,22 @@ function eachAlive(o, dateISO, t, fn){
     fn(item);
   });
 }
+
+/* Список объектов на дату. У объекта, чей список отдаёт метод API (`list`), — ответ этого метода на дату
+   прогона. Владелец списка не ответил — список на дату неизвестен: строку получают объекты, у которых строки
+   уже есть (ключ и неизменные поля — из их последней строки, величины пусты), а новых в прогоне нет. */
+function listOf(o, dateISO, st, silent){
+  if(!o.list) return WORLD[o.id] || [];
+  if(!(silent || {})[o.list.nb]) return CORE.spellItems(dateISO);
+  const last = {};
+  ((st || ST.state).rows || []).forEach(r => {
+    if(r.obj === o.id && r.part == null && r.date <= dateISO && (!last[r.ref] || last[r.ref].date < r.date)) last[r.ref] = r;
+  });
+  const own = o.dims.filter(id => { const d = DIM(id); return d && d.src === 'поле'; });
+  return Object.keys(last).sort().map(ref => ({id: ref, h: {}, k: {},
+    f: own.reduce((f, id) => { const v = last[ref].dims[id]; if(v !== undefined) f[DIM(id).key] = v; return f; }, {})}));
+}
+ST.listOf = (objId, dateISO, silent) => clone(listOf(OBJ(objId), dateISO, ST.state, silent || null));
 
 /* ========== ДНЁМ: ЖУРНАЛ ИЗМЕНЕНИЙ И ОБЪЕКТЫ К ПЕРЕСЧЁТУ ========== */
 /* Ночью отбора нет — полный обход. Днём строку сегодняшнего дня пересчитывают кандидаты — объединение четырёх множеств (ИС-48): названные источником, со сменившимся разрезом, связанные с изменившимся через правило `via`, поставленные в очередь явно. */
@@ -3946,9 +4091,21 @@ function closeDay(st, D, silent){
       p.missed.push({ref: item.id, fields: sp.rewrote, date: D, nbs, nightOnly: !counted.length});
       counted.forEach(nb => { out.missed[nb] = (out.missed[nb] || 0) + 1; });
       if(!counted.length) out.nightOnly++;
-    });
+    }, st, silent);
   });
   return out;
+}
+/* Объект ушёл из списка владельца задним числом (поправка сдвинула начало — у владельца другой объект):
+   на эти даты такого объекта не было, и его строки открытого месяца по дату прогона снимаются с записью в
+   журнал перезаписи. Строки закрытых месяцев не трогаются — их бережёт проверка записи, а расхождение
+   показывает маркер закрытой строки. Владелец списка молчит — ушедших не бывает: список взят из строк. */
+function dropVanished(st, o, dateISO, silent, t){
+  if((silent || {})[o.list.nb]) return;
+  const alive = {};
+  listOf(o, dateISO, st, silent).forEach(x => { alive[x.id] = true; });
+  const gone = st.rows.filter(r => r.obj === o.id && r.part == null && !r.fixed && !alive[r.ref] &&
+    r.date <= dateISO && !preLaunch(r.date) && !ST.isClosed(r.date));
+  gone.forEach(r => { if(dropRow(st, r).ok) t.dropped.push({ref: r.ref, date: r.date}); });
 }
 /* Сборка строк на дату: ночью — полный обход, у ретро и дневного пересчёта — названные записи. Возвращает счётчики по объектам; запись в журнал прогонов — у вызывающего. */
 function runParts(st, dateISO, silent, how){
@@ -3963,7 +4120,7 @@ function runParts(st, dateISO, silent, how){
     /* Событие записывается своим путём: исходная строка, правка на месте в месяце строки, поправка и маркер — из другого месяца, открыт он или закрыт. */
     if(store === 'event_delta' || store === 'event_full'){
       const night = store === 'event_delta' ? deltaNight : fullNight;
-      eachAlive(o, dateISO, t, item => { written += night(st, o, item, dateISO, cand, silent, t); });
+      eachAlive(o, dateISO, t, item => { written += night(st, o, item, dateISO, cand, silent, t); }, st, silent);
       parts.push(partOf(o, t)); return;
     }
     eachAlive(o, dateISO, t, item => {
@@ -4007,13 +4164,45 @@ function runParts(st, dateISO, silent, how){
       if(!prev) t.born++;
       if(fill.length) t.filled.push({ref: item.id, fields: fill});
       t.n++; t.written++; written++; if(part) t.partial++;
-    });
+    }, st, silent);
+    if(o.list && cand.full) dropVanished(st, o, dateISO, silent, t);
     parts.push(partOf(o, t));
   });
   /* Маркеры, поставленные записями журнала изменений в этом прогоне, — его счётчик `markers`. */
   if(how.marks) parts.forEach(p => { p.markers += how.marks[p.obj] || 0; });
   return {written, parts, cand};
 }
+/* СВЕРКА ЭПИЗОДОВ СО СТРОКОЙ КРЕДИТА на дату прогона. Одно у них общее — «в просрочке»: кредит в просрочке
+   тогда и только тогда, когда у него тянется эпизод. У кредита без слоя суда самый ранний тянущийся эпизод
+   не короче дней просрочки: дни считаются от самого раннего неоплаченного срока, длительность — от начала
+   непрерывной просрочки, и при частичном погашении они законно расходятся, поэтому равенства нет. Нарушение
+   — реквизит прогона с перечнем кредитов: число не подменяется, и прогон не падает — это качество ответа
+   источника, а не сбой записи. Неполные строки не сверяются. */
+function spellTieOf(st, D){
+  const own = r => r.date === D && r.part == null;
+  const credits = st.rows.filter(r => r.obj === 'obj-credit' && own(r));
+  const spells = st.rows.filter(r => r.obj === 'obj-odue' && own(r));
+  if(!spells.length && !credits.length) return null;
+  const out = {date: D, checked: 0, skipped: 0, bad: []};
+  credits.forEach(c => {
+    const mine = spells.filter(x => x.dims['d-ocredit'] === c.ref);
+    if(silentOf(c).length || mine.some(x => silentOf(x).length) || !c.inds['m-odays']){ out.skipped++; return; }
+    out.checked++;
+    const days = c.inds['m-odays'].v || 0;
+    const open = mine.filter(x => x.dims['d-ostate'] === 'тянется')
+      .sort((a, b) => a.dims['d-ofrom'] < b.dims['d-ofrom'] ? -1 : a.dims['d-ofrom'] > b.dims['d-ofrom'] ? 1 : 0);
+    const first = open[0] || null;
+    const court = mine.some(x => x.dims['d-olayer'] === 'по решению суда');
+    const len = first && first.inds['m-oedays'] ? first.inds['m-oedays'].v : 0;
+    if((days > 0) !== !!first)
+      out.bad.push({credit: c.ref, why: days > 0 ? 'в просрочке '+days+' дн., а тянущегося эпизода нет'
+                                                : 'просрочки нет, а эпизод тянется с '+fmt(first.dims['d-ofrom'])});
+    else if(first && !court && len < days)
+      out.bad.push({credit: c.ref, why: 'эпизод длится '+len+' дн., а дней просрочки '+days});
+  });
+  return out;
+}
+ST.spellTie = dateISO => clone(spellTieOf(ST.state, dateISO));
 function doRun(st, dateISO, kind, actor, reason, silent, how){
   how = how || {};
   /* Ночной прогон за сутки N сначала закрывает сутки N−1, затем открывает сутки N. */
@@ -4030,7 +4219,9 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
     /* Состав обхода — реквизит прогона: ночью полный, у ретро — названные записи. */
     cand: candSummary(cand),
     /* Закрытие вчерашних суток: сколько строк переписано и `missed` по источникам. */
-    closed: closed ? {date: closed.date, rows: closed.rows, missed: closed.missed, nightOnly: closed.nightOnly, filled: closed.filled} : null});
+    closed: closed ? {date: closed.date, rows: closed.rows, missed: closed.missed, nightOnly: closed.nightOnly, filled: closed.filled} : null,
+    /* Сверка списка объекта со строками его владельца — реквизит прогона, в сверку счётчиков она не входит. */
+    spellTie: spellTieOf(st, dateISO)});
   reconcileRun(st, st.runs.length - 1);
   /* `T` сдвигает только ночной прогон: догон и прогон после открытия периода удостоверяют прошлую дату, и сдвиг `T` заставил бы следующий прогон запрашивать источник с уже пройденной даты. */
   if(!how.keepT) NEIGHBOURS.forEach(nb => {
@@ -4157,7 +4348,7 @@ function repoll(st, month, who, atISO, silent){
       if(sp.rewrote.length) t.rewrote.push({ref: item.id, fields: sp.rewrote});
       if(sp.filled.length)  t.filled.push({ref: item.id, fields: sp.filled});
       t.n++; t.written++; again++; written++;
-    });
+    }, st, silent);
     parts.push(partOf(o, t));
   });
   /* Запись в журнал делается всегда: повторный запрос состоялся, даже если закончился отказом, — «запрос без ответа» и «закрытие не пробовали» — разные события. */
@@ -4573,7 +4764,7 @@ function defineViews(st){
 const SEED_CACHE = new Map(), SEED_STAT = {hits: 0, misses: 0};
 /* Вход сборки — ровно те данные модуля, которые читает `seed`. */
 const SEED_INPUTS = () => ({WORLD, OBJECTS, REF, RATES, LEGACY, NEIGHBOURS, REGISTRY, RELEASE, VTYPES,
-  COLL_K, SURVEY_MATRIX, PAY_SPLIT, PAY_LAYER, ARTICLES, BANKRUPT_SUBGROUPS,
+  COLL_K, SURVEY_MATRIX, PAY_SPLIT, PAY_LAYER, ARTICLES, BANKRUPT_SUBGROUPS, SPELL_FACTS,
   'CORE.DATING': CORE.DATING, 'CORE.SOM_ROUNDING': CORE.SOM_ROUNDING,
   KIND, DATING, FORM, LAYERS, MON, NIGHTLY, NIGHT_KINDS, CAND_SRC, FLAT_TYPES, CUR_DIM, SOURCE_STATES});
 const seedPrint = () => JSON.stringify(SEED_INPUTS());
@@ -4980,6 +5171,8 @@ function rewriteLog(st){
     (p.filled || []).forEach(x => put(x, 'backfill'));
     /* Закрытие суток ночным прогоном: изменение, о котором источник днём не сообщил. */
     (p.missed || []).forEach(x => put(x, 'missed'));
+    /* Снятая строка ушедшего из списка объекта — поправка источника задним числом. */
+    (p.dropped || []).forEach(x => { put(x, 'retro'); out[out.length - 1].dropped = true; });
   }));
   /* Дневной прогон `live`: правки строки сегодняшнего дня. */
   (st.lives || []).forEach(L => L.parts.forEach(p => {
@@ -7429,6 +7622,9 @@ function viewJournal(){
           ((x.missed || []).length ? ' <span class="pill err">missed '+x.missed.length+'</span>' : '')+
           /* «Не обойдено» и «без изменений» считаются отдельно: первое — объект не проверяли, второе — проверили, состояние прежнее. */
           (x.skip ? ' <span class="pill neutral">не обойдено '+x.skip+'</span>' : '')+
+          /* Ушёл из списка владельца задним числом — строки открытого месяца сняты. */
+          ((x.dropped || []).length ? ' <span class="pill warn">снято строк '+x.dropped.length+': '+
+            esc(uniq(x.dropped.map(w => w.ref)).join(', '))+'</span>' : '')+
           (x.kept ? ' <span class="muted">(+'+x.kept+' в закрытом периоде)</span>' : '')).join(' · ') || '<span class="muted">правок не было</span>'
       : '<span class="muted">—</span>')+'</td>';
   /* Ночной прогон показывает два шага: закрытие вчерашних суток со счётчиком missed по источникам и обход сегодняшних. */
@@ -7448,9 +7644,16 @@ function viewJournal(){
       : '<span class="pill err">повторный запрос без ответа: '+
         esc(r.repoll.nbs.filter(n => !n.ok).map(n => n.name+' — '+n.reason).join(' · '))+
         '</span><br><span class="small muted">строки не тронуты: опрос идёт прежде записи</span>');
+    /* Сверка эпизодов просрочки со строками кредитов: сколько кредитов сверено и какие разошлись. */
+    const tie = r.spellTie;
+    const tieHtml = !tie ? '' : '<br>'+(tie.bad.length
+      ? '<span class="pill warn">сверка эпизодов: расхождений '+tie.bad.length+'</span><br><span class="small">'+
+        esc(tie.bad.map(b => b.credit+' — '+b.why).join(' · '))+'</span>'
+      : '<span class="pill ok">сверка эпизодов: '+tie.checked+' '+plural(tie.checked,'кредит','кредита','кредитов')+', расхождений нет</span>')+
+      (tie.skipped ? ' <span class="pill neutral">не сверено '+tie.skipped+'</span>' : '');
     return '<td class="small">'+(r.cand.scan === 'полный'
       ? '<span class="pill ok">обход полный</span><br><span class="small muted">'+esc(r.cand.why || '')+'</span>'
-      : '<b>'+r.cand.n+'</b> <span class="muted">названных записей</span>')+closedHtml+repollHtml+'</td>';
+      : '<b>'+r.cand.n+'</b> <span class="muted">названных записей</span>')+closedHtml+repollHtml+tieHtml+'</td>';
   };
   /* Дневной прогон live — строка журнала рядом с ночным той же даты: объекты к пересчёту по четырём множествам. */
   const liveRow = L => '<tr>'+

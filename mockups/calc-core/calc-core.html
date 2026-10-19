@@ -7,7 +7,7 @@
 <!--
   РАСЧЁТНОЕ ЯДРО (single-file) — КАНОН движка начислений АСУБК.
   Экран у ядра ОДИН — журнал фиксаций (ADR-0135 §6, ADR-0136): он показывает не расчёт,
-  а хранимое. Остальное здесь — стенд: восемь именованных швов, вызванных на живых
+  а хранимое. Остальное здесь — стенд: девять именованных швов, вызванных на живых
   кредитах, чтобы движок читался и проверялся отдельно от карточки.
 
   ЗАЧЕМ ЯДРО ВЫДЕЛЕНО. Движок начисления жил внутри `mockups/loan-credit/credit.html`
@@ -63,7 +63,10 @@
   ADR-0124 вычислитель один, потребители читают через шов;
   ADR-0128 §2 границу отрезка ставит правило; ADR-0129 критическая дата — ось расчёта.
 
-  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-13, ИЯ-20…ИЯ-22)
+  ADR-0318 эпизод просрочки — по слою, склеивается из проекции; дни просрочки и
+           длительность эпизода — две величины одного построения (девятый шов).
+
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-13, ИЯ-20…ИЯ-22, ИЯ-24)
   ИЯ-1  Ядро хранит только то, что перестраивается из фактов С НУЛЯ, — журнал фиксаций
         и расчётную проекцию (редакция 3 ТЗ, ADR-0192; прежняя редакция «не хранит
         ничего» отменена волной 6). Отвечать из хранимой производной как из истины
@@ -103,6 +106,10 @@
   ИЯ-22 В проекции хранятся только ПОТОКИ; всякий уровень выводится вычитанием, всякий
         переход между ячейками — тоже поток. Разность двух уровней занижает поток ровно
         на отток и делает это молча.
+  ИЯ-24 «В просрочке» — одно правило для среза долга и для эпизода просрочки: срез в
+        просрочке тогда и только тогда, когда открыт эпизод; начало эпизода не позже даты
+        выхода, длительность не меньше дней просрочки (ADR-0318). Дни и длительность
+        законно расходятся при частичном погашении, «в просрочке ли кредит» — нет.
   (ИЯ-14…ИЯ-19 живут в ТЗ и относятся к зеркалу, конверту и портфельному шву — в этом
   прототипе их предметов пока нет.)
 
@@ -327,7 +334,7 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
     <div class="brand">АСУБК<small>Расчётное ядро · стенд канона</small></div>
     <nav class="nav" id="nav">
       <div class="nav-sec">Швы</div>
-      <button class="nav-item active" data-v="seams">Восемь швов</button>
+      <button class="nav-item active" data-v="seams">Девять швов</button>
       <button class="nav-item" data-v="accrual">Начисление<span class="cnt" id="cnt-accrual"></span></button>
       <button class="nav-item" data-v="debt">Долг на дату</button>
       <button class="nav-item" data-v="alloc">Разнесение<span class="cnt" id="cnt-alloc"></span></button>
@@ -335,6 +342,7 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
       <button class="nav-item" data-v="fcast">Прогноз</button>
       <button class="nav-item" data-v="portfolio">Портфель<span class="cnt" id="cnt-pf"></span></button>
       <button class="nav-item" data-v="objects">Перечисление «сейчас»<span class="cnt" id="cnt-obj"></span></button>
+      <button class="nav-item" data-v="spells">Эпизоды просрочки<span class="cnt" id="cnt-spells"></span></button>
       <div class="nav-sec">Хранимое</div>
       <button class="nav-item" data-v="fix">Журнал фиксаций<span class="cnt" id="cnt-fix"></span></button>
       <button class="nav-item" data-v="proj">Расчётная проекция<span class="cnt" id="cnt-proj"></span></button>
@@ -350,7 +358,7 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
 
   <main class="main">
     <div class="topbar">
-      <div class="crumb-title" id="crumb">Восемь швов</div>
+      <div class="crumb-title" id="crumb">Девять швов</div>
       <div class="right">
         <label for="sel-credit">Кредит</label>
         <select id="sel-credit"></select>
@@ -361,7 +369,7 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
     <div class="content"><div class="panel-wrap">
 
       <section class="view active" id="v-seams">
-        <div class="section-h">Восемь швов — по вопросу, а не по потребителю</div>
+        <div class="section-h">Девять швов — по вопросу, а не по потребителю</div>
         <p class="page-lead">Каждый шов отвечает на свой вопрос и все они читают одно
         построение, поэтому разойтись числами не могут (ИЯ-5). Потребителей у шва может
         быть сколько угодно: взыскание и кредит спрашивают «сколько должен» одним и тем же
@@ -770,6 +778,36 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
         здесь ограничена <b>числом отданных строк</b>, а не размером отбора, — и ограничена
         она порогом. Норма ADR-0191 про обращения живёт у портфельного шва, где ответ один,
         а кредитов восемьдесят тысяч.</p>
+      </section>
+
+      <section class="view" id="v-spells">
+        <div class="section-h">Эпизоды просрочки — сколько раз и как надолго</div>
+        <p class="page-lead">Срез долга отвечает «сколько и с какого срока должен <b>на дату</b>».
+        Эпизод отвечает о <b>периодах</b>: отрезок, на котором у слоя долга непрерывно есть
+        просроченная часть. Слой — свободный и по каждому решению суда; основной долг, проценты
+        и пеня одного слоя — один эпизод. Эпизоды не хранятся: шов склеивает их из строк
+        расчётной проекции на время ответа.</p>
+        <div class="btn-row">
+          <button class="btn btn-sm btn-secondary" id="sp-cure">К-7: погасить просрочку 20.04.2026</button>
+          <button class="btn btn-sm btn-secondary" id="sp-court">Провести решение суда по К-4</button>
+        </div>
+        <p class="note" id="sp-msg"></p>
+
+        <div class="section-h">Эпизоды портфеля</div>
+        <p class="note" id="sp-lead"></p>
+        <div class="scroll-x"><table class="t" id="tb-spells"></table></div>
+
+        <div class="section-h">Кредиты в ответе</div>
+        <div class="scroll-x"><table class="t" id="tb-spcredits"></table></div>
+        <p class="note" id="sp-env"></p>
+
+        <div class="section-h">Дни просрочки и длительность эпизода — на дату среза</div>
+        <p class="page-lead">Дни просрочки считаются от срока самого раннего неоплаченного
+        обязательства, длительность эпизода — от начала непрерывной просрочки. Частичное
+        погашение гасит самый ранний срок, и дата выхода сдвигается вперёд, а просрочка не
+        прерывалась — поэтому числа расходятся. Расходиться не может одно: в просрочке ли
+        кредит на эту дату.</p>
+        <div class="scroll-x"><table class="t" id="tb-sptie"></table></div>
       </section>
 
       <section class="view" id="v-mirrors">
@@ -4903,6 +4941,185 @@ function objectRows(kind, opts){
 }
 
 /* ============================================================================
+   ШОВ 9 · «СКОЛЬКО РАЗ И КАК НАДОЛГО БЫЛ В ПРОСРОЧКЕ» — overdueSpells (ADR-0318)
+
+   Прежние швы отвечают «сколько на дату». Этот — про ПЕРИОДЫ: эпизод просрочки есть
+   отрезок, на котором у СЛОЯ непрерывно есть просроченная часть. Слой — свободный и по
+   каждому решению суда; статьи слоя склеиваются в один эпизод: позиция графика уходит в
+   просрочку целиком, и основной долг с процентами одного неплатежа — один выход, а не два.
+
+   ИСТОЧНИК — ПРОЕКЦИЯ, ХРАНИЛИЩА НЕТ (ИЯ-1). Просроченная часть слоя на дату — пятое
+   тождество по ячейкам слоя. Границы эпизода — всегда критические даты: просрочка
+   появляется сроком позиции и уходит платежом, списанием, переносом, закрытием, а между
+   строками растёт только пеня — скоростью. Поэтому склейка идёт по строкам, без подневного
+   обхода, и эпизод живёт ровно столько, сколько длится ответ.
+
+   Имя без префикса `calc`: оно пришло заявкой статистики и стоит в её отказах.
+   ============================================================================ */
+
+/* Причина закрытия — по потокам дня закрытия; несколько в один день — по старшинству.
+   Перевод в другой слой стоит выше погашения: долг не вылечен, он ушёл под решение суда. */
+const SPELL_REASONS = ['списанием', 'реструктуризацией', 'переводом в другой слой', 'погашением'];
+const SPELL_CLOSED_CREDIT = 'закрытием кредита';
+
+/* просроченная часть слоя на дату по последним строкам его ячеек (тождества 2 и 4) */
+function spellLevelAt(last, day){
+  let s = 0, speed = 0;
+  for (const r of last.values()){
+    s += r.toOverdue + r.perDayOverdue * dd(pd(r.date), pd(day)) - r.fromOverdue;
+    speed += r.perDayOverdue;
+  }
+  return { level:s, speed };
+}
+
+/* что сдвинулось в слое на дате: сумма приращений одометров по ячейкам, у которых на
+   этой дате есть строка */
+function spellFlowsAt(prev, rows){
+  const f = { repaid:0, writtenOff:0, transferOut:0, transferIn:0 };
+  for (const r of rows){
+    const p = prev.get(r.article) || { repaid:0, writtenOff:0, transferOut:0, transferIn:0 };
+    f.repaid += r.repaid - p.repaid;           f.writtenOff += r.writtenOff - p.writtenOff;
+    f.transferOut += r.transferOut - p.transferOut; f.transferIn += r.transferIn - p.transferIn;
+  }
+  return f;
+}
+function spellReasonOf(f){
+  const on = x => x > 0.005;
+  const moved = f.transferOut - f.transferIn;           // ушло из слоя за его пределы
+  const hit = { 'списанием':on(f.writtenOff),
+    'реструктуризацией':on(f.transferOut) && on(f.transferIn),   // перенос внутри слоя
+    'переводом в другой слой':on(moved), 'погашением':on(f.repaid) };
+  return SPELL_REASONS.find(k => hit[k]) || null;
+}
+
+/* ЭПИЗОДЫ ОДНОГО КРЕДИТА из строк его действующего поколения, не позже даты вопроса.
+   Закрытое ПОСЛЕ даты вопроса приходит тянущимся: будущего ответ не знает. */
+function spellsOfRows(credit, rows, to){
+  const lim = pd(to);
+  const closeAt = credit.closure && credit.closure.reason && credit.closure.date
+    && pd(credit.closure.date) <= lim ? credit.closure.date : null;
+  const wins = disputeWindows(credit);
+  const byLayer = new Map();
+  for (const r of rows){
+    let L = byLayer.get(r.layer); if (!L){ L = new Map(); byLayer.set(r.layer, L); }
+    let list = L.get(r.date); if (!list){ list = []; L.set(r.date, list); }
+    list.push(r);
+  }
+  const out = [];
+  for (const [layer, byDate] of byLayer){
+    const dates = Array.from(byDate.keys()).sort((a, b) => pd(a) - pd(b));
+    const last = new Map();
+    let cur = null;
+    const close = (s, on, reason) => {
+      s.to = on; s.closedBy = reason; s.days = dd(pd(s.from), pd(on));
+      out.push(s); cur = null;
+    };
+    const bump = (s, v, on) => { if (v > s.peak + 0.005){ s.peak = v; s.peakOn = on; } };
+    for (let i = 0; i < dates.length; i++){
+      const D = dates[i];
+      if (closeAt && pd(D) > pd(closeAt)) break;      // после закрытия кредита выводимое замерло
+      const prev = new Map(Array.from(last.entries()).map(([k, r]) => [k, r]));
+      for (const r of byDate.get(D)) last.set(r.article, r);
+      const { level, speed } = spellLevelAt(last, D);
+      const open = round2(level) > 0;
+      const onClose = !!closeAt && D === closeAt;
+      if (cur && !open){ close(cur, D, spellReasonOf(spellFlowsAt(prev, byDate.get(D)))
+        || (onClose ? SPELL_CLOSED_CREDIT : null)); continue; }
+      if (!cur && open && !onClose)
+        cur = { credit:credit.id, layer, layerKind:layer === PROJ_FREE ? 'свободный' : 'по решению суда',
+                from:D, to:null, closedBy:null, days:0, peak:0, peakOn:D, currency:rows[0].currency };
+      if (!cur) continue;
+      if (onClose){                                    // закрытый кредит закрывает эпизод своей датой;
+        close(cur, D, spellReasonOf(spellFlowsAt(prev, byDate.get(D))) || SPELL_CLOSED_CREDIT); continue;
+      }                                                // день закрытия в эпизод не входит — и в пик тоже
+      bump(cur, round2(level), D);
+      /* накануне следующей строки (или на дату вопроса) пеня успела дорасти — пик бывает и там;
+         у закрытого кредита последний день эпизода — канун закрытия */
+      const next = i + 1 < dates.length ? dates[i + 1] : null;
+      let edge = next ? addDays(next, -1) : to;
+      if (closeAt && pd(edge) >= pd(closeAt)) edge = addDays(closeAt, -1);
+      if (speed > 0 && pd(edge) > pd(D)) bump(cur, round2(level + speed * dd(pd(D), pd(edge))), edge);
+    }
+    if (cur && closeAt) close(cur, closeAt, SPELL_CLOSED_CREDIT);
+    if (cur){ cur.days = dd(pd(cur.from), lim); out.push(cur); }
+  }
+  for (const s of out){
+    s.state = s.to ? 'закрыт' : 'тянется';
+    s.cured = s.closedBy === 'погашением';
+    s.disputedDays = Math.min(s.days, daysInWindows(pd(s.from), s.to ? pd(s.to) : lim, wins));
+  }
+  const lk = s => (s.layer === PROJ_FREE ? '' : s.layer);     // свободный первым, слои суда по имени
+  return out.sort((a, b) => pd(a.from) - pd(b.from) || (lk(a) < lk(b) ? -1 : lk(a) > lk(b) ? 1 : 0));
+}
+/* pd запоминает даты — сдвигается копия, иначе испортилась бы память разбора */
+function addDays(d, n){ const t = new Date(pd(d).getTime()); t.setDate(t.getDate() + n); return fd(t); }
+
+/* ШОВ: множество кредитов и отрезок дат. ОДНО обращение на весь отбор (ИЯ-20). Ответ —
+   эпизоды, пересекающие отрезок, целиком, с настоящей датой начала. «Эпизодов нет» и
+   «не посчитано» различаются: первое — строка кредита с нулём, второе — выпавший с
+   причиной (ИЯ-14). */
+function overdueSpells(credits, opts){
+  const o = opts || {}, to = o.to || TODAY, from = o.from || null, lim = pd(to);
+  _projQueries++;
+  const byId = new Map((credits || []).map(c => [c.id, c]));
+  const bag = new Map(), top = new Map(), tops = new Map();
+  for (const id of byId.keys()){ bag.set(id, []); top.set(id, 0); }
+  for (const r of _projection){                     // ← единственный проход
+    if (!byId.has(r.credit) || r.gen > _projGen) continue;
+    if (r.gen > top.get(r.credit)) top.set(r.credit, r.gen);
+    const kk = r.credit + '#' + r.gen, t = tops.get(kk);
+    if (!t || pd(r.date) >= t.d) tops.set(kk, { d:pd(r.date), stamp:r.stamp });
+    if (pd(r.date) <= lim) bag.get(r.credit).push(r);
+  }
+  const spells = [], perCredit = [], dropped = [], stale = [];
+  for (const [id, c] of byId){
+    const gen = top.get(id);
+    if (_projRebuild.has(id)){ dropped.push({ credit:id, refused:'назначено перестроение проекции',
+      order:(_projRebuild.get(id) || {}).order || null }); continue; }
+    if (!gen){ dropped.push({ credit:id, refused:'проекции нет: прогон по кредиту не выполнялся' }); continue; }
+    const run = _projRuns.find(r => r.gen === gen) || {};
+    if (run.on && lim > pd(run.on)){ dropped.push({ credit:id,
+      refused:'дата позже горизонта прогона (' + run.on + ') — будущее отвечает прогноз' }); continue; }
+    if (((tops.get(id + '#' + gen) || {}).stamp || null) !== projStamp(c)) stale.push(id);
+    const rows = bag.get(id).filter(r => r.gen === gen);
+    const mine = rows.length ? spellsOfRows(c, rows, to)
+      .filter(s => !from || !s.to || pd(s.to) > pd(from)) : [];
+    for (const s of mine) spells.push(s);
+    perCredit.push({ credit:id, count:mine.length, open:mine.filter(s => !s.to).length,
+      state:mine.length ? 'есть эпизоды' : (rows.length ? 'эпизодов нет' : 'кредита ещё не было') });
+  }
+  const problems = stale.length ? [envProblem('mirrorStale', 'вход изменился после прогона: эпизоды '
+    + 'склеены по старым фактам, пока прогон не подберёт кредит из очереди', stale)] : [];
+  return envelope({ from, to, currency:null, problems, periods:o.periods,
+    body:{ spells, credits:perCredit, dropped,
+      counts:{ asked:byId.size, answered:perCredit.length, dropped:dropped.length,
+               spells:spells.length, open:spells.filter(s => !s.to).length } } });
+}
+
+/* СВЯЗЬ С ДНЯМИ ПРОСРОЧКИ (ИЯ-24). Дни просрочки среза — от срока самого раннего
+   неисполненного обязательства, длительность эпизода — от начала непрерывной просрочки;
+   при частичном погашении они законно расходятся. Одно у них общее и проверяется: «в
+   просрочке» на дату. Дата выхода в срезе пока одна на кредит, не по слою (РЯ-Д10), —
+   поэтому даты сверяются только у кредита без решения суда. */
+function spellTie(credit, on, spells){
+  const d = calcDebt(credit, on), t = pd(on);
+  /* С ДНЯ ЗАКРЫТИЯ КРЕДИТА сверять нечего: эпизод закрыт его датой, а срез отвечает
+     замершим остатком — кредит ушёл, просрочка его больше не тянется. */
+  const cl = credit.closure && credit.closure.reason && credit.closure.date;
+  if (cl && t >= pd(cl)) return { on, closed:cl, inDebt:false, inSpell:false, since:null, days:0,
+    spellFrom:null, spellDays:0, court:false, ok:true };
+  const open = (spells || []).filter(s => s.credit === credit.id && pd(s.from) <= t && (!s.to || pd(s.to) > t));
+  const first = open.slice().sort((a, b) => pd(a.from) - pd(b.from))[0] || null;
+  const court = open.some(s => s.layer !== PROJ_FREE) || ((credit.mirror || {}).court || []).length > 0;
+  const inDebt = !!d.overdue.since, inSpell = !!first;
+  const spellDays = first ? dd(pd(first.from), t) : 0;
+  const datesOk = court || !inDebt || !first
+    || (pd(first.from) <= pd(d.overdue.since) && spellDays >= d.overdue.days);
+  return { on, inDebt, inSpell, since:d.overdue.since, days:d.overdue.days || 0,
+    spellFrom:first ? first.from : null, spellDays, court, ok:inDebt === inSpell && datesOk };
+}
+
+/* ============================================================================
    СТЕНД. Ядру экраны не нужны (ADR-0135 §6) — эта часть существует, чтобы движок
    можно было прочитать и проверить отдельно от карточки кредита. В зеркала она НЕ
    переносится и сторожем не сверяется: сверяется только блок ЯДРА выше.
@@ -5043,7 +5260,8 @@ const SEAMS = [
   ['calcForecast', '(кредит, дата)', 'что будет дальше', 'строки прогноза по траншам и свод по месяцам'],
   ['calcFixation', '(кредит, период)', 'что зафиксировано на границе периода', 'записи журнала, действующая фиксация и сверка её с пересчётом'],
   ['calcPortfolio', '(отбор, вопрос)', 'сколько по отбору — на дату или за период', 'семь статей, разрез по признаку, оборотно-сальдовая ведомость; обращений по форме вопроса'],
-  ['objectRows', '(вид объекта, вопрос)', 'перечисли объекты сейчас', 'объявленные поля владельца и показатели ядра, число скрытого областью видимости, отказ по объёму']
+  ['objectRows', '(вид объекта, вопрос)', 'перечисли объекты сейчас', 'объявленные поля владельца и показатели ядра, число скрытого областью видимости, отказ по объёму'],
+  ['overdueSpells', '(отбор, отрезок дат)', 'сколько раз и как надолго был в просрочке', 'эпизоды по слою долга: начало, закрытие и чем закрыт, длительность, пик с датой; кредит без эпизодов — «эпизодов нет»']
 ];
 
 const BOUNDS = [
@@ -5095,7 +5313,8 @@ function renderSeamRun(){
   /* Седьмой и восьмой швы спрашивают НЕ ОБ ЭТОМ КРЕДИТЕ, поэтому кредит им и не передан:
      портфельному — отбор целиком, перечислению — вид объекта и момент. */
   const pf0 = calcPortfolio(FIXTURE, { on:ON, currency:'KGS' }),
-        ob0 = objectRows('credit', { portfolio:FIXTURE, now:ON + ' 14:05' });
+        ob0 = objectRows('credit', { portfolio:FIXTURE, now:ON + ' 14:05' }),
+        sp0 = overdueSpells([CUR], { to:ON });
   const rows = [
     ['calcAccrual', 'проценты ' + m2(a.total.interest) + ' · пеня ' + m2(a.total.penalty)
       + (a.fee && a.fee.applies ? ' · плата ' + m2(a.fee.accrued) : ''),
@@ -5141,7 +5360,15 @@ function renderSeamRun(){
         + ' · показателей ' + ob0.body.measures.length
       : 'отказ: ' + (ob0.refusal ? ob0.refusal.reason : '—')),
       ob0.answered ? 'скрыто областью видимости: ' + ob0.body.hidden
-        + ' · редакция перечня ' + ob0.body.edition : (ob0.refusal ? ob0.refusal.said : '')]
+        + ' · редакция перечня ' + ob0.body.edition : (ob0.refusal ? ob0.refusal.said : '')],
+    ['overdueSpells', sp0.body.dropped.length
+      ? 'не посчитано: ' + sp0.body.dropped[0].refused
+      : (sp0.body.spells.length
+        ? 'эпизодов ' + sp0.body.spells.length + ' · тянется ' + sp0.body.counts.open
+        : 'эпизодов нет'),
+      sp0.body.spells.length ? sp0.body.spells.map(s => 'с ' + s.from
+        + (s.to ? ' по ' + s.to + ' (' + s.closedBy + ')' : ' — тянется') + ', ' + s.days + ' дн.').join('; ')
+        : 'кредит в просрочке не был']
   ];
   t.appendChild(el('thead', null, '<tr><th>шов</th><th>ответ</th><th>подробности</th></tr>'));
   const tb = el('tbody');
@@ -6371,6 +6598,112 @@ function renderObjects(){
   $('#obj-msg').textContent = OBJ_MSG;
 }
 
+/* ---- ЭПИЗОДЫ ПРОСРОЧКИ ---------------------------------------------------------
+   Отрезок вопроса — вся история стенда по дату среза: эпизод, начавшийся до отрезка,
+   приходит целиком, и с короткими отрезками это видно хуже. Сценарии меняют ФАКТЫ, поэтому
+   после них прогон подбирает кредит из очереди — без прогона шов отвечал бы по старым
+   строкам и честно назвал бы это проблемой «вход изменился после прогона». */
+const SPELL_FROM = '01.01.2023';
+const CURE_DEMO = { num:2, date:'20.04.2026', bindDate:null, currency:null, rate:null, reg:'Импорт ЦК',
+  match:'Подтверждён ЦК', dispute:null, frozen:false, method:'денежными средствами', cure:true };
+const K7 = () => FIXTURE.find(c => c.id === 'K-7');
+const cureDemoOn = () => ((K7().mirror.payments) || []).some(p => p.cure);
+/* сумма платежа — вся просроченная часть К-7 на 20.04.2026: платёж гасит её целиком, и
+   следующий срок, не оплаченный в свой день, открывает НОВЫЙ эпизод того же слоя */
+function cureDemoToggle(){
+  const c = K7(), had = cureDemoOn();
+  if (had) c.mirror.payments = c.mirror.payments.filter(p => !p.cure);
+  else {
+    calcReset();
+    const d = calcDebt(c, CURE_DEMO.date);
+    const amount = round2(PROJ_ARTICLES.reduce((s, [k]) => s + ((d.articles[k] || {}).overdue || 0), 0));
+    if (!(amount > 0)) throw new Error('у К-7 на ' + CURE_DEMO.date + ' просрочки нет — гасить нечего');
+    c.mirror.payments = (c.mirror.payments || []).concat([Object.assign({}, CURE_DEMO, { amount })]);
+  }
+  calcReset();
+  return !had;
+}
+function spellsDo(fn){
+  try { $('#sp-msg').textContent = fn() || ''; }
+  catch (e) { $('#sp-msg').textContent = 'ОТКАЗ: ' + e.message; }
+  renderAll();
+}
+function actSpellCure(){
+  spellsDo(() => {
+    const on = cureDemoToggle(), run = projRun(FIXTURE, {});
+    return (on ? 'К-7 погасил всю просрочку 20.04.2026. ' : 'Платёж К-7 от 20.04.2026 снят. ')
+      + 'Прогон подобрал из очереди ' + run.credits.length + ' ' + plur(run.credits.length, 'кредит', 'кредита')
+      + ' — эпизоды склеены заново из новых строк.';
+  });
+}
+function actSpellCourt(){
+  spellsDo(() => {
+    const on = courtDemoToggle(), run = projRun(FIXTURE, {});
+    return (on ? 'По К-4 проведено решение суда от ' + COURT_DEMO.date + ' на ' + m2(COURT_DEMO.amount) + '. '
+               : 'Решение суда по К-4 отменено. ')
+      + 'Прогон подобрал из очереди ' + run.credits.length + ' ' + plur(run.credits.length, 'кредит', 'кредита') + '.';
+  });
+}
+
+function renderSpells(){
+  const ans = overdueSpells(FIXTURE, { from:SPELL_FROM, to:ON }), b = ans.body;
+  $('#cnt-spells').textContent = b.spells.length;
+  $('#sp-cure').textContent = cureDemoOn() ? 'К-7: снять платёж от 20.04.2026' : 'К-7: погасить просрочку 20.04.2026';
+  $('#sp-court').textContent = courtDemoOn() ? 'Отменить решение суда по К-4' : 'Провести решение суда по К-4';
+  $('#sp-lead').textContent = 'Отрезок вопроса — с ' + SPELL_FROM + ' по ' + ON + '. Эпизодов '
+    + b.spells.length + ', из них тянется ' + b.counts.open + '. Закрытое позже даты среза показано '
+    + 'тянущимся: будущего ответ не знает.';
+
+  const t = $('#tb-spells'); t.innerHTML = '';
+  t.appendChild(el('thead', null, '<tr><th>Кредит</th><th>Слой</th><th>Начало</th><th>Закрытие</th>'
+    + '<th>Чем закрыт</th><th class="n">Дней</th><th class="n">Из них спорных</th>'
+    + '<th class="n">Пик просроченного</th><th>Дата пика</th></tr>'));
+  const tb = el('tbody');
+  for (const s of b.spells)
+    tb.appendChild(el('tr', null, '<td class="mono">' + esc(s.credit) + '</td><td>' + esc(s.layerKind)
+      + '</td><td>' + s.from + '</td><td>' + (s.to || '<span class="tag ext">тянется</span>')
+      + '</td><td>' + (s.to ? (s.cured ? '<span class="tag own">' + esc(s.closedBy) + '</span>'
+                                        : esc(s.closedBy || 'причина не названа')) : '—')
+      + '</td><td class="n">' + s.days + '</td><td class="n">' + s.disputedDays
+      + '</td><td class="n">' + m2(s.peak) + ' ' + esc(s.currency) + '</td><td>' + s.peakOn + '</td>'));
+  if (!b.spells.length) tb.appendChild(el('tr', null, '<td colspan="9" class="muted">Эпизодов в отрезке нет.</td>'));
+  t.appendChild(tb);
+
+  const tc = $('#tb-spcredits'); tc.innerHTML = '';
+  tc.appendChild(el('thead', null, '<tr><th>Кредит</th><th>Ответ</th><th class="n">Эпизодов</th><th class="n">Тянется</th></tr>'));
+  const bc = el('tbody');
+  for (const x of b.credits)
+    bc.appendChild(el('tr', null, '<td class="mono">' + esc(x.credit) + '</td><td>' + esc(x.state)
+      + '</td><td class="n">' + x.count + '</td><td class="n">' + x.open + '</td>'));
+  for (const x of b.dropped)
+    bc.appendChild(el('tr', null, '<td class="mono">' + esc(x.credit) + '</td><td><span class="tag no">не посчитан</span> '
+      + esc(x.refused) + (x.order ? ' (' + esc(x.order) + ')' : '') + '</td><td class="n">—</td><td class="n">—</td>'));
+  tc.appendChild(bc);
+  $('#sp-env').textContent = 'Конверт: ' + (ans.preliminary ? 'ответ предварительный' : 'ответ полный')
+    + (ans.problems.length ? ' · проблемы: ' + ans.problems.map(p => p.label).join(', ') : ' · проблем нет')
+    + ' · спрошено кредитов ' + b.counts.asked + ', выпало ' + b.counts.dropped
+    + '. Отбор читается одним обращением к хранилищу, сколько бы кредитов в нём ни было.';
+
+  const tt = $('#tb-sptie'); tt.innerHTML = '';
+  tt.appendChild(el('thead', null, '<tr><th>Кредит</th><th>Срез: в просрочке с</th><th class="n">Дней просрочки</th>'
+    + '<th>Эпизод тянется с</th><th class="n">Длительность</th><th>В просрочке — одно</th></tr>'));
+  const bt = el('tbody');
+  for (const c of FIXTURE){
+    if (b.dropped.some(x => x.credit === c.id)) continue;
+    const x = spellTie(c, ON, b.spells);
+    if (x.closed){ bt.appendChild(el('tr', null, '<td class="mono">' + esc(c.id) + '</td><td colspan="5" class="muted">'
+      + 'кредит закрыт ' + x.closed + ' — эпизод закрыт той же датой, срез отвечает замершим остатком</td>')); continue; }
+    bt.appendChild(el('tr', null, '<td class="mono">' + esc(c.id) + '</td><td>' + (x.since || 'просрочки нет')
+      + '</td><td class="n">' + (x.inDebt ? x.days : '—') + '</td><td>' + (x.spellFrom || 'эпизода нет')
+      + '</td><td class="n">' + (x.inSpell ? x.spellDays : '—') + '</td><td>'
+      + (x.ok ? '<span class="tag own">сходится</span>' : '<span class="tag no">расходится</span>')
+      + (x.inDebt && x.inSpell && x.days !== x.spellDays ? ' <span class="muted">дни ≠ длительность: '
+        + (x.court ? 'дата выхода в срезе одна на кредит, не по слою' : 'частичное погашение сдвинуло дату выхода')
+        + '</span>' : '') + '</td>'));
+  }
+  tt.appendChild(bt);
+}
+
 function renderStatic(){
   const tm = $('#tb-mirror'); tm.innerHTML = '';
   tm.appendChild(el('thead', null, '<tr><th>файл</th><th>роль</th><th>что в нём</th></tr>'));
@@ -6392,7 +6725,7 @@ function renderStatic(){
 
 function renderAll(){
   renderSeamRun(); renderSheet(); renderDebt(); renderQueue(); renderSched(); renderForecast();
-  renderFix(); renderProj(); renderPortfolio(); renderObjects();
+  renderFix(); renderProj(); renderPortfolio(); renderObjects(); renderSpells();
 }
 
 function boot(){
@@ -6418,6 +6751,8 @@ function boot(){
   $('#pj-pub').onclick     = actProjPublish;
   $('#pj-court').onclick   = actProjCourt;
   $('#pj-rebuild').onclick = actProjRebuild;
+  $('#sp-cure').onclick    = actSpellCure;
+  $('#sp-court').onclick   = actSpellCourt;
   $('#pj-reset').onclick   = actProjReset;
   const pb = $('#pf-by');
   for (const [key, f] of PF_FEATURES){
@@ -6513,8 +6848,11 @@ window.CALC = {
   pd, fd, dd, addM, dayBasis, round2, penSplit, freqMonths, toKgs, FX, TODAY, PARAMS, PARAM_KEYS,
   // стенд
   FIXTURE, DATES, PERIODS, PERIOD_ACTOR, LATE_PAYMENT, seedFixations,
+  COURT_DEMO, courtDemoToggle, CURE_DEMO, cureDemoToggle, cureDemoOn, SPELL_FROM,
   RECOVERY_REGISTER, recoverySeed, recoveryAll, costsScanSet, costsFold, pfJoinCosts,
   JOINED_ARTICLE, ANSWER_ART_LABEL, PROBLEM_CODES, envProblem, envelope, envPeriodAt,
+  // шов 9 — эпизоды просрочки (ADR-0318)
+  overdueSpells, spellsOfRows, spellTie, SPELL_REASONS, SPELL_CLOSED_CREDIT,
   // шов 8 — перечисление «сейчас»
   objectRows, OBJECT_KINDS, FIELD_SETS, objFieldsOf, objMeasuresOf, objDropField,
   objPublishCheck, objLimitOf, OBJ_LIMITS, OBJ_PASSPORT, VIEWERS, TEMPLATES, RELEASES
