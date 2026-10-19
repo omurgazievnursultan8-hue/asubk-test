@@ -37,6 +37,9 @@
 // Волна 47 (блок QQ, #300–#307): справка по заёмщику ФО-52 (ADR-0319) — бланк объекта «заёмщик», разделы соседей
 // повторами, нулевая статья не печатается, пустой раздел — «нет»; получатель «заказавший» только у рабочей бумаги;
 // молчание соседа — пометка и неполнота, молчание заёмщика — отказ; объект бланка сверяется с видом; #102, #151 — форм 17.
+// Волна 48 (блок RR, #308–#316): страница «Отчётность» — каталог (ВТ-1…ВТ-14): четыре полки одним рядом, «Мои» —
+// своё · избранное · недавние, одна шапка строки, поиск по всем полкам, «⋯», «Недоступно» свёрнутой группой; очередь
+// каталога — в реестре; #103, #121, #123, #152, #160, #161, #268, #279, #283, #296, #298 — на новую витрину.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -928,7 +931,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(103, !has(showH, "RP.openForm('" + norms[0].id) &&
         has(showH, 'Завести — ' + RP.formsOwner()) &&
         norms.every(r => r.goTo === RP.formsOwner()) &&
-        has(showH, 'не заведён · Завести') && has(showH, 'срока нет') &&
+        has(showH, 'не заведена') && has(showH, 'Недоступно') && !has(showH, 'ред. 06.07.2026') &&
         norms.every(r => has(showH, r.basis.point) && has(showH, docShort(r.basis.doc))),
     `у неисполняемой нормы нет кнопки, но названы основание и тот, к кому идти: «${RP.formsOwner()}» — ` +
     `справочник ведёт тот же, кто публикует редакции; срока у неё нет — он живёт расписанием ` +
@@ -1087,7 +1090,8 @@ const DEV = 'изменено — не утверждённый состав';
   const v = RP.saveView('t-overdue', 'моя просрочка', null);
   RP.openViewOf(v.id);
   ok(121, v.ok && RP.state.view === 'issue' && RP.state.sel.view === v.id &&
-        RP.state.sel.tpl === 't-overdue' && has(win.VIEWS.showcase.fn(), 'Открыть видом'),
+        RP.state.sel.tpl === 't-overdue' && has(showTab('мои'), "RP.openViewOf('" + v.id + "')") &&
+        has(showTab('мои'), 'вид поверх «Просроченная задолженность'),
     `вид стоит в витрине отдельной строкой и открывается ОДНИМ прогоном: автоподстановка последнего ` +
     `вида отклонена — двое сказали бы «открыл отчёт по просрочке» и увидели разные таблицы (ОЧ-48)`);
 })();
@@ -1116,15 +1120,13 @@ const DEV = 'изменено — не утверждённый состав';
   RP.state.sel.scTab = '';
   const first = V.showcase.fn();
   const blanks = RP.showcase().must.concat(RP.showcase().rest).filter(r => r.tplKind === 'бланк');
-  ok(123, has(first, '>Мои<') && has(first, '>Общие<') && has(first, '>Официальные<') &&
-        has(first, 'Отчёты') && has(first, 'Бланки') &&
-        (first.match(/class="on"/g) || []).length === 2 && !has(first, 'Где печатается') &&
+  ok(123, has(first, '>Мои<') && has(first, '>Общие<') && has(first, '>Официальные<') && has(first, '>Бланки<') &&
+        !has(first, 'tabs sub') && (first.match(/class="on"/g) || []).length === 1 && !has(first, 'Где печатается') &&
         blanks.length > 0 && blanks.every(r => !has(first, "openForm('" + r.id)) &&
         has(showTab('отчёт'), 'Обязательные') && has(showTab('отчёт'), 'По запросу') &&
         has(V.issue.fn(), 'Что делают с показанным') && Object.keys(V)[0] === 'showcase',
-    `витрина первым экраном модуля и разложена на три полки — Мои · Общие · Официальные; ` +
-    `у официальных вид формы — второй корешок, ${blanks.length} бланков в ленту отчётов не ` +
-    `подмешаны, обязательность делит уже внутри вкладки`);
+    `витрина первым экраном модуля и разложена на четыре полки одним рядом — Мои · Общие · Официальные · Бланки; ` +
+    `второго ряда вкладок нет, ${blanks.length} бланков в ленту отчётов не подмешаны, обязательность делит внутри полки`);
 
   const rep = showTab('отчёт'), bl = showTab('бланк');
   const tables = s => (String(s).match(/<table/g) || []).length;
@@ -1464,17 +1466,17 @@ const DEV = 'изменено — не утверждённый состав';
 (() => {
   RP.seed(); as('clerk');
   const bl = showTab('бланк');
-  const docs = (bl.match(/Порядок №41/g) || []).length;
+  /* Документ основания печатается только у неисполняемой нормы — в группе «Недоступно». */
+  const docs = (bl.slice(0, bl.indexOf('Недоступно')).match(/Порядок №41/g) || []).length;
   const wasLate = has(bl, 'class="late"');
   RP.state.today = '2026-09-05';                 /* срок акта сверки — 01.09 */
   const bl2 = showTab('бланк');
-  ok(152, docs === 1 && has(bl, 'class="th-sub">Порядок №41') &&
+  ok(152, docs === 0 && !has(bl, '>Основание<') &&
         !has(bl, 'ред. 06.07.2026') && !has(bl, ' · бланк') &&
         !wasLate && (bl2.match(/class="late"/g) || []).length === 1 &&
         has(bl2, 'class="burn"'),
-    `строка не повторяет то, что одинаково у всех: документ основания назван один раз в шапке ` +
-    `столбца (в теле его нет), редакции в строке нет вовсе — она одна на витрину, вид формы стал ` +
-    `корешком вкладки; просроченная строка помечена полосой на срезе, и полоса со счётчиком ` +
+    `строка не повторяет то, что одинаково у всех: основания в строке нет — оно в паспорте отчёта, ` +
+    `редакции нет вовсе, вид формы — полка; просроченная строка помечена полосой на срезе, и полоса со счётчиком ` +
     `корешка появляются вместе`);
 })();
 
@@ -1577,10 +1579,10 @@ const DEV = 'изменено — не утверждённый состав';
   const shIds = sh.shared.map(r => r.id).join();
   RP.state.sel.scTab = '';
   const first = win.VIEWS.showcase.fn();
-  ok(160, mineIds === 't-avg,t-npl,t-osh' && shIds === 't-sh-plan,t-sh-big' &&
+  ok(160, mineIds === 't-avg,t-npl,t-osh,ВД-1' && shIds === 't-sh-plan,t-sh-big' &&
         sh.shared[0].users >= sh.shared[1].users && has(first, 'Открыть кругу') &&
-        has(first, 'class="on"') && has(first, 'личный отчёт'),
-    `полки: «Мои» — ${sh.mine.length} личных отчёта автора, «Общие» — ${sh.shared.length} ` +
+        has(first, 'class="on"') && has(first, '>личный'),
+    `полки: «Мои» — ${sh.mine.length} (личные отчёты автора и его вид), «Общие» — ${sh.shared.length} ` +
     `(в т. ч. открытый Осмоновой поимённо), популярные сверху; витрина открывается на «Моих»`);
 
   as('head');
@@ -1590,7 +1592,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.TPL('t-sh-big').share.people = [];          /* владелец убрал Осмонову из круга */
   const userSh = RP.shelves('').shared.map(r => r.id).join();
   ok(161, headSh === 't-sh-plan,t-sh-big' && userSh === 't-sh-plan' &&
-        has(shTab, 'общий, не официальный') && has(shTab, 'соавторы: Асанов А.') && has(shTab, 'версия 3'),
+        has(shTab, 'Бекова Н. · пользуются 9') && has(shTab, 'соавторы: Асанов А.') && has(shTab, 'версия 3'),
     `круг общего называет владелец — подразделения и/или люди: «Крупные кредиты» Осмонова видела ` +
     `поимённо, вне своего подразделения, и перестала видеть, когда владелец убрал её из круга; ` +
     `строка несёт владельца, соавторов и версию`);
@@ -2991,15 +2993,15 @@ const DEV = 'изменено — не утверждённый состав';
   RP.uiDrill(iChg); const s2 = win.VIEWS.issue.fn();
   RP.state.sel.time = 'динамика'; RP.state.sel.dynBy = true; RP.state.sel.top = false; RP.state.sel.drillRes = null;
   const s3 = win.VIEWS.issue.fn();
-  as('user'); RP.proposeToCatalog('t-avg'); as('buh'); RP.state.view = 'showcase'; RP.state.sel.scTab = 'общие';
-  const s4 = win.VIEWS.showcase.fn();
+  as('user'); RP.proposeToCatalog('t-avg'); as('buh'); RP.state.view = 'registry';
+  const s4 = win.VIEWS.registry.fn();
   const clean = [s1, s2, s3, s4].every(x => !/ОД-\d|ADR-031\d|ИО-6[01]/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
   ok(268, iChg !== -1 && has(s1, 'Крупнейшие 3 — «') && has(s1, 'остальные 5') && has(s2, 'Изменение: ') && has(s2, 'равна изменению') &&
         has(s2, 'Как изменился') && has(s2, 'Колонки ▾') && has(s2, 'показано 2 из 2') && has(s2, 'Выгрузить список · xlsx') &&
         has(s3, 'По периоду начала') && has(s3, 'выданы в II кв. 2024') && has(s4, 'Предложены в каталог дашборда') &&
         has(s4, 'Принять — копия в общий') && clean,
     `экраны: «Крупнейшие 3» и ссылки «Изменения» у сравнения; панель провала «Изменения» с переходами, поиском, «Колонки ▾» ` +
-    `и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли; номеров решений в интерфейсе нет`);
+    `и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли — в реестре; номеров решений в интерфейсе нет`);
 })();
 
 /* ---- NN. Входящие от дашборда, волна 44: потоки Движения записи объекта, «прочее» остатком,
@@ -3152,10 +3154,14 @@ const DEV = 'изменено — не утверждённый состав';
   const dr = RP.drill('t-overdue', { asOf:'2026-08-01' }, null, { path:[], stat:'s-overdue-sum' });
   const vlU = RP.viewLog(), rec = RP.recentReports();
   as('auth'); const vlA = RP.viewLog();
-  const shows = vlA.rows.filter(r => r.what === 'показ со строками' && r.who === 'Осмонова Г.');
-  ok(279, dr.ok && !vlU.ok && has(vlU.why, '«Недавние отчёты»') && rec.length === 1 && rec[0].tpl === 't-overdue' &&
-        vlA.ok && shows.length === 1 && shows[0].times === 2 && shows[0].rows === 3 && vlA.rows.some(r => r.what === 'провал' && r.rows === dr.items.length) &&
-        vlA.rows.length === 2,
+  const today = vlA.ok ? vlA.rows.filter(r => r.at === RP.state.today) : [];
+  const shows = today.filter(r => r.what === 'показ со строками' && r.who === 'Осмонова Г.');
+  ok(279, dr.ok && !vlU.ok && has(vlU.why, 'Недавние') && rec[0].tpl === 't-overdue' && rec[0].at === RP.state.today &&
+        rec.filter(r => r.tpl === 't-overdue').length === 1 &&
+        vlA.ok && shows.length === 1 && shows[0].times === 2 && shows[0].rows === 3 && today.some(r => r.what === 'провал' && r.rows === dr.items.length) &&
+        today.length === 2 && vlA.rows.length === 5 &&
+        vlA.rows.filter(r => r.at !== RP.state.today).map(r => r.tpl + '@' + r.at).join() ===
+          't-overdue@2026-08-23,t-pay04@2026-08-21,t-osh@2026-08-18',
     `ОГ-33: журнал просмотров пишет показ со строками (3 строки, два показа подряд — одна запись «×2») и провал (${dr.items.length}); ` +
     `показ одних итогов не пишется; пользователю журнал закрыт — у него «Недавние отчёты»; уполномоченный читает`);
 
@@ -3208,7 +3214,7 @@ const DEV = 'изменено — не утверждённый состав';
   const tiles = RP.tilesOf('t-osh'), delPin = RP.deleteReport('t-osh');
   RP.state.sel.scTab = 'мои'; const shelf = win.VIEWS.showcase.fn();
   ok(283, pin.ok && tiles.length === 1 && tiles[0].dash === 'Главная' && RP.levelOf('t-osh') === 'личный' && !delPin.ok &&
-        has(delPin.why, 'плитка на дашборде «Главная»') && has(shelf, 'на плитке: Главная') && has(shelf, 'Собрать в конструкторе'),
+        has(delPin.why, 'плитка на дашборде «Главная»') && has(shelf, 'на плитке: Главная') && has(shelf, 'Собрать отчёт'),
     `ОД-4: отчёт, поставленный на плитку, остаётся обычным личным на полке «Мои» с отметкой «на плитке: Главная»; удалить его, ` +
     `пока плитка ссылается, нельзя`);
 
@@ -3364,10 +3370,10 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('user');
   RP.state.sel.scTab = 'мои'; const vit = win.VIEWS.showcase.fn();
   const shell = src.slice(0, src.indexOf('<script>'));
-  ok(296, has(vit, 'Собрать в конструкторе') && has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
+  ok(296, has(vit, 'Собрать отчёт') && has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
         has(shell, '<div class="brand">АСУБК') && !has(shell, 'ГФХ'),
     `ОГ-Д1: оболочка «Формирования» — экран «Конструктор» внутри общей оболочки АСУБК (топбар, меню трёх столов, одна палитра); ` +
-    `с витрины в него ведёт «Собрать в конструкторе»`);
+    `с витрины в него ведёт «Собрать отчёт»`);
 
   RP.seed(); as('buh');
   const h8 = RP.highlight('t-sh-plan', { asOf:'2026-08-01' }), h6 = RP.highlight('t-sh-plan', { asOf:'2026-06-01' });
@@ -3391,7 +3397,7 @@ const DEV = 'изменено — не утверждённый состав';
   as('head'); RP.state.sel.scTab = 'общие'; const s5 = win.VIEWS.showcase.fn();
   const from = (x, h) => x.indexOf(h) === -1 ? '' : x.slice(x.indexOf(h));
   const mineOO = [from(s1, 'Значения параметров'), from(s2, 'Мои задания'), from(s3, 'События месяцу без событий'),
-    from(s4, 'Список из внешнего перечня'), from(s5, 'Мои общие отчёты')];
+    from(s4, 'Список из внешнего перечня'), from(s5, '>Название<')];
   const cleanOO = mineOO.every(x => x.length > 100 && !/О[ГД]-\d|ADR-\d|ИО-\d/.test(x));
   ok(298, has(s1, 'Подставлено по вам') && has(s1, 'по валюте договора') && has(s1, 'Итоги шире зоны — только итоги') &&
         has(s1, 'скрыто: в группе меньше 3 объектов') && has(s1, 'План выдачи и факт') && has(s1, 'подразделение × состояние кредита') &&
@@ -3522,6 +3528,142 @@ const DEV = 'изменено — не утверждённый состав';
         !has(s2, 'Если модуль не ответит') && has(s2, 'Кредит (объект бланка)'),
     `экран верстальщика: четыре трудных заёмщика, переключатель «если модуль не ответит», объект печати — заёмщик, ` +
     `получатель — заказавший; группы повтора в палитре свёрнуты; у бланка «на дату» переключателя нет`);
+})();
+
+/* ---------- RR. Волна 48: страница «Отчётность» — каталог «где мой отчёт» (ВТ-1…ВТ-14) ---------- */
+(() => {
+  const groupsOf = h => [...String(h).matchAll(/<tr class="sect[^"]*"[^>]*><td colspan="5">(?:<span class="caret">▸<\/span> )?([^<]*) <span class="n">· (\d+)/g)]
+    .map(m => m[1] + ' ' + m[2]);
+  const thead = h => (String(h).match(/<thead>[\s\S]*?<\/thead>/) || [''])[0];
+  const tabN = (h, name) => { const m = String(h).match(new RegExp('>' + name + '<span class="n">(\\d+)</span>')); return m ? +m[1] : -1; };
+
+  RP.seed(); as('user');
+  const off = showTab('отчёт'), bl = showTab('бланк');
+  RP.state.sel.scTab = '';
+  const first = win.VIEWS.showcase.fn();
+  ok(308, (first.match(/<div class="tabs[^"]*">/g) || []).length === 1 && !has(first, 'tabs sub') &&
+        ['Мои', 'Общие', 'Официальные', 'Бланки'].every(n => tabN(first, n) >= 0) &&
+        !has(off, 'Где печатается') && has(off, 'Просроченная задолженность') &&
+        has(bl, 'Где печатается') && !has(bl, 'Портфель — оперативный срез') &&
+        has(first, '>Официальные<span class="n">4</span><span class="burn">1</span>'),
+    `ВТ-2: четыре полки одним рядом — Мои ${tabN(first, 'Мои')} · Общие ${tabN(first, 'Общие')} · Официальные ` +
+    `${tabN(first, 'Официальные')} · Бланки ${tabN(first, 'Бланки')}; второго ряда вкладок нет; «Официальные» — только отчёты, ` +
+    `бланки — своя полка; красный счётчик — у официальной просрочки`);
+
+  const mine = showTab('мои');
+  const favNo = RP.toggleFav('t-notice'), favOwn = RP.toggleFav('t-osh'), favAdd = RP.toggleFav('t-portfolio');
+  const mine2 = showTab('мои');
+  const favDel = RP.toggleFav('t-portfolio');
+  RP.show('t-portfolio', { asOf:'2026-08-01', dept:'' });
+  const vRow = (h => { const i = h.indexOf('Портфель — мой отдел'); return h.slice(i, h.indexOf('</tr>', i)); })(showTab('мои'));
+  const recent = mine.slice(mine.indexOf('Недавние'));
+  ok(309, groupsOf(mine).join(' | ') === 'Своё 4 | Избранное 2 | Недавние 1' &&
+        has(recent, 'Погашения и портфель за период') && !has(recent, 'Просроченная задолженность') &&
+        has(mine, 'личный <span class="bell"') && has(mine, 'вид поверх «Портфель — оперативный срез»') &&
+        !favNo.ok && has(favNo.why, 'бланк') && !favOwn.ok && has(favOwn.why, 'полке «Мои»') &&
+        favAdd.ok && groupsOf(mine2).join(' | ') === 'Своё 4 | Избранное 3 | Недавние 1' && favDel.ok && !favDel.on &&
+        RP.myFavs().length === 2 && has(vRow, 'сохранён 19.08.2026'),
+    `ВТ-3, ВТ-5: «Мои» Осмоновой — ${groupsOf(mine).join(' · ')}; недавняя «Просроченная задолженность» не повторена — она в ` +
+    `избранном; подписка — 🔔 у строки; ★ у бланка и своего отчёта — отказ; звезда ставится и снимается`);
+
+  as('auth'); RP.state.sel.scTab = '';
+  const authFirst = win.VIEWS.showcase.fn();
+  RP.show('t-portfolio', { asOf:'2026-08-01', dept:'' });
+  const authAfter = win.VIEWS.showcase.fn();
+  ok(310, has(authFirst, 'class="on" onclick="RP.scTabClick(\'отчёт\')"') && tabN(authFirst, 'Мои') === 0 &&
+        has(authAfter, 'class="on" onclick="RP.scTabClick(\'мои\')"') && has(authAfter, 'Недавние'),
+    `ВТ-4: при входе — «Мои», если там есть строки, иначе «Официальные»: у Тентимишева своего нет — «Официальные»; ` +
+    `открыл отчёт — он в «Недавних», и витрина открывается на «Моих»`);
+
+  as('user');
+  const heads = ['мои', 'общие', 'отчёт', 'бланк'].map(t => thead(showTab(t)));
+  const ovAt = off.indexOf('Просроченная задолженность');
+  const ovRow = off.slice(ovAt, off.indexOf('</tr>', ovAt));
+  const sh = showTab('общие');
+  ok(311, heads.every(h => h === heads[0]) && has(heads[0], '>Название<') && has(heads[0], '>Состояние<') &&
+        has(heads[0], '>Последнее<') && !has(heads[0], 'Основание') &&
+        has(ovRow, 'просрочено') && has(ovRow, 'срок 15.08.2026 · сдаёт: Осмонова Г.') && has(ovRow, 'ВП-103') &&
+        has(sh, 'пользуются 9') && !has(off, '<span class="code">t-') && has(off, 'Портфель к прошлому году'),
+    `ВТ-6, ВТ-14: одна шапка на всех полках — ★ · Название · Состояние · Последнее; основания в строке нет; у официального — ` +
+    `плашка и «срок · сдаёт» одной строкой, последний окончательный выпуск; у общего — владелец и число пользующихся; ` +
+    `технического кода «t-…» у формы без кода нет`);
+
+  RP.state.sel.scTab = 'мои'; RP.scSearch('просрочка');
+  const found = win.VIEWS.showcase.fn();
+  const fg = groupsOf(found);
+  const tabsOk = fg.every(g => { const nm = g.replace(/ \d+$/, ''), n = +g.match(/\d+$/)[0];
+    return nm === 'Недоступно' || tabN(found, nm) === n; });
+  RP.scTabClick('общие'); const picked = win.VIEWS.showcase.fn();
+  RP.scSearch('п. 16'); const byBasis = win.VIEWS.showcase.fn();
+  RP.scSearch('Бекова'); const byOwner = win.VIEWS.showcase.fn();
+  RP.scSearch(''); const back = win.VIEWS.showcase.fn();
+  ok(312, fg.length >= 3 && fg[0].indexOf('Мои') === 0 && tabsOk && has(found, 'Сбросить') &&
+        groupsOf(picked).length === 1 && groupsOf(picked)[0].indexOf('Общие') === 0 &&
+        has(byBasis, 'Повторная претензия') && has(byBasis, 'Требование поручителю') &&
+        has(byOwner, 'Просрочка по подразделениям') && groupsOf(back)[0] === 'Своё 4',
+    `ВТ-7, ВТ-8: «просрочка» ищется на всех полках сразу — ${fg.join(' · ')}; корешки несут число найденного, щелчок ` +
+    `по корешку оставляет одну группу; находит и по основанию («п. 16» — претензии и требование), и по владельцу; ` +
+    `стёртый запрос возвращает полки`);
+
+  RP.seed(); as('user'); RP.proposeToCatalog('t-avg'); as('buh');
+  const buhAll = showAll(), reg = win.VIEWS.registry.fn();
+  as('head');
+  const hs = showTab('общие');
+  const arch = RP.toArchive('t-sh-big');
+  const hs2 = showTab('общие');
+  ok(313, !has(buhAll, 'Предложены в каталог') && has(reg, 'Предложены в каталог дашборда') && has(reg, 'Принять — копия в общий') &&
+        has(hs, 'не открывали 194 дн. — предлагается в архив') && has(hs, "RP.doArchive('t-sh-big')") &&
+        !has(hs, 'Мои общие отчёты') && arch.ok && groupsOf(hs2).join() === 'Архив 1' &&
+        has(hs2, "RP.doUnarchive('t-sh-big')") && has(hs2, 'class="fold"'),
+    `ВТ-9: очередь «Предложены в каталог» — в реестре, не на витрине; передача и архив общего — в меню строки владельца, ` +
+    `подсказка «не открывали 194 дн.» — в строке; архивный — свёрнутой группой «Архив» с «Вернуть»`);
+
+  RP.seed(); as('user');
+  const m1 = showTab('мои');
+  const rowOf = (h, nm) => { const i = h.indexOf(nm); return i === -1 ? '' : h.slice(h.lastIndexOf('<tr', i), h.indexOf('</tr>', i)); };
+  const npl = rowOf(m1, 'Доля проблемных кредитов'), ovr = rowOf(m1, 'Просроченная задолженность');
+  const mains = [...m1.matchAll(/<td class="act">(<button[^>]*>[^<]*<\/button>)/g)].length;
+  const rows = (m1.match(/<td class="star">/g) || []).length;
+  RP.uiSub('t-npl');
+  const subOn = RP.mySubs().some(x => x.tpl === 't-npl') && has(rowOf(showTab('мои'), 'Доля проблемных кредитов'), 'class="bell"');
+  RP.uiSub('t-npl'); const subOff = !RP.mySubs().some(x => x.tpl === 't-npl');
+  RP.uiPin('t-npl'); const pinned = RP.tilesOf('t-npl').length === 1;
+  ok(314, mains === rows && has(npl, 'Открыть кругу') && has(npl, 'Предложить в каталог') && has(npl, 'Удалить') &&
+        has(npl, 'Подписаться') && has(npl, '📌 На дашборд') && has(npl, 'class="more"') &&
+        has(ovr, 'Подписаться') && !has(ovr, 'Удалить') && !has(ovr, 'Открыть кругу') && subOn && subOff && pinned,
+    `ВТ-10: в каждой строке одна кнопка («Открыть» / «Где печатается»), остальное — в «⋯» по уровню: у личного — круг, ` +
+    `каталог, подписка, дашборд, удалить; у официального — только подписка и дашборд; подписка из меню ставится и снимается`);
+
+  RP.seed(); as('user');
+  const ub = showTab('бланк');
+  const gone = ub.slice(ub.indexOf('Недоступно'));
+  as('buh'); const ar = RP.toArchive('t-sh-plan'); as('user');
+  const um = showTab('мои');
+  as('buh'); RP.state.sel.scQ = 'просрочка'; const bs = win.VIEWS.showcase.fn(); RP.state.sel.scQ = '';
+  RP.seed(); as('buh'); const del = RP.deleteReport('t-sh-plan'); as('user');
+  const ud = showTab('мои'), unFav = RP.toggleFav('t-sh-plan');
+  ok(315, has(ub, '<tbody class="fold">') && has(gone, 'Первичная претензия') && has(gone, 'доступ у:') &&
+        !has(ub.slice(0, ub.indexOf('Недоступно')), 'доступ у:') && /Недоступно <span class="n">· \d+ \(/.test(ub) &&
+        ar.ok && groupsOf(um).join(' | ') === 'Своё 4 | Избранное 1 | Недавние 1 | Недоступно 1' &&
+        has(um, 'в архиве у владельца (Бекова Н.)') && !has(bs, 'Вернуть') &&
+        del.ok && has(ud, 'Просрочка по подразделениям — к планёрке') && has(ud, 'отчёт удалён владельцем') &&
+        has(ud, "RP.uiFav('t-sh-plan')") && unFav.ok && RP.myFavs().length === 1,
+    `ВТ-11: то, что нельзя открыть, — свёрнутой группой «Недоступно» в конце полки с причиной и тем, у кого доступ; ` +
+    `избранное, ушедшее в архив или удалённое, не пропадает молча — оно там же с причиной и снимается звездой; архивное ` +
+    `в найденном не стоит`);
+
+  RP.seed();
+  const bad = [];
+  Object.keys(R).forEach(role => { as(role); SC_TABS.forEach(t => { const h = showTab(t);
+    if (!has(h, 'Собрать отчёт') || /Мои отчёты: показать|Недавние отчёты|Мои общие отчёты|Собрать в конструкторе/.test(h)) bad.push(role + '/' + t); }); });
+  as('auth');
+  const ab = showTab('бланк');
+  const codes = [...ab.slice(0, ab.indexOf('По запросу')).matchAll(/<span class="code">(ФО-\d+)/g)].map(m => m[1]);
+  const shared = RP.shelves('').shared;
+  ok(316, bad.length === 0 && codes.length > 3 && codes.join() === codes.slice().sort().join() &&
+        shared.every((r, i) => !i || shared[i - 1].users >= r.users),
+    `ВТ-12, ВТ-13: «Собрать отчёт» стоит на каждой полке у каждой роли, карточек-пояснений нет; обязательные бланки — по коду ` +
+    `(${codes.slice(0, 3).join(', ')}…), общие — по числу пользующихся`);
 })();
 
 /* ---- отчёт ---- */
