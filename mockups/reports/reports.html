@@ -153,6 +153,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
 .btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
 .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.cmpb .btn{ flex-direction:column; height:auto; padding-top:4px; padding-bottom:4px; line-height:1.25; }
+.cmpb .btn small{ font-size:11px; font-weight:400; opacity:.8; }
 
 /* ---- tables ---- */
 table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
@@ -3572,6 +3574,8 @@ RP.timeModes = () => TIME_MODES.slice();
 function snapDateWhy(d){
   if(!d) return 'дата не названа';
   if(HIST_DATES.indexOf(d) !== -1) return null;
+  /* Конец месяца из легаси без итога — «нет навсегда», а не «снимка нет». */
+  if(legacyNoTotal(d)) return 'на '+fmt(d)+' итога нет: в легаси не собиралось ('+legacyNoTotal(d)+')';
   const before = nearestSnapshot(d), after = HIST_DATES.filter(x => x.localeCompare(d) === 1).sort()[0] || null;
   return 'на '+fmt(d)+' снимка нет: закрытый месяц хранится только своей последней датой — ближайшие '+
     [before, after].filter(Boolean).map(fmt).join(' и ')+' (ADR-0264 §8)';
@@ -3623,9 +3627,11 @@ RP.timeAnswer = (tid, spec, params) => {
         method: methodShift(sid, [spec.a, spec.b]),
         abs: a == null || b == null ? null : b - a,
         pct: a ? Math.round((b - a) / a * 1000) / 10 : null}; });
-    return {ok:true, mode, rows, dates:[spec.a, spec.b], issuable: timeIssuable(t, ed, [spec.a, spec.b], pr),
+    /* Через дату запуска — строки переноса с пометкой (ОД-42, ADR-0207 п. 6). */
+    const formNote = preLaunchDate(spec.a) !== preLaunchDate(spec.b) ? 'база — из легаси; редакции формы разные' : null;
+    return {ok:true, mode, rows, dates:[spec.a, spec.b], issuable: timeIssuable(t, ed, [spec.a, spec.b], pr), formNote,
       passport:{mode, dates:[spec.a, spec.b], seam:'statSlice ×2', scope: scope.map(deptName),
-        text:'сравнение: '+fmt(spec.a)+' → '+fmt(spec.b)}};
+        text:'сравнение: '+fmt(spec.a)+' → '+fmt(spec.b)+(formNote ? ' · '+formNote : '')}};
   }
   if(mode === 'динамика'){
     const step = spec.step === 'квартал' ? 'квартал' : 'месяц';
@@ -3970,7 +3976,7 @@ RP.replyNote = (id, text) => { const n = RP.state.notes.find(x => x.id === id);
    с причиной, а не ноль. Окончательно форма сдаётся, только когда закрыт
    КАЖДЫЙ месяц, которого касается хоть одна колонка.                        */
 const TIME_COL_KINDS = {
-  'на дату':            {key:'at',   vals:['отчётная дата', 'начало месяца', 'начало квартала', 'начало года']},
+  'на дату':            {key:'at',   vals:['отчётная дата', 'начало месяца', 'начало квартала', 'начало полугодия', 'начало года']},
   'за период':          {key:'span', vals:['отчётный месяц']},
   'нарастающий итог':   {key:'from', vals:['с начала квартала', 'с начала года']},
   'аналогичный период': {key:'of',   vals:null}
@@ -4011,13 +4017,15 @@ function timeColsCheck(ed){
 }
 function resolveCol(c, asOf, cols){
   const rs = repStart(asOf);
+  /* Колонки-даты — вторая семья относительных значений от отчётной даты
+     (ОД-38): то же правило, что у базы сдвига плитки.                       */
   if(c.kind === 'на дату'){
-    const at = {'отчётная дата':asOf, 'начало месяца':rs, 'начало квартала':quarterStart(rs), 'начало года':rs.slice(0, 4)+'-01-01'}[c.at];
+    const at = c.at === 'отчётная дата' ? asOf : anchorDate(c.at, asOf);
     return {id:c.id, name:c.name, kind:c.kind, sort:'остаток', at, text:'на '+fmt(at)};
   }
   if(c.kind === 'аналогичный период'){
     const b = resolveCol(cols.find(x => x.id === c.of), asOf, cols);
-    return b.at ? {id:c.id, name:c.name, kind:c.kind, sort:'остаток', at: shiftYear(b.at, -1), of:c.of, text:'на '+fmt(shiftYear(b.at, -1))}
+    return b.at ? {id:c.id, name:c.name, kind:c.kind, sort:'остаток', at: anchorDate('год назад', b.at), of:c.of, text:'на '+fmt(anchorDate('год назад', b.at))}
       : {id:c.id, name:c.name, kind:c.kind, sort:'поток', from: shiftYear(b.from, -1), to: shiftYear(b.to, -1), of:c.of,
          text:fmt(shiftYear(b.from, -1))+' — '+fmt(addDays(shiftYear(b.to, -1), -1))};
   }
@@ -4143,6 +4151,8 @@ function monthSpan(ms){ return !ms.length ? '—' : ms.length === 1 ? ms[0] : ms
 function monthIso(label){ const p = String(label).split(' ');
   return p[1]+'-'+String(MONTHS_N.indexOf(p[0]) + 1).padStart(2, '0')+'-01'; }
 const preLaunch = m => monthIso(m).localeCompare(LAUNCH) === -1;
+/* Дата «на начало дня» — до запуска, если её строка лежит в месяце до запуска. */
+const preLaunchDate = d => !!d && preLaunch(periodOfAsOf(d));
 /* Почему форму нельзя сдать окончательно на эту дату: каждый незакрытый месяц
    назван вместе с колонкой, которая его касается.                           */
 function timeColsOpenWhy(tt){
@@ -4781,7 +4791,7 @@ function drillSearch(d, q, mv){ const s = String(q || '').trim().toLowerCase();
   d.shown = !s ? d.items.slice() : d.items.filter(x => (x.label+' '+Object.values(x.cells).join(' ')).toLowerCase().indexOf(s) !== -1);
   if(row) d.shown = d.shown.filter(x => (x.mv || []).indexOf(row.key) !== -1);
   const partOf = x => !row ? x[key] : row.kind === 'поток' ? x.flows[row.key.slice(2)] : row.kind === 'прочее' ? x.other
-    : row.kind === 'нет ответа' ? x.noans : (d.movement.flows ? x.move : x.diff);
+    : row.kind === 'нет ответа' ? x.noans : row.kind === 'до запуска' ? x.prel : (d.movement.flows ? x.move : x.diff);
   d.sumShown = d.additive ? d.shown.reduce((a, x) => a + partOf(x), 0) : null;
   if(row){ d.shownText = 'строка «'+row.name+'»: показано '+d.shown.length+' из '+d.items.length+' · сумма показанных '+
     money(d.sumShown)+' = строке '+money(row.value); return d; }
@@ -4915,9 +4925,12 @@ RP.drillChange = (tid, params, twist, node, opt) => {
       if(scopeIn || scopeOut){ x.how = scopeIn ? 'пришёл в охват' : 'ушёл из охвата'; move = x.diff;
         moveName = scopeIn ? 'пришли в охват' : 'ушли из охвата'; }
       const noans = !scopeIn && !scopeOut && ((ra && !rb) || flows.some(f => (ra && ra[f.src] == null) || (rb && rb[f.src] == null)));
+      /* Колонки-источника нет в строке переноса — это не сбой соседа: в легаси
+         её не собирали (ОД-43). Разница — строкой «до запуска не перенесено». */
+      const prel = noans && rb && flows.some(f => (ra && ra[f.src] == null && preLaunchDate(a)) || (rb[f.src] == null && preLaunchDate(b)));
       const skip = noans || scopeIn || scopeOut;
       x.flows = {}; flows.forEach(f => { x.flows[f.id] = skip ? 0 : f.sign * (((rb || {})[f.src] || 0) - ((ra || {})[f.src] || 0)); });
-      x.move = noans ? 0 : move; x.moveName = noans ? null : moveName; x.noans = noans ? x.diff : 0;
+      x.move = noans ? 0 : move; x.moveName = noans ? null : moveName; x.noans = noans && !prel ? x.diff : 0; x.prel = prel ? x.diff : 0;
       x.other = noans ? 0 : x.diff - x.move - flows.reduce((s2, f) => s2 + x.flows[f.id], 0);
     }
     return x;
@@ -4934,6 +4947,7 @@ RP.drillChange = (tid, params, twist, node, opt) => {
     addRow('other', 'прочее', 'прочее', x => x.other);
     uniq(items.filter(x => x.moveName).map(x => x.moveName)).forEach(nm => addRow('m:'+nm, nm, 'переход', x => x.moveName === nm ? x.move : 0));
     if(items.some(x => x.noans)) addRow('noans', 'нет ответа источника', 'нет ответа', x => x.noans);
+    if(items.some(x => x.prel)) addRow('prel', 'до запуска не перенесено', 'до запуска', x => x.prel);
   } else uniq(items.filter(x => x.diff).map(x => x.how)).forEach(h => addRow('h:'+h, h, 'переход', x => x.how === h ? x.diff : 0));
   items.forEach(x => { x.mv = mvRows.filter(r => r.ids.indexOf(x.id) !== -1).map(r => r.key); });
   const mvSum = mvRows.reduce((s2, r) => s2 + r.value, 0);
@@ -4949,6 +4963,10 @@ RP.drillChange = (tid, params, twist, node, opt) => {
     additive:true, count: meta.unit === 'ед.', obj: ed.object, cols, colNames: cols.map(c => fieldName(ed.object, c)),
     node: path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог', path, dates:[a, b], a, b,
     baseCell: A.cell, cell: B.cell, change, sumDiff, equal: sumDiff === change, items, movement,
+    /* Вопрос через дату запуска отвечается строками переноса (ОД-42). */
+    sources: [a, b].map(d => preLaunchDate(d) ? 'из легаси' : 'свой'),
+    formNote: preLaunchDate(a) !== preLaunchDate(b) ? 'редакции формы разные: '+
+      [a, b].map(d => fmt(d)+' — '+(preLaunchDate(d) ? 'из легаси' : 'своя')).join(', ') : null,
     flowCols: flows ? flows.map(f => ({id: f.id, name: f.name})) : [],
     hidden: Math.max(A.hidden, B.hidden), params: clone(pr), twist: twist ? clone(twist) : null,
     from: o.from || 'окно отчёта', tilePath: o.tilePath || null}, o.q, o.mv);
@@ -5149,6 +5167,19 @@ const holdsRole = (role, who) => roleHolders(role).some(h => h.who === who);
 /* «Принять»: копия личного в НОВЫЙ общий — владелец принявший, соавтор — роль,
    круг названный плюс автор, отметка источника; дальше копии не связаны.
    «Похожий уже есть» срабатывает и тут: принять плитку на найденный общий.   */
+/* Копия личного отчёта в НОВЫЙ общий: владелец — принявший или публикующий,
+   соавтор — роль каталога, круг — названный плюс автор, отметка источника. */
+function copyToShared(src, owner, author, depts, changed){
+  const ed = clone(draftEd(src) || liveEd(src));
+  RP.state.catSeq = (RP.state.catSeq || 0) + 1;
+  const id = 't-cat-'+RP.state.catSeq;
+  Object.assign(ed, {n:1, state:'версия', since: RP.state.today, by: owner, at: RP.state.today, changed});
+  RP.state.templates.push({id, kind:'отчёт', level:'общий', name: src.name, owner,
+    coauthors:['роль:'+CATALOG_ROLE], share:{depts, people:[author]}, users:1, lastOpen: RP.state.today, asked:false,
+    basis:null, circle: depts, forReview:false, fullCoverage:false, schedule:null,
+    origin:{tpl: src.id, author, at: RP.state.today}, editions:[ed]});
+  return id;
+}
 RP.acceptToCatalog = (pid, opts) => {
   const p = (RP.state.proposals || []).find(x => x.id === pid); if(!p) return {ok:false, why:'предложения нет'};
   if(p.state !== 'ждёт') return {ok:false, why:'предложение уже '+p.state};
@@ -5161,15 +5192,9 @@ RP.acceptToCatalog = (pid, opts) => {
   const sim = RP.similarTo(p.tpl);
   if(sim.length && !o.force) return {ok:false, hint:true, similar: sim,
     why:'похожий уже есть: «'+sim[0].name+'» ('+sim[0].level+', '+sim[0].owner+') — примите плитку на него или копируйте всё равно'};
-  const ed = clone(draftEd(src) || liveEd(src));
   const depts = (o.depts && o.depts.length) ? o.depts.slice() : [v.dept];
-  const id = 't-cat-'+(RP.state.proposals.filter(x => x.copy).length + 1);
-  Object.assign(ed, {n:1, state:'версия', since: RP.state.today, by: v.who, at: RP.state.today,
-    changed:'из личного отчёта '+p.by+' '+fmt(p.at)+' — принят в каталог '+fmt(RP.state.today)+' ('+v.who+')'});
-  RP.state.templates.push({id, kind:'отчёт', level:'общий', name: src.name, owner: v.who,
-    coauthors:['роль:'+CATALOG_ROLE], share:{depts, people:[p.by]}, users:1, lastOpen: RP.state.today, asked:false,
-    basis:null, circle: depts, forReview:false, fullCoverage:false, schedule:null,
-    origin:{tpl: src.id, author: p.by, at: RP.state.today}, editions:[ed]});
+  const id = copyToShared(src, v.who, p.by, depts,
+    'из личного отчёта '+p.by+' '+fmt(p.at)+' — принят в каталог '+fmt(RP.state.today)+' ('+v.who+')');
   p.state = 'принято'; p.copy = id;
   log('«'+src.name+'» принят в каталог копией '+id+' (владелец '+v.who+')');
   return {ok:true, id, note:'копия «'+src.name+'» — общий отчёт '+id+': владелец '+v.who+', соавтор — роль «'+CATALOG_ROLE+
@@ -5207,8 +5232,22 @@ RP.pinToDashboard = (tid, viewId, params) => {
   if(!RP.maySee(tid)) return {ok:false, why:'этого отчёта вам не видно'};
   const vw = viewId ? RP.state.views.find(x => x.id === viewId) : null;
   if(viewId && !vw) return {ok:false, why:'вида нет'};
+  /* Числовая колонка — показатель в силе или своя формула (ОД-47). Ответ
+     отчёта «📌» не проверяет: своя плитка стоит и на неотвечающем отчёте. */
+  const ed = liveEd(t) || draftEd(t), tw = vw ? viewTwist(baseOf(ed), vw.diff || {}) : baseOf(ed);
+  const stats = (tw.stats || []).slice(), forms = (tw.formulas || []).map(f => f.id);
+  const live = stats.filter(sid => { const m = SEAM.statMeta(sid); return m && !m.withdrawn; });
+  if(!live.length && !forms.length){ const m = SEAM.statMeta(stats[0]);
+    return {ok:false, why:'плитке нечего показать: '+(m && m.withdrawn ? '«'+m.name+'» выведен '+fmt(m.withdrawn)+' — '+m.why
+      : 'в отчёте нет показателя')}; }
+  /* Умолчания: главное число — первая колонка, второе — следующая того же
+     сорта (остаток с остатком, поток с потоком), иначе второго нет.         */
+  const sortOf = sid => STOCK_STATS.indexOf(sid) !== -1 ? 'остаток' : 'поток';
+  const cols = live.concat(forms), main = cols[0];
+  const second = live.length ? live.slice(1).find(sid => sortOf(sid) === sortOf(main)) || null : (forms[1] || null);
   const what = vw ? 'вид «'+vw.name+'»' : 'отчёт «'+t.name+'»';
   return {ok:true, ref:{tpl: tid, view: vw ? vw.id : null, params: clone(params || {})},
+    tile:{label: vw ? vw.name : t.name, main, second, light: null, params: clone(params || {})},
     note:'плитка ссылается на '+(vw ? 'этот вид' : 'этот отчёт')+' ('+what+'); раскладка — в модуле дашборда'};
 };
 
@@ -6099,6 +6138,7 @@ function drillPanel(d){
   if(d.form === 'изменение') h += '<div class="small">Изменение узла <b>'+esc(money(d.baseCell))+' → '+esc(money(d.cell))+
     ' = '+esc((d.change > 0 ? '+' : '')+money(d.change))+' '+esc(d.unit)+'</b>; сумма разниц объектов — <b>'+esc(money(d.sumDiff))+'</b> '+
     (d.equal ? pill('равна изменению','ok') : pill('не равна изменению','err'))+'. Объекты — бывшие в узле на любой из двух дат.</div>'+
+    (d.formNote ? '<div class="banner info">База — строки переноса из легаси; '+esc(d.formNote)+'.</div>' : '')+
     movementBox(d);
   else if(d.form === 'доля') h += '<div class="small">«'+esc(d.statName)+'» = '+esc(String(d.share).replace('.', ','))+' '+esc(d.unit)+
     ' — «'+esc(d.numName)+'» '+esc(money(d.num))+' ÷ «'+esc(d.denName)+'» '+esc(money(d.den))+'. '+
@@ -6189,8 +6229,11 @@ RP.uiWorklistFromDrill = () => { const sel = RP.state.sel, d = sel.drillRes, n =
 RP.uiDrillExport = () => { const sel = RP.state.sel, n = sel.drillNode; if(!n) return;
   const a = shownArgs(), params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
   act(RP.exportDrill(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ, mv: sel.drillMv})); };
+/* Значения — как на экране: относительное остаётся относительным (ОД-48). */
 RP.doPin = () => { const sel = RP.state.sel;
-  act(RP.pinToDashboard(sel.tpl, sel.view || null, {asOf: sel.params.asOf, dept: sel.params.dept})); };
+  const r = RP.pinToDashboard(sel.tpl, sel.view || null, {asOf: sel.rel === 'date' ? '@конец прошлого месяца' : sel.params.asOf,
+    dept: sel.rel === 'dept' ? '@моё подразделение' : sel.params.dept}, 'Главная');
+  sel.pinNote = r.ok ? r.banner : null; act(r, r.ok ? r.banner : null); };
 RP.selTpl = id => { const sel = RP.state.sel;
   /* Накрутка привязана к шаблону: смена шаблона её не переносит.            */
   sel.tpl = id; sel.twist = null; sel.view = null; sel.dropped = null; sel.live = false;
@@ -8000,7 +8043,7 @@ KB.setObject = obj => {
   const s = S(); if(!FIELDS[obj]) return {ok:false, why:'объекта «' + obj + '» никто не объявил: публичного перечня полей у него нет'};
   if(obj === s.object) return {ok:true, switched:false};
   clearNotices();
-  s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null; s.active = null;
+  s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null; s.active = null; s.fromDash = null;
   s.drill = {on:false, fields: FIELDS[obj].drill.slice()};
   let switched = false, why = null;
   if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(obj) === -1){
@@ -8083,7 +8126,7 @@ KB.startFrom = id => { const s = S(); const p = PRESETS.find(x => x.id === id);
   if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(p.object) === -1) s.mode = 'на дату';
   s.object = p.object; s.stats = p.stats.slice(); s.cuts = clone(p.cuts); s.filters = []; s.live = null;
   s.drill = {on: !!p.drill, fields: FIELDS[p.object].drill.slice()};
-  s.active = FIELDS[p.object].afterClose ? true : null; s.name = p.name;
+  s.active = FIELDS[p.object].afterClose ? true : null; s.name = p.name; s.fromDash = null;
   return {ok:true, note:'начато с заготовки «' + p.name + '»: состав скопирован в ваш черновик, связи с заготовкой нет'}; };
 KB.cutAvail = id => { const s = S(), c = CUT(id);
   if(!c || c.object !== s.object) return {ok:false, why:'разреза «' + id + '» у объекта «' + FIELDS[s.object].name + '» нет'};
@@ -8183,7 +8226,7 @@ KB.saveDraft = name => { const s = S(); clearNotices(); const nm = String(name =
   if(!nm) return {ok:false, why:'у черновика должно быть имя: безымянный состав — это состояние экрана, а не черновик'};
   const id = 'ЧР-' + (++s.seq.draft);
   s.drafts.push({id, name: nm, author: ME.who, at: TODAY, comp: composition()});
-  s.name = nm; note('ok', 'черновик «' + nm + '» сохранён · виден только вам');
+  s.name = nm; s.fromDash = null; note('ok', 'черновик «' + nm + '» сохранён · виден только вам');
   return {ok:true, id, note:'личный черновик: виден автору; официальным станет только утверждением (ИО-1)'}; };
 KB.draftsOf = who => S().drafts.filter(d => d.author === who).map(clone);
 KB.openDraft = id => { const s = S(); const d = s.drafts.find(x => x.id === id); if(!d) return {ok:false, why:'черновика нет'};
@@ -8191,7 +8234,28 @@ KB.openDraft = id => { const s = S(); const d = s.drafts.find(x => x.id === id);
   clearNotices(); const c = clone(d.comp);
   s.object = c.object; s.mode = c.mode; if(c.asOf) s.asOf = c.asOf; s.stats = c.stats; s.cuts = c.cuts; s.filters = c.filters; s.drill = c.drill;
   s.active = c.active === undefined ? s.active : c.active;
-  s.name = d.name; s.live = null; return {ok:true}; };
+  s.name = d.name; s.live = null; s.fromDash = null; return {ok:true}; };
+/* Черновик с дашборда (ОД-49, ДБ-286): «📌 Сохранить отчётом» из полосы
+   открывает конструктор с объектом, показателем, разрезами вида и фильтром
+   по пути. Черновик не сохранён; дальше — «Сохранить» и «📌», как у всех.
+   Чего конструктор не принял, называется, а не теряется молча.            */
+KB.fromDashboard = spec => { const s = S(), d = spec || {};
+  if(!FIELDS[d.object]) return {ok:false, why:'объекта «' + d.object + '» никто не объявил: черновик дашборда открыть нельзя'};
+  /* Отказ не трогает несохранённый черновик человека: состав — копией. */
+  const keep = clone({object: s.object, mode: s.mode, stats: s.stats, cuts: s.cuts, filters: s.filters, live: s.live,
+    active: s.active, drill: s.drill, name: s.name, fromDash: s.fromDash});
+  clearNotices();
+  s.object = d.object; s.stats = []; s.cuts = []; s.filters = []; s.live = null; s.active = null;
+  s.drill = {on:false, fields: FIELDS[d.object].drill.slice()};
+  if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(d.object) === -1) s.mode = 'на дату';
+  const lost = [];
+  (d.stats || []).forEach(id => { const r = KB.toggleStat(id); if(!r.ok) lost.push(r.why); });
+  (d.cuts || []).forEach(id => { const r = KB.addCut(id); if(!r.ok) lost.push(r.why); });
+  (d.filters || []).forEach(f => { const r = KB.addFilter(f.field, f.op, f.value); if(!r.ok) lost.push(r.why); });
+  if(!s.stats.length){ Object.assign(s, keep);
+    return {ok:false, why:'черновик дашборда без показателя: ' + (lost[0] || 'показатель не назван')}; }
+  s.name = String(d.path || 'Черновик с дашборда'); s.fromDash = {path: d.path || null, lost};
+  return {ok:true, lost, note:'черновик с дашборда открыт в конструкторе; он не сохранён — «Сохранить черновик», затем «📌»'}; };
 
 KB.exportIssue = fmtName => { const s = S(); clearNotices();
   const fmts = ['xlsx', 'csv', 'pdf']; if(fmts.indexOf(fmtName) === -1) return {ok:false, why:'формат «' + fmtName + '» отчёту не положен: ' + fmts.join(' · ')};
@@ -8263,7 +8327,10 @@ const fval = (fd, x) => x == null ? '—' : fd.type === 'число' ? (fd.unit 
 
 function scCompose(){
   const s = S(), fl = KB.fields();
-  let h = '<div class="card"><h3>Начать <span class="small">· с нуля, с готового отчёта или с заготовки</span></h3><div class="btn-row" style="margin:0">' +
+  let h = s.fromDash ? '<div class="banner info"><b>Черновик с дашборда</b>' + (s.fromDash.path ? ': ' + esc(s.fromDash.path) : '') +
+    '. Он ещё не сохранён — «Сохранить черновик», затем «📌 на дашборд».' +
+    s.fromDash.lost.map(w => '<div class="small">Не принято: ' + esc(w.replace(/\s*\((?:ADR|ИО|ОД)-[^)]*\)/g, '')) + '</div>').join('') + '</div>' : '';
+  h += '<div class="card"><h3>Начать <span class="small">· с нуля, с готового отчёта или с заготовки</span></h3><div class="btn-row" style="margin:0">' +
     PRESETS.map(p => '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.startFrom(\'' + p.id + '\'))">' + esc(p.name) + '</button>').join('') +
     '</div><div class="why">Заготовка копирует состав в ваш черновик; дальше он ваш и с заготовкой не связан.</div></div>';
   /* --- вопрос --- */
@@ -8542,12 +8609,24 @@ function topBox(tid, params){
     r.rows.map(x => '<tr><td>'+esc(x.name)+'</td><td class="num">'+drillLink(esc(money(x.value)), {path:[], stat: sid, ids: x.ids || [x.key], name: x.name})+'</td></tr>').join('')+
     '<tr class="gtot"><td>Итог</td><td class="num"><b>'+esc(money(r.total))+'</b></td></tr></tbody></table></div>';
 }
+/* Базы «Сравнения» — те же, что у плитки (ОД-45): первая дата — значение
+   второй семьи от даты отчёта, вторая — сама дата отчёта.                  */
+const CMP_BASES = [['начало месяца', 'за месяц'], ['начало квартала', 'за квартал'], ['начало полугодия', 'за полугодие'],
+  ['начало года', 'за год'], ['год назад', 'за 12 месяцев']];
+/* Дата отчёта — дата вопроса. У «сейчас» её нет: живое число со снимком
+   окно не сравнивает — базы не печатаются, остаются свои даты.           */
+const cmpDate = params => { const r = resolveRel(params || {}); return (r.ok && r.params.asOf) || null; };
+RP.setCmpBase = b => { RP.state.sel.cmpBase = b || null; render(); };
+RP.cmpBases = params => { const D = cmpDate(params); if(!D) return [];
+  return CMP_BASES.map(b => ({base: b[0], label: b[1], a: anchorDate(b[0], D), b: D})); };
 RP.toggleTop = () => { RP.state.sel.top = !RP.state.sel.top; render(); };
 RP.toggleDynBy = () => { RP.state.sel.dynBy = !RP.state.sel.dynBy; render(); };
 function flexCard(tid, params){
   const sel = RP.state.sel, t = TPL(tid);
   const fx = RP.flexOf(tid, sel.view) || {}, ed0 = liveEd(t) || draftEd(t);
-  const timeSpec = sel.time ? TIME_PRESETS[sel.time] : (fx.time ? fx.time.spec : null);
+  const D = cmpDate(params);
+  const timeSpec = sel.time === 'сравнение' && sel.cmpBase && D ? {mode:'сравнение', a: anchorDate(sel.cmpBase, D), b: D}
+    : sel.time ? TIME_PRESETS[sel.time] : (fx.time ? fx.time.spec : null);
   const filterSpec = sel.filter ? FILTER_PRESETS[sel.filter].f : (fx.filter ? fx.filter.f : null);
   const mayFlex = levelOf(t) !== 'официальный' && (levelOf(t) === 'общий' ? mayEditShared(t, RP.who()) : t.owner === RP.who());
   let h = '<div class="card"><h3>Время, фильтр, график, заметки</h3><div class="btn-row">'+
@@ -8556,6 +8635,9 @@ function flexCard(tid, params){
     '<button class="btn btn-sm btn-secondary" onclick="RP.toggleChart()">'+(sel.chart ? 'Скрыть график' : 'График рядом с таблицей')+'</button>'+
     (timeSpec && timeSpec.mode === 'динамика' ? '<button class="btn btn-sm '+(sel.dynBy ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.toggleDynBy()">По периоду начала</button>' : '')+
     '<button class="btn btn-sm '+(sel.top ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.toggleTop()">Крупнейшие 3</button></div>';
+  if(sel.time === 'сравнение' && D) h += '<div class="btn-row cmpb">'+[['', 'свои даты', null]].concat(CMP_BASES.map(b => [b[0], b[1], anchorDate(b[0], D)]))
+    .map(b => '<button class="btn btn-sm '+((sel.cmpBase || '') === b[0] ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.setCmpBase(\''+b[0]+'\')">'+
+      esc(b[1])+(b[2] ? '<small>на '+fmt(b[2])+'</small>' : '')+'</button>').join('')+'</div>';
   if(sel.top) h += topBox(tid, params);
   if(!sel.time && fx.time) h += '<div class="small">Режим времени из '+esc(flexSrc(fx.time.from))+': <b>'+esc(fx.time.text)+'</b></div>';
   if(timeSpec){
@@ -8594,6 +8676,7 @@ function flexCard(tid, params){
       else h += '<thead><tr><th>Оборот</th><th>Значение</th></tr></thead><tbody>'+r.rows.map(x => '<tr><td>'+esc(x.name)+'</td><td class="num">'+money(x.value)+'</td></tr>').join('')+'</tbody>';
       h += '</table></div>'+(r.rows || r.tracks || []).filter(x => x.method).map(x =>
         '<div class="banner warn">«'+esc(x.name)+'»: '+esc(x.method)+'</div>').join('')+
+        (r.formNote ? '<div class="banner info">'+esc(r.formNote[0].toUpperCase()+r.formNote.slice(1))+'.</div>' : '')+
         '<div class="small muted">Сдача: '+esc(r.issuable.ok ? 'возможна' : r.issuable.why)+'</div>';
     }
   }
@@ -8737,8 +8820,23 @@ const W45 = () => { const s = RP.state;
 const REL_DEPT = ['моё подразделение', 'моё подразделение и ниже'];
 const REL_DATE = ['конец прошлого месяца', 'конец прошлого квартала', 'конец прошлого года'];
 const REL_PERIOD = ['текущий месяц', 'текущий квартал', 'текущий год', 'прошлый месяц', 'прошлый квартал', 'прошлый год'];
-const REL_SET = REL_DEPT.concat(REL_DATE, ['сегодня ± N дней'], REL_PERIOD);
+/* Вторая семья — от даты вопроса (ОД-38…ОД-41): база сдвига плитки и
+   колонки-даты формы. Период берётся по дню строки: дата «на 01.10»
+   отвечает строкой 30.09 и лежит в сентябре. «Год назад» — последний конец
+   месяца не позже даты минус год: даты внутри закрытого месяца нет.        */
+const REL_ANCHOR = ['начало месяца', 'начало квартала', 'начало полугодия', 'начало года', 'год назад'];
+const REL_SET = REL_DEPT.concat(REL_DATE, ['сегодня ± N дней'], REL_PERIOD, REL_ANCHOR);
 RP.relSet = () => REL_SET.slice();
+function anchorDate(name, D){
+  const rs = repStart(D), m = +rs.slice(5, 7);
+  if(name === 'начало месяца') return rs;
+  if(name === 'начало квартала') return quarterStart(rs);
+  if(name === 'начало полугодия') return rs.slice(0, 5)+(m <= 6 ? '01' : '07')+'-01';
+  if(name === 'начало года') return rs.slice(0, 4)+'-01-01';
+  if(name === 'год назад') return shiftYear(D, -1).slice(0, 8)+'01';
+  return null;
+}
+RP.anchorDate = (name, D) => anchorDate(name, D || RP.state.today);
 const qStart = iso => iso.slice(0, 5)+String(Math.floor((+iso.slice(5, 7) - 1) / 3) * 3 + 1).padStart(2, '0')+'-01';
 const prevMonthStart = iso => { const y = +iso.slice(0, 4), m = +iso.slice(5, 7);
   return (m === 1 ? (y - 1)+'-12' : y+'-'+String(m - 1).padStart(2, '0'))+'-01'; };
@@ -8753,7 +8851,7 @@ function relPeriod(name, today){
   if(name === 'прошлый год') return {from: (+today.slice(0, 4) - 1)+'-01-01', to: y0};
   return null;
 }
-function relValue(key, raw, v, today){
+function relValue(key, raw, v, today, anchor){
   const name = String(raw).slice(1).trim();
   if(key === 'dept'){
     if(REL_DEPT.indexOf(name) === -1) return {why:'значения «'+name+'» у подразделения в наборе нет: '+REL_DEPT.join(' · ')};
@@ -8769,7 +8867,10 @@ function relValue(key, raw, v, today){
     else if(REL_PERIOD.indexOf(name) !== -1){ const p = relPeriod(name, today);
       /* У остатка значение-период подставляется концом периода: у текущего — сегодня. */
       d = name.indexOf('текущий') === 0 ? today : p.to; }
-    else return {why:'значения «'+name+'» у даты в наборе нет: '+REL_DATE.concat(['сегодня ± N дней'], REL_PERIOD).join(' · ')};
+    /* От даты вопроса; у самой даты вопроса — от сегодня. */
+    else if(REL_ANCHOR.indexOf(name) !== -1){ d = anchorDate(name, anchor || today);
+      return {value: d, text: name+' = '+fmt(d)+' (от '+fmt(anchor || today)+')'}; }
+    else return {why:'значения «'+name+'» у даты в наборе нет: '+REL_DATE.concat(['сегодня ± N дней'], REL_PERIOD, REL_ANCHOR).join(' · ')};
     return {value: d, text: name+' = '+fmt(d)};
   }
   return {why:'параметр «'+key+'» относительных значений не принимает: только подразделение и дата'};
@@ -8785,6 +8886,24 @@ function resolveRel(params){
   return {ok:true, params: p, rel: texts};
 }
 RP.resolveParams = params => resolveRel(params);
+/* Даты ответа: первая — дата вопроса (конкретная или значение набора от
+   сегодня), следующие второй семьи — от неё, а не друг от друга. Первая
+   сама второй семьи — тогда дата вопроса — дата параметра (anchor0) или
+   сегодня.                                                                  */
+function resolveDates(dates, anchor0){
+  const v = RP.viewer(), today = RP.state.today, out = [], texts = [];
+  let anchor = null;
+  for(let i = 0; i < dates.length; i++){ const raw = dates[i];
+    if(typeof raw !== 'string' || raw.charAt(0) !== '@'){ out.push(raw); if(!i) anchor = raw; continue; }
+    const second = REL_ANCHOR.indexOf(raw.slice(1).trim()) !== -1;
+    if(!i && second) anchor = anchor0 || today;
+    const r = relValue('asOf', raw, v, today, anchor || today);
+    if(r.why) return {ok:false, why: r.why};
+    out.push(r.value); texts.push(r.text); if(!i && !second) anchor = r.value;
+  }
+  return {ok:true, dates: out, rel: texts};
+}
+RP.resolveDates = (dates, anchor) => resolveDates(dates || [], anchor);
 RP.relPeriod = name => { const p = relPeriod(name, RP.state.today);
   return p ? {ok:true, from: p.from, to: p.to} : {ok:false, why:'периода «'+name+'» в наборе нет: '+REL_PERIOD.join(' · ')}; };
 
@@ -9031,7 +9150,11 @@ RP.deleteReport = tid => {
 const _pin = RP.pinToDashboard;
 RP.pinToDashboard = (tid, viewId, params, dash) => {
   const res = _pin(tid, viewId, params);
-  if(res.ok){ const s = W45(); (s.tiles[tid] = s.tiles[tid] || []).push({dash: dash || 'Главная', view: viewId || null, at: RP.state.today}); }
+  /* Плитку ставит дашборд по ссылке сразу (ДБ-281, ОД-48); отчётность печатает
+     плашку, форма плитки — «Настроить» на ней, у дашборда.                  */
+  if(res.ok){ const s = W45(); (s.tiles[tid] = s.tiles[tid] || []).push(Object.assign({dash: dash || 'Главная', view: viewId || null,
+      at: RP.state.today}, clone(res.tile)));
+    res.banner = 'Плитка на главной · Настроить ↗'; }
   return res; };
 RP.tilesOf = tid => clone(W45().tiles[tid] || []);
 
@@ -9518,7 +9641,9 @@ function scShowcase(){
     const shown = SC_SHELVES.filter(s => !sel.scPick || sel.scPick === s[0]);
     const okAll = shown.map(s => [s[1], found[s[0]].filter(r => r.ok)]);
     const gone = shown.reduce((a, s) => a.concat(found[s[0]].filter(r => !r.ok)), []);
-    if(!okAll.some(g => g[1].length) && !gone.length) return h+'<div class="banner warn">Ничего не найдено.</div>';
+    if(!okAll.some(g => g[1].length) && !gone.length) return h+'<div class="banner warn">Ничего не найдено по «'+esc(String(sel.scQ).trim())+'». '+
+      'Нужного отчёта нет — соберите его.<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.go(\'draft\')">'+
+      'Собрать отчёт</button></div></div>';
     const ctx = {mixed:true, many:true};
     return h+scTable(okAll.map(g => scGroup(g[0], g[1], ctx)).join('')+scGroup('Недоступно', gone, ctx, true, scGoneNote(gone)));
   }
@@ -9603,10 +9728,118 @@ RP.uiDropView = id => act(RP.deleteView(id));
  ['worklists', w45WorklistCards], ['builder', w45BuilderCards]].forEach(p => { const f = VIEWS[p[0]].fn;
   VIEWS[p[0]].fn = () => f() + p[1](); });
 /* ==/ДОБОР СТАРЫХ РЕШЕНИЙ== */
+
+/* ============ ВХОДЯЩИЕ ОТ ДАШБОРДА: БАЗА СРАВНЕНИЯ И СВОЯ ПЛИТКА ============
+   Плитка — ещё один смотрящий отчёта. База сдвига — значение второй семьи от
+   даты вопроса; вопрос через дату запуска отвечается строками переноса;
+   каждая дата ответа называет строку и месяц; ответ несёт признак
+   «отвечает». Своя плитка ставится «📌» сразу; адрес витрины принимает
+   запрос; черновик полосы открывается в конструкторе; публикация своей
+   плитки в каталог — копия личного отчёта в общий.                         */
+/* Дата ответа называет строку, месяц и его состояние: закрыт · не закрыт ·
+   из легаси. Дашборду не нужно знать календарь, чтобы написать «сентябрь
+   не закрыт».                                                               */
+const dateInfo = d => { if(!d) return {asOf:null, source:'свой', state:null, text:'сейчас — живые строки'};
+  const row = addDays(d, -1), m = periodOfAsOf(d), p = RP.state.periods[m];
+  const source = preLaunch(m) ? 'из легаси' : 'свой';
+  const state = source === 'из легаси' ? 'из легаси' : (p && p.state === 'закрыт' ? 'закрыт' : 'не закрыт');
+  return {asOf: d, row, month: m, source, state,
+    text:'на '+fmt(d)+' (начало дня) — строка '+fmt(row)+' · '+m+(state === 'из легаси' ? ' — из легаси' : ' '+state)}; };
+RP.dateInfo = d => dateInfo(d);
+/* «Отвечает» — по дате вопроса (первой): число есть или пусто по закону. */
+const respondsOf = (res, want) => { const a0 = res.answers[0];
+  const dead = (res.dropped || []).find(x => x.stat === want);
+  if(dead) return {yes:false, why:'«'+(dead.name || dead.stat)+'» снят: '+dead.why};
+  if(a0.gap) return a0.gap === 'в легаси не собиралось' ? {yes:true, why:'пусто: в легаси не собиралось'}
+    : {yes:false, why:'на '+fmt(a0.asOf)+' '+a0.gap};
+  const s0 = a0.stats[0]; if(!s0) return {yes:false, why:'показателя в ответе нет'};
+  if(s0.why) return {yes:false, why: s0.why};
+  if(s0.value == null && !a0.empty) return {yes:false, why:'источник не ответил'};
+  return {yes:true, why: a0.empty ? a0.empty.why : null}; };
+const isRelVal = x => typeof x === 'string' && x.charAt(0) === '@';
+const _ans49 = RP.reportAnswer;
+RP.reportAnswer = spec => {
+  const s = Object.assign({}, spec || {});
+  if(s.batch) return _ans49(s);
+  const pr = resolveRel(s.params || {}), anchor0 = pr.ok ? (pr.params.asOf || null) : null;
+  const refuse = r => Object.assign(r, {responds:{yes:false, why: r.why}});
+  let rel = [];
+  if(s.form === 'ответ' && s.dates && s.dates.some(isRelVal)){
+    const rd = resolveDates(s.dates, anchor0); if(!rd.ok) return refuse(rd); s.dates = rd.dates; rel = rd.rel; }
+  /* «Объекты на двух датах»: дата вопроса — b, база a бывает от неё. */
+  if(s.form === 'объекты на двух датах' && (isRelVal(s.a) || isRelVal(s.b))){
+    const rd = resolveDates([s.b, s.a], anchor0); if(!rd.ok) return refuse(rd); s.b = rd.dates[0]; s.a = rd.dates[1]; rel = rd.rel; }
+  const res = _ans49(s);
+  if(!res.ok) return refuse(res);
+  if(rel.length){ res.relative = (res.relative || []).concat(rel); if(res.passport) res.passport.relative = res.relative.slice(); }
+  if(res.form !== 'ответ') return res;
+  res.dateInfo = res.dates.map(dateInfo);
+  res.answers.forEach((a, i) => { a.info = res.dateInfo[i]; });
+  const dated = res.dateInfo.filter(x => x.asOf);
+  const on = src => uniq(dated.filter(x => x.source === src).map(x => fmt(x.asOf))).join(', ');
+  res.formNote = uniq(dated.map(x => x.source)).length > 1 ? 'редакции формы разные: из легаси — '+on('из легаси')+'; свои — '+on('свой') : null;
+  res.passport.dateInfo = res.dateInfo.map(x => x.text);
+  if(res.formNote) res.passport.formNote = res.formNote;
+  res.responds = respondsOf(res, (s.stats || [])[0]);
+  return res; };
+
+/* ---- Адрес витрины принимает запрос (ДБ-280) ----
+   «…#otchetnost?q=просрочка» — витрина открывается с запросом в поиске по
+   всем полкам. Полки и отбора адрес не несёт.                               */
+const SC_ADDR = 'otchetnost';
+RP.showcaseAddress = q => '#'+SC_ADDR+(String(q || '').trim() ? '?q='+encodeURIComponent(String(q).trim()) : '');
+RP.openAddress = addr => {
+  const m = String(addr || '').match(/^#?([a-z]+)(?:\?(.*))?$/);
+  if(!m || m[1] !== SC_ADDR) return {ok:false, why:'адреса «'+addr+'» у отчётности нет'};
+  const raw = ((m[2] || '').match(/(?:^|&)q=([^&]*)/) || [])[1] || '';
+  let q = ''; try { q = decodeURIComponent(raw.replace(/\+/g, ' ')).trim(); } catch(e){ q = ''; }
+  const sel = RP.state.sel; sel.scQ = q; sel.scPick = ''; sel.scTab = '';
+  RP.go('showcase');
+  return {ok:true, q}; };
+
+/* ---- Черновик полосы дашборда — в конструктор (ДБ-286) ---- */
+RP.openDraftFromDashboard = spec => { const r = window.KB.fromDashboard(spec); if(r.ok) RP.go('draft'); return r; };
+
+/* ---- Публикация своей плитки в каталог (ДБ-282, ДБ-284) ----
+   Держатель роли каталога публикует плитку на свой личный отчёт — отчётность
+   копирует его в общий, как при «Принять», без очереди к самому себе. Круг
+   копии — подразделения держателей ролей, для которых плитка: иначе пункт
+   круга автопроверки не пройдёт.                                            */
+RP.publishTileToCatalog = (tid, roles, opts) => {
+  const t = TPL(tid), v = RP.viewer(), o = opts || {};
+  if(!t) return {ok:false, why:'отчёта нет'};
+  if(!holdsRole(CATALOG_ROLE, v.who)) return {ok:false, why:'в каталог публикует держатель роли «'+CATALOG_ROLE+'»; остальные предлагают'};
+  if(levelOf(t) !== 'личный') return {ok:true, onto: tid, note:'«'+t.name+'» — '+levelOf(t)+' отчёт: плитка ссылается на него, копии не нужно'};
+  if(t.owner !== v.who) return {ok:false, why:'публикуют плитку на свой личный отчёт'};
+  const rs = (roles || []).filter(Boolean); if(!rs.length) return {ok:false, why:'для каких ролей плитка — не названо'};
+  const sim = RP.similarTo(tid);
+  if(sim.length && !o.force) return {ok:false, hint:true, similar: sim,
+    why:'похожий уже есть: «'+sim[0].name+'» ('+sim[0].level+', '+sim[0].owner+') — опубликуйте плитку на него или копируйте всё равно'};
+  const depts = uniq(rs.reduce((a, r) => a.concat(roleHolders(r).map(h => h.dept || deptOfWho(h.who))), []).filter(Boolean));
+  const id = copyToShared(t, v.who, v.who, depts.length ? depts : [v.dept],
+    'из личного отчёта '+v.who+' — опубликован в каталог с плиткой '+fmt(RP.state.today));
+  /* На копию переезжают плитки на сам отчёт; плитка через вид остаётся у
+     автора на личном — вид личный и с отчётом не копируется.              */
+  const w = W45(), all = w.tiles[tid] || [], onView = all.filter(x => x.view);
+  w.tiles[id] = all.filter(x => !x.view).map(x => Object.assign({}, x, {catalog:true, roles: rs})); w.tiles[tid] = onView;
+  log('«'+t.name+'» опубликован в каталог с плиткой копией '+id+' (владелец '+v.who+')');
+  return {ok:true, id, depts, note:'копия «'+t.name+'» — общий отчёт '+id+': владелец '+v.who+', соавтор — роль «'+CATALOG_ROLE+
+    '», круг — '+(depts.length ? depts : [v.dept]).map(deptName).join('; ')+'; личный отчёт остаётся у вас'+
+    (onView.length ? '; плитки через ваш вид ('+onView.length+') остались на нём — вид личный' : '')}; };
+
+/* ---- Плашка после «📌»: «Плитка на главной · Настроить ↗» ---- */
+RP.uiPin = (tid, view) => { const r = RP.pinToDashboard(tid, view || null, {}, 'Главная');
+  RP.state.sel.pinNote = r.ok ? r.banner : null; act(r, r.ok ? r.banner : null); };
+const pinBanner = () => RP.state.sel.pinNote ? '<div class="banner ok">Плитка на главной · '+
+  '<a href="../dashboard/dashboard.html" target="_blank" rel="noopener">Настроить ↗</a></div>' : '';
+['showcase', 'issue'].forEach(k => { const f = VIEWS[k].fn; VIEWS[k].fn = () => pinBanner() + f(); });
+{ const _go = RP.go; RP.go = v => { RP.state.sel.pinNote = null; _go(v); }; }
+/* ==/ВХОДЯЩИЕ ОТ ДАШБОРДА: БАЗА СРАВНЕНИЯ И СВОЯ ПЛИТКА== */
 RP.seed();
 if(typeof window !== 'undefined'){ window.RP = RP; window.SEAM = SEAM; window.act = act;
   window.VIEWS = VIEWS; }
 render();
+if(typeof location !== 'undefined' && location.hash) RP.openAddress(location.hash);
 </script>
 </body>
 </html>
