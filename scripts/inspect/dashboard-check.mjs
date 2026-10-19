@@ -158,6 +158,14 @@
 //      остался); дни просрочки кредита и длительность эпизода — два числа, общий у них набор кредитов в просрочке; «Вылечены» — только
 //      закрытые погашением, разрез «Чем закрыт», «Закрыто эпизодов»; эпизод без объекта «Кредит» не отвечает. Переписаны 347 (два числа
 //      вместо равенства), 4, 68, 187, 368, 366, 420 (ворота открыты), 42, 55, 77, 349, 369, 427, 430 (выключают ворота явно), 216 («Дни просрочки»).
+//   AJ волна 23 (19.10.2026), ДБ-298…ДБ-310, ДБ-Д77, ДБ-Д78: пульт «Плитки дашборда» — одна колонка (дела → фильтры → каталог по объекту),
+//      поломка строкой на причину, действия строки в «⋯».
+//   AK волна 24 (19.10.2026), ДБ-314…ДБ-322, ДБ-Д32, ДБ-Д74: ответы соседей и Ряд через запуск — Движение по узлам сходится с итогом
+//      (прежний объект в узле на любую из дат), периоды — значения набора отчётности, признак «нет объектов» по параметру разреза
+//      («у вас пусто» / «нет объектов», порог — число), признак на дату базы и точки Ряда — подсказкой, «Мои задания» — три числа,
+//      у каждого свой раздел очереди, «Срок сдачи близко» — по настройке отчётности, Ряд до запуска — итог легаси со штриховкой.
+//      Переписаны 122, 196, 331 (личная плитка и экран Асанова), 125, 366 («Срок сдачи близко» без параметра), 170, 214 (число — кнопка
+//      раздела), 200, 212, 214, 226 (третье число «Мои задания»), 357 («у вас пусто» — только у относительного значения).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -821,7 +829,7 @@ const asUser = id => { DB.state.userId = id; };
   const pa2 = T('p-u2-agro');
   ok(122, pr && pr.shelf === 'personal' && pr.owner === 'u2' && pr.circle.owner === 'u2' && pa.owner === 'u2' && pa.state === 'personal' && !own(pa) && pa.params.curator === '@me'
     && aa.state === 'ok' && aa.value === oa.value && aa.value > 0 && aa.passport === oa.passport
-    && cc.length === 18 && cc.some(t => t.id === 'cat-appfun') && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 1   // с волны 15 в каталоге и «Подано заявок · с начала года»
+    && cc.length === 18 && cc.some(t => t.id === 'cat-appfun') && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 2   // с волны 15 в каталоге и «Подано заявок · с начала года»; с волны 24 — личный отчёт Асанова
     && DB.reportById('r-u2-agro').title === hold && pa2.report === 'r-u2-agro' && pa2.state === 'personal' && DB.composeLayout('u2', 'cur').includes('p-u2-agro'),
     `«${pa.title}» ссылается на личный отчёт «${hold}» на полке Бековой (круг — она одна), значение «я» даёт плитка: ${aa.value} = прежнему вопросу; все ${cc.length} плиток Куратора и каталога на отчётах (${new Set(cc.map(t => t.report)).size} шт.), своего вопроса нет; отчёт переживает сброс стенда (ДБ-99, ДБ-103)`);
   // ни у одной плитки каталога нет своего вопроса: обзорная ссылается на отчёт, ссылочная — на очередь модуля-владельца
@@ -843,16 +851,16 @@ const asUser = id => { DB.state.userId = id; };
   // обязательства — обычные обзорные плитки на отчёте «Обязательства по сдаче»; «срок ≤ 7 дн.» — значение параметра отчёта
   const ou = U('u10'), obl = ['rep-od', 'rep-soon', 'rep-chg'].map(id => T(id)), orp = DB.reportById('r-oblig');
   const lit = (inds, filter) => DB.answer({ id:'old-obl', format:'number', inds, filter }, ou, 'rep', {});
-  const oo = [lit(['oblig.overdue'], []), lit(['oblig.soon'], [{ f:'dueIn', op:'le', v:'@today+7' }]), lit(['oblig.changed'], [])];
+  const oo = [lit(['oblig.overdue'], []), lit(['oblig.soon'], []), lit(['oblig.changed'], [])];
   const no = obl.map(t => DB.ask(t, ou, 'rep', {})), rg = DB.registryList(obl[0], ou, 'rep', {}), wh = DB.statRows(obl[0], ou, 'rep', {});
   ok(125, obl.every(t => t.kind === 'overview' && !t.queue && !own(t) && t.report === 'r-oblig') && orp.title === 'Обязательства по сдаче' && orp.obj === 'oblig'
     && orp.cols.join() === 'oblig.overdue,oblig.soon,oblig.changed' && orp.params.due.dim === 'dueIn' && orp.params.due.op === 'le' && !Object.values(orp.params).some(p => p.dim === 'dept')
-    && obl[1].params.due === '@today+7' && !(obl[0].params || {}).due && Q('rep-soon').filter.length === 1 && Q('rep-soon').filter[0].v === '@today+7' && Q('rep-od').filter.length === 0 && Q('rep-chg').filter.length === 0
+    && !obl[1].params.due && !(obl[0].params || {}).due && Q('rep-soon').filter.length === 0 && Q('rep-od').filter.length === 0 && Q('rep-chg').filter.length === 0 && obl[1].title === 'Срок сдачи близко'
     && no.every((a, i) => a.state === oo[i].state && a.value === oo[i].value && a.passport === oo[i].passport) && no.some(a => a.value > 0)
     && rg.registry === 'Реестр обязательств' && rg.owner === 'Отчётность' && !wh.refused && wh.list.length === no[0].value
     && DB.reportById(T('rep-sum').report).obj === 'oblig' && !own(T('rep-sum')) && T('rep-sum').kind === 'overview' && T('rep-sum').second.share.join() === 'oblig.onTime,oblig.submitted' && T('rep-sum').views.series.of === 'second'
     && !DB.tileById('rep-ser'),
-    `«Просрочено обязательств», «Срок сдачи ≤ 7 дн.», «Сданные, где числа изменились» — обзорные на отчёте «${orp.title}», срок — параметр «${orp.params.due.name}» = ${obl[1].params.due}; числа прежние ${no.map(a => a.value).join(' / ')}; список — «${rg.registry}» модуля «${rg.owner}» (ДБ-108, ДБ-101)`);
+    `«Просрочено обязательств», «Срок сдачи близко», «Сданные, где числа изменились» — обзорные на отчёте «${orp.title}»; «близко» — признак строки обязательства по настройке отчётности, параметра «${orp.params.due.name}» у плитки нет (волна 24, ДБ-321); числа прежние ${no.map(a => a.value).join(' / ')}; список — «${rg.registry}» модуля «${rg.owner}» (ДБ-108, ДБ-101)`);
   // отчёт со специалистом: параметр «Кредитный специалист», плитка Специалиста даёт «я», плитка Головного офиса на том же отчёте — без значения
   const SPEC = { f:'specialist', op:'eq', v:'@me' }, sp6 = U('u6'), spr = DB.reportById('r-apps');
   const sw = ['spec-work', 'spec-stage', 'spec-filed'].map(id => T(id));
@@ -1524,7 +1532,7 @@ const asUser = id => { DB.state.userId = id; };
     && /<div class="second"><span><b><span class="chipv yellow"[^>]*>[\d,]+\s%<\/span><\/b> портфеля <span class="thr">· &gt;\s4\s%<\/span><\/span><\/div>/.test(hod)
     && !/class="big"[^>]*><span class="chipv/.test(hod) && /class="tile" data-key="lead-od"/.test(hod) && !GONE.test(hod) && !/<rect /.test(hod + hln + htk) && !/sl-views/.test(hod)
     && ko.map(v => v.name).join() === NAMES && ko.every(v => !v.off) && kl.map(v => v.name).join() === NAMES && kl.find(v => v.name === 'Движение').off && /потоки/.test(kl.find(v => v.name === 'Движение').tip) && kl.filter(v => v.off).length === 1
-    && kt.map(v => v.name).join() === NAMES && kt.every(v => v.off && v.tip) && !/class="big"[^>]*>[^<]*<span class="chipv/.test(htk) && /<div class="second"><span><b><span class="chipv red"/.test(htk)
+    && kt.map(v => v.name).join() === NAMES && kt.every(v => v.off && v.tip) && !/class="big"[^>]*>[^<]*<span class="chipv/.test(htk) && /<div class="second"><span><button type="button" class="num-link"[^>]*><b><span class="chipv red"/.test(htk)
     && sweep.length > 90 && new Set(sweep.map(x => x.k)).size >= 83 && bare.length === 0 && /class="second"/.test(hbk) && !GONE.test(hbk),   // волна 12: было sweep > 100 — 105 с копией «Руководства» у Аналитика (ДБ-204), различных плиток 83 и было
     `плитка «Просрочено»: «${(hod.match(/<span class="big"[^>]*>([^<]+)</) || [])[1]}», сдвиг, «${((hod.match(/<b><span class="chipv \w+"[^>]*>([^<]*)<\/span><\/b> ([^<]+) </) || []).slice(1)).join(' ')}» с плашкой светофора на втором; на плитке нет мини-ряда, кнопок видов, строки паспорта и строки порога, края нейтральны (ДБ-130, ДБ-132, ДБ-133); пять видов «${NAMES.replace(/,/g, ' · ')}» — в строке полосы, у «Суммы под риском» «Движение» погашено с причиной, у «Мои задания» погашены все пять; ${sweep.length} плиток всех раскладок — три строки, без размеров и «Развернуть» (ДБ-115, ДБ-118, ДБ-119; волна 7: было — мини-ряд из 12 точек и пять кнопок на плитке)`);
   // раскрытие: в ряду одна плитка, в разных рядах по одной, не хранится; в странице нет «Развернуть», ⤢, размеров плиток главной и фильтра форматов
@@ -1908,7 +1916,7 @@ const asUser = id => { DB.state.userId = id; };
     ...Object.values(DB.state.screens).flat().flatMap(s => [...s.items, ...Object.keys(s.pinned)])];
   const left = REMOVED.filter(id => DB.tileById(id) || DB.TILES.some(t => t.id === id) || inLay.includes(id) || new RegExp('[\'"`]' + id + '[\'"`]').test(src));
   ok(196, REMOVED.length === 19 && new Set(REMOVED).size === 19 && left.length === 0 && !DB.catalogFor(U('u1')).some(x => REMOVED.includes(x.t.id))
-    && DB.TILES.length === 92 && DB.tileById('cat-appfun') && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
+    && DB.TILES.length === 93 && DB.tileById('cat-appfun') && DB.tileById('p-u1-rem') && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
     `19 снятых плиток (${REMOVED.slice(0, 4).join(', ')}…) нет ни в списке плиток, ни в раскладках, личных перекладках и экранах, ни в тексте страницы; плиток в каталоге ${DB.TILES.length} (было 135), у каждой главное число и умолчания видов, прежних «выбор из ответа» и «формат» нет ни у одной`);
   // числа без намеренных изменений равны прежним: литералы из снимка до слияния, по умолчанию стенда, по одному пользователю на роль
   // Ряд плитки за прошлый месяц кончается её периодом: прежние 11 точек те же, неполный текущий месяц ушёл, слева — месяц годом раньше
@@ -2023,9 +2031,9 @@ const asUser = id => { DB.state.userId = id; };
     ['otd-verd', 'main', 26]
   ],
   'u10|rep': [
-    ['rep-od', 'main', 1],
+    ['rep-od', 'main', 2],   // волна 24: ОБ-512 со сроком в прошлом — «просрочено», не «ожидается» (было 1)
     ['rep-od', 'tl', 'red'],
-    ['rep-soon', 'main', 4],
+    ['rep-soon', 'main', 3],   // волна 24: ОБ-512 ушла в «просрочено» (было 4)
     ['rep-soon', 'tl', 'yellow'],
     ['rep-chg', 'main', 0],
     ['rep-sum', 'slice(ostate)', [['ожидается',0],['сдано в срок',4],['сдано с опозданием',2],['просрочено',0]]],
@@ -2076,7 +2084,7 @@ const asUser = id => { DB.state.userId = id; };
   const gOnMain = DB.ask(Object.assign({}, T('gof-wait'), { tl:{ yellow:['>', 10], green:false, on:'main' } }), u8, 'gof', {}).tl, gOnSecond = DB.ask(Object.assign({}, T('gof-wait'), { tl:{ yellow:['>', 10], green:false, on:'second' } }), u8, 'gof', {}).tl;
   const oOnMain = DB.ask(Object.assign({}, T('otd-pend'), { tl:{ yellow:['>', 10], green:false, on:'main' } }), u9, 'otd', {}).tl;
   const au = DB.base('acc-unident', 'u4', 'acc');
-  ok(200, qw.inds.join() === 'app.waitGo,app.waitGoMax' && qw.dims.join() === 'region' && qc.inds.join() === 'concl.pending,concl.waitMax' && qc.dims.length === 0 && qt.inds.join() === 'task.mine,task.overdue'
+  ok(200, qw.inds.join() === 'app.waitGo,app.waitGoMax' && qw.dims.join() === 'region' && qc.inds.join() === 'concl.pending,concl.waitMax' && qc.dims.length === 0 && qt.inds.join() === 'task.mine,task.overdue,task.queued'
     && T('gof-wait').kind === 'link' && T('gof-wait').queue === 'q-waitgo' && !T('gof-wait').report && T('gof-wait').second.col === 'app.waitGoMax' && T('gof-wait').tl.on === 'second'
     && T('otd-pend').kind === 'link' && T('otd-pend').queue === 'q-conclpend' && T('otd-pend').second.col === 'concl.waitMax' && T('otd-pend').tl.on === 'second'
     && gw.value === 13 && gw.second.value === 8 && gw.second.value === wMax && gw.second.unit === 'days' && gw.tl === 'yellow' && gOnMain === 'yellow' && gOnSecond === null
@@ -2227,7 +2235,7 @@ const asUser = id => { DB.state.userId = id; };
   const rc = DB.DATA.receipt, nonAl = rc.filter(r => r.state !== 'распределено'), wd = r => r.at === 0 ? 11 - r.day : 11 - r.day + 30;
   const unm = DB.view('acc-unm', 'slice', null, [], 'u4', 'acc', {}), uni = DB.view('acc-unident', 'slice', null, [], 'u4', 'acc', {}), awt = DB.view('acc-await', 'slice', null, [], 'u4', 'acc', {});
   // волна 16: пять частично распределённых ждут остатком с даты поступления — нераспределённых 23 (18 прежних + 5), очереди прежние
-  ok(212, rc.length === 5200 && nonAl.length === 23 && nonAl.filter(r => r.part).length === 5 && nonAl.every(r => r.waitDays === wd(r)) && rc.filter(r => r.state === 'распределено').every(r => r.waitDays === null) && DB.DATA.task.length === 40
+  ok(212, rc.length === 5200 && nonAl.length === 23 && nonAl.filter(r => r.part).length === 5 && nonAl.every(r => r.waitDays === wd(r)) && rc.filter(r => r.state === 'распределено').every(r => r.waitDays === null) && DB.DATA.task.filter(t => !t.queue).length === 40
     && DB.base('acc-unident', 'u4', 'acc').value === 1 && DB.base('acc-unident', 'u4', 'acc').second.value === 507717 && DB.base('acc-await', 'u4', 'acc').value === 1 && DB.base('acc-unm', 'u4', 'acc').value === 16
     && unm.format === 'steps' && unm.sel.dim === 'rwait' && unm.nodes.map(n => n.value).join() === '7,8,1' && uni.nodes.map(n => n.value).join() === '0,1,0' && awt.nodes.map(n => n.value).join() === '1,0,0',
     `срок ожидания поступления — дни от даты поступления, пока оно не распределено (23 строки — с волны 16 и пять частично распределённых, остальные пустые; случайных чисел нет, прежние данные не сдвинулись): «Незакрыжено» 16 = ${unm.nodes.map(n => n.label + ' ' + n.value).join(' · ')}, «Невыясненные» 1 — ${uni.nodes.find(n => n.value).label}, «Ожидают подтверждения» 1 — до 3 дн.; числа очередей прежние: 1 · 507 717 · 1 · 16 (ДБ-120)`);
@@ -2248,19 +2256,19 @@ const asUser = id => { DB.state.userId = id; };
     `у 16 ссылочных плиток из 19 открывается Разрез (по первому объявленному разрезу) и Таблица, Карта — где разрезов два; сумма Разреза = числу плитки (например «Незакрыжено» ${unm.total.v} = 7 + 8 + 1), путь «источник» несёт число; клик по числу любой из 19 — очередь; у «Мои задания» и двух очередей отдела виды погашены с причиной; фильтр панели «Область» фиксирует разрез, остаётся «вид залога»; ⚑ у срока ожидания — в полосе, не на плитке (ДБ-120, ДБ-129)`);
   // «Мои задания»: второе число «просрочено» со светофором; «в очередях моих ролей» у объекта без разрезов выразить нечем
   const od = u => DB.DATA.task.filter(x => x.assignee === u.id && x.dueIn < 0).length, bs = DB.USERS.map(u => [u, DB.base('tasks', u.id, u.roles[0])]);
-  const MAIN = { u1:2, u2:5, u3:4, u5:6, u6:4, u8:2, u9:3, u10:4, u11:1, u12:3 };
+  const MAIN = { u1:2, u2:5, u3:4, u5:6, u6:4, u8:2, u9:3, u10:5, u11:1, u12:3 };   // волна 24: у Усеновой 4 + задание по обязательству ГО, которое она взяла
   const t2 = DB.base('tasks', 'u2', 'cur'), t6 = DB.base('tasks', 'u6', 'spec'), h2 = DB.tileHTML('tasks', 'u2', 'cur'), h6 = DB.tileHTML('tasks', 'u6', 'spec'), vt = vw('tasks', 'u2', 'cur'), dr = DB.drill('tasks', U('u2'), 'cur', {});
   const orow = DB.DATA.task.find(x => x.dueIn < 0), hrow = DB.DATA.task.find(x => x.hot && x.dueIn >= 0);
   ok(214, bs.every(([u, b]) => ['c30', 'u13'].includes(u.id) ? b.state === 'empty' : b.value === DB.DATA.task.filter(x => x.assignee === u.id).length && b.second.value === od(u) && b.tl === (od(u) > 0 ? 'red' : null))
     && Object.entries(MAIN).every(([id, n]) => DB.base('tasks', id, U(id).roles[0]).value === n)
     && t2.value === 5 && t2.second.value === 2 && t2.second.label === 'просрочено' && t2.second.unit === 'pcs' && t2.tl === 'red' && t6.second.value === 0 && t6.tl === null
     && at('tasks', 'second', 'u2', 'cur') === 2 && at('tasks', 'tl', 'u2', 'cur') === 'red' && at('tasks', 'main', 'u2', 'cur') === 5
-    && T('tasks').second.col === 'task.overdue' && T('tasks').tl.on === 'second' && DB.queueById('q-tasks').inds.join() === 'task.mine,task.overdue' && DB.IND['task.overdue'].currentOnly && T('tasks').kind === 'link'
-    && /class="tile" data-key="tasks"/.test(h2) && !/tl-red|class="dot"/.test(h2) && /<b><span class="chipv red"[^>]*>2<\/span><\/b> просрочено <span class="thr">· &gt;\s0<\/span>/.test(h2)
-    && !/chipv|class="thr"/.test(h6) && /<b>0<\/b> просрочено/.test(h6)
+    && T('tasks').second.col === 'task.overdue' && T('tasks').tl.on === 'second' && DB.queueById('q-tasks').inds.join() === 'task.mine,task.overdue,task.queued' && DB.IND['task.overdue'].currentOnly && T('tasks').kind === 'link'
+    && /class="tile" data-key="tasks"/.test(h2) && !/tl-red|class="dot"/.test(h2) && /<b><span class="chipv red"[^>]*>2<\/span><\/b><\/button> просрочено <span class="thr">· &gt;\s0<\/span>/.test(h2)
+    && !/chipv|class="thr"/.test(h6) && /<b>0<\/b><\/button> просрочено/.test(h6)
     && DB.clickOf('tasks', 'u2', 'cur', {}).act === 'queue' && dr.sum === 5 && dr.matches && !vt.table.ok && !vt.slice.ok && vt.table.why === 'очередь модуля не объявила разрезов'
     && DB.rowLabel('task', orow) === 'просрочено' && DB.rowLabel('task', hrow) === 'горит',
-    `«Мои задания» куратора: ${t2.value} · ${t2.second.label} ${t2.second.value} (красная плашка на втором числе и граница «· > 0» рядом, полосы и точки на плитке нет — волна 7), у специалиста без просроченных — 0 без светофора; главные числа прежние (2 · 5 · 4 · 6 · 4 · 2 · 3 · 4 · 1 · 3), клик — очередь; «в очередях моих ролей» колонкой Таблицы не выражается: у объекта «Задание» нет разрезов и видимость «только своё» — дефект остаётся за заданиями (ДБ-Д32, ДБ-116)`);
+    `«Мои задания» куратора: ${t2.value} · ${t2.second.label} ${t2.second.value} (красная плашка на втором числе и граница «· > 0» рядом, полосы и точки на плитке нет — волна 7), у специалиста без просроченных — 0 без светофора; главные числа прежние (2 · 5 · 4 · 6 · 4 · 2 · 3 · 5 · 1 · 3; у Усеновой +1 — задание по обязательству, волна 24), клик — очередь; «в очередях моих ролей» — третье число (блок AK), колонкой Таблицы не выражается: у объекта «Задание» нет разрезов и видимость «только своё» — дефект остаётся за заданиями (ДБ-Д32, ДБ-116)`);
   // Таблица: колонка «доля» — числитель к знаменателю по строке, в итоге — второе число плитки; входит в четыре колонки
   const tb = DB.view('lead-od', 'table', null, [], 'u1', 'lead', {}), sec = DB.base('lead-od', 'u1', 'lead').second, cs = DB.colsFor('lead-od'), pth = [{ dim:'region', v:'Ошская' }];
   const tp = DB.view('lead-od', 'table', { dim:'program', cols:['share'] }, pth, 'u1', 'lead', {}), spv = at('lead-od', 'second>region=Ошская');
@@ -2432,7 +2440,7 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-130: плитка минимальная — три строки, мини-ряда нет; ряд — вид «Ряд» в полосе, клик по числу открывает полосу последним видом
   DB.state.open = {}; DB.openView('lead-od', 'table'); DB.primary('lead-od'); const afterClose = Object.keys(DB.state.open).length; DB.primary('lead-od'); const reopened = DB.state.open['lead-od'] && DB.state.open['lead-od'].kind; DB.state.open = {};
-  ok(226, all.length >= 30 && all.every(x => (x.h.match(/class="t-head"/g) || []).length === 1 && (x.h.match(/class="t-row"/g) || []).length === 1 && (x.h.match(/class="second/g) || []).length <= 1 && !GONE.test(x.h) && (x.h.match(/<svg /g) || []).length <= 3)
+  ok(226, all.length >= 30 && all.every(x => (x.h.match(/class="t-head"/g) || []).length === 1 && (x.h.match(/class="t-row"/g) || []).length === 1 && (x.h.match(/class="second/g) || []).length <= (DB.tileById(x.id).kind === 'link' && DB.queueById(DB.tileById(x.id).queue).third ? 2 : 1) && !GONE.test(x.h) && (x.h.match(/<svg /g) || []).length <= 3)
     && typeof DB.mini === 'function' && T('lead-od').views.series && stripOf('lead-od', 'series').includes('class="sr ') && afterClose === 0 && reopened === 'table',
     `${all.length} плиток трёх ролей: у каждой одна шапка, одна строка числа и не больше одного второго числа, рисунка нет (только значки «☰», «⋯» и колокольчик); мини-ряд ушёл — ряд это вид «Ряд» в полосе, а клик по числу открывает полосу последним видом человека (после «Таблицы»: ${reopened}) (ДБ-130; волна 7: было мини-ряд из 12 точек и строки паспорта и порога). Высоту по содержимому 99–145 px (на стенде у Руководства 122–139 px) и «на 1920×1080 Руководство 12 из 12, Куратор 11 из 13» без вёрстки не проверить (ДБ-163, переигрывает 95–130 px ДБ-130)`);
 
@@ -2913,7 +2921,7 @@ const asUser = id => { DB.state.userId = id; };
   const named = (v, x) => (v.lines.find(l => l.v === x) || {}).value, without = (v, x) => sum(v.nodes.filter(n => n.v !== x).map(n => n.value || 0));   // сумма строк движка без одной
   ok(277, sum(rw.lines.map(l => l.value)) === 903 && rw.total.v === 903 && rw.lines.map(l => l.v).join() === [...DB.DIMS.bodays.values, DB.DIMS.bodays.empty].join() && sum(rw.lines.slice(1, 5).map(l => l.value)) === 270 && named(rw, DB.DIMS.bodays.empty) === 0
     && rg.total.v === 22 && sum(rg.lines.map(l => l.value)) === 22 && rg.lines.at(-1)?.v === 'Закрыта' && named(rg, 'Закрыта') === 12 && without(rg, 'Закрыта') === 10
-    && rs.total.v === 4 && sum(rs.lines.map(l => l.value)) === 4 && rs.lines[0].v === 'ожидается' && named(rs, 'ожидается') === 4,
+    && rs.total.v === 3 && sum(rs.lines.map(l => l.value)) === 3 && rs.lines[0].v === 'ожидается' && named(rs, 'ожидается') === 3,   // волна 24: ОБ-512 — «просрочено» (было 4)
     `«Заёмщиков» → «Худшая просрочка по портфелю»: все ${rw.total.v} (было ${sum(rw.lines.slice(1, 5).map(l => l.value))}; «нет просрочки» ${named(rw, 'нет просрочки')}, «${DB.DIMS.bodays.empty}» ${named(rw, DB.DIMS.bodays.empty)}); Головной офис → «Подтверждено · прошлый месяц» → «Статус заявки»: ${rg.total.v} (было 10 — столько и в строках без «Закрыта»: ${without(rg, 'Закрыта')}; «Закрыта» ${named(rg, 'Закрыта')} — последней в справочнике); Отчётность → «Срок сдачи ≤ 7 дн.» → «Итог сдачи»: ${rs.total.v} (было 0, «ожидается» ${named(rs, 'ожидается')}) (ДБ-Д39, ДБ-168)`);
 
   // ДБ-170 и эталон канона: «На рассмотрении · Решение» — три нуля и «нет решения 18»; «не новая» и «нет исхода»
@@ -3545,7 +3553,7 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-185: роли первыми, свои экраны со значком, «+ экран» последним; на телефоне — тот же набор списком
   const tb = [...hH.matchAll(/<button class="tab([^"]*)"[^>]*>([^<]+)<\/button>/g)].map(x => [x[1].trim(), x[2]]), opts = [...((hH.match(/<label class="scr-pick">[\s\S]*?<\/select>/) || [''])[0]).matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(x => x[1]);
   const T1 = DB.tabsFor(u1);
-  ok(331, tb.map(x => x[1]).join(' · ') === 'Руководство · Аналитик · Совещание по Ошу · + экран' && tb[0][0].includes('active') && tb[2][0].includes('own') && !tb[0][0].includes('own') && tb.at(-1)[0] === 'add'
+  ok(331, tb.map(x => x[1]).join(' · ') === 'Руководство · Аналитик · Совещание по Ошу · Закрытые программы · + экран' && tb[0][0].includes('active') && tb[2][0].includes('own') && tb[3][0].includes('own') && !tb[0][0].includes('own') && tb.at(-1)[0] === 'add'
     && /<nav class="tabs" aria-label="Экраны">/.test(hH) && /aria-current="true"/.test(hH) && opts.join() === T1.map(t => t.kind + ':' + t.id).join() + ',new'
     && /<optgroup label="Роли">[\s\S]*<optgroup label="Свои экраны">[\s\S]*<option value="new">\+ экран<\/option><\/select>/.test(hH),
     `один ряд выбора набора: «${tb.map(x => x[1]).join(' · ')}» — роли, свой экран со значком, «+ экран» последним; на телефоне тот же набор списком «Экран: …» (${opts.length - 1} экрана и «+ экран») (ДБ-185)`);
@@ -3967,7 +3975,7 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-211: охват смотрящего по параметру плитки пуст — в каталоге серое «у вас пусто» с подсказкой вместо 0, строка в конце своей секции, «Добавить» остаётся
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
-  const cv = DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }), cH = DB.catalogHTML(), eRows = cv.rows.filter(x => x.empty);
+  const cv = DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }), cH = DB.catalogHTML(), eRows = cv.rows.filter(x => x.empty && x.emptyLabel === 'у вас пусто');
   const tail = cv.sections.every(s => { const i = s.rows.findIndex(x => x.empty); return i < 0 || s.rows.slice(i).every(x => x.empty); });
   const rowOf = id => (cH.match(new RegExp('<div class="cat-row" data-tile="' + id + '">[\\s\\S]*?</div></div></div>')) || [''])[0], rOd = rowOf('cur-od');
   const cv2 = DB.catalogView(u2, { target:{ kind:'role', id:'cur' } }), b2 = cv2.rows.find(x => x.t.id === 'cur-od'), cvN = DB.catalogView(U('c30'), { target:{ kind:'role', id:'cur' } }), rc = cvN.rows.find(x => x.t.id === 'cur-rc'), rs = cvN.rows.find(x => x.t.id === 'cur-rs');
@@ -4120,7 +4128,8 @@ const asUser = id => { DB.state.userId = id; };
   const h0c = DB.state.cacheHits; DB.cachedAsk(T('lead-paid'), u1, 'lead', {}); const hitPaid = DB.state.cacheHits === h0c + 1;
   const odc = DB.state.cacheMiss; DB.cachedAsk(T('lead-od'), u1, 'lead', {}); const missOd = DB.state.cacheMiss === odc + 1;
   DB.seed(); DB.STAND.nightRunFailed = true; const wf = DB.prewarm(); DB.STAND.nightRunFailed = false;
-  ok(366, P.holders === 12 && P.closed === 160 && P.today === 67 && W.n === P.closed && W.m === P.holders && W.at === '02:40'
+  ok(366, P.holders === 12 && P.closed === 160 && P.today === 66 &&   // волна 24: «Срок сдачи близко» без своего параметра — один вопрос с «Просрочено обязательств»
+ W.n === P.closed && W.m === P.holders && W.at === '02:40'
     && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm
     && warmEntry && warmEntry[1].calcAt === '02:40' && hitPaid && missOd && !keys.some(k => k.startsWith('p-u2-agro§') || /§view§/.test(k)) && keys.length === P.tiles.length
     && wf.skipped === 'ночной прогон не прошёл — закрытые даты не прогреты' && /Прогрето \$\{S\.warm\.n\}/.test(src) && /<button class="btn" onclick="DB\.morning\(\)">Наступило утро<\/button>/.test(src),
@@ -5191,6 +5200,102 @@ const asUser = id => { DB.state.userId = id; };
     && /у держателей ролей Руководство, Куратор кредита вместо числа отказ/.test(hb) && /function pultRender\(sel\)\{ render\(\);[^\n]*el\.focus\(\)/.test(src)
     && /pultRole:\(r\)=>\{ S\.pult\.role = r; pultRender\('#pl-role'\)/.test(src) && /data-sec="\$\{esc\(s\.name\)\}"/.test(src),
     `«нет главного числа» у «Просрочено» (Руководство и Куратор, отчёт «Портфель кредитов») и «Требований открыто» (отчёт «Требования») — ${g.length} строки, «Открыть отчёт ↗» у каждой свой, число у меню 2; выбор, сортировка, секция и «Оставить» возвращают фокус на свой элемент (ревью волны 23)`);
+  DB.seed();
+})();
+
+/* ---------- AK. Волна 24 (19.10.2026): ответы соседей и Ряд через запуск — ДБ-314…ДБ-322, ДБ-Д32, ДБ-Д74 ---------- */
+(() => {
+  const near = (a, b) => Math.abs(a - b) < 1;
+  // ДБ-314, ДБ-315: прежний объект стоит в узле на любую из двух дат, потоки — в узле, где он сегодня: узлы Движения складываются в итог;
+  // потоки печатаются и нулём, «прочее» всегда, переходы — только с вкладом, «нет ответа источника» — только при отказе
+  DB.seed();
+  const mt = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move, kOf = x => x.key.split(':')[0], FL = ['issued', 'accrued', 'paid', 'written', 'other'];
+  const nodes = DB.DIMS.bucket.values.map(v => DB.view('lead-bal', 'move', null, [{ dim:'bucket', v }], 'u1', 'lead', {}).move);
+  const acc = {}; nodes.forEach(n => n.rows.forEach(x => { acc[kOf(x)] = (acc[kOf(x)] || 0) + x.v; }));
+  DB.STAND.noAnswer = true; DB.state.cache.clear(); const mn = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move; DB.STAND.noAnswer = false; DB.state.cache.clear();
+  ok(451, nodes.length === 5 && mt.rows.map(x => x.key).join() === FL.join() && FL.every(k => near(acc[k], mt.rows.find(x => x.key === k).v))
+    && near(sum(nodes.map(n => n.start)), mt.start) && near(sum(nodes.map(n => n.end)), mt.end) && acc.in > 0 && near(acc.in, -acc.out)
+    && nodes.every(n => FL.every(k => n.rows.some(x => x.key === k)) && n.rows.filter(x => /^(in|out):/.test(x.key)).every(x => x.v !== 0))
+    && nodes.slice(1).every(n => n.rows.find(x => x.key === 'issued').v === 0) && mn.rows.map(x => x.key).join() === 'issued,accrued,paid,written,noanswer,other' && !mt.rows.some(x => x.key === 'noanswer'),
+    `Движение «Остатка» по срокам просрочки: узлы складываются в итог — начало ${Math.round(sum(nodes.map(n => n.start)) / 1e6)} млн, конец ${Math.round(sum(nodes.map(n => n.end)) / 1e6)} млн, выдано ${Math.round(acc.issued / 1e5) / 10} млн, погашено ${Math.round(-acc.paid / 1e5) / 10} млн; переходы между узлами ${Math.round(acc.in / 1e5) / 10} млн взаимно гасятся; «выдано 0» печатается у узлов с просрочкой, «прочее» всегда, «нет ответа источника» — только при отказе (ДБ-314, ДБ-315)`);
+
+  // ДБ-316: периоды ДБ-15 — значения набора отчётности, «с начала года» = «текущий год»
+  const PR = Object.entries(DB.PERIODS).filter(([k]) => !k.startsWith('__'));
+  ok(452, PR.length === 7 && PR.every(([, v]) => DB.REL_SET.includes(v.rel)) && new Set(PR.map(([, v]) => v.rel)).size === DB.REL_SET.length && DB.PERIODS.ytd.rel === 'текущий год' && DB.PERIODS.today.rel === 'сегодня ± 0',
+    `периоды плитки хранятся значениями набора отчётности: ${PR.map(([k, v]) => k + ' → «' + v.rel + '»').join(', ')} (ДБ-316)`);
+
+  // ДБ-317: «нет объектов» — признак ответа у параметра по разрезу (=, ∈); относительное значение — «у вас пусто», постоянное — «нет объектов»;
+  // порог («≤ сегодня + N») — часть вопроса, ноль под ним — число; охват пуст — прежнее «пусто» без числа скрытых
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const rem = DB.base('p-u1-rem', 'u1', 'lead'), hr = DB.tileHTML('p-u1-rem', 'u1', 'lead'), cod = DB.base('cur-od', 'u1', 'lead');
+  const cv = DB.catalogView(U('u1'), { target:{ kind:'role', id:'lead' } }), rr = cv.rows.find(x => x.t.id === 'p-u1-rem'), cH = DB.catalogHTML();
+  const zq = DB.ask(Object.assign({}, T('cur-npay'), { params:{ curator:'@me', npay:'@today+0' } }), U('u2'), 'cur', {}), sc = DB.base('tasks', 'c30', 'cur');
+  ok(453, rem.state === 'mine0' && rem.noneLabel === 'нет объектов' && rem.msg === 'Под «Программа = Ремесленники» кредитов нет' && rem.none.why === 'param' && rem.none.conds.map(c => c.param).join() === 'program'
+    && /<div class="t-row"><span class="mine0" data-tip="Под «Программа = Ремесленники» кредитов нет">нет объектов<\/span><\/div>/.test(hr) && !/class="big"/.test(hr)
+    && cod.state === 'mine0' && cod.noneLabel === 'у вас пусто' && cod.msg === 'Плитка считает кредиты, где вы куратор; у вас таких нет'
+    && rr && rr.emptyLabel === 'нет объектов' && rr.num === null && rr.status === 'add' && /<span class="st cat-0" data-tip="Под «Программа = Ремесленники» кредитов нет">нет объектов<\/span>/.test(cH)
+    && cv.rows.filter(x => x.emptyLabel === 'нет объектов').map(x => x.t.id).join() === 'p-u1-rem'
+    && zq.state === 'zero' && zq.value === 0 && !zq.none && DB.base('cur-npay', 'u2', 'cur').value > 0 && sc.state === 'empty' && sc.none.why === 'scope' && !/\d/.test(sc.msg),
+    `«${T('p-u1-rem').title}» у Асанова — «нет объектов» с подсказкой «${rem.msg}», на плитке и в каталоге; «Просрочено» Куратора у него же — «у вас пусто» («${cod.msg}»); «Без платежа ≤ сегодня» у Бековой — 0 числом (порог — часть вопроса); у Тойчиевой заданий нет — «${sc.msg}» (ДБ-317)`);
+
+  // ДБ-318: признак на других датах — подсказка у базы сдвига и точек Ряда, число остаётся 0
+  DB.seed(); const L = DB.DATA.loan, add = Object.assign({}, L.find(l => l.balance > 0 && !(l.overdueDays > 0)), { id:'К-ТЕСТ', program:'rem', from:0 });
+  L.push(add); DB.state.cache.clear();
+  const b8 = DB.base('p-u1-rem', 'u1', 'lead'), h8 = DB.tileHTML('p-u1-rem', 'u1', 'lead'), s8 = DB.view('p-u1-rem', 'series', null, [], 'u1', 'lead', {}).series;
+  DB.state.open = {}; DB.openView('p-u1-rem', 'series'); const st8 = DB.stripHTML('p-u1-rem', 'u1', 'lead'); DB.state.open = {};
+  L.pop(); DB.state.cache.clear(); const b8b = DB.base('p-u1-rem', 'u1', 'lead');
+  ok(454, b8.state === 'ok' && b8.value === add.balance && b8.shift.base === 0 && b8.shift.delta === add.balance && b8.shift.baseNone === 'на 01.10 кредитов под «Программа = Ремесленники» не было'
+    && /data-tip="Изменение за месяц: с 01\.10 по сегодня · было 0 · на 01\.10 кредитов под «Программа = Ремесленники» не было"/.test(h8)
+    && s8.points.length === 12 && s8.points.slice(0, 11).every(p => p.noneObj === 'кредитов под «Программа = Ремесленники» не было' && p.vals[0] === 0) && !s8.points[11].noneObj
+    && (st8.match(/<div class="sr-c[^"]*" data-m="-?\d+" data-tip="[^"]*кредитов под «Программа = Ремесленники» не было/g) || []).length === 11 && b8b.state === 'mine0',
+    `в «${T('p-u1-rem').title}» появился кредит в этом месяце: число ${b8.value}, сдвиг от 0 с подсказкой «${b8.shift.baseNone}»; 11 точек Ряда до него — 0 с той же подсказкой; кредит ушёл — снова «нет объектов» (ДБ-318)`);
+
+  // ДБ-319, ДБ-320, ДБ-Д32: «Мои задания» — мои · просрочено · в очередях моих ролей; третье число — только у очереди, которая его объявила;
+  // у каждого числа свой раздел очереди
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
+  const u2 = U('u2'), t2 = DB.base('tasks', 'u2', 'cur'), h2 = DB.tileHTML('tasks', 'u2', 'cur'), TK = id => DB.DATA.task.find(t => t.id === id);
+  const qd = DB.DATA.task.filter(t => !t.assignee && t.queue && u2.roles.includes(t.queue.role) && t.queue.dept === u2.dept);
+  const qa = DB.queueAt('tasks', 'main'), qb = DB.queueAt('tasks', 'second'), qc = DB.queueAt('tasks', 'third');
+  ok(455, t2.value === 5 && t2.second.value === 2 && t2.third.value === 3 && qd.length === 3 && t2.third.label === 'в очередях моих ролей'
+    && DB.TILES.filter(t => t.kind === 'link' && DB.queueById(t.queue).third).map(t => t.id).join() === 'tasks' && DB.base('gof-wait', 'u8', 'gof').third === null && DB.base('lead-od', 'u1', 'lead').third === null
+    && /<div class="second third"><span><button type="button" class="num-link" aria-label="Открыть раздел очереди: Очередь моих ролей" onclick="event\.stopPropagation\(\);DB\.queueAt\('tasks','third'\)"><b>3<\/b><\/button> в очередях моих ролей<\/span><\/div>/.test(h2)
+    && /onclick="event\.stopPropagation\(\);DB\.queueAt\('tasks','second'\)"><b><span class="chipv red"/.test(h2) && h2.indexOf('class="second"') < h2.indexOf('class="second third"')
+    && !/num-link/.test(DB.tileHTML('lead-od', 'u1', 'lead')) && DB.base('tasks', 'u1', 'lead').third.value === 0
+    && qa.section === 'Мои' && qa.n === 5 && qa.ids.length === 5 && qa.ids.every(id => TK(id).assignee === 'u2')
+    && qb.section === 'Мои · просрочено' && qb.n === 2 && qb.ids.length === 2 && qb.ids.every(id => TK(id).assignee === 'u2' && TK(id).dueIn < 0)
+    && qc.section === 'Очередь моих ролей' && qc.n === 3 && qc.ids.join() === qd.map(t => t.id).join() && /^очередь «Куратор кредита» · Чуйское РП$/.test(DB.rowLabel('task', TK(qc.ids[0])))
+    && DB.clickOf('tasks', 'u2', 'cur', {}).act === 'queue',
+    `«Мои задания» Бековой — ${t2.value} · просрочено ${t2.second.value} · ${t2.third.value} в очередях моих ролей (её роль, её подразделение, исполнитель не назначен); клик по каждому числу — свой раздел: «${qa.section}» ${qa.n}, «${qb.section}» ${qb.n}, «${qc.section}» ${qc.n}; у других ссылочных плиток третьего числа нет (ДБ-319, ДБ-320, ДБ-Д32)`);
+
+  // ДБ-321: «Срок сдачи близко» — признак строки обязательства по настройке отчётности «напоминать за N к.д.», своего порога у плитки нет;
+  // задания «сдать форму к сроку» — от того же признака
+  DB.seed(); asUser('u10'); DB.setTab('role', 'rep');
+  const atN = () => { const a = DB.ask(T('rep-soon'), U('u10'), 'rep', {}); return { a, rows:a.rows.filter(o => o.state === 'ожидается' && o.dueIn <= DB.STAND.nearDays).length, tk:DB.DATA.task.filter(t => t.obl), t10:DB.base('tasks', 'u10', 'rep') }; };
+  const nearAll = n => DB.DATA.oblig.filter(o => o.at === 0 && (o.state === 'просрочено' || (o.state === 'ожидается' && o.dueIn !== null && o.dueIn <= n))).length;
+  const n7 = atN(); DB.stand('nearDays', 10); const n10 = atN(); DB.seed(); const back = DB.STAND.nearDays;
+  ok(456, T('rep-soon').title === 'Срок сдачи близко' && !Object.keys(T('rep-soon').params || {}).length && Q('rep-soon').filter.length === 0
+    && n7.a.value === 3 && n7.a.value === n7.rows && / · близко — за 7 к\.д\. до срока, по настройке отчётности$/.test(n7.a.passport)
+    && n10.a.value === 4 && n10.a.value === n10.rows && / · близко — за 10 к\.д\. до срока, по настройке отчётности$/.test(n10.a.passport)
+    && n7.tk.length === nearAll(7) && n10.tk.length === nearAll(10) && n10.tk.length > n7.tk.length && n7.tk.filter(t => t.assignee === 'u10').length === 1
+    && /^сдать форму к сроку · /.test(DB.rowLabel('task', n7.tk.find(t => t.assignee === 'u10'))) && n7.t10.value === 5 && n7.t10.third.value === 4 && n10.t10.third.value === 5 && back === 7
+    && /отчётность напоминает о сроке сдачи за <select onchange="DB\.stand\('nearDays', Number\(this\.value\)\)">/.test(src),
+    `«Срок сдачи близко» у Усеновой: за 7 к.д. — ${n7.a.value}, за 10 — ${n10.a.value} (порог — настройка отчётности, у плитки параметра нет, пометка в паспорте); заданий «сдать форму к сроку» ${n7.tk.length} → ${n10.tk.length}, одно взяла она, в очереди её роли ${n7.t10.third.value} → ${n10.t10.third.value}; сброс стенда — снова 7 (ДБ-321)`);
+
+  // ДБ-322, ДБ-Д74: Ряд через дату запуска — точки до запуска итог легаси (штриховка, «☰» — отказ), итога нет — точки нет с причиной,
+  // у первой своей точки — «редакции формы разные»
+  DB.seed(); asUser('u1'); DB.STAND.launch = -7; DB.state.cache.clear();
+  const ls = DB.view('lead-bal', 'series', null, [], 'u1', 'lead', {}).series, cs = DB.view('cur-bal', 'series', null, [], 'u2', 'cur', {}).series, bs = DB.view('lead-bal', 'series', { by:'region' }, [], 'u1', 'lead', {}).series;
+  DB.state.open = {}; DB.openView('lead-bal', 'series'); const hs = DB.stripHTML('lead-bal', 'u1', 'lead'); DB.state.open = {};
+  const wl = DB.statRows(T('lead-bal'), U('u1'), 'lead', {}, { m:-9 }), wo = DB.statRows(T('cur-bal'), U('u2'), 'cur', {}, { m:-3 });
+  DB.STAND.launch = null; DB.state.cache.clear(); const ln = DB.view('lead-bal', 'series', null, [], 'u1', 'lead', {}).series;
+  ok(457, ls.points.filter(p => p.legacy).map(p => p.m).join() === '-11,-10,-9,-8' && ls.points.every(p => !p.legacy || (p.cnt === undefined && p.vals[0] > 0)) && ls.points.filter(p => p.legacyD).map(p => p.m).join() === '-7'
+    && (hs.match(/class="sr-c[^"]*\blg"/g) || []).length === 4 && (hs.match(/class="sr-d [^"]*\blgd"/g) || []).length === 1 && (hs.match(/итог легаси: до запуска системы объектов нет/g) || []).length === 4
+    && /разница к [^"]*: редакции формы разные — до запуска итог легаси/.test(hs)
+    && cs.points.filter(p => p.down).map(p => p.m).join() === '-11,-10,-9,-8' && /итоги легаси — по всему портфелю, по охвату роли не собирались$/.test(cs.points[0].down)
+    && bs.points.filter(p => p.down).length === 4 && /итоги легаси — без разрезов$/.test(bs.points[0].down)
+    && wl.refused && /^объектов до запуска нет: до запуска системы/.test(wl.msg) && !wo.refused && wo.list.length === 49
+    && ln.points.every(p => !p.legacy && !p.legacyD && !p.down),
+    `запуск 01.03.2026: Ряд «Остатка» — 4 точки до запуска итогом легаси со штриховкой, у первой своей разница «редакции формы разные»; у Куратора и по разрезу итогов легаси нет — точек нет с причиной («${cs.points[0].down.split(': ').pop()}»); «☰» у точки до запуска — «${wl.msg.split(':')[0]}»; без даты запуска пометок нет (ДБ-322, ДБ-Д74)`);
   DB.seed();
 })();
 
