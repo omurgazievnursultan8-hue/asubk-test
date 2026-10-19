@@ -173,6 +173,12 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .section-row .sec-n{ margin-left:2px; font-size:13px; font-weight:400; color:var(--text-muted); }
 .section-row .sec-dot{ width:8px; height:8px; border-radius:50%; background:var(--st-crit); flex:none; cursor:help; }
 
+/* ячейка «+ плитка» в конце сетки — вход в каталог для этой вкладки */
+.add-cell{ display:flex; align-items:center; justify-content:center; min-height:96px; padding:14px 16px; border:1.5px dashed var(--border-strong); border-radius:var(--r-lg);
+  background:transparent; color:var(--text-muted); font:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:border-color .12s, color .12s, background .12s; }
+.add-cell:hover{ border-color:var(--asubk-blue); color:var(--asubk-blue); background:var(--surface-card); }
+.add-cell:focus-visible{ outline:2px solid var(--asubk-blue); outline-offset:2px; }
+
 /* ---------- Плитка 1×1 ---------- */
 .tile{ position:relative; display:flex; flex-direction:column; gap:4px; min-width:0; background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--r-lg);
   padding:14px 16px 15px; box-shadow:var(--shadow); cursor:pointer; transition:border-color .12s, box-shadow .12s; }
@@ -541,7 +547,6 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 .phone-only{ display:none; }
 .nav-m{ display:none; } .nav-m select{ height:32px; max-width:min(260px, 64vw); padding:0 6px; border-color:transparent; background:none; font-size:16px; font-weight:600; color:var(--text-heading); field-sizing:content; }
 .nav-m select:hover{ border-color:var(--border-strong); background:var(--surface-card); }
-#v-catalog{ max-width:1200px; }
 .prop-c summary{ cursor:pointer; font-size:13px; font-weight:500; } .prop-c .checks{ margin:6px 0 0; }
 
 /* ---------- Панель «Кто в этом числе»: немодальная, справа, без затемнения — сдвигает дашборд; сетка — в две колонки; на телефоне — экран целиком ---------- */
@@ -619,6 +624,7 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   .fw-b{ grid-template-columns:minmax(0,1fr); } .fwin .ask-b{ flex-wrap:wrap; }
   .desk-only{ display:none !important; } .phone-only{ display:block; } .cat-empty .phone-only{ display:inline; }
   .cat-row{ grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; padding:10px 12px; } .cat-m{ grid-column:1/-1; } .cat-v{ justify-self:start; } .cat-a{ justify-self:end; text-align:right; }
+  .drawer.cat-d{ width:100vw; border-left:0; } .add-cell{ min-height:64px; }
   .cat-n{ margin-left:0; } .ask .kv{ grid-template-columns:1fr; } .ld-bar .ld-r{ margin-left:0; }
   .strip{ padding:6px 12px 0; }
   /* строка полосы на телефоне переносится; пять видов — одной прокручиваемой строкой внутри; паспорт и «Работать со списком» уходят в «⋯» */
@@ -672,7 +678,6 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
     <div class="content" id="content">
       <div class="wrap">
         <section class="view" id="v-home"></section>
-        <section class="view" id="v-catalog"></section>
         <section class="view" id="v-registry"></section>
         <section class="view" id="v-layouts"></section>
         <section class="view" id="v-journal"></section>
@@ -4657,7 +4662,7 @@ function countClick(id){ usageOf(id).clicks++; }
 /* ================= Отрисовка ================= */
 const HAS_DOM = typeof document!=='undefined';
 let lastCols = 4, resizeTimer = null;
-let view = 'home', lastView = null, loading = false, menuState = null, draft = null, rdraft = null, catalogTarget = null, sheet = null;
+let view = 'home', lastView = null, loading = false, menuState = null, draft = null, rdraft = null, sheet = null;
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s===undefined||s===null?'':s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
 function toast(msg){ if(!HAS_DOM) return; document.querySelectorAll('.toast').forEach(x=>x.remove()); const d = document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
@@ -4689,23 +4694,24 @@ function render(){
   $('user-sel').innerHTML = USERS.map(x=>`<option value="${x.id}" ${x.id===u.id?'selected':''}>${esc(x.name)} — ${esc(x.roles.map(roleName).join(', '))}</option>`).join('');
   const unread = S.notifs.filter(n=>n.to===u.id && !n.read).length;
   $('notif-cnt').innerHTML = unread ? '<span class="notif-dot">'+unread+'</span>' : '';
-  const nav = [['home','Главная'],['catalog','Каталог плиток']];
+  const nav = [['home','Главная']];   // каталога в меню нет: он открывается с главной ячейкой «+ плитка»
   if(isAdmin(u)) nav.push(['registry','Плитки дашборда'],['layouts','Раскладки ролей'],['journal','Журнал']);
   if(view==='stand') nav.push(['stand','Стенд: другие модули и сбои']);   // стенда в меню нет: он открывается адресом #stand, пункт виден, пока экран открыт
   const nWait = proposalsWaiting().length;
   $('nav').innerHTML = '<div class="nav-sec">Дашборд</div>' + nav.map(([k,n])=>`<button class="nav-item ${view===k?'active':''}" onclick="DB.go('${k}')">${n}${k==='registry'&&nWait?'<span class="cnt" aria-label="предложений: '+nWait+'">'+nWait+'</span>':''}</button>`).join('');
-  // узкое окно и телефон: меню слева скрыто — разделы списком в шапке (каталог на телефоне — просмотр и «Добавить»)
+  // узкое окно и телефон: меню слева скрыто — разделы списком в шапке
   $('nav-m').innerHTML = nav.map(([k,n])=>`<option value="${k}"${view===k ? ' selected' : ''}>${n}${k==='registry' && nWait ? ' · '+nWait : ''}</option>`).join('');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+view).classList.add('active');
   if(view!==lastView){ if(lastView!==null) $('content').scrollTop = 0; lastView = view; }   // другой раздел — с начала страницы
-  $('crumb').textContent = { home:'Главная', catalog:'Каталог плиток', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд', card:'Карточка из списка' }[view];
-  ({ home:renderHome, catalog:renderCatalog, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand, card:renderCard })[view]();
+  $('crumb').textContent = { home:'Главная', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд', card:'Карточка из списка' }[view];
+  ({ home:renderHome, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand, card:renderCard })[view]();
   renderWho();
   // адрес несёт состояние главной: вкладка, полоса, путь, режим, список и дата среза — «Назад» и ссылка открывают то же место
   if(view==='home' || view==='card'){ try { history.replaceState(history.state, '', (Object.keys(S.open).length || S.who || view==='card') ? linkOf() : location.pathname+location.search); } catch(e){} }
   else try { if((view==='stand') !== (location.hash==='#stand')) history.replaceState(null, '', view==='stand' ? '#stand' : location.pathname+location.search); } catch(e){}
-  if(sheet) renderSheet();   // ящик «Настроить», «Опубликовать в каталог» или витрина отчётности перерисовывается вместе со страницей
+  if(sheet && sheet.kind==='cat' && view!=='home') closeOverlay();   // панель каталога живёт только над главной
+  if(sheet) renderSheet();   // панель каталога, ящик «Настроить», «Опубликовать в каталог» или витрина отчётности перерисовывается вместе со страницей
   markScroll();
 }
 // колонок в сетке плиток сейчас: 4 / 2 / 1 — из вычисленного стиля, пока сетки нет — по ширине окна; без страницы — 4
@@ -4735,7 +4741,7 @@ function topHTML(u, tab, roleId, sc){
     <span class="scope"${tipAttr(cap)}>${esc(cap)}</span><div class="top-r">${cmpHTML()}${filterOff(u, roleId) ? `<button class="btn sm fbtn" aria-disabled="true"${tipAttr(NO_FILTER)}>${ICON_FILTER}Фильтр</button>`
       : `<button class="btn sm fbtn${panelOn(S.panel) ? ' on' : ''}" aria-haspopup="dialog" onclick="DB.openFilter()">${ICON_FILTER}Фильтр</button>`}<button class="btn sm more" aria-label="Действия с экраном" onclick="DB.screenMenu(event)">${ICON_DOTS}</button></div>`;
   const bar = S.arrange ? `<div class="arrange-bar" role="region" aria-label="Перекладка"><b>Перекладка «${esc(cur.name)}»</b><span class="ab-h">плитки — мышью или стрелками</span>
-    <span class="ab-r"><button class="btn sm arrange-only" onclick="DB.addSectionPrompt()">+ секция</button><button class="btn sm arrange-only" onclick="DB.openCatalogFor()">+ плитка из каталога</button><button class="btn sm primary" onclick="DB.toggleArrange()">Готово</button></span></div>` : '';
+    <span class="ab-r"><button class="btn sm arrange-only" onclick="DB.addSectionPrompt()">+ секция</button><button class="btn sm primary" onclick="DB.toggleArrange()">Готово</button></span></div>` : '';
   return `<div class="top"><div class="topline">${row}${bar}</div><div class="scope-m">${esc(cap)}</div>${chipsHTML(sc)}</div>`;
 }
 // переключатель «Сравнить» (§9 п. 1): «как задано» — база автора у каждой плитки, остальные — одна база у всех плиток-остатков экрана; под
@@ -4782,24 +4788,35 @@ function homeHTML(){
   const html = `${topHTML(u, tab, roleId, sc)}
     ${banners.join('')}
     ${hiddenChips(u, roleId)}
-    <div class="grid" id="grid">${items.map((k, i)=>itemHTML(k, u, roleId, sc, items, col)+(strips[i] ? stripHTML(strips[i].k, u, roleId, sc, strips[i].p) : '')).join('')}</div>
-    ${items.length ? '' : '<p class="muted">Здесь пока пусто. <button class="linky" onclick="DB.openCatalogFor()">Добавить плитки из каталога</button></p>'}`;
+    ${items.length ? '' : '<p class="muted">Здесь пока пусто.</p>'}
+    <div class="grid" id="grid">${gridHTML(items, strips, cols, col, u, roleId, sc)}</div>`;
   return { html, items, anyOpen, cols, col };
 }
+// сетка с ячейкой «+ плитка» в конце (её нет, пока не готова отчётность — добавить нечего). Полоса последнего ряда встаёт после ячейки,
+// если в ряду есть для неё место, — иначе ячейка ушла бы новым рядом между плитками и их полосой
+function gridHTML(items, strips, cols, col, u, roleId, sc){
+  const cell = STAND.reportsReady ? addCellHTML(curTab()) : '', last = stripPlace(items.concat('+'), '+', cols, col, k=>k==='+' || rendersItem(k));
+  let placed = !cell;
+  const html = items.map((k, i)=>{ let h = itemHTML(k, u, roleId, sc, items, col);
+    if(strips[i]){ if(!placed && last && last.after===items.length && last.row===strips[i].p.row){ h += cell; placed = true; } h += stripHTML(strips[i].k, u, roleId, sc, strips[i].p); }
+    return h; }).join('');
+  return html+(placed ? '' : cell); }
+function addCellHTML(tab){ const nm = tab.kind==='screen' ? (screenById(tab.id) || {}).name : roleName(tab.id);
+  return `<button class="add-cell" onclick="DB.openCatalogFor()" aria-label="Добавить плитку из каталога во вкладку «${esc(nm)}»">+ плитка</button>`; }
 // правка раскладки роли у держателя: разовая плашка «Раскладка роли обновлена 11.10: +2, −1 · Показать ✕»; «Показать» подсвечивает новые,
 // называет снятые строкой над сеткой и закрывает плашку; «✕» просто закрывает; метки «новая» уходят вместе с плашкой
 function newsBanner(u, roleId){ const k = u.id+'|'+roleId, N = S.roleNews[k], nm = id=>'«'+(tileById(id) || { title:id }).title+'»';
   if(N) return `<div class="banner info news" role="status"><span>Раскладка роли обновлена ${esc(N.at)}: ${esc(newsText(N))}</span>${N.add.length || N.rem.length ? '<button class="linky" onclick="DB.newsShow()">Показать</button>' : ''}<button class="news-x" aria-label="Закрыть сообщение о раскладке роли" onclick="DB.newsClose()">${ICON_X}</button></div>`;
   const F = S.newsFlash; if(F && F.k===k && (F.add.length || F.rem.length)) return `<div class="news-note" role="status">${F.add.length ? 'Новые в раскладке роли — подсвечены'+(F.rem.length ? '; ' : '.') : ''}${F.rem.length ? 'убраны из раскладки: '+esc(F.rem.map(nm).join(', '))+'.' : ''}</div>`;
   return ''; }
-// роль без своей раскладки — минимальная: «Мои задания» и «добавить из каталога»; у роли с образцом (Аналитик) — ещё «+ экран — копия
+// роль без своей раскладки — минимальная: «Мои задания» и ячейка «+ плитка»; у роли с образцом (Аналитик) — ещё «+ экран — копия
 // «Руководства»»; у роли, чья раскладка объявлена, но отвечает меньше половины её плиток, — сколько отвечает; нет отчётности — у всех минимальная
 function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {}, L = roleLaunch(roleId), nm = esc(roleName(roleId));
   const head = L.why==='reports' ? 'Модуль отчётности и отчёты каталога ещё не готовы — у всех ролей минимальная раскладка: плитка дашборда ссылается на отчёт.'
     : L.why==='tiles' ? 'Раскладка роли «'+nm+'» встанет, когда ответит не меньше половины её плиток: сейчас отвечают '+L.n+' из '+L.of+' — показана минимальная.'
     : 'У роли «'+nm+'» своей раскладки нет — показана минимальная.';
   const copy = R.copyOf ? ` <span class="sep">·</span> <button class="linky" onclick="DB.copyRoleScreen('${roleId}')"${tipAttr('Свой экран — копия раскладки «'+roleGen(R.copyOf)+'»; дальше живёт отдельно')}>+ экран — копия «${esc(roleGen(R.copyOf))}»</button>` : '';
-  return `<div class="banner info">${head}${L.why==='reports' ? '' : ` <button class="linky" onclick="DB.go('catalog')">Добавить плитки из каталога →</button>`}${copy}</div>`; }
+  return `<div class="banner info">${head}${copy}</div>`; }
 function renderHome(again){
   const h = homeHTML(); $('v-home').innerHTML = h.html;
   wireDnD();
@@ -5677,7 +5694,7 @@ function primaryClick(tileId){ const t = tileById(tileId), c = clickOf(t, user()
   else { countClick(tileId); countOpen(tileId); if(c.act==='queue') openQueue(tileId); else openWho(tileId); }
   return c; }   // число — полоса, ссылочная плитка — очередь, нечего показать — список
 function drawer(title, html, wide){ if(!HAS_DOM) return; sheet = null; $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div>
-  <div class="drawer ${wide?'wide':''}"><div class="drawer-h"><h3>${title}</h3><button class="drawer-x" onclick="DB.close()">✕</button></div><div class="drawer-b">${html}</div></div>`; }
+  <div class="drawer ${wide===true ? 'wide' : wide || ''}"><div class="drawer-h"><h3>${title}</h3><button class="drawer-x" onclick="DB.close()">✕</button></div><div class="drawer-b">${html}</div></div>`; }
 // название секции и своего экрана — окно на странице, не системное окно браузера; без страницы — значение по умолчанию.
 // opts.label — подпись поля на виду; opts.choices — выбор [значение, подпись, пояснение], первый отмечен, ok(название, выбор)
 function askText(title, value, ok, dflt, opts){
@@ -6001,23 +6018,23 @@ function baseLine(t){
   const first = (src.cols || src.inds)[0], nm = s=>s.share ? IND[s.share[0]].name+' к '+IND[s.share[1]].name.toLowerCase() : s.pct ? IND[s.col || first].name+', % от итога группы' : IND[s.col || s.of || first].name;
   const sec = !m.second ? '' : m.second.label ? (m.second.share ? 'доля ' : m.second.pct ? '% ' : m.second.of ? 'из ' : '')+m.second.label : nm(m.second).toLowerCase();
   return nm(m.main)+(sec ? ' · '+sec : ''); }
-// каталог — витрина готовых плиток: «возьми и поставь». Секции по объекту, в строке — значения параметров и живое главное число в охвате
-// смотрящего (как на плитке, с единицей); поиск и «только доступные мне» сверху; пустой поиск ведёт в витрину отчётности с тем же запросом.
-// На телефоне — то же: просмотр и «Добавить»
-function renderCatalog(){
-  if(!HAS_DOM) return;
-  const hadFocus = HAS_DOM && document.activeElement && document.activeElement.id==='cat-q';
-  $('v-catalog').innerHTML = catalogHTML();
-  if(hadFocus){ const el = $('cat-q'); if(el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }
-}
+// каталог — витрина готовых плиток: «возьми и поставь». Панель справа поверх главной, для вкладки, из которой её открыли; секции по объекту,
+// в строке — значения параметров и живое главное число в охвате смотрящего (как на плитке, с единицей); поиск и «только доступные мне»
+// сверху; пустой поиск ведёт в витрину отчётности с тем же запросом — на месте панели. На телефоне — на весь экран: просмотр и «Добавить»
+const catTarget = () => (sheet && sheet.kind==='cat' && sheet.target) || curTab();
+const tabName = t => !t ? '' : t.kind==='screen' ? (screenById(t.id) || {}).name : roleName(t.id);
+const catTitle = () => 'Каталог · во вкладку «'+tabName(catTarget())+'»';
+function catDrawer(){ drawer(esc(catTitle()), catalogHTML(), 'cat-d'); }
+// цель — вкладка, открытая сейчас (после смены пользователя S.tab ещё пуст — curTab() его ставит)
+function openCatalog(q){ S.catQ = q || ''; view = 'home'; const t = curTab(); sheet = { kind:'cat', target:{ kind:t.kind, id:t.id } }; render(); return sheet.target; }
 function catalogHTML(){
-  const u = user(), target = catalogTarget || (S.tab ? S.tab : null);
-  const v = catalogView(u, { q:S.catQ, only:S.catOnly, target }), tname = target ? (target.kind==='screen' ? (screenById(target.id)||{}).name : roleName(target.id)) : '';
+  const u = user(), target = catTarget();
+  const v = catalogView(u, { q:S.catQ, only:S.catOnly, target }), tname = tabName(target);
   const empty = !v.n ? `<div class="cat-empty">${v.q ? `<b>Нет такой плитки</b> <span class="sep">·</span> <button class="linky" onclick="DB.findReports()">Искать отчёт «${esc(v.q)}» в отчётности ↗</button>`
     : '<b>Доступных плиток нет</b> — снимите «только доступные мне», чтобы увидеть остальные с причиной'}</div>` : '';
   return `<p class="muted cat-lead">Готовые плитки администратора дашборда: возьмите и поставьте. Добавленная встаёт в конец ${target ? 'вкладки «'+esc(tname)+'»' : 'текущей вкладки'}; число — в вашем охвате, как на плитке.</p>
     <div class="filterbar cat-bar"><label class="vh" for="cat-q">Поиск в каталоге</label><input id="cat-q" type="text" placeholder="Поиск: название, показатель, «куратор: я»" value="${esc(S.catQ || '')}" oninput="DB.catSearch(this.value)" autocomplete="off">
-      <label class="sw"><input type="checkbox" role="switch"${S.catOnly ? ' checked' : ''} onchange="DB.catOnly(this.checked)">только доступные мне</label><span class="cat-n">${v.q || v.only ? 'найдено '+v.n : tilesWord(v.n)}</span></div>
+      <label class="sw"><input type="checkbox" role="switch" id="cat-only"${S.catOnly ? ' checked' : ''} onchange="DB.catOnly(this.checked)">только доступные мне</label><span class="cat-n">${v.q || v.only ? 'найдено '+v.n : tilesWord(v.n)}</span></div>
     ${empty}${v.sections.map((s, i)=>`<section class="cat-sec" aria-labelledby="cs-${i}"><h3 class="cat-h" id="cs-${i}">${esc(s.name)}<span class="cat-c">${s.rows.length}</span></h3><div class="cat-list">${s.rows.map(catRowHTML).join('')}</div></section>`).join('')}`;
 }
 // строка витрины: название с метками, значения параметров, живое число (основа и паспорт — подсказкой), «Есть / Добавить / Нельзя: … / ждёт соседа»
@@ -6027,7 +6044,7 @@ function catRowHTML(x){ const t = x.t, res = x.res;
     : x.num!==null ? `<span class="cat-v"${tipAttr('Основа: '+baseLine(t)+(res && res.passport ? '\n'+res.passport : ''))}>${numUnit(x.num)}</span>`
     : res ? `<span class="cat-v"><span class="st"${tipAttr(res.msg || '')}>${esc((STATE_WORD[res.state] || 'нет ответа').toLowerCase())}</span></span>` : '<span class="cat-v"></span>';
   const act = x.status==='no' ? `<span class="bad">${esc(x.why)}</span>` : x.status==='wait' ? `<span class="muted">ждёт соседа: ${esc(x.owner)}</span>`
-    : x.status==='has' ? '<span class="cat-has">Есть</span>' : `<button class="btn sm primary" onclick="DB.addFromCatalog('${t.id}')" aria-label="Добавить «${esc(t.title)}»${x.params.length ? ' · '+esc(x.params.join(', ')) : ''}">Добавить</button>`;
+    : x.status==='has' ? '<span class="cat-has">Есть</span>' : `<button class="btn sm primary" data-add="${t.id}" onclick="DB.addFromCatalog('${t.id}')" aria-label="Добавить «${esc(t.title)}»${x.params.length ? ' · '+esc(x.params.join(', ')) : ''}">Добавить</button>`;
   return `<div class="cat-row" data-tile="${esc(t.id)}"><div class="cat-m"><b class="cat-t">${esc(t.title)}</b>${marks}<div class="cat-p">${esc(x.params.join(' · ') || 'без параметров')}</div></div>${num}<div class="cat-a">${act}</div></div>`; }
 /* ---------- Своя плитка — «📌» из отчёта; форма плитки — ящик «Настроить» на ней; витрина отчётности — заглушка соседа ---------- */
 const SHELF_NAMES = { catalog:'отчёт каталога', personal:'мой отчёт', official:'официальный' };
@@ -6101,10 +6118,13 @@ function tileFormHTML(d, r, dt, vs){
 function canConfigure(t, u){ return !!t && t.kind!=='link' && !!t.report && (t.state==='personal' ? t.owner===u.id : t.owner==='catalog' && ['published','draft'].includes(t.state) && isAdmin(u)); }
 // ящики поверх страницы, которые перерисовываются вместе с ней: «Настроить», «Опубликовать в каталог», витрина отчётности
 function renderSheet(){ if(!HAS_DOM || !sheet) return; const sh = sheet;
-  const keep = document.querySelector('#overlay .drawer-b'), top = keep ? keep.scrollTop : 0, fq = document.activeElement && document.activeElement.id==='rq-q';
-  if(sh.kind==='cfg') cfgDrawer(sh); else if(sh.kind==='pub') pubDrawer(sh); else rqDrawer(sh);
+  const keep = document.querySelector('#overlay .drawer-b'), top = keep ? keep.scrollTop : 0, ae = document.activeElement, inSh = ae && ae.closest && ae.closest('#overlay');
+  const fq = inSh && ae.id ? ae.id : null, fadd = inSh && ae.dataset ? ae.dataset.add : null;
+  if(sh.kind==='cfg') cfgDrawer(sh); else if(sh.kind==='pub') pubDrawer(sh); else if(sh.kind==='cat') catDrawer(); else rqDrawer(sh);
   sheet = sh; const nb = document.querySelector('#overlay .drawer-b'); if(nb) nb.scrollTop = top;
-  if(fq){ const el = $('rq-q'); if(el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } } }
+  if(fq){ const el = $(fq); if(el){ el.focus(); if(el.type==='text'){ const n = el.value.length; el.setSelectionRange(n, n); } } }
+  else if(fadd){ const rows = [...document.querySelectorAll('#overlay [data-tile]')], i = rows.findIndex(r=>r.dataset.tile===fadd);
+    const next = rows.slice(i + 1).map(r=>r.querySelector('[data-add]')).find(Boolean) || $('cat-q'); if(next) next.focus(); } }
 // «Настроить»: форма слева, предпросмотр и автопроверка справа; «Сохранить» — новая версия плитки (у каталожной — у всех, где она стоит)
 function cfgDrawer(sh){ const t = tileById(sh.tile), u = user(), d = draft, r = d && reportById(d.report); if(!t || !r) return;
   const ac = autocheck(d), ok = passes(ac, d), dt = Object.assign({ id:'preview', owner:t.owner }, d, { title:d.title || '(без подписи)' }), vs = viewsFor(dt, u, null, [], {});
@@ -6339,7 +6359,7 @@ const api = {
   roleHasLayout, roleLaunch, WAVE_FORECAST, warmPlan, morningLoad, nowTime, filterOff, baseDownOf, tileAsks, loadOf:(id)=>loadOf(S.open[id]), tileAnswers, catalogFor, canSee, shiftsFor, autocheck, passes, saveTile, editTile, propose, whereUsed, publishCheck, publishOwnId:publishOwn, publishWaiting, reportAnswers, reportSearch, canConfigure, pinNow, withdrawTile:withdraw,
   catalogView, CAT_SECTIONS, catSection, paramChips, catNum, acceptProposal, rejectProposal, proposalCheck, proposalsWaiting, dupOf, qSig, personalReport,
   opens90, daysSince, withdrawCandidate, swapGoneOf:swapGone, applyDeclared, declaredSave, layoutDiff, roleHolders, roleNewsShow, roleNewsClose, isNewTile, unmarkNew, newsText, newsBanner, goneHTML,
-  catalogHTML, registryHTML, layoutsHTML, proposalHTML, get page(){ return view; },
+  catalogHTML, registryHTML, layoutsHTML, proposalHTML, get page(){ return view; }, get sheet(){ return sheet; }, catTitle,
   exportTile, signalToggle, signalRemove, nightCheck, createScreen, screens, screenAdd, screenSaveFilter, screenFilterChanged, tabSnapshot, screenExport, scopeKey,
   panelVals, normPanel, panelOn, panelScope, panelSplit, filterFields, mineEmpty, lightOnly, tabsFor, scopeCaption, homeHTML:()=>homeHTML().html, topHTML:()=>{ const u = user(), t = curTab(); return topHTML(u, t, curRole(), t.kind==='screen' ? screenById(t.id) : null); }, tick, fmtVal, rowsFor, dimHist, noAnswerAt, monthEndLabel, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
   get draft(){ return draft; }, get rdraft(){ return rdraft; }, reportHints, buildReport, similarReport, saveAndPlace, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF, loanAt, isLoanRow,
@@ -6358,7 +6378,7 @@ const api = {
   // UI
   // переключатель «Сравнить»: ключ базы или null («как задано»); живёт на экране и едет в ссылке, из меню — снова «как задано»
   setCmp:(k)=>{ S.cmp = k && STOCK_BASES[k] ? k : null; render(); return S.cmp; }, cmpOptions, CMP_ORDER, STOCK_BASES, startLabel, baseMonth,
-  go:(v)=>{ view=v; S.cmp = null; if(v!=='catalog') catalogTarget=null; render(); },
+  go:(v)=>{ view=v; S.cmp = null; render(); },
   // вкладка: фильтр у неё свой до конца сеанса — переключение его не сбрасывает
   setTab:(kind,id)=>{ goTab(kind, id); view='home'; S.cmp = null; resetOpen(); render(); },
   // список «Экран: …» на телефоне: значение «роль:id» / «screen:id», «new» — новый свой экран
@@ -6409,12 +6429,15 @@ const api = {
   renameScreen:()=>{ const sc = screenById(S.tab.id); askText('Новое название', sc.name, n=>{ sc.name=n; render(); }); },
   deleteScreen:()=>{ const sc = screenById(S.tab.id); deleteScreen(S.tab.id); S.tab=null; S.cmp = null; resetOpen(); render(); toast('Экран «'+(sc ? sc.name : '')+'» удалён'); },
   saveScreenFilter:()=>{ screenSaveFilter(S.tab.id); render(); toast(panelOn(S.panelRaw) ? 'Фильтр сохранён в экран' : 'Экран сохранён без фильтра'); },
-  openCatalogFor:()=>{ catalogTarget = S.tab; view='catalog'; render(); },
-  addFromCatalog:(id)=>{ const tg = catalogTarget || S.tab; if(!tg) return; if(tg.kind==='screen') screenAdd(tg.id, id); else arrangeAdd(tg.id, id); render(); toast('Добавлено в конец раскладки'); },
-  catSearch:(q)=>{ S.catQ=q; renderCatalog(); },
-  // «только доступные мне»: есть во вкладке или можно добавить; «найти в каталоге» из уведомления — поиск по названию
-  catOnly:(on)=>{ S.catOnly = !!on; renderCatalog(); return S.catOnly; },
-  catFind:(q)=>{ S.catQ = q || ''; S.catOnly = false; catalogTarget = null; view = 'catalog'; render(); return S.catQ; },
+  // «+ плитка» — панель каталога для текущей вкладки; «Добавить» ставит плитку в её конец, панель остаётся открытой для следующей
+  openCatalogFor:(q)=>openCatalog(q),
+  addFromCatalog:(id)=>{ const tg = catTarget(); if(!tg) return; if(tg.kind==='screen') screenAdd(tg.id, id); else arrangeAdd(tg.id, id);
+    const it = homeItems(), sec = it.slice(0, it.lastIndexOf(id)).filter(k=>k.startsWith('s:')).pop(); if(sec) delete S.collapsed[tabKey()+'|'+sec];   // встала в свёрнутую секцию — секция раскрывается, плитку видно
+    render(); toast('Добавлено в конец вкладки «'+tabName(tg)+'»'); },
+  catSearch:(q)=>{ S.catQ=q; renderSheet(); },
+  // «только доступные мне»: есть во вкладке или можно добавить; «найти в каталоге» из уведомления — та же панель с поиском по названию
+  catOnly:(on)=>{ S.catOnly = !!on; renderSheet(); return S.catOnly; },
+  catFind:(q)=>{ S.catOnly = false; openCatalog(q); return S.catQ; },
   // пустой поиск каталога — «Искать отчёт „q“ в отчётности ↗»: витрина отчётности с тем же запросом
   findReports:(q)=>{ const sh = { kind:'rq', q: q===undefined ? S.catQ || '' : String(q) }; sheet = sh; render(); return reportSearch(user(), sh.q).map(r=>r.id); },
   // заглушка снятой плитки: «Заменить» ставит замену на её место
