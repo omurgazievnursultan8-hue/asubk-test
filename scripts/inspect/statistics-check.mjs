@@ -149,6 +149,11 @@
 // блок волны 23 З-23c — слоты классификаторов (ADR-0241 §5, ADR-0245 §1): десять на объект,
 // слот занимается навсегда и не переиспользуется; при восьми — предупреждение, одиннадцатый
 // ждёт релиза.
+// блок волны 31 — эпизод просрочки из шва ядра overdueSpells (СС-231…СС-242, ADR-0318, #318…#331):
+// список — ответ ядра, одно обращение на дату · закрытый эпизод строки хранит · ключ кредит ×
+// слой × начало · состояние тянется · закрыт и причина разрезом · дата закрытия с корзинами ·
+// длительность ≠ дни просрочки · сверка по «в просрочке» реквизитом прогона · ядро молчит —
+// строки без величин · ушедший задним числом снят в открытом месяце · лечение платежом.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -263,9 +268,12 @@ const FIZ = fizSchema();
      заявка на реструктуризацию, расчёт реструктуризации, сотрудник и эпизод просрочки. */
 /* Кредит догнан до схемы §1 (переписан на месте): разрезов 122 → 129, записей 397 → 404 —
      дата окончания и шесть факторов риска п. 11, источник которых у «Кредитов» есть. */
-  ok(1, st.objects.length === 16 && st.indicators.length === 275 && own1.length === 187 &&
+  /* Волна 31 (переписан на месте): показателей 275 → 277, разрезов 129 → 132, записей 404 → 409 —
+     у эпизода просрочки «Чем закрыт», «Дата закрытия», «Начало по переносу», спорные дни и их
+     сумма (СС-234…СС-237). */
+  ok(1, st.objects.length === 16 && st.indicators.length === 277 && own1.length === 189 &&
        twin1.length === 88 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 129 && ST.registry().length === 404 && badSrc.length === 0 &&
+       st.dims.length === 132 && ST.registry().length === 409 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -375,15 +383,14 @@ const FIZ = fizSchema();
   });
   const rows6 = each.filter(x => x.ok), mute6 = each.filter(x => !x.ok);
 /* Волна 23, З-20: объектов одиннадцать — членство в группе (ADR-0244 §2).
-     Волна 28 (переписан на месте): объектов шестнадцать, и пятнадцать из них отвечают
-     СТРОКАМИ одним движком. Шестнадцатый — «Эпизод просрочки» — отвечает ОТКАЗОМ, и это не
-     поломка движка, а объявленное состояние: перечня эпизодов владелец не отдаёт, вывести
-     его самой витрине запрещено (ИС-1), и отказ называет заявку поимённо (ИС-24). */
-  ok(6, rows6.every(x => x.n > 0) && each.length === 16 && rows6.length === 15 &&
-        mute6.length === 1 && mute6[0].name === 'Эпизод просрочки' &&
-        has(mute6[0].why, 'ЗАЯВКА МОДУЛЮ-ВЛАДЕЛЬЦУ') && has(mute6[0].why, 'P20-R33') &&
-        has(mute6[0].why, 'overdueSpells') && has(mute6[0].why, 'ИС-1'),
-    `шестнадцать объектов одним движком, пятнадцать из них — строками: ${rows6.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}. Шестнадцатый молчит НЕ пустотой: «${mute6[0].name}» отвечает отказом — «${mute6[0].why.slice(0, 120)}…» (ИС-1, ИС-24, ADR-0201 §3)`);
+     Волна 28: объектов шестнадцать, «Эпизод просрочки» отвечал отказом — перечня эпизодов
+     владелец не отдавал (ADR-0256). Волна 31 (переписан на месте): ядро отдаёт эпизоды методом
+     API overdueSpells (ADR-0318), и строками одним движком отвечают все шестнадцать (СС-242).
+     Отказ «объект объявлен, а метода нет» остаётся общим правилом — его держит #318. */
+  const sp6 = each.find(x => x.name === 'Эпизод просрочки') || {};
+  ok(6, rows6.every(x => x.n > 0) && each.length === 16 && rows6.length === 16 &&
+        mute6.length === 0 && sp6.ok && sp6.n === 10,
+    `шестнадцать объектов одним движком, все — строками: ${rows6.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}${mute6.length ? '; отказали: ' + mute6.map(x => x.name + ' — ' + x.why.slice(0, 80)).join(' · ') : ''}. «Эпизод просрочки» — ${sp6.n} эпизодов из ответа ядра (СС-231, СС-242)`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: ASK});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: ASK});
@@ -3437,10 +3444,13 @@ const FIZ = fizSchema();
      собственная строка 01.05, у открытого июля 31 день, а не 30 со строкой 01.08 (ADR-0264 §1);
      клеток 17914, итогов в сомах 5333, остатков 10853, потоков 1728, курс у 1296 строк.
      Расхождений — ноль. */
-  ok(172, a172.bad.length === 0 && a172.seen === 17914 && a172.som === 5333 && a172.flow === 1728 &&
-        a172.bal === 10853 && a172.fxOn === 1296 && a172.fxOff === 2176 &&
-        dates172.length === 60 && objs172.length === 15 &&
-        own172.length === 3472 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
+  /* Волна 31 (переписан на месте): +540 строк эпизодов просрочки (10 эпизодов × 54 даты), у каждой курс
+     строки и сомовый пик: строк 3472 → 4012, объектов 15 → 16, клеток 17914 → 18454, остатков
+     10853 → 11393, курс у 1296 → 1836 строк. Расхождений — ноль. */
+  ok(172, a172.bad.length === 0 && a172.seen === 18454 && a172.som === 5333 && a172.flow === 1728 &&
+        a172.bal === 11393 && a172.fxOn === 1836 && a172.fxOff === 2176 &&
+        dates172.length === 60 && objs172.length === 16 &&
+        own172.length === 4012 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
     `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов на всех ${dates172.length} датах строк (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}. Остатков ${a172.bal}: сомовое число обязано равняться валютной клетке той же строки, умноженной на КУРС СТРОКИ, по правилу округления, названному в записи; курс лежит в строке один раз (${a172.fxOn} строк объектов с валютой), у прочих ${a172.fxOff} его нет вовсе. Потоков ${a172.flow} и итогов в сомах ${a172.som} — с ядром на дату строки: их сомовое число — сумма операций по курсам их дней, одного курса у него нет, и перемножать в строке нечего (ИС-56, ADR-0240 §2–§4). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
 
   /* #173 — тот же сторож на ПОДБРОШЕННОМ дефекте. Сторож, который не умеет провалиться,
@@ -3732,11 +3742,13 @@ const FIZ = fizSchema();
      владелец пока не отдаёт ни одной строки (P20-R33). */
   /* Кредит догнан до схемы §1 (переписан на месте): 397 → 404 записи, 122 → 129 разрезов,
      254 → 261 строчная с колонками — дата окончания и шесть факторов риска. */
-  ok(181, st.registry.length === 404 && nInd === 275 && nDim === 129 && pathN === 1 &&
-        ownInd === 187 && somInd === 88 && somInd === 44 * 2 && !ST.REC('d-ocur') &&
+  /* Волна 31 (переписан на месте): 404 → 409 записей, 129 → 132 разреза, 261 → 265 строчных с колонками
+     (d_closed_by, d_to, d_legacy_start, i_disputed_days), 142 → 143 агрегата. */
+  ok(181, st.registry.length === 409 && nInd === 277 && nDim === 132 && pathN === 1 &&
+        ownInd === 189 && somInd === 88 && somInd === 44 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        withCols === 261 && aggN === 142 && withCols + aggN + pathN === st.registry.length &&
+        withCols === 265 && aggN === 143 && withCols + aggN + pathN === st.registry.length &&
         somCols === 44 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
@@ -3983,8 +3995,10 @@ const FIZ = fizSchema();
      (rsClock) и «Сотрудники» (hrClock); швов реестр называет 17. Шов эпизодов просрочки
      (overdueSpells) в этот счёт НЕ входит: его у ядра ещё нет, и запись на него не ссылается
      ни одна — величины эпизода объявлены полями владельца (P20-R33). */
+  /* Волна 31 (переписан на месте): швов 17 → 18 — ядро отдаёт эпизоды методом API overdueSpells
+     (ADR-0318), и пять записей эпизода читают его (СС-241). */
   ok(193, nbs.length === 8 && orphanSeam.length === 0 && twice.length === 0 &&
-        notReal.length === 0 && usedSeams.length === 17 &&
+        notReal.length === 0 && usedSeams.length === 18 &&
         !noNb.ok && has(noNb.why, 'должен быть объявлен модуль-источник') &&
         !badNb.ok && has(badNb.why, 'ИС-42') && has(badNb.why, 'объявленные:') &&
         !badWhy.ok && has(badWhy.why, 'причин четыре') &&
@@ -4658,7 +4672,9 @@ const FIZ = fizSchema();
            прибавилась валютная заявка З-2026-000140 (USD): её сомовый близнец собран по
            тому же курсу. Проверяемое правило от этого не зависит — ни одна строка не
            переписана ПРАВКОЙ ОБЪЯВЛЕНИЯ, и только настоящая причина двигает строки. */
-        rew211.ok && rew211.refreshed === 3 &&
+        /* Волна 31 (переписан на месте): 3 → 5 — сомовый пик двух эпизодов валютного КД-2025/043 собран
+           по тому же уточнённому курсу строки. */
+        rew211.ok && rew211.refreshed === 5 &&
         moved211.length === 1 && moved211[0].ref === 'КД-2025/043' &&
         ST.datingOf(moved211[0], 'm-total') === 'текущее' &&
         still211.length === 7 && still211.every(r => r.inds['m-total'] != null && ST.datingOf(r, 'm-total') === 'на дату') &&
@@ -4713,15 +4729,18 @@ const FIZ = fizSchema();
         /* Волна 28 (переписан на месте): переписано 2 → 3 (кредит, его заёмщик и валютная
            заявка З-2026-000140), зафиксировано 58 → 76 — в июльский итог вошли строки
            заявок, обращений, расчётов и сотрудников. */
-        r212.ok && r212.made === 0 && r212.refreshed === 3 && r212.fixed === 76 &&
-        j212.kind === 'защёлка' && j212.written === 3 &&
+        /* Волна 31 (переписан на месте): переписано 3 → 5 (и два валютных эпизода КД-2025/043),
+           зафиксировано 76 → 86 — в июльский итог вошли десять строк эпизодов. */
+        r212.ok && r212.made === 0 && r212.refreshed === 5 && r212.fixed === 86 &&
+        j212.kind === 'защёлка' && j212.written === 5 &&
         j212.written === j212.repoll.again &&
-        j212.repoll.made === 0 && j212.repoll.again === 3 && j212.repoll.done === true &&
+        j212.repoll.made === 0 && j212.repoll.again === 5 && j212.repoll.done === true &&
         chg212.some(r => r.obj === 'obj-borrower') &&
         j212.cand.scan === 'полный' &&
-        chg212.length === 3 && kd212 && chg212.some(r => r.obj === 'obj-app') &&
+        chg212.length === 5 && kd212 && chg212.some(r => r.obj === 'obj-app') &&
+        chg212.filter(r => r.obj === 'obj-odue').length === 2 &&
         cell212('m-total-som', was212) === 12920251.35 && cell212('m-total-som', kdw212.inds) === 13390613.18 &&
-        j212.parts.filter(p => p.rewrote.length).length === 3,
+        j212.parts.filter(p => p.rewrote.length).length === 4,
     `защёлка ПЕРЕСПРАШИВАЕТ, а не только дополняет: величина, которую закрытие замораживает, спрошена в момент замораживания (ИС-46, ADR-0216 §2). Курс на 31.07 уточнён задним числом, уже после последнего прогона, — и доспрос дописал ${r212.made} строк и ПЕРЕПИСАЛ ${r212.refreshed}, тогда как та же защёлка без уточнения переписывает ${base212.refreshed}. Числа при этом настоящие: у «${kdw212.ref}» сомовый итог ушёл с ${cell212('m-total-som', was212)} на ${cell212('m-total-som', kdw212.inds)} — почти полмиллиона сомов, которые до ADR-0216 §2 ушли бы наружу с подписью «окончательно», потому что прежняя защёлка писала только недостающее и трогать уже написанное не считала нужным. Дописанное и переписанное считаются ПОРОЗНЬ (${j212.repoll.made} против ${j212.repoll.again}): это разные события с разной ценой — полнота состава (ADR-0215 §4) против свежести величин (ADR-0216 §2), — и ночь, в которую доспрос ничего не изменил, обязана отличаться от ночи, в которую он переписал ${chg212.length} строки в ${j212.parts.filter(p => p.rewrote.length).length} объектах. Общее «written» остаётся их суммой (${j212.written} = ${j212.repoll.made} + ${j212.repoll.again}; дописывать теперь нечего — строка итога у состояний есть, у событий итога на дату нет, ИС-54): суточный итог по журналу складывается одним способом (#63), а обход у записи по-прежнему «${j212.cand.scan}» (ADR-0221 §3)`);
 
   /* #213 — МОЛЧАНИЕ НА ДОСПРОСЕ — ОТКАЗ С ПЕРЕЧНЕМ СТРОК, И ИЗВЕСТНОЕ ИМ НЕ СТИРАЕТСЯ.
@@ -5338,7 +5357,8 @@ const FIZ = fizSchema();
            (ИС-54, довод у #201). */
         /* Волна 23, З-20: 42 → 47 — пять строк членства (довод у #201).
            Волна 28 (переписан на месте): 47 → 65 — заявки, обращения, расчёты и сотрудники. */
-        run228.ok && run228.written === 65 && run228.date === '2026-08-22' &&
+        /* Волна 31 (переписан на месте): 65 → 75 — десять эпизодов просрочки. */
+        run228.ok && run228.written === 75 && run228.date === '2026-08-22' &&
         legBefore === 34 && legAfter === 34 && touched === 0 &&
         ST.queue().length === 0 &&
         runLeg.ok === false && has(runLeg.why, 'раньше запуска') &&
@@ -5432,7 +5452,8 @@ const FIZ = fizSchema();
   const dups = names.filter(t => new Set(FIZ[t].cols).size !== FIZ[t].cols.length);
   const noStore = names.filter(t => !FIZ[t].storage);
   /* Волна 28 (переписан на месте): таблиц строк 11 → 16, колонок 602 → 720 (§16–§20). */
-  ok(235, names.length === 16 && total === 720 && !off.length && !dups.length && !noStore.length,
+  /* Волна 31 (переписан на месте): колонок 720 → 724 — у эпизода просрочки 18 → 22 (СС-234…СС-237). */
+  ok(235, names.length === 16 && total === 724 && !off.length && !dups.length && !noStore.length,
     `схема читается смоуком сама, а не переписана в него: таблиц ${names.length}, колонок ${total} (в схеме — 602), разделов с расхождением счёта ${off.length}${off.length ? ' (' + off.join(', ') + ')' : ''}, с повторами ${dups.length}, без способа хранения ${noStore.length}. Сжатая запись раскрывается и сверяется графой «шт.»: список, переписанный в смоук, разошёлся бы со схемой так же тихо, как макет (ИС-53, ADR-0237 §3)`);
 
   /* #236 — релиз макета есть подмножество схемы: таблица названа как в схеме, способ
@@ -5874,7 +5895,8 @@ const FIZ = fizSchema();
      полным обходом, договоры залога пересчитаны и равны вчерашним. */
   ok(256, states256.length === 13 && days256.length >= 50 && holes256.length === 0 &&
         r256.ok && copied256 === 0 && j256.cand.scan === 'полный' &&
-        stParts.reduce((n, p) => n + p.written, 0) === 65 &&
+        /* Волна 31 (переписан на месте): 65 → 75 — у эпизода просрочки строки есть. */
+        stParts.reduce((n, p) => n + p.written, 0) === 75 &&
         part256('obj-zdeal').same === 5 && sameEq &&
         stParts.every(p => p.skip === 0 && p.written === p.n + p.same &&
           p.n + p.same + p.kept === ST.registryList(p.obj, TODAY).length),
@@ -5950,7 +5972,8 @@ const FIZ = fizSchema();
      раньше не трогает (правка ревью 1 З-16a). Сторож не о них. */
   const stW258 = j258.parts.filter(p => stor(p.obj) === 'state').reduce((n, p) => n + p.written, 0);
 /* Волна 23, З-20 (переписан на месте): 42 → 47 — пять строк членства (довод у #201). */
-  ok(258, re258.ok && stW258 === 65 && !('copied' in re258) && j258.cand.scan === 'полный' &&
+  /* Волна 31 (переписан на месте): 65 → 75 — десять эпизодов просрочки. */
+  ok(258, re258.ok && stW258 === 75 && !('copied' in re258) && j258.cand.scan === 'полный' &&
         /* Волна 23, З-17 (переписан на месте): уточнённый курс не двигает валютного числа —
            перезапись называет курс строки и сомовые стороны, а не «Остаток ОД» (ИС-56). */
         pc258.n === 1 && pc258.same === 7 &&
@@ -7644,7 +7667,8 @@ const FIZ = fizSchema();
   /* Волна 28 (переписан на месте): колонок вида «code» со списком 20 → 33 — статус и стадия
      заявки, поток, стадия и исход обращения, ступень и состояние ДС расчёта, три оси и вид
      назначения сотрудника, слой и состояние эпизода. */
-  ok(282, shape282.length === 0 && nCk282 === 33 && bad282.length === 0 && legacy282 > 0 && corr282.length === 0 &&
+  /* Волна 31 (переписан на месте): 33 → 34 — «Чем закрыт» эпизода (СС-234). */
+  ok(282, shape282.length === 0 && nCk282 === 34 && bad282.length === 0 && legacy282 > 0 && corr282.length === 0 &&
         pay282 === 'pending,confirmed,reversed' && msr282 === 'действует,сторнирована' && old282 === 0,
     `закрытый словарь — список значений в релизе: у ${nCk282} колонок вида «code» и вида поправки события списки лежат у таблиц, таблиц со списком не на месте ${shape282.length} (${shape282.join(', ') || '—'}); значений вне списка в ${ST.state.rows.length} хранимых строках, из них ${legacy282} легаси, — ${bad282.length}${bad282.length ? ' (' + bad282.slice(0, 3).join('; ') + ')' : ''}; объявленный вид поправки вне списка своей таблицы — у ${corr282.length} объектов. Словари, которые выводит сама статистика, — по схеме: состояние платежа ${pay282}, состояние меры ${msr282}; записей мира с прежними словами ${old282} (ИС-57, ADR-0241 §2, СС-193, СС-194)`);
 
@@ -8247,7 +8271,9 @@ const FIZ = fizSchema();
   ok(294, noArr294 === 0 && ST.ROW_ORIGIN.join() === 'now' && ST.ROW_SHAPE.indexOf('when') < 0 &&
         leg294.length === 34 && leg294.every(r => r.now.length === 0) && legDate294 && alien294 === 0 && pair294 === 0 &&
         /* Волна 28 (переписан на месте): своих строк 2457 → 3407, с «текущими» 2331 → 3281. */
-        full294 === 3343 && own294.length === 3472 &&
+        /* Волна 31 (переписан на месте): +540 строк эпизодов: своих 4012, с «текущими» 3883 — ключ
+           эпизода (кредит, слой, дата начала) — поля. */
+        full294 === 3883 && own294.length === 4012 &&
         cl294.now.indexOf('m-csurv') >= 0 && cl294.now.indexOf('m-cpledge') < 0 &&
         ST.datingOf(cl294, 'm-cpledge') === 'на дату' && ST.datingOf(cl294, 'm-csurv') === 'текущее' &&
         u294.now.indexOf('m-amount') >= 0 && u294.now.indexOf('m-amount-som') >= 0 &&
@@ -8859,7 +8885,9 @@ const FIZ = fizSchema();
   const past314 = sliceAt('2026-08-20');
   ok(314, f0.ok && f0.passport.fresh.at === '14:15:07' && f0.passport.fresh.queue === 0 &&
         has(f0.passport.short, 'на 21.08 14:15:07 · день не закрыт · в очереди 0') &&
-        f1.ok && f1.passport.fresh.queue === 5 && has(f1.passport.short, 'в очереди 5') &&
+        /* Волна 31 (переписан на месте): очередь 5 → 6 — у кредита платежа есть эпизод просрочки, видимость
+           которого идёт через кредит. */
+        f1.ok && f1.passport.fresh.queue === 6 && has(f1.passport.short, 'в очереди 6') &&
         f2.ok && f2.passport.fresh.at === '14:20:00' && f2.passport.fresh.queue === 0 &&
         fCase.ok && has(fCase.passport.fresh.text, 'обновляется только ночью: Взыскание') &&
         past314.ok && past314.passport.fresh === null && !has(past314.passport.short, 'день не закрыт'),
@@ -8915,6 +8943,198 @@ const FIZ = fizSchema();
         has(aug317.why, 'ещё не завершён') && has(aug317.why, '31.08.2026') && has(aug317.why, '01.09.2026') &&
         has(aug317.why, 'ADR-0264 §8') && !ST.isClosed('2026-08-15'),
     `месяц закрывается после ночи, закрывшей его последний день (ADR-0264 §8): июль закрыт (ночь 01.08 прошла), у августа нижние слои проставлены, а статистика отбита: «${aug317.why}»`);
+})();
+
+/* ===== Волна 31 — у эпизода просрочки появились строки (СС-231…СС-242). Ядро отдаёт эпизоды
+   методом API overdueSpells (ADR-0318): список — один вызов на дату прогона, строка — ответ ядра
+   на конец дня. Статистика эпизодов не склеивает, дней не считает и «вылечен ли» не решает (ИС-1).
+   Стенд — 10 эпизодов на 8 кредитах: 4 тянутся (КД-2023/210 со сдвинутым частичным погашением
+   сроком, КД-2025/088, КД-2025/101 в евро, КД-2022/065 под решением суда), 6 закрыты — погашением
+   (3), списанием, реструктуризацией и переводом в другой слой; пять закрыты до запуска. ===== */
+(() => {
+  const CORE31 = vm.runInContext('CORE', sandbox);
+  const rowsOn = (obj, d) => ST.state.rows.filter(r => r.obj === obj && r.date === d && r.part == null);
+
+  /* #318 — СС-231: список объекта — ответ ядра на дату прогона, одним обращением, сколько бы
+     эпизодов ни читали строки; закрытые до даты прогона эпизоды в ответе есть. */
+  ST.seed();
+  ST.resetSpells();
+  const run318 = ST.run(TODAY);
+  const calls318 = ST.spellCalls();
+  const core318 = ST.spellsAt(TODAY);
+  const list318 = ST.listOf('obj-odue', TODAY).map(x => x.id).sort();
+  const rows318 = rowsOn('obj-odue', TODAY).map(r => r.ref).sort();
+  const closed318 = core318.filter(x => x.state === 'закрыт');
+  ok(318, run318.ok && calls318 === 2 && core318.length === 10 && closed318.length === 6 &&
+        list318.join() === core318.map(x => x.id).sort().join() && rows318.join() === list318.join(),
+    `список эпизодов — ответ ядра на дату прогона (СС-231): ночь ${TODAY} закрыла сутки ${ASK} и открыла свои — обращений к ядру ${calls318}, по одному на дату, а строк эпизодов на дату ${rows318.length}. В ответе ${core318.length} эпизодов, из них закрытых до даты прогона ${closed318.length}: отрезок вопроса — от начала истории, иначе их строки пропали бы назавтра после закрытия`);
+
+  /* #319 — СС-232: закрытый эпизод сохраняет строки, и закрытый до запуска — с первой даты строк. */
+  ST.seed();
+  const credDates319 = [...new Set(ST.state.rows.filter(r => r.obj === 'obj-credit' && r.ref === 'КД-2024/117' && r.part == null).map(r => r.date))].sort();
+  const pre319 = ST.spellsAt(ASK).filter(x => x.state === 'закрыт' && x.to < ST.LAUNCH());
+  const per319 = pre319.map(x => [...new Set(ST.state.rows.filter(r => r.obj === 'obj-odue' && r.ref === x.id).map(r => r.date))].sort());
+  ok(319, pre319.length === 6 && per319.every(d => d.join() === credDates319.join()) && credDates319.length === 54,
+    `закрытый эпизод строки не теряет (СС-232): ${pre319.length} эпизодов закрыты до запуска ${ST.LAUNCH()} (${pre319.map(x => x.credit + ' по ' + x.to).join(' · ')}), и у каждого строка на каждую дату строк кредита — ${credDates319.length} дат с ${credDates319[0]} (у закрытых месяцев — итог), как у кредита, выданного до запуска`);
+
+  /* #320 — СС-233: ключ — кредит × слой × дата начала; разрез — вид слоя, номер решения суда — в подписи. */
+  const kd320 = rowsOn('obj-odue', ASK).filter(r => r.dims['d-ocredit'] === 'КД-2022/065');
+  const free320 = kd320.find(r => r.dims['d-olayer'] === 'свободный');
+  const court320 = kd320.find(r => r.dims['d-olayer'] === 'по решению суда');
+  const layers320 = [...new Set(rowsOn('obj-odue', ASK).map(r => r.dims['d-olayer']))].sort();
+  const extra320 = ST.OBJ('obj-odue').dims.filter(id => /суд|решени/i.test(ST.DIM(id).name) && id !== 'd-olayer');
+  ok(320, kd320.length === 2 && free320 && court320 && free320.dims['d-oto'] === '2026-03-02' &&
+        free320.dims['d-oby'] === 'переводом в другой слой' && court320.dims['d-ofrom'] === '2026-03-02' &&
+        court320.dims['d-ostate'] === 'тянется' && has(court320.ref, 'суд № 2-418/2026') &&
+        layers320.join() === 'по решению суда,свободный' && extra320.length === 0,
+    `ключ эпизода — кредит × слой × дата начала (СС-233): у КД-2022/065 решение суда 02.03.2026 закрыло эпизод свободного слоя «${free320 && free320.dims['d-oby']}» и открыло свой — «${court320 && court320.ref}». Разрез «Слой» — вид (${layers320.join(' · ')}), номер решения — в подписи объекта, своего разреза у него нет (${extra320.length})`);
+
+  /* #321 — СС-234: состояние тянется · закрыт, причина — свой разрез; «вылеченные» — закрытые погашением. */
+  const all321 = ST.state.rows.filter(r => r.obj === 'obj-odue');
+  const states321 = [...new Set(all321.map(r => r.dims['d-ostate']))].sort();
+  const pair321 = all321.every(r => (r.dims['d-ostate'] === 'закрыт') === (r.dims['d-oby'] != null) &&
+    (r.dims['d-ostate'] === 'закрыт') === (r.dims['d-oto'] != null));
+  const by321 = ST.statSlice({obj:'obj-odue', dims:['d-oby'], inds:['a-count'], date: ASK});
+  const n321 = k => ((by321.groups || []).find(g => g.parts[0] === k) || {values:{'a-count':{v:0}}}).values['a-count'].v;
+  const cured321 = ST.statSlice({obj:'obj-odue', dims:[], inds:['a-count'], date: ASK,
+    filter: F(cD('d-oby', '=', {value:'погашением'}))});
+  ok(321, states321.join() === 'закрыт,тянется' && pair321 && by321.ok &&
+        n321('погашением') === 3 && n321('списанием') === 1 && n321('реструктуризацией') === 1 &&
+        n321('переводом в другой слой') === 1 && cured321.ok && cured321.groups[0].values['a-count'].v === 3 &&
+        ST.release().tables['obj-odue'].checks.d_state.join() === 'тянется,закрыт' &&
+        ST.release().tables['obj-odue'].checks.d_closed_by.length === 5,
+    `состояние и причина — две оси (СС-234): значений состояния ${states321.join(' · ')}, «вылечен» нет; причина есть ровно у закрытых (${pair321}). На ${ASK}: погашением ${n321('погашением')} · списанием ${n321('списанием')} · реструктуризацией ${n321('реструктуризацией')} · переводом в другой слой ${n321('переводом в другой слой')}; вылеченных — закрытых погашением — ${cured321.ok ? cured321.groups[0].values['a-count'].v : cured321.why}`);
+
+  /* #322 — СС-235: дата закрытия режется корзинами, как дата начала. */
+  const q322 = b => ST.statSlice({obj:'obj-odue', dims:['d-oto'], buckets:{'d-oto': b}, inds:['a-count'], date: ASK});
+  const qq322 = q322('квартал'), yy322 = q322('год');
+  const g322 = (s, k) => ((s.groups || []).find(g => g.parts[0] === k) || {values:{'a-count':{v:0}}}).values['a-count'].v;
+  ok(322, qq322.ok && yy322.ok && g322(qq322, '2025 · III кв.') === 1 && g322(qq322, '2025 · IV кв.') === 2 &&
+        g322(qq322, '2026 · I кв.') === 3 && g322(yy322, '2025') === 3 && g322(yy322, '2026') === 3 &&
+        ST.DIM('d-oto').buckets.join() === ST.DIM('d-ofrom').buckets.join(),
+    `дата закрытия — разрез с корзинами (СС-235): по кварталам — 2025 III ${g322(qq322, '2025 · III кв.')} · 2025 IV ${g322(qq322, '2025 · IV кв.')} · 2026 I ${g322(qq322, '2026 · I кв.')}; по годам — 2025 ${g322(yy322, '2025')} · 2026 ${g322(yy322, '2026')}; у тянущихся даты закрытия нет`);
+
+  /* #323 — СС-236: величины — ответ ядра на дату строки; длительность ≠ дни просрочки; дата пика не хранится. */
+  const e323 = rowsOn('obj-odue', ASK).find(r => r.dims['d-ocredit'] === 'КД-2023/210' && r.dims['d-ostate'] === 'тянется');
+  const c323 = rowsOn('obj-credit', ASK).find(r => r.ref === 'КД-2023/210');
+  const k323 = rowsOn('obj-odue', ASK).find(r => r.dims['d-ocredit'] === 'КД-2024/117');
+  const u323 = rowsOn('obj-odue', ASK).find(r => r.dims['d-ocredit'] === 'КД-2025/043' && r.dims['d-ofrom'] === '2026-01-19');
+  const som323 = u323 ? Math.round(u323.inds['m-oepeak'].v * u323.fx.rate * 100) / 100 : null;
+  const cols323 = ST.release().tables['obj-odue'].cols;
+  const peakAt323 = ST.spellsAt(ASK).find(x => x.credit === 'КД-2025/088');
+  ok(323, e323 && c323 && e323.inds['m-oedays'].v === 263 && c323.inds['m-odays'].v === 210 &&
+        e323.inds['m-oddays'].v === 31 && k323 && k323.inds['m-oedays'].v === 23 &&
+        u323 && u323.inds['m-oepeak-som'].v === som323 &&
+        cols323.indexOf('i_disputed_days') >= 0 && !cols323.some(c => /peak_(on|date)|peak_at/.test(c)) &&
+        peakAt323 && peakAt323.peak === rowsOn('obj-credit', ASK).find(r => r.ref === 'КД-2025/088').inds['m-over'].v,
+    `величины эпизода — ответ ядра на дату строки (СС-236): у КД-2023/210 эпизод тянется ${e323 && e323.inds['m-oedays'].v} дн. с 01.12.2025, а дней просрочки у строки кредита ${c323 && c323.inds['m-odays'].v} — частичное погашение 05.02.2026 сдвинуло самый ранний неоплаченный срок; из них спорных ${e323 && e323.inds['m-oddays'].v}. Закрытый КД-2024/117 — ${k323 && k323.inds['m-oedays'].v} дн. без дня закрытия. Пик USD-эпизода в сомах ${u323 && u323.inds['m-oepeak-som'].v} = пик × курс строки ${u323 && u323.fx.rate}; колонки даты пика нет`);
+
+  /* #324 — СС-237: пометка «начало по данным переноса» — разрез да/нет; на стенде переноса нет. */
+  const leg324 = ST.state.rows.filter(r => r.obj === 'obj-odue').map(r => r.dims['d-olegacy']);
+  ok(324, leg324.length > 0 && leg324.every(v => v === false) && ST.DIM('d-olegacy').vtype === 'bool' &&
+        cols323.indexOf('d_legacy_start') >= 0,
+    `«начало — по данным переноса» — разрез да/нет (СС-237): колонка d_legacy_start есть, у всех ${leg324.length} строк — «нет»: переноса эпизодов из легаси на стенде нет`);
+
+  /* #325 — СС-238: сверка со строкой кредита по «в просрочке», а не равенством; нарушение —
+     реквизит прогона, число не подменяется, прогон не падает. */
+  ST.seed();
+  const ties325 = ST.state.runs.filter(r => r.spellTie);
+  const clean325 = ties325.every(r => r.spellTie.bad.length === 0 && r.spellTie.checked === 8);
+  ST.resetSpells();
+  const gone325 = ST.spellsAt(ASK).find(x => x.credit === 'КД-2025/088').id;
+  const had325 = ST.state.rows.filter(r => r.obj === 'obj-odue' && r.ref === gone325);
+  ST.resetSpells();
+  const keep325 = CORE31.spellsOf;
+  CORE31.spellsOf = (item, d) => item.id === 'КД-2025/088' ? [] : keep325(item, d);
+  let run325, rec325, cred325, left325 = [], log325 = [];
+  try {
+    run325 = ST.run(ASK, {manual: true, reason: 'проверка сверки эпизодов'});
+    rec325 = ST.state.runs[ST.state.runs.length - 1];
+    cred325 = rowsOn('obj-credit', ASK).find(r => r.ref === 'КД-2025/088');
+    left325 = ST.state.rows.filter(r => r.obj === 'obj-odue' && r.ref === gone325);
+    log325 = ST.rewriteLog().filter(e => e.dropped && e.ref === gone325);
+  } finally { CORE31.spellsOf = keep325; ST.resetSpells(); }
+  const drop325 = ((rec325 && rec325.parts) || []).find(p => p.obj === 'obj-odue') || {dropped: []};
+  const bad325 = (rec325 && rec325.spellTie && rec325.spellTie.bad) || [];
+  ok(325, ties325.length > 50 && clean325 && run325 && run325.ok && rec325.status === 'done' &&
+        bad325.length === 1 && bad325[0].credit === 'КД-2025/088' && has(bad325[0].why, 'тянущегося эпизода нет') &&
+        cred325 && cred325.inds['m-odays'].v === 129 && !ST.reconcileRun().failed.length,
+    `сверка эпизодов — реквизит прогона (СС-238): во всех ${ties325.length} прогонах сверено по 8 кредитов, расхождений нет (${clean325}); длительность и дни сравниваются неравенством. Ядро не отдало эпизод КД-2025/088 — прогон «${rec325 && rec325.status}», в реквизите «${bad325.map(b => b.credit + ' — ' + b.why).join(' · ')}», а дни кредита остались ${cred325 && cred325.inds['m-odays'].v}`);
+
+  /* #330 — СС-240: эпизод ушёл из ответа задним числом — строки открытого месяца сняты с записью
+     в журнал перезаписи, строки закрытых месяцев остались. */
+  const open330 = had325.filter(r => !ST.isClosed(r.date) && r.date <= ASK);
+  const closed330 = had325.filter(r => ST.isClosed(r.date));
+  ok(330, open330.length > 0 && closed330.length > 0 && drop325.dropped.length === open330.length &&
+        left325.length === closed330.length && left325.every(r => ST.isClosed(r.date)) &&
+        log325.length === open330.length && log325.every(e => e.reason === 'retro'),
+    `ушедший из ответа эпизод (СС-240): у «${gone325}» было ${had325.length} строк; прогон снял ${drop325.dropped.length} строк открытого месяца и записал их в журнал перезаписи с причиной «${log325[0] && log325[0].reason}» (${log325.length}), а ${left325.length} строк закрытых месяцев остались — их бережёт проверка записи`);
+
+  /* #326 — СС-239: ядро не ответило — известные эпизоды получают строку без величин, новых нет. */
+  ST.seed();
+  const mute326 = {'ядро': 'недоступен'};
+  const firstDay326 = ST.listOf('obj-odue', ST.LAUNCH(), mute326);
+  const known326 = ST.listOf('obj-odue', ASK, mute326);
+  const run326 = ST.run(ASK, {manual: true, reason: 'ядро недоступно', silent: mute326});
+  const rows326 = rowsOn('obj-odue', ASK);
+  const keyOk326 = rows326.every(r => r.dims['d-ocredit'] && r.dims['d-olayer'] && r.dims['d-ofrom'] &&
+    r.dims['d-ostate'] === undefined && Object.keys(r.inds).length === 0 && r.srcs['ядро'].state !== 'ok');
+  const part326 = (ST.state.runs[ST.state.runs.length - 1].parts || []).find(p => p.obj === 'obj-odue') || {};
+  ok(326, firstDay326.length === 0 && known326.length === 10 && run326.ok && rows326.length === 10 && keyOk326 &&
+        part326.partial === 10 && (part326.dropped || []).length === 0 &&
+        ST.state.runs[ST.state.runs.length - 1].spellTie.checked === 0,
+    `ядро молчит — список на дату неизвестен (СС-239): на ${ST.LAUNCH()} прежних строк нет, и эпизодов в прогоне ${firstDay326.length}; на ${ASK} известных ${known326.length} — у каждой строки ключ и кредит есть, состояния и величин нет, источник «${rows326[0] && rows326[0].srcs['ядро'].state}» (${keyOk326}); неполных ${part326.partial}, сверка не проводилась`);
+
+  /* #331 — СС-236 (правка ревью): в день срока просроченной части ещё нет — эпизод открыт со
+     следующего дня, и дни эпизода равны дням просрочки кредита; у слоя суда — в день решения. */
+  ST.seed();
+  const due331 = ST.spellsAt('2026-04-14').filter(x => x.credit === 'КД-2025/088');
+  const next331 = ST.spellsAt('2026-04-15').filter(x => x.credit === 'КД-2025/088');
+  const court331 = ST.spellsAt('2026-03-02').filter(x => x.credit === 'КД-2022/065');
+  ok(331, due331.length === 0 && next331.length === 1 && next331[0].days === 1 && next331[0].from === '2026-04-14' &&
+        court331.length === 2 && court331.some(x => x.court && x.state === 'тянется' && x.days === 0) &&
+        court331.some(x => !x.court && x.closedBy === 'переводом в другой слой'),
+    `эпизод открыт с первого дня просрочки (СС-236): у КД-2025/088 срок 14.04.2026 — в этот день эпизодов ${due331.length}, назавтра ${next331.length} с длительностью ${next331[0] && next331[0].days} дн.; у КД-2022/065 в день решения суда свободный эпизод закрыт переводом, а эпизод суда уже тянется (${court331.length})`);
+
+  /* #327 — СС-241: подписи и величины — поля ответа шва; кредит, слой, дата начала — ключ. */
+  const recs327 = ST.OBJ('obj-odue').dims.concat(ST.OBJ('obj-odue').inds).map(id => ST.REC(id)).filter(r => r && r.src !== 'агрегат' && !r.somOf);
+  const seam327 = recs327.filter(r => r.src === 'шов').map(r => r.id).sort();
+  const field327 = recs327.filter(r => r.src === 'поле').map(r => r.id).sort();
+  ok(327, seam327.join() === 'd-oby,d-ostate,d-oto,m-oddays,m-oedays,m-oepeak' &&
+        recs327.filter(r => r.src === 'шов').every(r => r.seam === 'overdueSpells') &&
+        field327.join() === 'd-ocredit,d-oecur,d-ofrom,d-olayer,d-olegacy' &&
+        !recs327.some(r => r.src === 'история'),
+    `эпизод читается ответом шва (СС-241): из overdueSpells — ${seam327.join(', ')}; полями ключа — ${field327.join(', ')}; своей истории признаков у эпизода нет`);
+
+  /* #328 — СС-242: реквизит «ждёт владельца» снят, отказ остаётся общим правилом. */
+  ST.seed();
+  const pend328 = ST.state.objects.filter(o => o.pending).length;
+  const o328 = ST.state.objects.find(o => o.id === 'obj-odue');
+  o328.pending = {owner: 'Ядро расчёта', seam: 'overdueSpells', ask: 'заявка'};
+  const ref328 = ST.statSlice({obj:'obj-odue', dims:[], inds:['a-count'], date: ASK});
+  delete o328.pending;
+  const back328 = ST.statSlice({obj:'obj-odue', dims:[], inds:['a-count'], date: ASK});
+  const now328 = ST.objectRows({obj: 'obj-odue'});
+  ok(328, pend328 === 0 && !ref328.ok && has(ref328.why, 'ЗАЯВКА МОДУЛЮ-ВЛАДЕЛЬЦУ') && has(ref328.why, 'overdueSpells') &&
+        back328.ok && back328.groups[0].values['a-count'].v === 10 && !now328.ok && now328.noCard,
+    `«ждёт владельца» снят (СС-242): объектов с этим реквизитом ${pend328}; поставленный вручную — отказ «${String(ref328.why).slice(0, 90)}…», снятый — снова ${back328.ok ? back328.groups[0].values['a-count'].v : '—'} эпизодов. Текущих значений эпизода владелец не объявлял — objectRows отказывает (${now328.noCard})`);
+
+  /* #329 — лечение платежом: платёж на всю просроченную часть закрывает эпизод «погашением»
+     днём платежа, и строка сегодняшнего дня это показывает после опроса журналов. */
+  ST.seed();
+  ST.resetSpells();
+  const was329 = ST.spellsAt(ASK).find(x => x.credit === 'КД-2025/088');
+  const pay329 = ST.pay('КД-2025/088', 250000);
+  const poll329 = ST.poll();
+  const row329 = rowsOn('obj-odue', ASK).find(r => r.ref === was329.id);
+  const cred329 = rowsOn('obj-credit', ASK).find(r => r.ref === 'КД-2025/088');
+  const tie329 = ST.spellTie(ASK);
+  ST.resetSpells();
+  ok(329, was329.state === 'тянется' && pay329.ok && poll329.ok && poll329.by['связан через via'] >= 1 &&
+        row329 && row329.dims['d-ostate'] === 'закрыт' && row329.dims['d-oby'] === 'погашением' &&
+        row329.dims['d-oto'] === ASK && row329.inds['m-oedays'].v === was329.days &&
+        cred329.inds['m-odays'].v === 0 && tie329.bad.length === 0,
+    `лечение платежом: 250 000 по КД-2025/088 покрыли просрочку — эпизод с ${was329.from} закрыт «${row329 && row329.dims['d-oby']}» ${row329 && row329.dims['d-oto']}, длительность ${row329 && row329.inds['m-oedays'].v} дн. без дня закрытия; строка эпизода пересчитана днём через видимость кредита (${poll329.by['связан через via']}), дни просрочки кредита ${cred329 && cred329.inds['m-odays'].v}, сверка без расхождений`);
 })();
 
 /* ---- отчёт ---- */
