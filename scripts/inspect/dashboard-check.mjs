@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–23, 11–19.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–25, 11–19.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-313, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-334, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -166,6 +166,10 @@
 //      у каждого свой раздел очереди, «Срок сдачи близко» — по настройке отчётности, Ряд до запуска — итог легаси со штриховкой.
 //      Переписаны 122, 196, 331 (личная плитка и экран Асанова), 125, 366 («Срок сдачи близко» без параметра), 170, 214 (число — кнопка
 //      раздела), 200, 212, 214, 226 (третье число «Мои задания»), 357 («у вас пусто» — только у относительного значения).
+//   AL волна 25 (19.10.2026), ДБ-323…ДБ-333: дата до запуска отвечается строками переноса — Движение, Переходы, «Изменение», «☰» точки
+//      Ряда; чего перенос не дал (куратор, объект кроме кредита, колонки потоков) — пусто с причиной; строка Движения «до запуска не
+//      перенесено»; поток за период через запуск — одно число с пометкой «из легаси»; пометка — у даты, не у числа; «Сравнение» окна
+//      отчёта; «📌» проверяет только бланк, видимость и числовую колонку. Переписаны 418 и 457 (через запуск — не отказ).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -4881,17 +4885,20 @@ const asUser = id => { DB.state.userId = id; };
     && vq.ok && mq.M === -1 && mq.B === -4 && near(sum(mq.rows.map(r => r.v)), sq.delta) && sq.at === 'на 01.07' && vmo.ok && m0.B === -1,
     `Движение «за год»: с 01.01 по сегодня, ${mln(mv.start)} → ${mln(mv.end)}, сумма строк = сдвигу ${mln(bo.delta)}; «☰» строки «${rn.name}» — её объекты, у «новых» за год (${wbig.count}) — отказ выше порога; «Остаток» — потоками, сумма = сдвигу; плитка на 30.09 «за квартал» — с 01.07 по 30.09; «как задано» — месяц, как прежде (ДБ-271)`);
 
-  // ДБ-272: база до запуска — итог легаси, где он есть; нет — «без сдвига» с причиной; Движение, «Изменение», список — погашены
+  // ДБ-272, уточнено ДБ-323: база до запуска — строки переноса с пометкой «из легаси»; чего перенос не дал — «без сдвига» с причиной;
+  // Движение и «Изменение» через дату запуска отвечаются, как на своих датах
   lead(); DB.STAND.launch = -7; DB.setCmp('yearStart');
   const lb = DB.base('lead-bal', 'u1', 'lead').shift, lc = DB.base('lead-claims', 'u1', 'lead').shift, hl = DB.tileHTML('lead-bal', 'u1', 'lead'), hc = DB.tileHTML('lead-claims', 'u1', 'lead');
   const lv = DB.views('lead-bal', 'u1', 'lead').find(v => v.kind === 'move'); DB.openView('lead-bal', 'slice'); const lm = DB.mode('lead-bal');
   const lw = DB.whoList('lead-bal', 'u1', 'lead', {}, null, [], { mode:'change' });
   DB.setCmp('halfStart'); const lh = DB.base('lead-bal', 'u1', 'lead').shift; DB.STAND.launch = null;
   DB.switchUser('u2'); DB.STAND.launch = -7; DB.setCmp('yearStart'); const lu = DB.base('cur-od', 'u2', 'cur').shift; DB.STAND.launch = null;
-  ok(418, lb.legacy && lb.label === 'за год' && /база — итог легаси; редакции формы разные$/.test(tipOf(hl)) && lc.none && lc.legacy && /^до запуска системы 01\.03\.2026 — только итоги легаси: /.test(lc.none)
-    && /<span class="shift none" data-tip="Без сдвига: до запуска системы 01\.03\.2026/.test(hc) && !lv.ok && /объектов до запуска нет/.test(lv.why) && /объектов до запуска нет/.test(lm.off) && lm.shown === 'sum'
-    && !lh.legacy && !lh.none && lh.at === 'на 01.07' && lu.none && /по охвату роли не собирались/.test(lu.none),
-    `база до запуска 01.03.2026: «Остаток» — от итога легаси с пометкой «${tipOf(hl).split(' · ').pop()}»; «Во взыскании» — «${lc.none}»; у Куратора — «${lu.none.split(': ').pop()}»; Движение и «Изменение» — «${lv.why}»; «за полугодие» (01.07) — после запуска, как обычно (ДБ-272)`);
+  ok(418, lb.legacy && lb.label === 'за год' && /база — из легаси; редакции формы разные$/.test(tipOf(hl)) && lc.none && lc.legacy
+    && /^до запуска системы \(01\.03\.2026\) в легаси не собиралось: объект «Требование взыскания» не переносился$/.test(lc.none)
+    && /<span class="shift none" data-tip="Без сдвига: до запуска системы \(01\.03\.2026\) в легаси не собиралось/.test(hc) && lv.ok && !lm.off && lm.shown === 'sum'
+    && lw.refused && /строк — сузьте вопрос/.test(lw.msg)
+    && !lh.legacy && !lh.none && lh.at === 'на 01.07' && lu.none && /в легаси не собиралось: поле «Куратор»$/.test(lu.none),
+    `база до запуска 01.03.2026: «Остаток» — от строк переноса с пометкой «${tipOf(hl).split(' · ').pop()}»; «Во взыскании» — «${lc.none.split(': ').pop()}»; у Куратора — «${lu.none.split(': ').pop()}»; Движение и «Изменение» — открыты, список «Изменения» — обычный порог строк; «за полугодие» (01.07) — после запуска, как обычно (ДБ-272, ДБ-323)`);
 
   // ДБ-267, ДБ-275: выбор едет в ссылке; вкладка, меню и вход — снова «как задано»; умолчания у экрана нет
   lead(); DB.setCmp('halfStart'); const link = DB.linkOf(); DB.setTab('role', 'lead'); const afterTab = DB.state.cmp;
@@ -5281,21 +5288,101 @@ const asUser = id => { DB.state.userId = id; };
     && /отчётность напоминает о сроке сдачи за <select onchange="DB\.stand\('nearDays', Number\(this\.value\)\)">/.test(src),
     `«Срок сдачи близко» у Усеновой: за 7 к.д. — ${n7.a.value}, за 10 — ${n10.a.value} (порог — настройка отчётности, у плитки параметра нет, пометка в паспорте); заданий «сдать форму к сроку» ${n7.tk.length} → ${n10.tk.length}, одно взяла она, в очереди её роли ${n7.t10.third.value} → ${n10.t10.third.value}; сброс стенда — снова 7 (ДБ-321)`);
 
-  // ДБ-322, ДБ-Д74: Ряд через дату запуска — точки до запуска итог легаси (штриховка, «☰» — отказ), итога нет — точки нет с причиной,
-  // у первой своей точки — «редакции формы разные»
+  // ДБ-322, ДБ-Д74, уточнено ДБ-323 и ДБ-327: Ряд через дату запуска — точки до запуска из строк переноса (штриховка, «☰» работает),
+  // поля, которого перенос не дал, — точки нет с причиной; у первой своей точки — «редакции формы разные»
   DB.seed(); asUser('u1'); DB.STAND.launch = -7; DB.state.cache.clear();
   const ls = DB.view('lead-bal', 'series', null, [], 'u1', 'lead', {}).series, cs = DB.view('cur-bal', 'series', null, [], 'u2', 'cur', {}).series, bs = DB.view('lead-bal', 'series', { by:'region' }, [], 'u1', 'lead', {}).series;
   DB.state.open = {}; DB.openView('lead-bal', 'series'); const hs = DB.stripHTML('lead-bal', 'u1', 'lead'); DB.state.open = {};
-  const wl = DB.statRows(T('lead-bal'), U('u1'), 'lead', {}, { m:-9 }), wo = DB.statRows(T('cur-bal'), U('u2'), 'cur', {}, { m:-3 });
+  const chu = [{ dim:'region', v:'Чуйская' }], lp = DB.view('lead-od', 'series', null, chu, 'u1', 'lead', {}).series.points.find(p => p.m === -9);
+  const wl = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-9 }, chu, {}), wo = DB.statRows(T('cur-bal'), U('u2'), 'cur', {}, { m:-3 });
   DB.STAND.launch = null; DB.state.cache.clear(); const ln = DB.view('lead-bal', 'series', null, [], 'u1', 'lead', {}).series;
-  ok(457, ls.points.filter(p => p.legacy).map(p => p.m).join() === '-11,-10,-9,-8' && ls.points.every(p => !p.legacy || (p.cnt === undefined && p.vals[0] > 0)) && ls.points.filter(p => p.legacyD).map(p => p.m).join() === '-7'
-    && (hs.match(/class="sr-c[^"]*\blg"/g) || []).length === 4 && (hs.match(/class="sr-d [^"]*\blgd"/g) || []).length === 1 && (hs.match(/итог легаси: до запуска системы объектов нет/g) || []).length === 4
-    && /разница к [^"]*: редакции формы разные — до запуска итог легаси/.test(hs)
-    && cs.points.filter(p => p.down).map(p => p.m).join() === '-11,-10,-9,-8' && /итоги легаси — по всему портфелю, по охвату роли не собирались$/.test(cs.points[0].down)
-    && bs.points.filter(p => p.down).length === 4 && /итоги легаси — без разрезов$/.test(bs.points[0].down)
-    && wl.refused && /^объектов до запуска нет: до запуска системы/.test(wl.msg) && !wo.refused && wo.list.length === 49
+  ok(457, ls.points.filter(p => p.legacy).map(p => p.m).join() === '-11,-10,-9,-8' && ls.points.every(p => !p.legacy || (p.cnt > 0 && p.vals[0] > 0)) && ls.points.filter(p => p.legacyD).map(p => p.m).join() === '-7'
+    && (hs.match(/class="sr-c[^"]*\blg"/g) || []).length === 4 && (hs.match(/class="sr-d [^"]*\blgd"/g) || []).length === 1 && (hs.match(/из легаси: строки переноса, до запуска системы/g) || []).length === 4
+    && /разница к [^"]*: редакции формы разные — до запуска из легаси/.test(hs)
+    && cs.points.filter(p => p.down).map(p => p.m).join() === '-11,-10,-9,-8' && /в легаси не собиралось: поле «Куратор»$/.test(cs.points[0].down)
+    && !bs.points.some(p => p.down) && bs.points.filter(p => p.legacy).length === 4
+    && lp.legacy && !wl.refused && wl.conv.matches && wl.conv.n === lp.cnt && / · из легаси · /.test(wl.passport) && !wo.refused && wo.list.length === 49
     && ln.points.every(p => !p.legacy && !p.legacyD && !p.down),
-    `запуск 01.03.2026: Ряд «Остатка» — 4 точки до запуска итогом легаси со штриховкой, у первой своей разница «редакции формы разные»; у Куратора и по разрезу итогов легаси нет — точек нет с причиной («${cs.points[0].down.split(': ').pop()}»); «☰» у точки до запуска — «${wl.msg.split(':')[0]}»; без даты запуска пометок нет (ДБ-322, ДБ-Д74)`);
+    `запуск 01.03.2026: Ряд «Остатка» — 4 точки до запуска из строк переноса со штриховкой, у первой своей разница «редакции формы разные»; Ряд по области — тоже из переноса; у Куратора — точек нет («${cs.points[0].down.split(': ').pop()}»); «☰» точки 31.01 по Чуйской — ${wl.conv.n} объектов, ${wl.conv.text.split(' · ').pop()}, паспорт «${wl.passport.split(' · ').slice(0, 2).join(' · ')}»; без даты запуска пометок нет (ДБ-322, ДБ-323, ДБ-327)`);
+  DB.seed();
+})();
+
+/* ---------- AL. Волна 25 (19.10.2026): входящие от отчётности — дата до запуска строками переноса, базы, «📌» — ДБ-323…ДБ-333 ---------- */
+(() => {
+  const lead = () => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.STAND.launch = -7; DB.state.cache.clear(); };
+  const near = (a, b) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.5, mln = v => DB.fmtVal(v, 'sum');
+  const chu = [{ dim:'region', v:'Чуйская' }], pill = b => (b.marks || []).find(x => x.text === 'из легаси');
+  const iss = p => Object.assign({}, T('lead-issued'), { id:'x-iss-' + p, params:Object.assign({}, T('lead-issued').params, { period:p }) });
+
+  // ДБ-323: через дату запуска — Движение, Переходы, «Изменение» отвечаются, как на своих датах; сумма строк Движения = сдвигу
+  lead(); DB.setCmp('yearStart');
+  const sh = DB.base('lead-bal', 'u1', 'lead').shift, mv = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move;
+  const tr = DB.view('lead-bal', 'map', { axes:'trans', tdim:'bucket' }, [], 'u1', 'lead', {}), sr = DB.view('lead-bal', 'slice', { dim:'region', mode:'change' }, [], 'u1', 'lead', {});
+  ok(458, sh.legacy && sh.at === 'на 01.01' && near(sum(mv.rows.map(r => r.v)), sh.delta) && near(mv.end - mv.start, sh.delta) && mv.rows.some(r => r.key === 'issued' && r.cnt > 0)
+    && !mv.rows.some(r => r.key === 'legacyNoFlow') && tr.state === 'ok' && tr.trans.vals.length === 5 && sr.mode === 'change' && !sr.modeOff,
+    `«Остаток» за год при запуске 01.03.2026: Движение с 01.01 — ${mv.rows.length} строк, сумма ${mln(sum(mv.rows.map(r => r.v)))} = сдвигу; Переходы по ступеням просрочки и «Изменение» по области — открыты (ДБ-323)`);
+
+  // ДБ-324: чего перенос не дал — пусто с причиной из ответа: куратор в легаси не вёлся
+  lead(); DB.setCmp('yearStart');
+  const tc = DB.view('lead-bal', 'map', { axes:'trans', tdim:'curator' }, [], 'u1', 'lead', {}), sc = DB.view('lead-bal', 'slice', { dim:'curator', mode:'change' }, [], 'u1', 'lead', {});
+  const wl = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-9 }, chu, {}), wn = DB.whoList('lead-od', 'u1', 'lead', {}, { m:-3 }, chu, {});
+  const why = 'до запуска системы (01.03.2026) в легаси не собиралось: поле «Куратор»';
+  // поток с начала года захватывает январь–февраль: Разрез по куратору и «☰» его узла гаснут и в «Сумме»; остаток на сегодня — нет
+  const ic = DB.view('lead-issued', 'slice', { dim:'curator' }, [], 'u1', 'lead', {}), ir = DB.statRows(T('lead-issued'), U('u1'), 'lead', {}, { d:'curator', v:'c02' });
+  const bc = DB.view('lead-bal', 'slice', { dim:'curator' }, [], 'u1', 'lead', {});
+  ok(459, tc.state === 'off' && tc.msg === why && sc.mode === 'sum' && sc.modeOff === why
+    && ic.state === 'off' && ic.msg === why && ir.refused && ir.msg === why && bc.state !== 'off' && bc.mode === 'sum'
+    && wl.rows.every(r => r.cells.curator === '— (в легаси не вёлся)') && wn.rows.every(r => r.cells.curator && !/легаси/.test(r.cells.curator)),
+    `Переходы и «Изменение» по куратору через запуск — «${why.split(': ').pop()}»; колонка «Куратор» списка точки 31.01 — «${wl.rows[0].cells.curator}», на 31.07 — «${wn.rows[0].cells.curator}» (ДБ-324)`);
+
+  // ДБ-325: перенос без колонок потоков — разница таких объектов строкой «до запуска не перенесено», ⚠ «прочего» её не считает
+  lead(); DB.setCmp('yearStart'); DB.stand('legacyNoFlows', true);
+  const sh2 = DB.base('lead-bal', 'u1', 'lead').shift, mv2 = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move, ln = mv2.rows.find(r => r.key === 'legacyNoFlow');
+  const ni = mv2.rows.findIndex(r => r.key === 'noanswer');
+  ok(460, ln && ln.name === 'до запуска не перенесено' && ln.kind === 'legacy' && ln.sg === '±' && ln.cnt > 0 && /нет колонок потоков — изменение этих объектов не раскладывается/.test(ln.tip)
+    && (ni < 0 || mv2.rows.indexOf(ln) < ni) && near(sum(mv2.rows.map(r => r.v)), sh2.delta) && Math.abs(ln.v) > Math.abs(sh2.delta) && mv2.big.level === 'quiet'
+    && /DB\.stand\('legacyNoFlows', this\.checked\)/.test(src),
+    `флаг «перенос без колонок потоков»: строка «${ln && ln.name}» ${ln && mln(ln.v)} (☰ ${ln && ln.cnt}), сумма строк = сдвигу ${mln(sh2.delta)}, ⚠ не горит (ДБ-325)`);
+
+  // ДБ-326: поток за период до или через дату запуска — одно число ответа с пометкой; без колонок потоков — пусто, не частичная сумма
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.state.cache.clear();
+  const y0 = DB.ask(iss('ytd'), U('u1'), 'lead', {}); DB.STAND.launch = -7; DB.state.cache.clear();
+  const y1 = DB.ask(iss('ytd'), U('u1'), 'lead', {}), p1 = DB.ask(iss('prevYear'), U('u1'), 'lead', {}), c1 = DB.ask(iss('curMonth'), U('u1'), 'lead', {});
+  DB.stand('legacyNoFlows', true); const y2 = DB.ask(iss('ytd'), U('u1'), 'lead', {}), p2 = DB.ask(iss('prevYear'), U('u1'), 'lead', {});
+  ok(461, !pill(y0) && near(y1.value, y0.value) && /^январь–февраль — из легаси \(строки переноса\), дальше — свои строки; редакции формы разные$/.test(pill(y1).tip)
+    && /^Весь период — до запуска системы/.test(pill(p1).tip) && /^прошлый год · из легаси · /.test(p1.passport) && /^01\.01 → .* · январь–февраль — из легаси · /.test(y1.passport) && !pill(c1)
+    && y2.state === 'mine0' && y2.value == null && /в легаси не собиралось: потоки за январь–февраль — перенос без колонок потоков$/.test(y2.msg)
+    && p2.state === 'mine0' && /потоки за январь–декабрь 2025 — /.test(p2.msg),
+    `«Выдано» с начала года при запуске — ${mln(y1.value)}, как без запуска, пометка «из легаси» («${pill(y1).tip.split(';')[0]}»); прошлый год — ${mln(p1.value)}, «${p1.passport.split(' · ').slice(0, 2).join(' · ')}»; без колонок потоков — пусто «${y2.noneLabel}» (ДБ-326)`);
+
+  // ДБ-327, ДБ-328: пометка источника — у даты: строка и месяц из ответа; главное число пометки не несёт
+  lead(); DB.setCmp('yearStart');
+  const lb = DB.base('lead-bal', 'u1', 'lead'), wc = DB.whoList('lead-od', 'u1', 'lead', {}, { d:'region', v:'Чуйская' }, [], { mode:'change' });
+  ok(462, !pill(lb) && !(lb.marks || []).some(x => /легаси/.test(x.tip || '')) && /^на 01\.01 · декабрь 2025 — из легаси → на .* · редакции формы разные · /.test(wc.passport) && wc.conv.matches,
+    `главное число «Остатка» — без пометки; список «Изменения» по Чуйской: «${wc.passport.split(' · сом')[0]}», ${wc.conv.text.split(' · ')[0]} (ДБ-327, ДБ-328)`);
+
+  // ДБ-329, ДБ-333: база — значение второй семьи набора; окно отчёта с заголовка — «Сравнение» той же базы
+  lead(); DB.setCmp('yearStart'); const cy = DB.reportCmp(T('lead-bal'));
+  DB.setCmp(null); DB.state.cache.clear(); const cm = DB.reportCmp(T('lead-bal')), cf = DB.reportCmp(T('lead-issued'));
+  DB.STAND.launch = null; DB.setCmp('halfStart'); DB.state.cache.clear(); const ch = DB.reportCmp(T('lead-bal')), cq = DB.reportCmp(T('cur-tasks'));
+  ok(463, cy === 'за год — «начало года» = 01.01 · выбор переключателя экрана · база — из легаси; редакции формы разные' && cm === 'за месяц — «начало месяца» = 01.10 · база автора плитки'
+    && /^нет — /.test(cf) && ch === 'за полугодие — «начало полугодия» = 01.07 · выбор переключателя экрана' && cq === null
+    && /kv\('Сравнение', esc\(c\)\)/.test(src),
+    `«Сравнение» окна отчёта «Остатка»: «${cy.split(' · база')[0]}», «как задано» — «${cm.split(' · ')[0]}», за полугодие — 01.07; у плитки очереди — нет (ДБ-329, ДБ-333)`);
+
+  // ДБ-330: «отчёт отвечает» — пусто по закону («в легаси не собиралось», «нет объектов») — ответ; автопроверка проходит
+  lead(); DB.stand('legacyNoFlows', true);
+  const ad = DB.autocheck(Object.assign({}, iss('prevYear'), { id:undefined })), ac2 = DB.autocheck(Object.assign({}, T('lead-claims'), { id:undefined }));
+  ok(464, ad.ok && ad.preview.state === 'mine0' && ac2.ok,
+    `черновик «Выдано» за прошлый год без колонок потоков — предпросмотр «${ad.preview.noneLabel}», автопроверка пройдена (ДБ-330)`);
+
+  // ДБ-331: «📌» проверяет только бланк, видимость и числовую колонку; ответ и остальное — при «Настроить → Сохранить»
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
+  const bl = DB.pinCheck({ id:'x', blank:true }, U('u2')), nc = DB.pinCheck(Object.assign({}, DB.reportById('r-loans'), { cols:[] }), U('u2'));
+  const hid = DB.pin('r-claims'); DB.stand('statDown', true); const pd = DB.pin('r-portfolio'), pac = DB.autocheck(pd.tile || {}); DB.stand('statDown', false);
+  ok(465, bl === 'бланк — плитке нечего показать' && nc === 'в отчёте нет числовой колонки' && hid.error === 'отчёт не открыт вашей роли' && !hid.tile
+    && pd.tile && pd.tile.state === 'personal' && !pac.ok && pac.checks.some(c => !c.ok && /^предпросмотр без отказа/.test(c.text)),
+    `«📌»: бланк, чужой отчёт («${hid.error}»), нет числовой колонки — отказ; статистика не отвечает — плитка всё равно стоит, автопроверка «Сохранить» её ловит (ДБ-331)`);
   DB.seed();
 })();
 

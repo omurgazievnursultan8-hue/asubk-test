@@ -349,7 +349,7 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 .sr-c:hover .sr-sl{ background:var(--asubk-blue-tint); }
 .sr-c.base .sr-sl{ box-shadow:inset 0 -2px 0 var(--asubk-blue); }
 .sr-c.base .sr-mo{ color:var(--asubk-link); font-weight:600; }
-/* точка до запуска системы — итог легаси: столбец со штриховкой; у первой своей точки разница — с пометкой «редакции формы разные» */
+/* точка до запуска системы — из легаси (строки переноса): столбец со штриховкой; у первой своей точки разница — с пометкой «редакции формы разные» */
 .sr .sr-c.lg .sr-b{ background:repeating-linear-gradient(135deg, var(--seq-300) 0 4px, var(--seq-100) 4px 8px); }
 .sr-c.lg .sr-mo{ color:var(--text-muted); } .sr-d.lgd{ text-decoration:underline dotted var(--text-placeholder); text-underline-offset:3px; cursor:help; }
 .sr-hit{ position:absolute; inset:0; z-index:1; width:100%; height:100%; padding:0; border:none; border-radius:inherit; background:none; cursor:pointer; } .sr-hit:focus-visible{ outline:2px solid var(--asubk-blue); outline-offset:-2px; }
@@ -1675,7 +1675,7 @@ ind('asset.days',     { obj:'asset', name:'Наибольший срок на у
 // (снимок полосы и списка, открытых по ссылке другого дня); linkNextDay — ссылку открыли на следующий день: стенд живёт одним днём, поэтому
 // ссылка считается скопированной вчера (10.10) в то же время
 const STAND = { down:{}, reportsReady:true, spells:true, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150,
-  partDown:false, baseDown:false, launch:null, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{}, dayEnd:null, linkNextDay:false, nearDays:7 };
+  partDown:false, baseDown:false, launch:null, legacyNoFlows:false, fresh:0, dataAt:null, overload:false, slow:false, noFlows:{}, dayEnd:null, linkNextDay:false, nearDays:7 };
 const STAND_SEED = JSON.stringify(STAND);
 // время данных стенда: «сегодня» заморожено, пришедшие новые данные сдвигают время расчёта на 5 минут
 // dayEnd — ответ на конец закрытого дня (ссылка, открытая на другой день): время данных — «конец 10.10»
@@ -1702,15 +1702,17 @@ const PERIODS = {
 };
 // закрытый набор относительных значений отчётности: период плитки хранится значением набора (rel), подпись (label) — показ дашборда
 const REL_SET = ['сегодня ± 0','текущий месяц','текущий квартал','текущий год','прошлый месяц','прошлый квартал','прошлый год'];
+// плитка хранит базу значением второй семьи набора отчётности (rel: «начало года», «год назад»), подставляет его отчётность; подпись
+// «за год» — показ дашборда. Стенд стоит за отчётностью: at — подставленное значение
 // базы сравнения остатка: начало месяца, квартала, полугодия, года, в котором лежит дата плитки, и «за 12 месяцев» — последний конец
 // месяца не позже, чем за год до неё; at(pt) — месяц строки базы (её конец), от даты плитки: у «сегодня» 11.10 — 30.09 · 30.09 · 30.06 ·
 // 31.12.2025 · 30.09.2025, у плитки на 30.09 — 31.08 · 30.06 · 30.06 · 31.12.2025 · 30.09.2025. Ключ «за месяц» — prevMonthEnd (прежнее имя)
 const STOCK_BASES = {
-  prevMonthEnd:{ label:'за месяц', at:pt=>pt.m - 1 },
-  quarterStart:{ label:'за квартал', at:pt=>pt.m - monthOf(pt.m).mi%3 - 1 },
-  halfStart:   { label:'за полугодие', at:pt=>pt.m - monthOf(pt.m).mi%6 - 1 },
-  yearStart:   { label:'за год', at:pt=>pt.m - monthOf(pt.m).mi - 1 },
-  yearAgo:     { label:'за 12 месяцев', at:pt=>pt.m - (pt.m<0 && !pt.day ? 12 : 13) },
+  prevMonthEnd:{ label:'за месяц', rel:'начало месяца', at:pt=>pt.m - 1 },
+  quarterStart:{ label:'за квартал', rel:'начало квартала', at:pt=>pt.m - monthOf(pt.m).mi%3 - 1 },
+  halfStart:   { label:'за полугодие', rel:'начало полугодия', at:pt=>pt.m - monthOf(pt.m).mi%6 - 1 },
+  yearStart:   { label:'за год', rel:'начало года', at:pt=>pt.m - monthOf(pt.m).mi - 1 },
+  yearAgo:     { label:'за 12 месяцев', rel:'год назад', at:pt=>pt.m - (pt.m<0 && !pt.day ? 12 : 13) },
 };
 // месяц строки базы у даты плитки; ключ вне списка — «за месяц»
 const baseMonth = (key, pt)=>(STOCK_BASES[key] || STOCK_BASES.prevMonthEnd).at(pt);
@@ -1961,19 +1963,24 @@ function asOfText(q, ctx){
   const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
   if(ctx.period){ const P = PERIODS[ctx.period], de = STAND.dayEnd, own = !!P.label && P.label!=='база';   // de — ответ на конец закрытого дня (ссылка другого дня)
     const cur = ()=>'01.10 → '+at+(de ? '' : ' · идёт '+TODAY.day+'-й день')+' · не закрыт', cl = P.months.filter(monthClosed).length;
+    // месяцы до запуска — «из легаси» (ответ называет состояние месяца: закрыт · не закрыт · из легаси)
+    const lg = legacySpan(P.months), all = lg && P.months.every(legacyAt), lgt = lg ? ' · '+lg+' — из легаси' : '';
     if(ctx.period==='today') return de ? dayLabel(de)+' · день закрыт' : 'сегодня, на '+at+lag+' · день не закрыт';
     if(ctx.period==='curMonth') return cur();
     if(ctx.period==='prevMonth') return monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт');
-    if(ctx.period==='ytd') return '01.01 → '+at+' · не закрыт';
-    if(own) return P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто');
+    if(ctx.period==='ytd') return '01.01 → '+at+' · не закрыт'+lgt;
+    if(all) return (own ? P.label : P.months.length===1 ? monthName(P.months[0])+(monthOf(P.months[0]).y!==2026 ? ' '+monthOf(P.months[0]).y : '')
+      : monthShort(P.months[0])+' – '+monthShort(P.months[P.months.length - 1]))+' · из легаси';
+    if(own) return P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')+lgt;
     if(P.months.length===1){ const m = P.months[0]; if(m===0) return cur();
       return monthName(m)+(monthOf(m).y!==2026 ? ' '+monthOf(m).y : '')+' · '+(monthClosed(m)?'месяц закрыт':'месяц не закрыт'); }
-    return monthShort(P.months[0])+' – '+monthShort(P.months[P.months.length - 1])+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто'); }
+    return monthShort(P.months[0])+' – '+monthShort(P.months[P.months.length - 1])+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')+lgt; }
   const pt = ctx.point;
   if(pt.m===0 && !pt.day) return STAND.dayEnd ? 'на '+at+' · день закрыт' : 'на '+at+lag+' · день не закрыт';
   if(pt.day) return STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт';
-  if(pt.start){ const x = monthOf(pt.m); return 'на '+startLabel(pt.m)+' · '+MONTHS[x.mi]+(x.y!==2026 ? ' '+x.y : '')+(monthClosed(pt.m) ? ' закрыт' : ' не закрыт'); }   // база: начало дня, закрытие — месяца строки базы
-  return 'на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт'); }
+  const st = m=>legacyAt(m) ? ' — из легаси' : monthClosed(m) ? ' закрыт' : ' не закрыт';
+  if(pt.start){ const x = monthOf(pt.m); return 'на '+startLabel(pt.m)+' · '+MONTHS[x.mi]+(x.y!==2026 ? ' '+x.y : '')+st(pt.m); }   // база: начало дня, состояние — месяца строки базы
+  return 'на '+monthEndLabel(pt.m)+' · '+(legacyAt(pt.m) ? 'из легаси' : monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт'); }
 // курс пересчёта в сомы — на дату ответа, у периода — на его конец: сегодня и незакрытый период — 11.10 (по ссылке другого дня — её день),
 // закрытый день — его дата, конец месяца и закончившийся период — конец месяца
 function fxOf(ctx){
@@ -1983,7 +1990,10 @@ function fxOf(ctx){
 // паспорт ответа: дата и закрытие, курс, охват, фильтр панели; opts.at — даты списка вместо даты плитки: одна или две (база → число)
 function passportOf(q, visible, opts){
   const parts = [], at = opts && opts.at;
-  if(at){ parts.push(at.map(c=>asOfText(q, c)).join(' → ')); if(opts.fx) parts.push('сом, курс '+[...new Set(at.map(fxOf))].join(' → ')); }
+  if(at){ parts.push(at.map(c=>asOfText(q, c)).join(' → '));
+    const lg = c=>c.period ? PERIODS[c.period].months.some(legacyAt) : !!c.point && !c.point.day && legacyAt(c.point.m);   // даты по разные стороны запуска
+    if(at.some(lg) && !at.every(lg)) parts.push('редакции формы разные');
+    if(opts.fx) parts.push('сом, курс '+[...new Set(at.map(fxOf))].join(' → ')); }
   else { const ctx = ctxOf(q);
     if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
       parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
@@ -2085,15 +2095,22 @@ function shiftRule(m, src, q){
 // база плитки: переключатель экрана «Сравнить» не в «как задано» — его база у всех плиток-остатков, иначе — база автора (нет её — первая
 // в списке, «за месяц»); черновик конструктора (без id) переключателя не слушает
 function shiftKeyOf(m){ return S && S.cmp && m && m.id ? S.cmp : m && m.shift; }
-// итог легаси есть только у вопроса «весь кредитный портфель»: без разрезов и пути, без фильтра панели, в охвате «весь портфель», без
-// сужающих значений параметров (куратор); иначе — что в легаси не собиралось
-function legacyGap(t, src, user, roleId, panel, path){ const obj = objOf(src);
-  if(obj!=='loan') return 'итогов по объекту «'+OBJECTS[obj].name.toLowerCase()+'» в легаси нет';
-  if(path && path.length) return 'итоги легаси — без разрезов';
-  if(panel && panelOn(panel)) return 'по фильтру панели в легаси не собиралось';
-  if(viewerRoles(user, roleId).some(r=>hasRight(r, obj) && scopeOf(r, obj)!=='all')) return 'итоги легаси — по всему портфелю, по охвату роли не собирались';
-  const n = Object.keys(src.params || {}).find(k=>src.params[k].dim && t.params && t.params[k]!=null && t.params[k]!=='*');
-  return n ? 'по полю «'+src.params[n].name+'» в легаси не собиралось' : null; }
+// перенос легаси (стенд): на конец каждого месяца до запуска — строка каждого кредита со всеми полями, кроме куратора
+// (в легаси не вёлся); других объектов перенос не дал; потоки — колонками нарастающим итогом, без них — флаг стенда
+const LEGACY_OBJS = ['loan'], LEGACY_NO_FIELD = { curator:'Куратор' };
+// чего перенос не дал для вопроса на дату до запуска — причина пустоты ответа; всё есть — null (дата отвечается строками переноса).
+// Стенд стоит за ответом отчётности: у неё причина приходит в ответе на каждую дату, своего правила дашборд не ведёт
+function legacyGap(t, src, user, roleId, panel, path, by, kind, ms){ const obj = objOf(src);
+  if(!LEGACY_OBJS.includes(obj)) return 'объект «'+OBJECTS[obj].name+'» не переносился';
+  if(kind==='flow' && STAND.legacyNoFlows) return 'потоки'+(ms ? ' за '+legacySpan(ms) : '')+' — перенос без колонок потоков';
+  const f = [...(path || []).map(x=>x.dim), by, ...(src.filter || []).map(c=>c.f)].find(d=>d && LEGACY_NO_FIELD[d]);
+  if(f) return 'поле «'+LEGACY_NO_FIELD[f]+'»';
+  const n = Object.keys(src.params || {}).find(k=>LEGACY_NO_FIELD[src.params[k].dim] && t.params && t.params[k]!=null && t.params[k]!=='*');
+  return n ? 'поле «'+src.params[n].name+'»' : null; }
+// месяцы до запуска, на которые отвечает вопрос: месяцы периода потока или месяц даты остатка
+function qLegacyMonths(q){ const c = q && ctxOf(q); if(!c) return [];
+  if(c.period) return PERIODS[c.period].months.filter(legacyAt);
+  return c.point && !c.point.day && legacyAt(c.point.m) ? [c.point.m] : []; }
 // прогресс к плану вместо сдвига — у потока, связанного с планом, когда в отчёте есть обе колонки плана
 function planOK(src, q){ return !src.module && (q.share || q.inds.slice(0, 1)).some(i=>PLAN_INDS.includes(i)) && PLAN_INDS.every(i=>src.cols.includes(i)); }
 function baseOf(t, user, roleId, panel, path){
@@ -2107,8 +2124,14 @@ function baseOf(t, user, roleId, panel, path){
   // как в каталоге; ноль при непустом составе — число
   const me = !(path && path.length) && res.none && noneOf(res.none);
   if(me) return Object.assign(res, { state:'mine0', msg:me.msg, noneLabel:me.label });   // строки ответа остаются: «кто в этом числе» — пустой список, а не отказ
-  // база до запуска — итог легаси, если он есть для вопроса плитки; нет — «без сдвига» с причиной (числа не выдумываются)
-  if(res.shift && res.shift.legacy){ const gap = legacyGap(t, src, user, roleId, panel, path); if(gap) res.shift = { none:LAUNCH_TEXT()+': '+gap, legacy:true }; }
+  // поток за период до или через дату запуска — число ответа из строк переноса, пометка — меткой плитки (marksOf); чего перенос не дал
+  // хотя бы за один месяц периода — числа нет, пусто с причиной: частичная сумма выдавала бы себя за поток периода
+  const pms = qKind(q)==='flow' && ctxOf(q).period ? PERIODS[ctxOf(q).period].months : [];
+  if(pms.some(legacyAt)){ const gap = legacyGap(t, src, user, roleId, panel, path, null, 'flow', pms);
+    if(gap) return Object.assign(res, { state:'mine0', msg:LEGACY_WHY(gap), noneLabel:'в легаси не собиралось', legacyGap:true, value:null, shift:null }); }
+  // база до запуска — строки переноса, пометка «из легаси»; чего перенос не дал — «без сдвига» с причиной из ответа
+  if(res.shift && res.shift.legacy){ const bq = qKind(q)==='flow' && PERIODS[ctxOf(q).period] ? PERIODS[ctxOf(q).period].base : null;
+    const gap = legacyGap(t, src, user, roleId, panel, path, null, qKind(q), bq); if(gap) res.shift = { none:LEGACY_WHY(gap), legacy:true }; }
   if(!rule.key){ res.shift = { none:rule.none };
     if(rule.plan){ const p = answer(compile(src, m.params, { inds:PLAN_INDS, share:PLAN_INDS, conds:pathConds(path) }), user, roleId, panel);
       res.shift.plan = { value:p.value, num:p.num, den:p.den, label:'по плану' }; } }
@@ -2301,15 +2324,21 @@ function diffBase(ctx, key){
     if(STAND.baseDown) return { none:BASE_DOWN('за '+(P.base.length===1 ? monthName(P.base[0]) : ctx.period==='prevYear' ? '2024 год' : 'прошлый квартал')), down:true, months:P.base.slice() };
     const k = '__base:'+ctx.period; PERIODS[k] = { months:P.base, label:'база' };
     return { ctx:{ period:k, tf:ctx.tf }, label: ctx.period==='prevMonth' ? 'к '+MONTHS_GEN[monthOf(-2).mi].replace(/я$/,'ю').replace(/а$/,'у') : ctx.period==='prevYear' ? 'к 2024' : 'к пред. кварталу',
-      done:()=>{ delete PERIODS[k]; } }; }
+      legacy:P.base.some(legacyAt), done:()=>{ delete PERIODS[k]; } }; }
   // база — от даты плитки (§4 п. 6); точка базы помечена start: её дата пишется началом следующего дня («на 01.10» — строка 30.09)
   const B = STOCK_BASES[key && STOCK_BASES[key] ? key : 'prevMonthEnd'], bm = B.at(ctx.point);
   if(STAND.baseDown) return { none:BASE_DOWN('на '+startLabel(bm)), down:true, months:[bm] };
   return { ctx:{ point:{ m:bm, start:true }, tf:ctx.tf }, label:B.label, at:'на '+startLabel(bm), from:startLabel(bm), bm, legacy:legacyAt(bm), done:()=>{} };
 }
-// дата запуска (стенд): строки до неё — замороженные итоги легаси, объектов нет; база раньше запуска — legacy
+// дата запуска (стенд): месяцы раньше неё закрыты переносом из легаси — дата до запуска отвечается строками переноса, как своя,
+// с пометкой «из легаси»; чего перенос не дал — пусто с причиной (LEGACY_WHY)
 const legacyAt = bm=>STAND.launch!==null && bm < STAND.launch;
-const LAUNCH_TEXT = ()=>'до запуска системы '+startLabel(STAND.launch - 1)+'.2026 — только итоги легаси';
+const LEGACY_WHY = gap=>'до запуска системы ('+startLabel(STAND.launch - 1)+'.2026) в легаси не собиралось: '+gap;
+// месяцы до запуска словами: «январь–февраль», «декабрь 2025»
+function legacySpan(ms){ const L = ms.filter(legacyAt).sort((a, b)=>a - b); if(!L.length) return '';
+  const a = monthOf(L[0]), b = monthOf(L[L.length - 1]), yr = x=>x.y!==2026 ? ' '+x.y : '';
+  if(L.length===1) return MONTHS[a.mi]+yr(a);
+  return a.y===b.y ? MONTHS[a.mi]+'–'+MONTHS[b.mi]+yr(b) : MONTHS[a.mi]+yr(a)+' – '+MONTHS[b.mi]+yr(b); }
 // разница к базе: delta — в единицах числа (у доли — п.п.), pct — процент изменения (у доли не считается); нет пары — null
 function setDiff(o, v, b, unit){
   o.base = b===undefined ? null : b; const miss = x=>x===null || x===undefined;
@@ -2322,7 +2351,9 @@ function shiftOf(q, rows, ctx, val, rowsAt){
     const baseVal = at(B.ctx, B.ctx.point && rowsAt ? rowsAt(B.ctx.point.m) : rows), cur = at(ctx, rows);
     const pt = ctx.point, to = !pt ? null : pt.m===0 && !pt.day ? todayTo() : pt.day ? (STAND.nightRunFailed ? '09.10' : dayLabel(pt.day)) : monthEndLabel(pt.m);
     const bm = B.bm!==undefined ? B.bm : Math.max(...(PERIODS[B.ctx.period] || { months:[0] }).months);
-    return { base:baseVal, delta: ctx.period ? cur - baseVal : (cur||0)-(baseVal||0), label:B.label, at:B.at || null, from:B.from || null, to, legacy:!!B.legacy, bm }; }
+    // база до запуска — из легаси; обе даты до запуска (поток прошлого года к позапрошлому) — «редакции формы разные» не пишется
+    const legacyAll = !!B.legacy && (ctx.period ? PERIODS[ctx.period].months.every(legacyAt) : legacyAt(ctxMonth(ctx)));
+    return { base:baseVal, delta: ctx.period ? cur - baseVal : (cur||0)-(baseVal||0), label:B.label, at:B.at || null, from:B.from || null, to, legacy:!!B.legacy, legacyAll, bm }; }
   finally { B.done(); }
 }
 // база разницы в ответе вида (q.diff — ключ базы сдвига плитки): узлы, ячейки, итоги строк и столбцов, строки таблицы — на дату базы,
@@ -2649,6 +2680,8 @@ function mvSplit(Md, I, r, M, Bm, A, B, inKey, outKey, push, withFlows, D){
     let b = x;
     if(!A.inn && live(A.raw)){ push(inKey(A), A.raw); b = A.raw; }
     if(withFlows){ let rest = y - b;
+      // строка переноса на базу без колонок потоков (флаг стенда): потоки объекта не посчитать — вся его разница одной строкой
+      if(STAND.legacyNoFlows && legacyAt(Bm) && exists(r, Bm)){ if(rest) push('legacyNoFlow', rest); return; }
       if(A.ok || B.ok) Md.flows.forEach(([k, fk, sg])=>{ const v = sg*winFlow(r, fk, Bm, M, D); if(v){ push(k, v); rest -= v; } });
       if(rest) push('other', rest); }
     return; }
@@ -2680,6 +2713,7 @@ function mvRowsOf(o){
   if(o.scopeCan || cnt('scopeIn')) rows.push(row('scopeIn', 'пришли в охват', '+', 'scope', 'на '+from+' вне охвата плитки, '+mvWhen(M)+' в нём: '+who+(o.Md.flows ? '; число на '+from+', потоки периода — здесь' : '')));
   rows.push(...vals('out'));
   if(o.scopeCan || cnt('scopeOut')) rows.push(row('scopeOut', 'ушли из охвата', '−', 'scope', 'на '+from+' в охвате плитки, '+mvWhen(M)+' вне его: '+who));
+  if(cnt('legacyNoFlow')) rows.push(row('legacyNoFlow', 'до запуска не перенесено', '±', 'legacy', 'у строк переноса на '+from+' нет колонок потоков — изменение этих объектов не раскладывается; это не сбой источника'));
   if(cnt('noanswer')) rows.push(row('noanswer', 'нет ответа источника', '±', 'noanswer', 'источник не ответил на одну из дат — строка несёт известную сумму со своей даты; пусто, а не ноль'));
   (o.Md.tail || []).forEach(([k, n, sg, kind, tip])=>rows.push(row(k, n, sg, kind, tip(M, B))));
   return rows;
@@ -2707,7 +2741,7 @@ function movementOf(q, rows, env){
 function mvRowName(q, key, M, env){ const I = IND[q.inds[0]], Md = mvModel(I);
   if(Md){ const e = Md.rows.concat(Md.tail || []).find(x=>x[0]===key); if(e) return e[1];
     const p = key.split(':'); if(p.length===3) return (p[0]==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(p[1], decodeURIComponent(p[2]));
-    return { scopeIn:'пришли в охват', scopeOut:'ушли из охвата', noanswer:'нет ответа источника' }[key] || key; }
+    return { scopeIn:'пришли в охват', scopeOut:'ушли из охвата', noanswer:'нет ответа источника', legacyNoFlow:'до запуска не перенесено' }[key] || key; }
   const f = I.flows.inc.concat(I.flows.dec).find(x=>x[1]===key); return f ? f[0] : mvOtherName(I.flows.other); }
 function trafficOf(t, v, state){
   if(!t || state!=='ok' && state!=='zero') return null;
@@ -2724,8 +2758,14 @@ function tlText(tile){ const t = tile && tile.tl; if(!t || !srcOf(tile)) return 
 const bigNode = node=>!!node && (node.d==='big' || node.d2==='big');
 function statRows(tile, user, roleId, panel, node, path){
   if(bigNode(node) && !BIG) return withBig(bigOf(tile, user, roleId, panel, path, node.bn), ()=>statRows(tile, user, roleId, panel, node, path));   // строка «крупнейших» — объект или «остальные»
-  if(node && node.m!==undefined && !node.coh && legacyAt(node.m)) return { refused:true, msg:'объектов до запуска нет: '+LAUNCH_TEXT() };   // точка Ряда до запуска — итог легаси
+  // точка Ряда до запуска — строки переноса, список есть; чего перенос не дал — отказ с причиной из ответа
+  if(node && node.m!==undefined && !node.coh && legacyAt(node.m)){ const q0 = mainQ(tile, path);
+    const gap = q0 && legacyGap(tile, srcOf(tile), user, roleId, panel, path, node.d || null, qKind(q0), [node.m]); if(gap) return { refused:true, msg:LEGACY_WHY(gap) }; }
+  // узел по полю, которого перенос не дал, на вопросе с месяцами до запуска — отказ с той же причиной, что у вида
+  const nd = node && node.m===undefined && [node.d, node.d2].find(d=>d && LEGACY_NO_FIELD[d]);
+  if(nd){ const q0 = mainQ(tile, path), lm = qLegacyMonths(q0); if(lm.length) return { refused:true, msg:LEGACY_WHY('поле «'+LEGACY_NO_FIELD[nd]+'»') }; }
   const res = ask(tile, user, roleId, panel, path);
+  if(res.state==='mine0' && res.legacyGap) return { refused:true, msg:res.msg };   // поток за период, который перенос не дал, — числа нет, списка тоже
   if(!res.rows) return { refused:true, msg:res.msg || 'нет ответа' };
   if(node && node.of==='second' && res.second && res.second.none) return { refused:true, msg:res.second.none };
   const q = userConds(numQ(tile, path, node && node.of), user); const I = IND[q.inds[0]]; let ctx = ctxOf(q);
@@ -2873,7 +2913,7 @@ const W = (name, f)=>({ name, unit:'sum', f });
 const LIST_DECL = {
   loan:    { label:r=>r.id+' от '+dmy(r.from, dayOfId(r.id)), weight:W('Остаток', (r, m)=>fieldAt(r, 'balance', m) || 0),
     cols:[LC('borrower', 'Заёмщик', (r, m)=>nameAt(borrowerOf(r.borrower), m)), LC('dept', 'Подразделение', (r, m)=>deptName(dimAt('dept', r, m)), { dim:'dept' }),
-      LC('curator', 'Куратор', (r, m)=>userName(dimAt('curator', r, m)), { dim:'curator' }), LC('program', 'Программа', r=>progName(r.program), { dim:'program' }),
+      LC('curator', 'Куратор', (r, m)=>legacyAt(m) ? '— (в легаси не вёлся)' : userName(dimAt('curator', r, m)), { dim:'curator' }), LC('program', 'Программа', r=>progName(r.program), { dim:'program' }),
       LC('days', 'Дней просрочки', (r, m)=>loanDays(r, m), { num:true, unit:'days' })] },
   borrower:{ label:(r, m)=>nameAt(r, m), weight:W('Задолженность', r=>r.total || 0),
     cols:[LC('region', 'Территория', r=>r.region, { dim:'bregion' }), LC('curator', 'Ведущий куратор', r=>r.curator ? userName(r.curator) : '—', { dim:'curator' }),
@@ -2935,7 +2975,9 @@ function chgRows(t, u, roleId, panel, node, path, grp, pts){
   if(pts) B = { ctx:stock ? { point:{ m:pts.b }, tf } : { period:pk[1], tf }, label:stock ? 'к '+monthEndLabel(pts.b) : 'к '+MONTHS_GEN[monthOf(pts.b).mi].replace(/я$/,'ю').replace(/а$/,'у'), done:()=>{} };
   else { const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return { refused:true, msg:'у плитки нет базы сдвига — «Изменения» нет' }; B = diffBase(ctx, key); }
   if(B.none) return { refused:true, msg:B.none };
-  if(B.legacy){ B.done(); return { refused:true, msg:'объектов до запуска нет: '+LAUNCH_TEXT()+', база '+B.at }; }
+  // дата до запуска — строки переноса, список есть; чего перенос не дал — отказ с причиной из ответа
+  const lm = pts ? [pts.b, pts.n] : [ctxMonth(B.ctx)], gap = lm.some(legacyAt) && legacyGap(t, srcOf(t), u, roleId, panel, path, node && node.d || null, stock ? 'stock' : 'flow', lm);
+  if(gap){ B.done(); return { refused:true, msg:LEGACY_WHY(gap) }; }
   try {
     const bm = ctxMonth(B.ctx), env = { base:rowsFor(u, roleId, I.obj), user:u, roleId, panel };
     const rowsN = stock && pts && pts.n ? panelRowsAt(res.rows, I.obj, panel, env, q.filter, cm) : res.rows;
@@ -3886,11 +3928,11 @@ function autocheck(d){
 // плитка — только поля модели
 function cleanTile(d){ return { report:d.report, params:cp(d.params || {}), main:cp(d.main), second: d.second ? cp(d.second) : null, shift:d.shift || null,
   tl: d.tl ? cp(d.tl) : null, views:cp(d.views || {}), title:d.title }; }
-function saveTile(d, mode){ // mode: 'personal' | 'draft' | 'publish'
+function saveTile(d, mode, pinned){ // mode: 'personal' | 'draft' | 'publish'; pinned — «📌»: пригодность уже проверила отчётность (pinCheck)
   const u = user(); const ac = autocheck(d);
   if(mode==='personal'){ const lock = circleWhy(d, u) || (!reportsFor(u).some(x=>x.r.id===d.report) ? 'Нельзя: отчёт не открыт вашей роли' : null);   // личная плитка — только на открытый вам отчёт
     if(lock) return { error:lock, checks:ac.checks }; }
-  if(mode!=='draft' && !(mode==='personal' ? passes(ac, d) : ac.ok)) return { error:'Автопроверка не пройдена', checks:ac.checks };
+  if(mode!=='draft' && !pinned && !(mode==='personal' ? passes(ac, d) : ac.ok)) return { error:'Автопроверка не пройдена', checks:ac.checks };
   if(mode!=='personal' && !isAdmin(u)) return { error:'Публикует только администратор дашборда' };
   const id = (mode==='personal'?'p-':'n-')+u.id+'-'+(++tileSeq);
   const nt = Object.assign({ id, kind:'overview' }, cleanTile(d),
@@ -4008,9 +4050,17 @@ function publishWaiting(){ return TILES.filter(t=>t.owner==='catalog' && t.state
   t.state = 'published'; delete t.forRoles; journal('опубликована автопроверкой', '«'+t.title+'» — отчёт ответил', 'Автопроверка'); return t.id; }); }
 // «📌 на дашборд» из отчёта или вида: плитка встаёт сразу, с умолчаниями, в конец открытой вкладки главной; из окна отчёта плитки — с её
 // значениями параметров. Форма — «Настроить» на самой плитке
+// «📌» проверяет отчётность: бланк, отчёт не виден смотрящему, нет числовой колонки — отказ; ответ отчёта и остальную пригодность
+// не проверяет — автопроверка дашборда идёт при «Настроить → Сохранить» и при публикации
+function pinCheck(r, u){
+  if(r.blank) return 'бланк — плитке нечего показать';
+  if(!circleOpen(r, u) || !reportsFor(u).some(x=>x.r.id===r.id)) return 'отчёт не открыт вашей роли';
+  if(!(r.cols || []).some(i=>IND[i] && !STAND.withdrawn[i])) return 'в отчёте нет числовой колонки';
+  return null; }
 function pinNow(reportId, fromTile){ const d = pinFromReport(reportId); if(!d) return { error:'Отчёт не найден' };
+  const why = pinCheck(reportById(reportId), user()); if(why) return { error:why, checks:[{ ok:false, text:why }] };
   const ft = fromTile && tileById(fromTile); if(ft && ft.report===reportId) Object.assign(d.params, cp(ft.params || {}));
-  const res = saveTile(d, 'personal'); if(res.error) return res;
+  const res = saveTile(d, 'personal', true); if(res.error) return res;
   const tab = curTab(); if(tab.kind==='screen') screenAdd(tab.id, res.tile.id); else arrangeAdd(tab.id, res.tile.id);
   return Object.assign(res, { tab:peekTab() }); }
 // «Отклонить» — с причиной; автор получает её уведомлением, плитка остаётся личной, предложить можно снова
@@ -4349,7 +4399,7 @@ function modeOf(sel){ return sel && sel.mode==='change' ? 'change' : 'sum'; }
 // у потока за текущий месяц — «неполный месяц не с чем сравнить»; одна причина на всю полосу — база у плитки одна
 function changeOff(t, u, roleId, panel, path){
   const b = cachedBase(t, u, roleId, panel || {}, path); if(!LIVE.includes(b.state)) return b.msg || 'плитка не отвечает';
-  const sh = b.shift; if(!sh) return 'у плитки нет базы сравнения'; if(sh.legacy) return 'объектов до запуска нет: '+LAUNCH_TEXT(); if(!sh.none) return null;
+  const sh = b.shift; if(!sh) return 'у плитки нет базы сравнения'; if(!sh.none) return null;   // база до запуска — строки переноса: «Изменение» есть
   const q = mainQ(t, path); return sh.none===PARTIAL && qKind(q)==='flow' && (q.period || 'curMonth')==='curMonth' ? OPEN_MONTH : sh.none; }
 // Движение кончается датой плитки: сегодня — текущий или прошлый месяц; конец прошлого месяца — только прошлый (конец Движения — главное
 // число); дата не сегодня и не конец месяца (последний закрытый день) — вид погашен: Движение идёт от конца месяца до конца следующего
@@ -4357,6 +4407,9 @@ const MV_PREV_ONLY = 'текущий месяц кончается сегодн�
 // окно Движения по переключателю экрана (§5.12): от базы сравнения до даты плитки при любой её дате; «как задано» — null (месяц, правило ниже)
 function mvWindowOf(t){ const q = S.cmp && mainQ(t); if(!q || qKind(q)!=='stock') return null; const pt = (DATE_MODES[q.date || 'today'] || DATE_MODES.today).point;
   return { mvMonth:pt.m, mvFrom:baseMonth(shiftKeyOf(t), pt), mvEndDay:pt.day || undefined }; }
+// окно Движения, начатое до запуска, отвечается строками переноса; чего перенос не дал — вид погашен с причиной из ответа
+function mvLegacyOff(t, u, roleId, panel, path){ const W = mvWindowOf(t); if(!W || !legacyAt(W.mvFrom)) return null;
+  const gap = legacyGap(t, srcOf(t), u, roleId, panel, path, null, 'stock'); return gap ? LEGACY_WHY(gap) : null; }
 function mvDateOf(t){ const q = mainQ(t); if(!q || qKind(q)!=='stock') return null; if(mvWindowOf(t)) return null; const k = q.date || 'today', D = DATE_MODES[k] || DATE_MODES.today, pt = D.point;
   if(pt.m===0 && !pt.day) return null;
   if(pt.m===-1 && !pt.day) return { only:-1 };
@@ -4373,7 +4426,7 @@ function viewsFor(t, u, roleId, path, panel){
     slice: free ? null : noDims,
     map: free>=2 ? null : 'нужны два разреза — свободных '+free,
     move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : (mvDateOf(t) || {}).off
-      || mvBaseDown(t, path) || (mvWindowOf(t) && legacyAt(mvWindowOf(t).mvFrom) ? 'объектов до запуска нет: '+LAUNCH_TEXT() : null) || null,
+      || mvBaseDown(t, path) || mvLegacyOff(t, u, roleId, panel, path) || null,
     table: free ? null : noDims };
   return VIEW_KINDS.map(kind=>({ kind, ok:!why[kind], why:why[kind] }));
 }
@@ -4453,11 +4506,11 @@ function seriesDown(res, bd){ (res.series.points || []).forEach((p, i, ps)=>{ if
   // Ряд по разрезу: та же точка «—» в каждой строке, разница у неё и у следующей — «—»; изменение за период от неё не считается
   const B = res.series.by; if(B) B.lines.forEach(l=>{ res.series.points.forEach((p, i)=>{ if(!bd.months.includes(p.m)) return; l.vals[i] = null; l.deltas[i] = null; if(i + 1 < l.deltas.length) l.deltas[i + 1] = null; });
     const n = l.vals.length; l.last = l.vals[n - 1]; l.change = l.vals[n - 1]===null || l.vals[0]===null ? null : l.vals[n - 1] - l.vals[0]; }); }
-// Ряд через дату запуска называет состав: точки раньше запуска — итог легаси (штриховка, «☰» — отказ), итога нет — точки нет с причиной;
-// у первой своей точки разница к прошлой — «редакции формы разные»
+// Ряд через дату запуска называет состав: точки раньше запуска — строки переноса, пометка источника штриховкой, «☰» работает; чего
+// перенос не дал — точки нет с причиной из ответа; у первой своей точки разница к прошлой — «редакции формы разные»
 function seriesLegacy(res, gap){ const ps = res.series.points, L = STAND.launch;
-  if(gap){ seriesDown(res, { months:ps.filter(p=>p.m<L).map(p=>p.m), msg:LAUNCH_TEXT()+': '+gap }); return; }
-  ps.forEach((p, i)=>{ if(p.m<L){ p.legacy = true; p.cnt = undefined; } else if(i>0 && ps[i - 1].m<L) p.legacyD = true; }); }
+  if(gap){ seriesDown(res, { months:ps.filter(p=>p.m<L).map(p=>p.m), msg:LEGACY_WHY(gap) }); return; }
+  ps.forEach((p, i)=>{ if(p.m<L) p.legacy = true; else if(i>0 && ps[i - 1].m<L) p.legacyD = true; }); }
 // ответ вида: компилируется из того же отчёта и параметров, путь — условия «=»; разрез не из отчёта — «на время просмотра»
 // Когорты — свой вопрос; «крупнейшие» в разрезе вида — ранжирование объектов на время ответа и показа (res.big)
 function viewOf(t, kind, sel, path, u, roleId, panel){
@@ -4478,7 +4531,13 @@ function viewOf0(t, kind, sel, path, u, roleId, panel){
   const tv = kind==='map' ? transFor(t, u, roleId, path, panel) : null, trans = !!tv && s.axes==='trans' && tv.ok && tv.dims.includes(s.tdim);
   // «Сумма | Изменение»: в Движении переключателя нет; нет базы сдвига у плитки — «Изменение» погашено, разницы нет
   // у Переходов переключателя нет — вид сам сравнивает две даты
-  const off = kind==='move' || trans ? null : changeOff(t, u, roleId, panel, path), mode = kind==='move' || trans ? null : !off && modeOf(sel)==='change' ? 'change' : 'sum';
+  let off = kind==='move' || trans ? null : changeOff(t, u, roleId, panel, path), mode = kind==='move' || trans ? null : !off && modeOf(sel)==='change' ? 'change' : 'sum';
+  // база до запуска — строки переноса; поле, которого перенос не дал (куратор), на базе пусто: «Изменение» и Переходы по нему гаснут с причиной
+  const vDims = trans ? [s.tdim] : kind==='slice' || kind==='table' ? [s.dim] : kind==='map' ? s.dims || [] : [], lgd = vDims.find(d=>LEGACY_NO_FIELD[d]);
+  // сам вопрос отвечает на месяцы до запуска (поток за период, остаток на дату) — вид по такому полю гаснет и в «Сумме»
+  const lgq = lgd && qLegacyMonths(mainQ(t, path)).length;
+  const lgb = lgd && (lgq || ((trans || mode==='change') && (cachedBase(t, u, roleId, panel || {}, path).shift || {}).legacy));
+  if(lgb){ const why = LEGACY_WHY('поле «'+LEGACY_NO_FIELD[lgd]+'»'); if(trans || lgq) return { kind, state:'off', msg:why }; off = why; mode = 'sum'; }
   if(kind==='series') spec = Object.assign(numSpec(m, s.of, src), { format:'series', points:s.points });
   else if(kind==='move') spec = Object.assign(numSpec(m, 'main', src), { format:'move' }, mvWindowOf(t) || { mvMonth:s.month });
   else if(kind==='table'){ sh = s.cols.includes(SHARE_COL) ? shareOf(t) : null;   // «доля» — не показатель: числитель и знаменатель спрашиваем вместе с колонками
@@ -4510,8 +4569,9 @@ function viewOf0(t, kind, sel, path, u, roleId, panel){
     if(res.series && res.series.by) byLines(res, s); }
   delete res.rows; delete res.rowsAt;
   if(res.series && STAND.baseDown){ const bd = baseDownOf(t, path); if(bd){ seriesDown(res, bd); if(res.series.by) byLines(res, s); } }
-  // Ряд через дату запуска: итог легаси — по тому же правилу, что у базы сдвига; у Ряда по разрезу итогов легаси нет
-  if(res.series && res.series.points.some(p=>legacyAt(p.m))){ seriesLegacy(res, s.by ? 'итоги легаси — без разрезов' : legacyGap(t, src, u, roleId, panel, path)); if(res.series.by) byLines(res, s); }
+  // Ряд через дату запуска: точки до запуска — строки переноса; чего перенос не дал (у Ряда по разрезу — и поле разреза) — точек нет
+  if(res.series && res.series.points.some(p=>legacyAt(p.m))){ const sq = mainQ(t, path);
+    seriesLegacy(res, legacyGap(t, src, u, roleId, panel, path, s.by || null, sq ? qKind(sq) : 'stock', res.series.points.map(p=>p.m))); if(res.series.by) byLines(res, s); }
   if(sh && res.table){ const T0 = res.table, tot = res.total, at = (a, c)=>c===SHARE_COL ? (a[ask.indexOf(sh.inds[1])] ? a[ask.indexOf(sh.inds[0])] / a[ask.indexOf(sh.inds[1])] * 100 : null) : a[ask.indexOf(c)];
     const re = a=>s.cols.map(c=>at(a, c));                    // и сумма, и база — по колонкам выбора; доля на базе — из числителя и знаменателя на базе
     T0.rows.forEach(r=>{ r.cells = re(r.cells); if(r.bases) r.bases = re(r.bases); }); res.total = re(tot);   // в итоге доля — второе число плитки
@@ -4753,7 +4813,7 @@ function userArg(uid){ return uid && typeof uid==='object' ? uid : USERS.find(x=
 function tileArg(id){ const t = typeof id==='string' ? tileById(id) : id; if(!t) throw new Error('нет плитки «'+id+'»'); return t; }
 function baseOut(r){ const s = r.shift;
   return { state:r.state, msg:r.msg, value:r.value, unit:r.unit, num:r.num, den:r.den,
-    shift: !s ? null : s.none ? Object.assign({ none:s.none }, s.plan ? { plan:s.plan } : {}, s.down ? { down:true } : {}, s.legacy ? { legacy:true } : {}) : Object.assign({ delta:s.delta, label:s.label, base:s.base }, s.at ? { at:s.at, from:s.from, to:s.to } : {}, s.legacy ? { legacy:true } : {}, s.baseNone ? { baseNone:s.baseNone } : {}),
+    shift: !s ? null : s.none ? Object.assign({ none:s.none }, s.plan ? { plan:s.plan } : {}, s.down ? { down:true } : {}, s.legacy ? { legacy:true } : {}) : Object.assign({ delta:s.delta, label:s.label, base:s.base }, s.at ? { at:s.at, from:s.from, to:s.to } : {}, s.legacy ? { legacy:true, legacyAll:!!s.legacyAll } : {}, s.baseNone ? { baseNone:s.baseNone } : {}),
     second:r.second || null, third:r.third || null, tl:r.tl || null, passport:r.passport, marks:r.marks || [], none:r.none || null, noneLabel:r.noneLabel || null }; }
 // выражение: main | second | second.num | second.den | shift | tl | series(N[,main|second]) | slice(d) | map(d1,d2) | move(M) | table(d;c1,c2…)
 // [.total] и сегменты пути >разрез=значение
@@ -5035,6 +5095,9 @@ function marksOf(t, res){
   else if(liveOf(q) && nightOnlyOf(q) && !res.staleState) out.push({ kind:'info', text:'◷ только ночью', tip:'на 02:00, источник «'+OBJECTS[I.obj].owner+'» обновляется ночью' });
   if(ctx.period && !['today','curMonth','prevMonth','ytd'].includes(ctx.period)){ const P = PERIODS[ctx.period], cl = P.months.filter(monthClosed).length;
     if(cl > 0 && cl < P.months.length) out.push({ kind:'info', text:'≈ смешанно', tip:'В числе есть незакрытые месяцы: закрыто '+cl+' из '+P.months.length }); }
+  // поток за период до или через дату запуска — число из строк переноса: месяцы до запуска называются, через запуск — редакции формы разные
+  if(ctx.period && PERIODS[ctx.period].months.some(legacyAt)){ const ms = PERIODS[ctx.period].months, all = ms.every(legacyAt);
+    out.push({ kind:'info', text:'из легаси', tip: all ? 'Весь период — до запуска системы: число из строк переноса легаси' : legacySpan(ms)+' — из легаси (строки переноса), дальше — свои строки; редакции формы разные' }); }
   return out; }
 const marksHTML = res => (res.marks || []).map(x=>`<span class="pill ${x.kind}"${tipAttr(x.tip)}>${esc(x.text)}</span>`).join('');
 // уточнение: фильтр отчёта словами и дата, выбранная автором («на 30.09»); «сегодня» не печатается, «последний закрытый день» — метка
@@ -5329,9 +5392,9 @@ function shiftParts(q, res){ const s = res.shift;
   const cls = dir==='flat' || !good ? 'flat' : dir+'-'+good, pct = res.unit!=='pct' && s.base ? d / Math.abs(s.base) * 100 : null;
   const amt = res.unit==='pct' ? (Math.round(Math.abs(d)*10)/10).toString().replace('.',',')+' п.п.' : fmtVal(Math.abs(d), res.unit);
   const pctText = pct!==null ? (pct>0?'+':pct<0?'−':'')+(Math.round(Math.abs(pct)*10)/10).toString().replace('.',',')+' %' : '';
-  // у остатка — интервал от начала дня базы: «за месяц: с 01.10 по сегодня»; база до запуска — итог легаси (редакции формы разные)
+  // у остатка — интервал от начала дня базы: «за месяц: с 01.10 по сегодня»; база до запуска — из легаси (редакции формы разные)
   const tip = 'Изменение '+(pctText ? pctText+' ' : '')+s.label+(s.from ? ': с '+s.from+' по '+s.to : '')+(s.base!==null && s.base!==undefined ? ' · было '+fmtVal(s.base, res.unit) : '')
-    +(s.legacy ? ' · база — итог легаси; редакции формы разные' : '')+(s.baseNone ? ' · '+s.baseNone : '');
+    +(s.legacy ? (s.legacyAll ? ' · обе даты — из легаси' : ' · база — из легаси; редакции формы разные') : '')+(s.baseNone ? ' · '+s.baseNone : '');
   return { dir, cls, amt, pctText, label:s.label, tip }; }
 function shiftHTML(q, res, full){ const s = res.shift; if(!s) return '';
   if(s.none){ const n = shiftNone(res); return n ? `<span class="shift ${n.cls}"${tipAttr(n.tip)}>${esc(n.text)}</span>` : ''; }
@@ -5425,7 +5488,7 @@ function mvBody(res, q, ops){
   const m = res.move, I = IND[q.inds[0]], u = res.unit, M = m.M, id = esc(res.tileId), from = startLabel(m.B), to = m.D ? dayLabel(m.D) : M===0 ? todayTo() : monthEndLabel(M), when = 'с '+from+' по '+to;
   const clock = M===0 ? (/^на (\d{1,2}:\d{2})/.exec(res.passport || '') || [])[1] : '';
   // серые: «прочее» (остаток денежных, у Просрочено — ушла без причины), «нет ответа» и охват; события и потоки — по направлению показателя
-  const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' || f.kind==='scope' }, f));
+  const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' || f.kind==='scope' || f.kind==='legacy' }, f));
   const up = Math.max(0, ...flows.map(f=>f.v)), dn = Math.max(0, ...flows.map(f=>-f.v)), span = (up + dn) || 1, zero = (dn / span * 100).toFixed(2);   // шкала — по самому большому потоку
   const tone = f=>f.other || !f.v ? 'neu' : I.dir==='up_good' || I.dir==='up_bad' ? ((I.dir==='up_good')===(f.v>0) ? 'good' : 'bad') : 'flat';
   const sgn = v=>v>0 ? '+' : v<0 ? '−' : '', num = v=>sgn(v)+fmtVal(Math.abs(v), u);
@@ -5444,7 +5507,7 @@ function mvBody(res, q, ops){
   const chain = mvChain([{ sg:'', v:m.start }].concat(flows.filter(f=>f.v).map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);   // нулевые строки в цепочку не идут
   const startLs = ls(m.cnt0, ops && ops.month(m.B), true, 'на '+from);
   return `<div class="mv-cap"><b>${esc(when)}</b>; вправо — пришло, влево — ушло</div>`
-    +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 && !m.D ? (STAND.dayEnd ? 'на '+nowTime() : 'на сегодня'+(clock ? ', '+clock : '')) : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
+    +`<div class="rz mv-w">${edge('start', 'на '+from+(legacyAt(m.B) ? ' · из легаси' : ''), m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 && !m.D ? (STAND.dayEnd ? 'на '+nowTime() : 'на сегодня'+(clock ? ', '+clock : '')) : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
     +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — в одной единице, той же, что у конца; малые строки — с двумя знаками')}>${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
@@ -5675,9 +5738,9 @@ function seriesHTML(t, res, ops){
     const under = p.down && chg ? `<span class="sr-d none"${tipAttr(p.down)}>—</span>` : chg ? `<span class="sr-d sum">${serNum(sc, v)}</span>`
       : p.down || p.downD ? `<span class="sr-d none"${tipAttr(p.down || 'Нет разницы: '+p.downD)}>—</span>`
       : none ? `<span class="sr-d ${none.cls}"${tipAttr('Без сдвига: '+p.none)}>${esc(none.text)}</span>`
-      : x ? `<span class="sr-d ${x.cls}${p.legacyD ? ' lgd' : ''}"${p.legacyD ? tipAttr('Редакции формы разные: до запуска — итог легаси') : ''}>${dtxt}</span>` : `<span class="sr-d">&nbsp;</span>`;
-    const tip = [mon+' '+my.y+' · '+(p.down ? p.down : fmtVal(v, unit)), p.legacy ? 'итог легаси: до запуска системы объектов нет' : p.closed ? 'месяц закрыт' : p.open && p.openLabel ? 'не закрыт · '+(s.flow ? 'за ' : '')+p.openLabel : 'месяц не закрыт',
-      p.legacyD ? 'разница к '+bn+': редакции формы разные — до запуска итог легаси' : '', p.noneObj || '',
+      : x ? `<span class="sr-d ${x.cls}${p.legacyD ? ' lgd' : ''}"${p.legacyD ? tipAttr('Редакции формы разные: до запуска — из легаси') : ''}>${dtxt}</span>` : `<span class="sr-d">&nbsp;</span>`;
+    const tip = [mon+' '+my.y+' · '+(p.down ? p.down : fmtVal(v, unit)), p.legacy ? 'из легаси: строки переноса, до запуска системы' : p.closed ? 'месяц закрыт' : p.open && p.openLabel ? 'не закрыт · '+(s.flow ? 'за ' : '')+p.openLabel : 'месяц не закрыт',
+      p.legacyD ? 'разница к '+bn+': редакции формы разные — до запуска из легаси' : '', p.noneObj || '',
       x ? x.tip : none ? 'Без сдвига: '+p.none+(p.plan ? ' · '+none.text : '') : '', bs && bs.m===p.m ? 'База сдвига плитки — '+bs.label+': конец этого месяца, '+bs.at : '', p.down || p.legacy ? '' : 'Клик — кто в этом числе'].filter(Boolean).join('\n');
     const ls = p.cnt===undefined || p.cnt===null ? '' : `<span class="sr-q"><button class="ls${p.cnt ? '' : ' zero'}${whoOn(t.id, { m:p.m }) ? ' who-on' : ''}" data-tip="Кто в этом числе: ${nbsp(p.cnt)} стр. · ${mon} ${my.y}" onclick="event.stopPropagation();${month(p.m)}">☰ ${nbsp(p.cnt)}</button></span>`;
     return `<div class="sr-c${p.open ? ' cur' : ''}${bs && bs.m===p.m ? ' base' : ''}${p.legacy ? ' lg' : ''}" data-m="${p.m}"${tipAttr(tip)}><div class="sr-sl">${p.down ? '' : `<button type="button" class="sr-hit" aria-label="${esc('Кто в этом числе: '+mon+' '+my.y)}" onclick="event.stopPropagation();${month(p.m)}"></button>`}${sl}</div><div class="sr-m">${lab}${under}${ls}</div></div>`; }).join('');
@@ -6096,6 +6159,15 @@ function answerHTML(v){
   return `<table class="tbl">${v.cols.map((c,i)=>`<tr><td>${esc(c.name)}</td><td><b>${fmtVal(a.values[i], c.unit)}</b></td></tr>`).join('')}</table>`;
 }
 // заголовок плитки «↗»: отчёт открывается с теми же значениями параметров и фильтром панели; открытие снимает отметку «изменён»
+// окно отчёта с заголовка плитки — со «Сравнением» той же базы, что у сдвига на экране: выбор переключателя или база автора; у остатка —
+// значение второй семьи и подставленная дата, у потока — к предыдущему такому же периоду
+function reportCmp(t){ const q = t && t.kind!=='link' && mainQ(t); if(!q) return null;
+  const b = cachedBase(t, user(), curRole(), S.panel || {}, []), sh = b && b.shift; if(!sh) return null;
+  if(sh.none) return 'нет — '+sh.none;
+  if(qKind(q)!=='stock') return 'к предыдущему такому же периоду ('+sh.label+')'+(sh.legacy ? ' · база — из легаси' : '');
+  const B = STOCK_BASES[shiftKeyOf(t)] || STOCK_BASES.prevMonthEnd;
+  return B.label+' — «'+B.rel+'» = '+(sh.at || '').replace(/^на /, '')+(S.cmp ? ' · выбор переключателя экрана' : ' · база автора плитки')
+    +(sh.legacy ? ' · база — из легаси; редакции формы разные' : ''); }
 function openReport(tileId){
   const t = tileById(tileId); const v = reportView(tileId, user(), curRole(), S.panel);
   if(!v){ toast(t && t.kind==='link' ? 'У плитки очереди нет отчёта — она ведёт в очередь модуля' : 'Отчёт не найден'); return null; }
@@ -6106,7 +6178,7 @@ function openReport(tileId){
     ${kv('Версия', 'в. '+v.report.version+(v.report.changed ? ' · '+esc(v.report.changedText) : ''))}${kv('Состав', esc(v.desc))}
     ${kv('Фильтр отчёта', v.filterText.length ? v.filterText.map(x=>`<span class="chip cond">${esc(x)}</span>`).join(' ') : 'нет')}
     ${kv('Параметры плитки', v.params.length ? v.params.map(p=>esc(p.name)+': <b>'+esc(p.value)+'</b>').join('<br>') : 'отчёт параметров не объявил')}
-    ${kv('Фильтр панели', esc(v.panelText))}</div>
+    ${kv('Фильтр панели', esc(v.panelText))}${(c=>c ? kv('Сравнение', esc(c)) : '')(reportCmp(t))}</div>
     <h4 style="margin:0 0 6px">Ответ отчёта с этими значениями</h4>${answerHTML(v)}
     <p style="margin-top:14px"><button class="btn primary" onclick="DB.close();DB.pin('${v.report.id}','${esc(tileId)}')">📌 На дашборд</button>
     <button class="btn" onclick="DB.toast('Отчёт открывается в модуле «Отчётность» с теми же значениями параметров и фильтром панели')">Открыть в отчётности</button></p>`);
@@ -6484,7 +6556,8 @@ function renderStand(){
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label><br>
       ${chk('partDown','статистика ответила на вид полосы не целиком: у Таблицы — колонка «'+IND[PART_COL].name+'» (где её нет — самая крупная строка), у Разреза — самый крупный узел, у Карты — самая крупная строка; у Когорт — самая крупная когорта, у Переходов — строка с наибольшим итогом на дату базы, у Ряда по разрезу — самая крупная строка')}
       ${chk('baseDown','нет ответа на дату базы (на 01.10 у остатка, за прошлый период у потока)')}
-      <label class="opt"><input type="checkbox" ${STAND.launch!==null?'checked':''} onchange="DB.stand('launch', this.checked ? -7 : null)"> система запущена 01.03.2026: строки до неё — итоги легаси («за год» и «за 12 месяцев» — база до запуска)</label><br>
+      <label class="opt"><input type="checkbox" ${STAND.launch!==null?'checked':''} onchange="DB.stand('launch', this.checked ? -7 : null)"> система запущена 01.03.2026: месяцы до неё — из легаси, строка каждого кредита без куратора; других объектов перенос не дал («за год» и «за 12 месяцев» — база до запуска)</label><br>
+      ${STAND.launch!==null ? `<label class="opt" style="margin-left:22px"><input type="checkbox" ${STAND.legacyNoFlows?'checked':''} onchange="DB.stand('legacyNoFlows', this.checked)"> перенос без колонок потоков: Движение от базы до запуска — «до запуска не перенесено», поток за период до запуска — пусто</label><br>` : ''}
       <label class="opt">отчётность напоминает о сроке сдачи за <select onchange="DB.stand('nearDays', Number(this.value))">${[7, 10, 14].map(n=>`<option value="${n}" ${STAND.nearDays===n ? 'selected' : ''}>${n}</option>`).join('')}</select> к.д. — «Срок сдачи близко» и задания «сдать форму к сроку»</label><br>
       ${chk('overload','отчётность перегружена: вопросы ждут в очереди')}
       ${chk('slow','медленная отчётность: «Сумма» полосы — через 1,5 с, база — через 3 с, Движение — через 12 с')}
@@ -6679,7 +6752,7 @@ const api = {
   cohortItem:(id, uid, roleId, path, panel)=>cohortItem(tileArg(id), userArg(uid) || user(), roleId, path || [], panel || {}),
   planShareOf:(id)=>planShareOf(tileArg(id)), bigOK:(id)=>bigOK(tileArg(id)), FUNNEL, COHORT_START, COHORT_AGES, BIG_REST, cohortStarts, qStartOf,
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),
-  openReport, drill, reportView, reportChangedFor, rowLabel, scrollEnd,
+  openReport, reportCmp, pinCheck, drill, reportView, reportChangedFor, rowLabel, scrollEnd,
   whoList:(id, uid, roleId, panel, node, path, opt)=>whoList(tileArg(id), userArg(uid) || user(), roleId, panel || {}, node || null, path || [], opt || {}),
   chgRows, chgNumber, nameAt, borrowerOf, objLabel, LIST_DECL, listFieldsOf, declFlows, MV_NOFLOWS, dmy, objReady,
   registry:(id)=>openRegistry(id), queue:(id)=>openQueue(id), queueAt:(id, w)=>openQueue(id, w),
