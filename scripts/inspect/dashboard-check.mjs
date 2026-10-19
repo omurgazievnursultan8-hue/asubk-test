@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–22, 11–19.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–23, 11–19.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-297, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-313, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -1530,10 +1530,10 @@ const asUser = id => { DB.state.userId = id; };
   // раскрытие: в ряду одна плитка, в разных рядах по одной, не хранится; в странице нет «Развернуть», ⤢, размеров плиток главной и фильтра форматов
   DB.openView('lead-od', 'map'); DB.openView('lead-issued', 'table'); const one = Object.keys(DB.state.open).sort().join() + ':' + DB.state.open['lead-issued'].kind;
   DB.closeView('lead-issued'); DB.closeView('lead-od'); const none = Object.keys(DB.state.open).length; DB.openView('lead-od', 'series'); DB.seed();
-  const cat = src.slice(src.indexOf('function catalogHTML('), src.indexOf('/* ---------- Своя плитка')), reg = src.slice(src.indexOf('function renderRegistry('), src.indexOf('function renderLayouts('));
+  const cat = src.slice(src.indexOf('function catalogHTML('), src.indexOf('/* ---------- Своя плитка')), reg = src.slice(src.indexOf('const catalogTiles ='), src.indexOf('function renderLayouts('));
   ok(171, one === 'lead-issued,lead-od:table' && none === 0 && Object.keys(DB.state.open).length === 0 && !/Развернуть|⤢|DB\.expand|catFormat|openExpand/.test(src)
     && !/FORMAT_NAMES|SIZE\[/.test(cat) && /Основа/.test(cat) && /Основа/.test(reg) && !/FORMAT_NAMES/.test(reg),
-    'раскрыто по одной плитке в ряду, ✕ закрывает, seed() сбрасывает; в странице нет «Развернуть», ⤢, DB.expand и фильтра форматов; каталог и реестр показывают «Основа» вместо формата и размера (ДБ-117, ДБ-118)');
+    'раскрыто по одной плитке в ряду, ✕ закрывает, seed() сбрасывает; в странице нет «Развернуть», ⤢, DB.expand и фильтра форматов; каталог и пульт «Плитки дашборда» показывают «Основа» вместо формата и размера (ДБ-117, ДБ-118)');
   DB.seed();
 })();
 
@@ -3695,8 +3695,8 @@ const asUser = id => { DB.state.userId = id; };
     && e13.ok && e13.report.changed.who === 'u13' && e1.error && /правят владелец и соавторы: Шамшиев А\. О\., Бейшеналиева Ж\. Т\./.test(e1.error) && d13 === true && j13.who === 'u13'
     && off11.ok && off11.to === 'u13' && off11.reports.length === cat.length && own13 && j0.action === 'снял роль' && new RegExp('отчётов каталога передано во владение Бейшеналиева Ж\\. Т\\.: ' + cat.length).test(j0.detail)
     && offLast.refused && /Последнего держателя роли «Администратор дашборда» снять нельзя/.test(offLast.msg) && still === 'u13' && on11.ok && back && reset
-    && /<th>Владелец и соавторы<\/th>/.test(src) && /соавторы: \$\{esc\(co\.map\(userName\)\.join\(', '\)\)\}/.test(src) && /kv\('Соавторы'/.test(src) && /onclick="DB\.standRoleOff\('\$\{id\}','adm'\)">Снять роль</.test(src),
-    `администраторов дашборда — ${hold0.split(',').length}: ${U('u11').name} и ${u13.name} (роли «Администратор дашборда, Аналитик» — вкладка одна, «Аналитик»); у всех ${cat.length} отчётов каталога владелец — ${U('u11').name}, соавтор — ${u13.name} (в отчёте и в реестре «Владелец и соавторы»); правку отчёта соавтором приняли (в. ${e13.report.version}, «${e13.report.changed.who}»), не держателю — «${e1.error}»; раскладку роли правит второй держатель; роль сняли у первого — ${off11.reports.length} отчётов во владении у второго, журнал «${j0.detail}»; последнего держателя снять нельзя — «${offLast.msg}»; роль вернули — снова соавтор; seed() — как было (ДБ-202, ДБ-29, ДБ-114)`);
+    && !/Владелец и соавторы/.test(src) && /kv\('Соавторы'/.test(src) && /onclick="DB\.standRoleOff\('\$\{id\}','adm'\)">Снять роль</.test(src),
+    `администраторов дашборда — ${hold0.split(',').length}: ${U('u11').name} и ${u13.name} (роли «Администратор дашборда, Аналитик» — вкладка одна, «Аналитик»); у всех ${cat.length} отчётов каталога владелец — ${U('u11').name}, соавтор — ${u13.name} (в окне отчёта; таблицы отчётов на пульте нет); правку отчёта соавтором приняли (в. ${e13.report.version}, «${e13.report.changed.who}»), не держателю — «${e1.error}»; раскладку роли правит второй держатель; роль сняли у первого — ${off11.reports.length} отчётов во владении у второго, журнал «${j0.detail}»; последнего держателя снять нельзя — «${offLast.msg}»; роль вернули — снова соавтор; seed() — как было (ДБ-202, ДБ-29, ДБ-114)`);
 
   // ДБ-204: у Аналитика своей объявленной раскладки нет — минимальная и «+ экран — копия «Руководства»»: у держателя «Руководства» — его вкладка,
   // иначе — объявленная раскладка «Руководства»; экран свой, смотрит правами всех ролей человека
@@ -3860,7 +3860,7 @@ const asUser = id => { DB.state.userId = id; };
     && /onclick="DB\.accept\('p-u2-agro'\)">Принять<\/button><button class="btn" onclick="DB\.rejectAsk\('p-u2-agro'\)">Отклонить<\/button>/.test(rH) && pc.ok && pc.copy && pc.preview.value === v0 && tempGone
     && R.id === 'r-c-p-u2-agro' && R.shelf === 'catalog' && R.owner === 'u13' && DB.reportCoauthors(R).join() === 'u11' && R.circle.all && DB.reportById('r-u2-agro').shelf === 'personal'
     && acc.tile.state === 'published' && acc.tile.owner === 'catalog' && after[pos] === acc.tile.id && !after.includes('p-u2-agro') && v1 === v0 && DB.catalogFor(u1).some(x => x.t.id === acc.tile.id)
-    && j1.action === 'принял предложение' && j1.who === 'u13' && /личный отчёт скопирован в общий/.test(j1.detail) && n2.length === 1 && n2[0].kind === 'proposal' && /принято/.test(n2[0].text) && /Предложений нет/.test(rH2)
+    && j1.action === 'принял предложение' && j1.who === 'u13' && /личный отчёт скопирован в общий/.test(j1.detail) && n2.length === 1 && n2[0].kind === 'proposal' && /принято/.test(n2[0].text) && !/<article class="prop"/.test(rH2)
     && dup === 'cur-od' && noWhy.error === 'Причина обязательна: её получит автор' && rej.ok && j2.action === 'отклонил предложение' && j2.detail.endsWith('причина: ' + why) && nR.find === 'Просрочено'
     && /отклонено: есть такая: «Просрочено»/.test(nR.text) && DB.tileById(mt.id).state === 'personal' && again === true && unread === 2 && /DB\.catFind\(/.test(src) && /'Уведомления'/.test(src),
     `Бекова предложила «Мои кредиты Агрокредит…» — у плитки и в каталоге «предложена · ждёт», дважды не предложить; у администратора — очередь с предпросмотром как у автора (${v0}) и автопроверкой на копии отчёта; принял второй администратор: личный отчёт скопирован в общий «${R.title}» (владелец ${R.owner}, соавтор ${DB.reportCoauthors(R).join()}), у Бековой на том же месте (${pos + 1}-й) — каталожная ${acc.tile.id} с тем же числом; «Моя просрочка» — автопроверка нашла такую же «Просрочено» (${dup}), без причины не отклонить, отклонена с причиной «${why}» — уведомление со ссылкой «найти в каталоге»; непрочитанных у Бековой ${unread} (колокольчик) (ДБ-200, ДБ-31, ДБ-114)`);
@@ -3872,14 +3872,14 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u11'); const det = cat.map(t => DB.opens90(DB.tileById(t.id))).join() === o90, inRole = cat.filter(t => Object.values(DB.DECLARED_SEED).some(L => L.includes(t.id))).every(t => DB.opens90(t) >= 40);
   const fresh = DB.saveTile(Object.assign(DB.blankDraft('r-prog'), { title:'Программ действует сегодня' }), 'publish').tile, freshC = DB.opens90(fresh) === 0 && !DB.withdrawCandidate(fresh) && DB.daysSince(fresh.created) === 0;
   DB.state.usage['cat-brepsh'] = { opens:1, clicks:0 }; const seen = !DB.withdrawCandidate(DB.tileById('cat-brepsh')); delete DB.state.usage['cat-brepsh'];
-  const rg = DB.registryHTML(), pills = cat.filter(t => new RegExp('data-tile="' + t.id + '"><td>[^<]*<span class="pill cand"').test(rg)).map(t => t.id);
+  DB.pultSec('Заёмщик'); DB.pultSec('Кредитная программа'); const rg = DB.registryHTML(), pills = cat.filter(t => new RegExp('data-tile="' + t.id + '"><td>[^<]*<span class="pill cand"').test(rg)).map(t => t.id);
   DB.state.overlays['u1|lead'] = { order:[], hidden:[], added:['cat-progn'] }; asUser('u1'); DB.screenAdd('sc1', 'cat-progn'); asUser('u11');
   const bad = DB.withdrawTile('cat-progn', 'cat-progn'), bad2 = DB.withdrawTile('cat-progn', 'p-u2-agro'), w = DB.withdrawTile('cat-progn', 'cat-plan'), jw = DB.state.journal[0];
   asUser('u1'); DB.setTab('role', 'lead'); const L0 = DB.composeLayout('u1', 'lead'), xi = L0.indexOf('x:cat-progn'), gh = DB.goneHTML(DB.tileById('cat-progn'), 'x:cat-progn');
   const sw = DB.swapGone('cat-progn'), L1 = DB.composeLayout('u1', 'lead');
   DB.setTab('screen', 'sc1'); const si = DB.screens('u1')[0].items.indexOf('cat-progn'), sw2 = DB.swapGone('cat-progn'), S1 = DB.screens('u1')[0].items;
   asUser('u11'); DB.withdrawTile('cat-brepsh'); const gh0 = DB.goneHTML(DB.tileById('cat-brepsh'), 'x:cat-brepsh'), wr = DB.withdrawTile('lead-risk');
-  ok(352, cands.join() === 'cat-brepsh,cat-progn' && det && inRole && freshC && seen && pills.join() === cands.join() && /<th class="n">Открывали за 90 дней<\/th>/.test(rg)
+  ok(352, cands.join() === 'cat-brepsh,cat-progn' && det && inRole && freshC && seen && pills.join() === cands.join() && (rg.match(/data-deal="cand"/g) || []).length === 2 && /<th class="n"[^>]*><button data-sort="\w+" onclick="DB\.pultSort\('opens'\)">Открывали за 90 дней/.test(rg)
     && bad.error && bad2.error === 'Замена — другая опубликованная плитка каталога' && w.personal === 1 && w.screens === 1 && w.replacement === 'cat-plan' && jw.action === 'снял плитку' && /замена: «Исполнение плана · прошлый месяц»$/.test(jw.detail)
     && xi >= 0 && /<b>Снята<\/b>, замена: «Исполнение плана · прошлый месяц»/.test(gh) && /onclick="DB\.swapGone\('cat-progn'\)">Заменить<\/button><button class="btn sm" onclick="DB\.hide\('cat-progn'\)">Убрать<\/button>/.test(gh)
     && sw.ok && L1[xi] === 'cat-plan' && !L1.includes('x:cat-progn') && L1.length === L0.length && si >= 0 && sw2.ok && S1[si] === 'cat-plan' && !S1.includes('cat-progn')
@@ -3916,11 +3916,11 @@ const asUser = id => { DB.state.userId = id; };
   const menuSrc = src.slice(src.indexOf('function openMenu('), src.indexOf('function screenMenuItems('));
   ok(354, /\.desk-only\{ display:none !important; \} \.phone-only\{ display:block; \}/.test(phone)
     && /const phone = HAS_DOM && window\.matchMedia\('\(max-width:600px\)'\)\.matches;/.test(menuSrc) && /if\(!phone && canConfigure\(t, u\)/.test(menuSrc) && /if\(!phone\) items\.push\(\['Опубликовать в каталог'/.test(menuSrc)
-    && /^<div class="banner info phone-only">Реестр плиток, предложения и снятие — на компьютере\.<\/div><div class="desk-only">/.test(rH3)
+    && /^<div class="banner info phone-only">«Плитки дашборда» — на компьютере: дела, каталог и снятие\.<\/div><div class="desk-only pult">/.test(rH3)
     && !/desk-only/.test(cH3) && /onclick="DB\.addFromCatalog\(/.test(cH3) && /\.cat-row\{ grid-template-columns:minmax\(0,1fr\) auto;/.test(phone)
     && /<button class="linky" onclick="DB\.findReports\(\)">Искать отчёт «нет такой плитки нигде» в отчётности ↗<\/button>/.test(cE) && !/desk-only/.test(cE)
     && /<select id="nav-m" onchange="DB\.go\(this\.value\)">/.test(src) && /@media \(max-width:1000px\)\{[^\n]*\n  \.crumb-title\{ display:none; \} \.nav-m\{ display:block; \}/.test(css),
-    'телефон: каталог — без «только на компьютере», «Добавить» на месте, строка складывается в две, пустой поиск ведёт в отчётность; реестр плиток — на компьютере, «Настроить» и «Опубликовать в каталог» в «⋯» плитки — только на компьютере; меню слева на узком окне — список разделов в шапке (ДБ-208, ДБ-283, ДБ-56)');
+    'телефон: каталог — без «только на компьютере», «Добавить» на месте, строка складывается в две, пустой поиск ведёт в отчётность; пульт «Плитки дашборда» — на компьютере, «Настроить» и «Опубликовать в каталог» в «⋯» плитки — только на компьютере; меню слева на узком окне — список разделов в шапке (ДБ-208, ДБ-283, ДБ-56)');
   DB.seed();
 })();
 
@@ -3996,11 +3996,11 @@ const asUser = id => { DB.state.userId = id; };
   for (let i = 0; i < 5; i++) DB.homeHTML(); DB.setPanel('region', [OSH]); DB.homeHTML(); DB.clearPanel(); const bR = o('lead-bal');
   DB.openView('lead-bal', 'slice'); const b1 = o('lead-bal'); DB.openView('lead-bal', 'table'); DB.homeHTML(); const b2s = o('lead-bal');
   DB.closeView('lead-bal'); DB.primary('lead-bal'); const b3 = o('lead-bal'), k3 = DB.state.open['lead-bal'] && DB.state.open['lead-bal'].kind; DB.primary('lead-bal'); const b4 = o('lead-bal');
-  const t0 = o('tasks'); DB.primary('tasks'); const t1 = o('tasks'), cl = DB.state.usage['lead-bal'].clicks;
+  const t0 = o('tasks'); DB.primary('tasks'); const t1 = o('tasks'), cl = DB.state.usage['lead-bal'].clicks;   // счётчика кликов нет: клик по числу — уже открытие
   const rh = src.slice(src.indexOf('function renderHome('), src.indexOf('function hiddenChips('));
-  ok(359, bR === b0 && b1 === b0 + 1 && b2s === b1 && b3 === b1 + 1 && k3 === 'table' && b4 === b3 && t1 === t0 + 1 && cl >= 3 && !/countView|countOpen/.test(rh) && !/function countView/.test(src)
-    && /if\(!S\.open\[t\.id\]\) countOpen\(t\.id\)/.test(src) && /countClick\(tileId\); countOpen\(tileId\);/.test(src) && /\(S\.usage\[t\.id\] \|\| \{\}\)\.opens/.test(src),
-    `«Остаток задолженности»: ${b0} — пять перерисовок главной и фильтр — ${bR}; открытие полосы — ${b1}, смена вида в открытой полосе и перерисовка — ${b2s}; закрыли и клик по числу открыл снова (последний вид — Таблица) — ${b3}; клик, закрывший полосу, — ${b4}; клик по числу ссылочной «Мои задания» (очередь) — ${t0} → ${t1}; кликов — отдельный счётчик (${cl}) (ДБ-Д57, ДБ-201, ДБ-51)`);
+  ok(359, bR === b0 && b1 === b0 + 1 && b2s === b1 && b3 === b1 + 1 && k3 === 'table' && b4 === b3 && t1 === t0 + 1 && cl === undefined && !/countClick|clicks/.test(src) && !/countView|countOpen/.test(rh) && !/function countView/.test(src)
+    && /if\(!S\.open\[t\.id\]\) countOpen\(t\.id\)/.test(src) && /else \{ countOpen\(tileId\); if\(c\.act==='queue'\)/.test(src) && /\(S\.usage\[t\.id\] \|\| \{\}\)\.opens/.test(src),
+    `«Остаток задолженности»: ${b0} — пять перерисовок главной и фильтр — ${bR}; открытие полосы — ${b1}, смена вида в открытой полосе и перерисовка — ${b2s}; закрыли и клик по числу открыл снова (последний вид — Таблица) — ${b3}; клик, закрывший полосу, — ${b4}; клик по числу ссылочной «Мои задания» (очередь) — ${t0} → ${t1}; отдельного счётчика кликов нет (ДБ-Д57, ДБ-201, ДБ-51, ДБ-303)`);
   DB.seed();
 })();
 
@@ -4956,9 +4956,9 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u2'); const npc = DB.publishCheck(DB.pin('r-portfolio').tile.id, []), nAsk = DB.publishAsk(T('cur-od').id);
   ok(425, pc0 && pc0.ok && !pc0.waits && !pc0.copy && nt.owner === 'catalog' && nt.state === 'published' && nt.report === 'r-portfolio' && !nt.forRoles
     && ap.state === 'accepted' && L1.includes(nt.id) && !L1.includes(ap.id) && jp.action === 'опубликовал плитку'
-    && !/>Новая плитка<|DB\.go\('builder'\)/.test(rh) && /Новая плитка каталога — «📌» из отчёта и «Опубликовать в каталог» на своей плитке/.test(rh) && /onclick="DB\.configure\('lead-od'\)">Настроить<\/button>/.test(rh) && !/DB\.publishDraft\(/.test(rh)
+    && !/>Новая плитка<|DB\.go\('builder'\)/.test(rh) && /Новая плитка каталога — «📌» из отчёта и «Опубликовать в каталог» на своей плитке/.test(rh) && /if\(canConfigure\(t, u\)\) items\.push\(\['Настроить', `DB\.configure\('\$\{t\.id\}'\)`/.test(src) && !/>Настроить<\/button>/.test(rh) && !/DB\.publishDraft\(/.test(rh)
     && ce.tile && T('lead-od').version === lv + 1 && !npc.ok && /публикует администратор дашборда/.test(npc.checks[0].text) && nAsk === null,
-    `администратор: «📌» → своя плитка → «Опубликовать в каталог» с ролью «Куратор кредита» — «${nt.title}» опубликована, у него заменена каталожной, журнал «${jp.action}»; в реестре нет «Новая плитка», у строк — «Настроить» (версия «Просрочено» ${lv} → ${T('lead-od').version}); не администратору — «${npc.checks[0].text}» (ДБ-282)`);
+    `администратор: «📌» → своя плитка → «Опубликовать в каталог» с ролью «Куратор кредита» — «${nt.title}» опубликована, у него заменена каталожной, журнал «${jp.action}»; на пульте нет «Новая плитка», у строк — «⋯ → Настроить» (версия «Просрочено» ${lv} → ${T('lead-od').version}); не администратору — «${npc.checks[0].text}» (ДБ-282)`);
 
   // ДБ-284: публикация плитки на личный отчёт копирует его в общий отчёт каталога, как при «Принять»
   admin(); DB.newReportDraft(); DB.rSet('obj', 'loan'); DB.rInd('loan.overdue', true); DB.rTitle('Мой портфель для каталога'); const rp = DB.rSaveAndPlace();
@@ -4970,14 +4970,14 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-285: отчёт ещё не отвечает (эпизоды просрочки — до ядра): своя плитка стоит с отказом, публикация — черновиком «ждёт отчёта»; держатели его
   // не видят, в раскладку роли его ставят; ночная проверка публикует сам, когда отчёт ответил
   admin(); DB.stand('spells', false); const ep = DB.pin('r-spells'), ps0 = ep.tile && ep.tile.state, ea = DB.ask(ep.tile, u1, 'lead', {}), epc = DB.publishCheck(ep.tile.id, []);
-  const ew = DB.publishOwn(ep.tile.id), et = ew.tile, st0 = et.state, ans0 = DB.tileAnswers(et), rh2 = DB.registryHTML();
+  const ew = DB.publishOwn(ep.tile.id), et = ew.tile, st0 = et.state, ans0 = DB.tileAnswers(et), rh2 = (DB.pultState('wait'), DB.pultSec(DB.catSection(et)), DB.registryHTML()), inDeals = DB.pultDeals().n !== DB.pultDeals().cands.length; DB.pultState('active');
   DB.declaredEdit('lead', 'add', et.id); const inL0 = DB.declaredItems('lead').includes(et.id), n0 = DB.nightCheck().published;
   DB.stand('spells', true); const n1 = DB.nightCheck().published, jn = DB.state.journal[0], inL1 = DB.declaredItems('lead').includes(et.id);
   asUser('u2'); const npin = DB.pin('r-nope');
   ok(427, ps0 === 'personal' && ea.state === 'refusal' && epc.ok && epc.waits && ew.waits && st0 === 'draft'
-    && !ans0 && /черновик · ждёт отчёта/.test(rh2) && !inL0 && n0.length === 0 && n1.includes(et.id) && T(et.id).state === 'published'
+    && !ans0 && new RegExp('data-tile="' + et.id + '"><td>[^<]*<span class="pill warn"[^>]*>ждёт отчёта</span>').test(rh2) && !inDeals && !inL0 && n0.length === 0 && n1.includes(et.id) && T(et.id).state === 'published'
     && jn.action === 'опубликована автопроверкой' && jn.who === 'Автопроверка' && inL1 && npin.error === 'Отчёт не найден',
-    `ворота эпизодов на стенде выключены: своя плитка «${ep.tile.title}» стоит с отказом, «Опубликовать» — черновиком «ждёт отчёта» (в реестре так и подписан), в раскладку «Руководства» поставлена, держателям не видна; ночная проверка без эпизодов — ничего, с эпизодами — «${jn.action}» и плитка на главной (ДБ-285, ИДБ-14)`);
+    `ворота эпизодов на стенде выключены: своя плитка «${ep.tile.title}» стоит с отказом, «Опубликовать» — черновиком «ждёт отчёта» (на пульте — метка «ждёт отчёта», в дела не входит), в раскладку «Руководства» поставлена, держателям не видна; ночная проверка без эпизодов — ничего, с эпизодами — «${jn.action}» и плитка на главной (ДБ-285, ИДБ-14)`);
 
   // ДБ-280: витрина отчётности (заглушка соседа) — поиск по названию и составу в круге смотрящего; «📌» оттуда — плитка со значениями «все»
   cur(); const fu2 = DB.findReports('агрокредит'), fu1 = (asUser('u1'), DB.reportSearch(u1, 'агрокредит').map(r => r.id)), fo = DB.reportSearch(u1, 'просрочено').map(r => r.id);
@@ -5101,6 +5101,96 @@ const asUser = id => { DB.state.userId = id; };
   ok(441, rd.state === 'refusal' && /объект статистики «Кредит» ещё не объявлен, а «Эпизод просрочки» виден через него; владелец — модуль «Кредиты»/.test(rd.msg) && rdy === false
     && DB.ask(T('cur-spin'), u2, 'cur', {}).state === 'ok',
     `модуль «Кредиты» не объявил статистике кредит — плитка эпизодов отказывает: «${rd.msg}» (ДБ-Д76)`);
+  DB.seed();
+})();
+
+/* ---------- AJ. Волна 23 (19.10.2026): пульт «Плитки дашборда» — ДБ-298…ДБ-310, ДБ-Д77, ДБ-Д78 ---------- */
+(() => {
+  // ДБ-298, ДБ-308, ДБ-301: одна колонка — дела, фильтры, каталог; 11 секций по объекту, свёрнуты; в каталоге 91 плитка
+  DB.seed(); asUser('u11'); DB.go('registry');
+  const h0 = DB.registryHTML(), v0 = DB.pultView(), iD = h0.indexOf('Требует действия'), iT = h0.indexOf('class="pl-tools"'), iC = h0.indexOf('id="pl-cat-h"');
+  const secs = (h0.match(/<button class="pl-sec/g) || []).length, names = v0.sections.map(s => s.name).join();
+  ok(442, iD > 0 && iT > iD && iC > iT && secs === 11 && names === DB.CAT_SECTIONS.map(x => x[0]).join() && !/<table class="pl-t"/.test(h0) && v0.sections.every(s => !s.open)
+    && sum(v0.sections.map(s => s.rows.length)) === 91 && v0.of === 91 && /<span class="pl-n" id="pl-n">91 из 91<\/span>/.test(h0) && /grid-template-columns:18px minmax\(0,1fr\) 100px 230px/.test(src),
+    `пульт одной колонкой: «Требует действия» → фильтры → «Каталог»; ${secs} секций (${v0.sections.map(s => s.name + ' ' + s.rows.length).join(' · ')}), все свёрнуты, «91 из 91» (ДБ-298, ДБ-301, ДБ-308)`);
+
+  // ДБ-299, ДБ-300, ДБ-307: дела — предложение карточкой, поломка строкой на причину, второе число и кандидат — строкой на плитку; число в меню без кандидатов
+  DB.seed(); asUser('u11'); const n0 = DB.pultWaiting(), d0 = DB.pultDeals();
+  DB.standReport('archive'); DB.standWithdraw('loan.risk', true); DB.standWithdraw('rsapp.late', true);
+  asUser('u2'); DB.propose('p-u2-agro'); asUser('u11');
+  const d1 = DB.pultDeals(), n1 = DB.pultWaiting(), h1 = DB.registryHTML(), arch = d1.broken.find(b => /в архиве/.test(b.cause)), wd = d1.broken.find(b => /выведен/.test(b.cause));
+  const rows = h1.slice(h1.indexOf('Требует действия'), h1.indexOf('class="pl-tools"')), brk = (rows.match(/data-deal="broken"/g) || []).length, sec = (rows.match(/data-deal="second"/g) || []).length;
+  const nh = src.slice(src.indexOf('const nWait = isAdmin(u) ? pultWaiting() : 0;'), src.indexOf('// узкое окно и телефон'));
+  ok(443, n0 === 0 && d0.n === 2 && d0.cands.length === 2 && arch && arch.tiles.length === 4 && arch.cause === 'Отчёт «Требования» в архиве' && wd && wd.tiles.map(t => t.id).join() === 'lead-risk,cur-risk'
+    && d1.second.map(x => x.t.id).join() === 'lead-rs,cur-rs' && d1.proposals.length === 1 && n1 === 1 + 2 + 2 && d1.n === n1 + 2 && brk === 2 && sec === 2
+    && /<article class="prop" data-tile="p-u2-agro"/.test(rows) && /<b>Отчёт «Требования» в архиве<\/b> — сломаны 4/.test(rows) && /<details class="deal-l">/.test(rows)
+    && /onclick="DB\.openReport\('lead-claims'\)">Открыть отчёт ↗<\/button>/.test(rows) && (rows.match(/onclick="DB\.withdrawAsk\('(lead-claims|prob-claims|prob-since|prob-real)'\)">Снять…/g) || []).length === 4
+    && /выведен показатель «Регламентный срок нарушен»/.test(rows) && /onclick="DB\.configure\('lead-rs'\)">Настроить<\/button>/.test(rows) && /второе число «—», главное отвечает/.test(rows)
+    && /onclick="DB\.keep\('cat-brepsh'\)">Оставить<\/button>/.test(rows) && /nWait = isAdmin\(u\) \? pultWaiting\(\) : 0;/.test(nh) && /ждут вас: /.test(nh),
+    `на стенде дел ${d0.n} — два кандидата, число у пункта меню ${n0}; архив «Требований», выведены «Сумма под риском» и «Регламентный срок нарушен», предложение Бековой — строк поломок ${brk} (архив — одна на 4 плитки, перечень по раскрытию, «Снять…» у каждой), второе число ${sec}, число у меню ${n1} = предложение + 2 поломки + 2 вторых числа, кандидаты не в счёте (ДБ-299, ДБ-300, ДБ-307)`);
+
+  // ДБ-299, ДБ-309: дел нет — одна строка «Всё в порядке»; черновик «ждёт отчёта» — не дело
+  DB.seed(); asUser('u11'); DB.keepCandidate('cat-brepsh'); DB.keepCandidate('cat-progn'); const he = DB.registryHTML(), de = DB.pultDeals();
+  DB.roleOn('u1', 'adm'); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('spells', false); const ep = DB.pin('r-spells'), pw = DB.publishOwn(ep.tile.id), dr = DB.pultDeals(); DB.stand('spells', true);
+  ok(444, de.n === 0 && /<div class="pl-card pl-ok" role="status">.*<b>Всё в порядке<\/b> <span class="muted">· предложений, поломок и кандидатов на снятие нет<\/span>/.test(he) && !/Требует действия/.test(he)
+    && pw.tile && pw.tile.state === 'draft' && dr.n === 0 && !/Предложений нет|Новая плитка каталога — «📌» из отчёта и «Опубликовать в каталог» на своей плитке\. Цикл/.test(he.replace(/data-tip="[^"]*"/g, '')),
+    `оба кандидата оставлены — блок дел одной строкой «Всё в порядке»; черновик «${pw.tile.title}» ждёт отчёта и в дела не входит; абзацев пояснений на пульте нет (ДБ-299, ДБ-309)`);
+
+  // ДБ-306: «Оставить» — из дел, отсчёт 90 дней заново, журнал; ещё 90 дней без открытий — снова кандидат; не кандидата не оставить
+  DB.seed(); asUser('u11'); const k = DB.keepCandidate('cat-progn'), jk = DB.state.journal[0], gone = !DB.withdrawCandidate(T('cat-progn')), dk = DB.pultDeals().cands.map(t => t.id).join();
+  DB.state.kept['cat-progn'] = '12.07.2026'; const back = DB.withdrawCandidate(T('cat-progn')), kNo = DB.keepCandidate('lead-od'); DB.nightCheck();
+  asUser('u1'); const kU = DB.keepCandidate('cat-brepsh'); asUser('u11');
+  ok(445, k.ok && k.at === '11.10.2026' && jk.action === 'оставил кандидата' && /«Программ действует» · отсчёт 90 дней без открытий — заново с 11\.10\.2026/.test(jk.detail) && gone && dk === 'cat-brepsh'
+    && back && kNo.error === 'Плитка не кандидат на снятие' && kU.error === 'Оставляет администратор дашборда' && T('cat-progn').state === 'published' && DB.withdrawCandidate(T('cat-progn')),
+    `«Оставить» «Программ действует»: из дел (остался ${dk}), журнал «${jk.action}», отсчёт с ${k.at}; оставлена 91 день назад — снова кандидат; «Просрочено» — «${kNo.error}»; не администратору — «${kU.error}»; после ночного прогона плитка опубликована и по-прежнему кандидат — автоснятия нет (ДБ-306)`);
+
+  // ДБ-302: поиск по названию, отчёту и параметрам; «Роль»; «Состояние» — действующие по умолчанию; при поиске раскрыты секции с совпадениями
+  DB.seed(); asUser('u11'); const sq = DB.pultFind('куратор: я'), sr = DB.pultFind('Дела взыскания'), sOpen = sr.sections.filter(s => s.open).map(s => s.name).join(), dim = sr.sections.filter(s => !s.rows.length).length;
+  const hs = DB.registryHTML(), none = DB.pultFind('нет такой плитки'), hn = DB.registryHTML(); DB.pultFind('');
+  const vr = DB.pultRole('cur'), vn = DB.pultRole('none'); DB.pultRole('all'); DB.withdrawTile('cat-progn', 'cat-plan');
+  const va = DB.pultView(), vg = DB.pultState('gone'); DB.pultSec('Кредитная программа'); const hg = DB.registryHTML(), vall = DB.pultState('all'); DB.pultState('active');
+  ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 5 && sr.rows.every(x => x.report === 'Дела взыскания') && sOpen === 'Взыскание' && dim === 10
+    && /<span class="pl-n" id="pl-n">5 из 91<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 91/.test(hn)
+    && vr.rows.every(x => x.w.roles.includes('cur')) && vr.n === DB.state.declared.cur.filter(k => !k.startsWith('s:')).length && vn.rows.every(x => !x.w.roles.length) && vn.rows.every(x => x.t.id.startsWith('cat-'))
+    && va.n === 90 && va.of === 91 && vg.n === 1 && /data-tile="cat-progn"><td>Программ действует <span class="pill info">снята · замена «Исполнение плана · прошлый месяц»<\/span>/.test(hg) && vall.n === 91
+    && /<option value="none">ни в одной<\/option>/.test(hs) && /<option value="active" selected>действующие<\/option><option value="wait">ждёт отчёта<\/option><option value="gone">снятые<\/option><option value="all">все<\/option>/.test(hs),
+    `поиск «куратор: я» — ${sq.n}, «Дела взыскания» (отчёт) — ${sr.n}, раскрыта «${sOpen}», 10 секций серые; «Роль: Куратор кредита» — ${vr.n}, «ни в одной» — ${vn.n}; после снятия «Программ действует» действующих ${va.n} из 91, «снятые» — 1 с меткой «снята · замена …», «все» — ${vall.n} (ДБ-302)`);
+
+  // ДБ-303, ДБ-310, ДБ-Д77, ДБ-Д78: пять колонок, метки — только у необычного; у строки секции — число, «открывали» суммой и метки дел; внутри — по «открывали» убыванием
+  DB.seed(); asUser('u11'); DB.configure('lead-od'); DB.dTitle('Просрочено'); DB.cfgSave(); DB.standReport('archive');
+  DB.pultSec('Кредит'); const hk = DB.registryHTML(), vk = DB.pultView(), kr = vk.sections.find(s => s.name === 'Кредит'), vz = vk.sections.find(s => s.name === 'Взыскание');
+  const head = (hk.match(/<table class="pl-t">[\s\S]*?<\/tr>/) || [''])[0], ths = (head.match(/<th/g) || []).length, sorted = kr.rows.every((x, i) => i === 0 || kr.rows[i - 1].opens >= x.opens);
+  DB.pultSort('title'); const ka = DB.pultView().sections.find(s => s.name === 'Кредит').rows.map(x => x.t.title), byT = ka.every((t, i) => i === 0 || ka[i - 1].localeCompare(t, 'ru') <= 0);
+  DB.pultSort('title'); const kd = DB.pultView().sections.find(s => s.name === 'Кредит').rows.map(x => x.t.title)[0];
+  const odRow = (hk.match(/<tr data-tile="lead-od">[\s\S]*?<\/tr>/) || [''])[0], balRow = (hk.match(/<tr data-tile="lead-bal">[\s\S]*?<\/tr>/) || [''])[0];
+  ok(447, ths === 6 && /Плитка<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('report'\)">Отчёт<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('base'\)">Основа<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('where'\)">Где стоит<\/button><\/th><th class="n" aria-sort="descending">/.test(head)
+    && !/Вопрос|Кликов|>Состояние<|>Версия</.test(head) && sorted && byT && kd === ka[ka.length - 1] && /<span class="pill info"[^>]*>в\. 2<\/span>/.test(odRow) && !/class="pill/.test(balRow)
+    && /<div class="p">куратор: все · на сегодня<\/div>/.test(balRow) && kr.opens === sum(kr.rows.map(x => DB.opens90(x.t))) && vz.flags.broken === 4
+    && /<span class="nm">Взыскание<\/span><span class="flag crit">сломана 4<\/span><\/span>\s*<span class="ct">11 плиток<\/span><span class="op">открывали за 90 дн\. [\d\s]+<\/span>/.test(hk)
+    && /<span class="nm">Заёмщик<\/span><span class="flag idle">кандидат 1<\/span>/.test(hk) && /<div class="bad">Отчёт «Требования» в архиве<\/div>/.test(DB.pultCatalogHTML((DB.pultSec('Взыскание'), DB.pultView()))),
+    `раскрытый «Кредит» (${kr.rows.length}): пять колонок и «⋯» — без «Вопрос», «Состояние», «Версия», «Кликов»; по «открывали» убыванием, щелчок по «Плитка» — по алфавиту и обратно; у «Просрочено» после «Настроить» — «в. 2», у «Остатка» меток нет; у «Взыскания» — «сломана 4», у «Заёмщика» — «кандидат 1» (ДБ-303, ДБ-310, ДБ-Д77, ДБ-Д78)`);
+
+  // ДБ-304, ДБ-305: действия строки — «⋯»: Настроить · Открыть отчёт ↗ · Снять…; кнопок в строке нет; таблицы отчётов на пульте нет
+  const menu = src.slice(src.indexOf('function openPultMenu('), src.indexOf('function keepCandidate('));
+  ok(448, /<button class="pl-more" aria-label="Действия с плиткой «Просрочено»" onclick="DB\.pultMenu\(event,'lead-od'\)">/.test(odRow) && !/class="btn/.test(odRow)
+    && /items\.push\(\['Настроить'[\s\S]*items\.push\(\['Открыть отчёт ↗'[\s\S]*items\.push\(\['Снять…', `DB\.withdrawAsk/.test(menu) && /pultMenu:\(ev, id\)=>openPultMenu\(ev, id\)/.test(src)
+    && !/Отчёты каталога и личные отчёты на плитках|function reportsTable|<th>Кормит плитки<\/th>/.test(src),
+    'строка каталога — одна кнопка «⋯» (Настроить · Открыть отчёт ↗ · Снять…), других кнопок нет; таблицы «Отчёты каталога и личные отчёты на плитках» на пульте нет (ДБ-304, ДБ-305)');
+
+  // ДБ-309: как заводится каталожная плитка и её цикл — подсказкой у заголовка «Каталог»; поиск не сбрасывает поле
+  ok(449, /<b class="h2" id="pl-cat-h" data-tip="Новая плитка каталога — «📌» из отчёта и «Опубликовать в каталог» на своей плитке; личную плитку предлагают из «⋯» на ней\. Цикл: черновик «ждёт отчёта» → опубликована → снята;/.test(hk)
+    && /\$\('pl-cat'\)\.innerHTML = pultCatalogHTML\(v\); \$\('pl-n'\)\.textContent = v\.n\+' из '\+v\.of;/.test(src),
+    'пояснение о каталоге — подсказкой у заголовка «Каталог», абзацев нет; поиск перерисовывает только каталог и счётчик — фокус остаётся в поле (ДБ-309)');
+
+  // ревью: одна причина «нет главного числа» у плиток разных отчётов — две строки, «Открыть отчёт ↗» и роли у каждой свои; фокус после перерисовки
+  DB.seed(); asUser('u11'); T('lead-od').main = null; T('prob-claims').main = null; T('cur-od').main = null;
+  const g = DB.pultDeals().broken.filter(b => b.cause === 'У плитки нет главного числа'), hb = DB.registryHTML();
+  const gp = g.find(b => b.tiles.some(t => t.id === 'lead-od')), gc = g.find(b => b.tiles.some(t => t.id === 'prob-claims'));
+  ok(450, g.length === 2 && gp.tiles.map(t => t.id).join() === 'lead-od,cur-od' && gp.report === 'lead-od' && gc.tiles.map(t => t.id).join() === 'prob-claims' && gc.report === 'prob-claims'
+    && DB.pultWaiting() === 2 && /onclick="DB\.openReport\('lead-od'\)">Открыть отчёт ↗/.test(hb) && /onclick="DB\.openReport\('prob-claims'\)">Открыть отчёт ↗/.test(hb)
+    && /у держателей ролей Руководство, Куратор кредита вместо числа отказ/.test(hb) && /function pultRender\(sel\)\{ render\(\);[^\n]*el\.focus\(\)/.test(src)
+    && /pultRole:\(r\)=>\{ S\.pult\.role = r; pultRender\('#pl-role'\)/.test(src) && /data-sec="\$\{esc\(s\.name\)\}"/.test(src),
+    `«нет главного числа» у «Просрочено» (Руководство и Куратор, отчёт «Портфель кредитов») и «Требований открыто» (отчёт «Требования») — ${g.length} строки, «Открыть отчёт ↗» у каждой свой, число у меню 2; выбор, сортировка, секция и «Оставить» возвращают фокус на свой элемент (ревью волны 23)`);
   DB.seed();
 })();
 
