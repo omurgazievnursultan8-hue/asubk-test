@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–19, 11–18.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–20, 11–19.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-278, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-286, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -147,6 +147,11 @@
 //      прогрев всех баз, штамп выгрузки, точка базы в Ряде, переоценка — в «прочем» до потока ядра; #423 — находки ревью. Прежние проверки 23, 100, 132, 156,
 //      170, 192, 210, 216, 236, 249, 256, 306, 331, 337, 362, 366, 375, 376, 388, 401, 409–412 читают новые подписи («за месяц», «на 01.10»)
 //      и пять баз; 331 читает свой список вкладок, а не переключатель; 366 — прогрев 158 вопросов вместо 65.
+//   AG волна 20 (19.10.2026), ДБ-279…ДБ-286: страницы «+ Плитка» и конструктора поверх дашборда нет; «📌» ставит плитку сразу (из окна
+//      отчёта — со значениями параметров плитки), форма — «Настроить» на плитке и в реестре; администратор публикует свою плитку сам,
+//      личный отчёт копируется в общий; черновик каталога — «ждёт отчёта», выходит ночной проверкой; пустой каталог — витрина
+//      отчётности; «📌 Сохранить отчётом» — в конструктор отчётности; #430 — находки ревью. Переписаны 133 (Настроить → версия 3), 144 (сборка — заглушка
+//      отчётности), 305 (форма плитки), 348 (пустой поиск → отчётность), 350 (страницы нет), 354 (телефон).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -929,13 +934,14 @@ const asUser = id => { DB.state.userId = id; };
     && good.ok && good.preview.state === 'ok' && good.preview.value === sum(lt.map(x => x[1])) && odN(gv)
     && gpct.ok && gpct.preview.value === lbo.value && gpct.preview.num === lbo.num,
     'автопроверка плитки: пятая колонка Таблицы, второе число и колонка Таблицы другого рода, Карта из одного разреза, «% от итога группы» не по разрезу отчёта или по несуществующей ячейке, база сдвига на дату плитки, без подписи, отчёт в архиве — отказ с причиной; годный черновик проходит, предпросмотр — основа, равная числам каталога; черновик каталога публикуется той же автопроверкой (ДБ-109, ДБ-30, ДБ-127)');
-  // «📌 на дашборд» → личная плитка: ссылка, значения, главное и второе число, светофор, умолчания видов; правка — версия, другой отчёт — новая плитка
+  // «📌 на дашборд» → личная плитка сразу, с умолчаниями; «Настроить» — главное и второе число, светофор, умолчания видов — новая версия;
+  // правка — версия, другой отчёт — новая плитка
   DB.seed(); asUser('u1');
-  const pd = DB.pin('r-portfolio'), pinned = DB.draft === pd && pd.report === 'r-portfolio' && pd.title === DB.reportById('r-portfolio').title
-    && pd.main.col === 'loan.balance' && pd.second.col === 'loan.count' && pd.second.label === 'кредитов';
-  DB.dMain('col', 'loan.overdue'); DB.dSecond('share', 'loan.overdue', 'loan.balance'); DB.dSecond('label', 'портфеля');
+  const pr = DB.pin('r-portfolio'), pd = pr.tile || {}, pinned = pd.report === 'r-portfolio' && pd.title === DB.reportById('r-portfolio').title && pd.version === 1
+    && pd.main.col === 'loan.balance' && pd.second.col === 'loan.count' && pd.second.label === 'кредитов' && DB.composeLayout('u1', 'lead').includes(pd.id);
+  DB.configure(pd.id); DB.dMain('col', 'loan.overdue'); DB.dSecond('share', 'loan.overdue', 'loan.balance'); DB.dSecond('label', 'портфеля');
   DB.dTl('on', 'second'); DB.dTl('red', '>', '5'); DB.dTl('yellow', null, '4'); DB.dView('slice', 'dim', 'bucket'); DB.dTitle('Просрочено — моя');
-  const nt = (DB.saveDraft('personal') || {}).tile || {};
+  const nt = (DB.cfgSave() || {}).tile || {};
   const SHOW = ['id', 'kind', 'report', 'params', 'main', 'second', 'shift', 'tl', 'views', 'title', 'owner', 'state', 'version', 'created'];
   const an = DB.ask(nt, U('u1'), 'lead', {}), lo = DB.ask(T('lead-od'), U('u1'), 'lead', {});
   const mn = DB.view(nt.id, 'move', null, [], 'u1', 'lead', {}), mo = DB.view('lead-od', 'move', null, [], 'u1', 'lead', {});
@@ -944,8 +950,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(133, pinned && Object.keys(nt).length && Object.keys(nt).every(k => SHOW.includes(k)) && !own(nt) && nt.state === 'personal' && nt.owner === 'u1' && nt.report === 'r-portfolio'
     && nt.main.col === 'loan.overdue' && nt.second.share.join() === 'loan.overdue,loan.balance' && nt.tl.on === 'second' && nt.views.slice.dim === 'bucket'
     && an.state === 'ok' && an.value === lo.value && an.second.value === lo.second.value && an.tl === lo.tl && JSON.stringify(mn.move) === JSON.stringify(mo.move) && an.passport === lo.passport
-    && e1.tile && v1 === 2 && /день закрыт/.test(ac.passport) && e2.error === 'Другой отчёт — это новая плитка' && e3.error && nt.version === 2 && nt.report === 'r-portfolio' && !own(nt),
-    `«📌» из «${DB.reportById('r-portfolio').title}» → личная плитка «${nt.title}»: поля ${Object.keys(nt).join(', ')}; главное, доля и светофор = «Просрочено» Руководства, Движение то же; правка значения даты — версия ${v1}; другой отчёт — «${e2.error}» (ДБ-103, ДБ-113, ДБ-116)`);
+    && nt === pd && e1.tile && v1 === 3 && /день закрыт/.test(ac.passport) && e2.error === 'Другой отчёт — это новая плитка' && e3.error && nt.version === 3 && nt.report === 'r-portfolio' && !own(nt),
+    `«📌» из «${DB.reportById('r-portfolio').title}» → личная плитка сразу, «Настроить» → «${nt.title}»: поля ${Object.keys(nt).join(', ')}; главное, доля и светофор = «Просрочено» Руководства, Движение то же; правка значения даты — версия ${v1}; другой отчёт — «${e2.error}» (ДБ-103, ДБ-113, ДБ-116)`);
   // плитка без отчёта и без очереди сломана, даже если несёт вопрос сама
   const bare = { id:'bare', title:'Без отчёта', kind:'overview' };
   const oldq = { id:'old-q', title:'Свой вопрос', kind:'overview', inds:['loan.count'], dims:[], filter:[] };
@@ -1105,18 +1111,19 @@ const asUser = id => { DB.state.userId = id; };
     `у плитки очереди сигнала нет (${links.length} плиток, в том числе с порогами светофора) — «${lowcov.error}»; у плитки с отчётом по-прежнему по сигналу на порог; подпись строки читается у всех ${kinds.length} видов объектов, не падая на чужих полях (ДБ-106, ДБ-105)`);
   DB.seed();
 
-  // «Собрать новый отчёт» на экране «+ Плитка»: ящик конструктора отчётности открывается поверх страницы; черновик отчёта один,
-  // повторное открытие его не стирает, «начать заново» стирает, «сохранить и поставить» закрывает
+  // конструктора отчётности поверх дашборда нет — отчёт собирают в отчётности (ДБ-279); на стенде сборка — заглушка соседа:
+  // черновик отчёта один, «похожий уже есть» узнаёт свой, «начать заново» стирает, «сохранить» + «📌» — личный отчёт и плитка на нём
   asUser('u1');
-  const rcNone = DB.rdraft, rcFirst = DB.openRC(), rcObj = rcFirst && rcFirst.obj;
+  const rcNone = DB.rdraft, rcGone = typeof DB.openRC === 'undefined' && typeof DB.builderHTML === 'undefined' && typeof DB.mOwnReport === 'undefined';
+  const rcFirst = DB.newReportDraft(), rcObj = rcFirst && rcFirst.obj;
   DB.rSet('obj', 'borrower'); DB.rDim('bover', true); DB.rTitle('Заёмщики по договорам с просрочкой (мой)');
-  const rcAgain = DB.openRC(), rcSame = DB.rdraft === rcAgain && rcAgain.obj === 'borrower' && rcAgain.dims.join() === 'bover';
+  const rcSame = DB.rdraft.obj === 'borrower' && DB.rdraft.dims.join() === 'bover';
   const rcSim = DB.similarReport(DB.rdraft, u1), rcFresh = DB.newReportDraft(), rcKept = DB.rdraft === rcFresh && rcFresh.dims.length === 0 && rcFresh.obj === 'loan';
   DB.rSet('obj', 'borrower'); DB.rDim('bover', true); DB.rTitle('Заёмщики по договорам с просрочкой (мой)');
   const rcPlaced = DB.rSaveAndPlace();
-  ok(144, rcNone === null && rcFirst && rcObj === 'loan' && rcSame && rcSim && rcSim.r.id === 'r-borover' && rcKept
+  ok(144, rcNone === null && rcGone && rcFirst && rcObj === 'loan' && rcSame && rcSim && rcSim.r.id === 'r-borover' && rcKept
     && rcPlaced && !rcPlaced.error && rcPlaced.report.shelf === 'personal' && DB.rdraft === null,
-    `«Собрать новый отчёт» открывает конструктор отчётности: черновик один (${rcObj}), повторное открытие его не стирает, «начать заново» стирает; черновик «заёмщики × договоров с просрочкой» узнаёт «${rcSim && rcSim.r.title}»; «сохранить и поставить» собирает личный отчёт и закрывает черновик`);
+    `конструктора поверх дашборда нет; сборка на стенде (заглушка отчётности): черновик один (${rcObj}), «начать заново» стирает; черновик «заёмщики × договоров с просрочкой» узнаёт «${rcSim && rcSim.r.title}»; «сохранить» + «📌» — личный отчёт и плитка, черновик закрыт (ДБ-279)`);
   DB.seed();
 })();
 
@@ -1517,7 +1524,7 @@ const asUser = id => { DB.state.userId = id; };
   // раскрытие: в ряду одна плитка, в разных рядах по одной, не хранится; в странице нет «Развернуть», ⤢, размеров плиток главной и фильтра форматов
   DB.openView('lead-od', 'map'); DB.openView('lead-issued', 'table'); const one = Object.keys(DB.state.open).sort().join() + ':' + DB.state.open['lead-issued'].kind;
   DB.closeView('lead-issued'); DB.closeView('lead-od'); const none = Object.keys(DB.state.open).length; DB.openView('lead-od', 'series'); DB.seed();
-  const cat = src.slice(src.indexOf('function renderCatalog('), src.indexOf('/* ---------- «+ Плитка»')), reg = src.slice(src.indexOf('function renderRegistry('), src.indexOf('function renderLayouts('));
+  const cat = src.slice(src.indexOf('function renderCatalog('), src.indexOf('/* ---------- Своя плитка')), reg = src.slice(src.indexOf('function renderRegistry('), src.indexOf('function renderLayouts('));
   ok(171, one === 'lead-issued,lead-od:table' && none === 0 && Object.keys(DB.state.open).length === 0 && !/Развернуть|⤢|DB\.expand|catFormat|openExpand/.test(src)
     && !/FORMAT_NAMES|SIZE\[/.test(cat) && /Основа/.test(cat) && /Основа/.test(reg) && !/FORMAT_NAMES/.test(reg),
     'раскрыто по одной плитке в ряду, ✕ закрывает, seed() сбрасывает; в странице нет «Развернуть», ⤢, DB.expand и фильтра форматов; каталог и реестр показывают «Основа» вместо формата и размера (ДБ-117, ДБ-118)');
@@ -3137,7 +3144,7 @@ const asUser = id => { DB.state.userId = id; };
   const overlay = { h:'', get innerHTML(){ return this.h; }, set innerHTML(h){ Object.values(parts).flat().forEach(x => { x.isConnected = false; }); parts = {}; this.h = h;
     if (/id="ask-form"/.test(h)) { const form = el('form'), input = el('input', { value:(/id="ask-input" value="([^"]*)"/.exec(h) || [])[1] || '' });
       form.kids = [...h.matchAll(/<button type="\w+"[^>]*>([^<]+)<\/button>/g)].map(x => el('button', { name:x[1] })); parts = { form:[form], input:[input], btns:form.kids }; } } };
-  const ctx = vm.createContext({ HAS_DOM:true, esc:s => String(s), menuState:null, rcOpen:false, window:{ event:null },
+  const ctx = vm.createContext({ HAS_DOM:true, esc:s => String(s), menuState:null, sheet:null, draft:null, window:{ event:null },
     $:id => id === 'overlay' ? overlay : id === 'ask-form' ? (parts.form || [])[0] : id === 'ask-input' ? (parts.input || [])[0] : null,
     document:{ get activeElement(){ return active; }, querySelectorAll(s){ return s === 'button[onclick]' ? page : []; } } });
   let ran = true; try { vm.runInContext(code, ctx); } catch (e) { ran = false; }
@@ -3229,12 +3236,12 @@ const asUser = id => { DB.state.userId = id; };
 
   // конструктор: значения на выбор («% от итога группы», «Фильтр отчёта») — по охвату автора; объявленный список — целиком; проверки значений — по всем строкам
   const pk = (d, uid) => DB.pickValues(d, 'loan', uid), pAst = DB.pickValues('curator', 'loan', 'u12');
-  const fsrc = src.slice(src.indexOf('function tileFormHTML('), src.indexOf('function renderBuilder(')), csrc = src.slice(src.indexOf('function condEditor('), src.indexOf('function reportHints('));
+  const fsrc = src.slice(src.indexOf('function tileFormHTML('), src.indexOf('function canConfigure('));
   ok(305, set(pk('curator', 'u2')) === curs(own) && pk('dept', 'u2').join() === u2.dept && pk('curator', 'u1').length === nCur && pk('dept', 'u1').length === nDept && set(pk('curator', 'c30')) === curs(L.filter(l => l.dept === U('c30').dept))
     && pk('bucket', 'u2').join() === BK && set(pk('region', 'u2')) === RG && set(pk('category', 'u2')) === CT && pAst.length === 0 && DB.rowsFor(U('u12'), null, 'loan') === null
-    && /<div class="pick">\$\{pickValues\(x, r\.obj\)/.test(fsrc) && !/valuesOf\(/.test(fsrc) && /const vals = F && F\.dim \? pickValues\(cd\.f, obj\) : \[\];/.test(csrc) && !/valuesOf\(/.test(csrc)
+    && /<div class="pick">\$\{pickValues\(x, r\.obj\)/.test(fsrc) && !/valuesOf\(/.test(fsrc) && fsrc.length > 1000
     && /valuesOf\(x\.pct\.dim, DATA\[obj\]\)/.test(src) && /const vs = valuesOf\(b, DATA\[r\.obj\]\);/.test(src),
-    `конструктор, автор Бекова (Куратор Чуйского РП): кураторы на выбор — ${pk('curator', 'u2').length} своего подразделения (было ${nCur}), подразделение — одно «${DB.DIMS.dept.label(u2.dept)}» (было ${nDept}); Руководство — все ${nCur} и ${nDept}; срок, область, категория — объявленные списки целиком; у автора без права на кредит выбирать не из чего; автопроверка «% от итога группы» и разбор колонки сверяют значения по всем строкам объекта, как прежде`);
+    `форма плитки, автор Бекова (Куратор Чуйского РП): кураторы на выбор — ${pk('curator', 'u2').length} своего подразделения (было ${nCur}), подразделение — одно «${DB.DIMS.dept.label(u2.dept)}» (было ${nDept}); Руководство — все ${nCur} и ${nDept}; срок, область, категория — объявленные списки целиком; у автора без права на кредит выбирать не из чего; автопроверка «% от итога группы» и разбор колонки сверяют значения по всем строкам объекта, как прежде`);
   DB.seed();
 })();
 
@@ -3778,18 +3785,18 @@ const asUser = id => { DB.state.userId = id; };
   const cell = (html, id) => (new RegExp('data-tile="' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"><div class="cat-m">[\\s\\S]*?<span class="cat-v"[^>]*>(.*?)</span><div class="cat-a">').exec(html) || [])[1];
   const rowOf = (html, id) => { const i = html.indexOf('data-tile="' + id + '"'); return i < 0 ? '' : html.slice(i, html.indexOf('</div></div>', html.indexOf('class="cat-a"', i)) + 12); };
 
-  // ДБ-197: каталог — витрина готовых плиток («возьми и поставь»), «+ Плитка» — мастерская личной; пустой поиск ведёт в мастерскую с тем же запросом
+  // ДБ-197, ДБ-280: каталог — витрина готовых плиток («возьми и поставь»); пустой поиск ведёт в витрину отчётности с тем же запросом, там «📌»
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.go('catalog');
   const h0 = DB.catalogHTML(), add0 = (h0.match(/onclick="DB\.addFromCatalog\('[^']+'\)"[^>]*>Добавить</g) || []).length;
   DB.catSearch('ожидалось по графику'); const hE = DB.catalogHTML(), vE = DB.catalogView(u1, { q:'ожидалось по графику' });
-  const toM = DB.catToMaster(), pg = DB.page, hM = DB.builderHTML(), inds = DB.state.mQ && DB.indsFor(u1, '', DB.state.mQ).map(x => x.id);
-  const rw = DB.mInd('loan.expected'), d = DB.mReport(rw[0].r.id), ac = DB.autocheck(d), sv = DB.saveTile(d, 'personal'), mine = DB.catalogFor(u1).find(x => sv.tile && x.t.id === sv.tile.id);
+  const fr = DB.findReports(), sh = DB.state && DB.reportSearch(u1, 'ожидалось по графику').map(r => r.id);
+  const sv = DB.pin('r-issued'), mine = DB.catalogFor(u1).find(x => sv.tile && x.t.id === sv.tile.id);
   const other = DB.catalogFor(u2).some(x => sv.tile && x.t.id === sv.tile.id);
   ok(348, /Готовые плитки администратора дашборда: возьмите и поставьте/.test(h0) && !/<table/.test(h0) && add0 > 20 && vE.n === 0
-    && /<b>Нет такой плитки<\/b>/.test(hE) && /onclick="DB\.catToMaster\(\)">Собрать из отчёта →<\/button>/.test(hE) && toM === 'ожидалось по графику' && pg === 'builder'
-    && /value="ожидалось по графику"/.test(hM) && inds.join() === 'loan.expected' && /onclick="DB\.mInd\('loan\.expected'\)"/.test(hM) && rw[0].r.id === 'r-issued'
-    && d.main.col === 'loan.expected' && d.title === 'Ожидалось по графику' && ac.ok && sv.tile && sv.tile.state === 'personal' && mine && mine.t.owner === 'u1' && !other,
-    `каталог — витрина: секции строк, без таблицы, «Добавить» у ${add0} плиток; поиск «ожидалось по графику» — «Нет такой плитки · Собрать из отчёта →», мастерская открылась с тем же запросом: показатель «Ожидалось по графику», отчёт «${rw[0].r.title}» первым, плитка «${d.title}» прошла автопроверку и встала личной (видна только автору) (ДБ-197)`);
+    && /<b>Нет такой плитки<\/b>/.test(hE) && /onclick="DB\.findReports\(\)">Искать отчёт «ожидалось по графику» в отчётности ↗<\/button>/.test(hE) && !/catToMaster|Собрать из отчёта/.test(hE)
+    && fr.includes('r-issued') && fr.join() === sh.join() && !fr.includes('r-claims') && DB.page === 'home'
+    && sv.tile && sv.tile.state === 'personal' && sv.tile.report === 'r-issued' && sv.tile.title === DB.reportById('r-issued').title && mine && mine.t.owner === 'u1' && !other,
+    `каталог — витрина: секции строк, без таблицы, «Добавить» у ${add0} плиток; поиск «ожидалось по графику» — «Нет такой плитки · Искать отчёт „ожидалось по графику“ в отчётности ↗»; витрина отчётности нашла ${fr.length}: ${fr.join(', ')}; «📌» у «${DB.reportById('r-issued').title}» — плитка сразу личная, на главной (видна только автору) (ДБ-197, ДБ-280)`);
 
   // ДБ-198 и ДБ-Д55: секции по объекту, в строке — значения параметров и живое главное число в охвате смотрящего (как на плитке); поиск, «только доступные мне»
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
@@ -3813,19 +3820,17 @@ const asUser = id => { DB.state.userId = id; };
     && vL.rows.some(x => x.status === 'wait' && x.owner === 'Ядро расчёта') && /role="switch"/.test(DB.catalogHTML()) && sysNo > 80 && !sys.rows.some(x => x.status === 'add'),
     `секции по объекту: ${names.join(', ')} (каждый из ${objs.length} объектов — ровно в одной); ДБ-Д55 снят: у Бековой две «Остаток задолженности» — «${balAll.params.join(' · ')}» ${balAll.num} · Добавить и «${balMe.params.join(' · ')}» ${balMe.num} · Есть, так же «Просрочено» и «Сумма под риском»; живое число = главному числу плитки у всех ${live} строк (и в разметке — то же, что на плитке); поиск «куратор: я» — ${sMe.rows.length} строк, «взыскан» — секция «Взыскание»; «только доступные мне» у Усеновой — ${only10.n} из ${all10.n}, «Нельзя: …» и «ждёт соседа» — без него; у Шамшиева на вкладке «Системный администратор» — «Нельзя на вкладке …» у ${sysNo} плиток, а не «Добавить» с «нет доступа» на плитке (ДБ-198, ДБ-Д55)`);
 
-  // ДБ-199: мастерская начинается с показателя — объект и показатель реестра, открытые смотрящему; отчёты с ним (первым — кормящий больше плиток) или личный отчёт с ним
-  DB.seed(); asUser('u1'); DB.go('builder');
-  const b0 = DB.builderHTML(), all1 = DB.indsFor(u1, '', '');
-  const r10 = [...new Set(DB.indsFor(u10, '', '').map(x => x.obj))].sort().join();
-  DB.mObj('loan'); const loanI = DB.indsFor(u1, 'loan', ''); DB.standWithdraw('loan.risk', true); const noRisk = !DB.indsFor(u1, 'loan', '').some(x => x.id === 'loan.risk'); DB.standWithdraw('loan.risk', false);
-  const rp = DB.mInd('loan.overdue'), b1 = DB.builderHTML(), sorted = rp.every((x, i) => i === 0 || rp[i - 1].feeds >= x.feeds), feedsOk = rp.every(x => x.feeds === DB.tilesOfReport(x.r.id).length);
-  const dP = DB.mReport('r-portfolio'), b2 = DB.builderHTML(), own = DB.mOwnReport(), mi = DB.state.mInd, pinD = DB.pin('r-claims'), b3 = DB.builderHTML(), rp2 = DB.reportsWith(u2, 'loan.count').map(x => x.r.id);
-  ok(350, /Шаг 1 · Что хотите видеть/.test(b0) && !/Шаг 1 · Отчёт|Собрать новый отчёт/.test(b0) && !/rep-row/.test(b0) && all1.length > 80 && r10 === 'oblig,task' && loanI.every(x => x.obj === 'loan') && loanI.length >= 10 && noRisk
-    && rp[0].r.id === 'r-portfolio' && sorted && feedsOk && /Отчёты с показателем «Просрочено» · Кредит/.test(b1) && /<b>Портфель кредитов<\/b>[\s\S]*?владелец: Шамшиев А\. О\. · кормит 8 плиток/.test(b1)
-    && /Собрать личный отчёт с этим показателем/.test(b1) && dP.main.col === 'loan.overdue' && dP.report === 'r-portfolio' && /<h4>Источник — отчёт «Портфель кредитов»<\/h4>/.test(b2) && /Шаг 2 · Плитка/.test(b2)
-    && own.obj === 'loan' && own.inds.join() === 'loan.overdue' && own.filter.some(c => c.f === 'lact' && c.v === 'действующий') && mi === 'loan.overdue' && DB.state.mInd === 'claim.count'
-    && pinD.report === 'r-claims' && /Источник — отчёт «Требования»/.test(b3) && /aria-pressed="true" onclick="DB\.mInd\('claim\.count'\)"/.test(b3) && rp2.includes('r-u2-agro') && !DB.reportsWith(u1, 'loan.count').some(x => x.r.id === 'r-u2-agro'),
-    `шаг 1 — «что хотите видеть»: ${all1.length} показателей реестра, открытых Асанову (у Усеновой — только объекты ${r10}); объект «Кредит» — ${loanI.length}, выведенный показатель пропадает; «Просрочено» → отчёты ${rp.map(x => '«' + x.r.title + '» ' + x.feeds).join(', ')} — первым кормящий больше плиток, строка «владелец … · кормит N плиток»; выбор отчёта — плитка с этим показателем главным, отчёт виден как источник; «Собрать личный отчёт с этим показателем» — конструктор отчётности с объектом «Кредит» и показателем «Просрочено»; «📌» из отчёта — без изменений; у Бековой в списке и её личный отчёт (ДБ-199, ДБ-103)`);
+  // ДБ-279 (переигран ДБ-199): страницы «+ Плитка» нет — ни пункта меню, ни раздела, ни шага «что хотите видеть»; своя плитка — «📌» из окна
+  // отчёта: встаёт сразу в конец открытой вкладки, со значениями параметров плитки, из которой отчёт открыли
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
+  const gone = !/id="v-builder"|\['builder'|builder:render|function builderHTML|DB\.mInd|DB\.catToMaster|Шаг 1 · Что хотите видеть/.test(src)
+    && ['builderHTML', 'mInd', 'mObj', 'mSearch', 'mReport', 'mOwnReport', 'catToMaster', 'openRC', 'indsFor', 'reportsWith'].every(k => typeof DB[k] === 'undefined');
+  const ov = DB.openReport('cur-od'), pz = DB.pin('r-portfolio', 'cur-od'), L2 = DB.composeLayout('u2', 'cur');
+  const pz2 = DB.pin('r-portfolio'), bad1 = DB.pin('r-nope');
+  ok(350, gone && /onclick="DB\.close\(\);DB\.pin\('\$\{v\.report\.id\}','\$\{esc\(tileId\)\}'\)">📌 На дашборд/.test(src) && ov && ov.report.id === 'r-portfolio'
+    && pz.tile && pz.tile.params.curator === '@me' && L2[L2.length - 1] === pz.tile.id && pz.tab.id === 'cur' && pz.tile.version === 1
+    && pz2.tile && pz2.tile.params.curator === '*' && bad1.error === 'Отчёт не найден' && DB.page === 'home',
+    `страницы «+ Плитка» нет: раздела, пункта меню, мастерской и её функций нет; «📌» из окна отчёта плитки «Просрочено» ставит плитку сразу в конец вкладки «${pz.tab && pz.tab.name}» с «куратор: я» плитки; «📌» с витрины — со значениями «все»; нет отчёта — «${bad1.error}» (ДБ-279, ДБ-281)`);
 
   // ДБ-200: «Предложить в каталог» — очередь администратора с предпросмотром и автопроверкой; «Принять» — копия личного отчёта в общий, каталожная плитка вместо личной; «Отклонить» — с причиной; автору — уведомление
   DB.seed(); asUser('u2'); DB.setTab('role', 'cur');
@@ -3892,16 +3897,18 @@ const asUser = id => { DB.state.userId = id; };
     && newsOk(N2) && /Раскладка роли обновлена 11\.10: \+1, −1/.test(hN) && cl === true && allGone && curH.length === 2 && curN,
     `правка «Руководства» в редакторе — черновиком: «Не сохранено: +2, −1 · Затронет 1 держателя роли «Руководство»: Асанов Б. К.», у «Куратора кредита» — 2 держателя; «Сохранить» — сразу, журнал «${jl.detail}»; у Асанова на вкладке роли — «Раскладка роли обновлена 11.10: +2, −1 · Показать ✕», у новых плиток «новая», на вкладке «Аналитик» плашки нет; «Показать» — плашка закрыта, новые подсвечены, «убраны из раскладки: «Сумма под риском (залог)»»; «новая» уходит при первом открытии полосы и вместе с плашкой, рамка и строка «убраны» — до ухода с вкладки; после «Показать» правки копятся заново (+1 и −1 одной плитки гасятся — «+1, −1»), «✕» снимает плашку и метки; правка «Куратора кредита» — у обоих держателей (ДБ-203, §9.2)`);
 
-  // ДБ-208: на телефоне каталог — просмотр и «Добавить»; мастерская «+ Плитка» и реестр плиток — «Собрать плитку можно на компьютере»; разделы — списком в шапке
+  // ДБ-208, ДБ-283: на телефоне каталог — просмотр и «Добавить»; реестр плиток, «Настроить» и «Опубликовать в каталог» — только на компьютере; разделы — списком в шапке
   DB.seed(); asUser('u11');
   const css = src.slice(src.indexOf('<style>'), src.indexOf('</style>')), phone = css.slice(css.indexOf('@media (max-width:600px){'));
-  const bH = DB.builderHTML(), rH3 = DB.registryHTML(), cH3 = DB.catalogHTML(); DB.catSearch('нет такой плитки нигде'); const cE = DB.catalogHTML();
-  ok(354, /\.desk-only\{ display:none !important; \} \.phone-only\{ display:block; \}/.test(phone) && /^<div class="banner info phone-only">Собрать плитку можно на компьютере\. /.test(bH) && /<div class="cols2 desk-only">/.test(bH)
-    && /^<div class="banner info phone-only">Собрать плитку можно на компьютере: реестр плиток, предложения и снятие — там же\.<\/div><div class="desk-only">/.test(rH3)
+  const rH3 = DB.registryHTML(), cH3 = DB.catalogHTML(); DB.catSearch('нет такой плитки нигде'); const cE = DB.catalogHTML();
+  const menuSrc = src.slice(src.indexOf('function openMenu('), src.indexOf('function screenMenuItems('));
+  ok(354, /\.desk-only\{ display:none !important; \} \.phone-only\{ display:block; \}/.test(phone)
+    && /const phone = HAS_DOM && window\.matchMedia\('\(max-width:600px\)'\)\.matches;/.test(menuSrc) && /if\(!phone && canConfigure\(t, u\)/.test(menuSrc) && /if\(!phone\) items\.push\(\['Опубликовать в каталог'/.test(menuSrc)
+    && /^<div class="banner info phone-only">Реестр плиток, предложения и снятие — на компьютере\.<\/div><div class="desk-only">/.test(rH3)
     && !/desk-only/.test(cH3) && /onclick="DB\.addFromCatalog\(/.test(cH3) && /\.cat-row\{ grid-template-columns:minmax\(0,1fr\) auto;/.test(phone)
-    && /class="linky desk-only" onclick="DB\.catToMaster\(\)">Собрать из отчёта →<\/button><span class="phone-only muted">собрать из отчёта можно на компьютере<\/span>/.test(cE)
+    && /<button class="linky" onclick="DB\.findReports\(\)">Искать отчёт «нет такой плитки нигде» в отчётности ↗<\/button>/.test(cE) && !/desk-only/.test(cE)
     && /<select id="nav-m" onchange="DB\.go\(this\.value\)">/.test(src) && /@media \(max-width:1000px\)\{[^\n]*\n  \.crumb-title\{ display:none; \} \.nav-m\{ display:block; \}/.test(css),
-    'телефон: каталог — без «только на компьютере», «Добавить» на месте, строка складывается в две; мастерская и реестр плиток — «Собрать плитку можно на компьютере», пустой поиск каталога — «собрать из отчёта можно на компьютере»; меню слева на узком окне — список разделов в шапке (ДБ-208, ДБ-56)');
+    'телефон: каталог — без «только на компьютере», «Добавить» на месте, строка складывается в две, пустой поиск ведёт в отчётность; реестр плиток — на компьютере, «Настроить» и «Опубликовать в каталог» в «⋯» плитки — только на компьютере; меню слева на узком окне — список разделов в шапке (ДБ-208, ДБ-283, ДБ-56)');
   DB.seed();
 })();
 
@@ -4910,6 +4917,80 @@ const asUser = id => { DB.state.userId = id; };
     && own && delCmp === null && near(bp.value, mp.end) && near(bp.shift.delta, mp.end - mp.start) && near(bp.shift.base, mp.start)
     && mc.D === 10 && Math.abs(fl(mc, 'issued')) < Math.abs(fl(mt, 'issued')) && near(sum(mc.rows.map(r => r.v)), mc.end - mc.start) && !vd.ok && /нет ответа на 01\.09/.test(vd.why),
     `ревью: «как задано» → «за месяц» — окно Движения сменилось с сентября на «с 01.10 по сегодня» (кэш различает); конец Движения «за год» — список на дату плитки (${we.refused ? we.count : we.rows.length} объектов, как «☰» конца); свой экран с базой до запуска рисуется; у плитки на 30.09 с панелью «Чуйское РП» число ${mln(bp.value)} = концу Движения, сдвиг = разнице; у закрытого дня потоки — по 10.10 (выдано ${mln(fl(mc, 'issued'))} против ${mln(fl(mt, 'issued'))} по сегодня); база без ответа гасит Движение плитки на 30.09; штамп — окно Движения, у потока строки «Сравнение» нет; удаление своего экрана — «как задано»`);
+  DB.seed();
+})();
+
+/* ---------- AG. Волна 20: своя плитка — «📌» из отчёта, форма — «Настроить», публикация администратором, черновик «ждёт отчёта» ---------- */
+(() => {
+  const u1 = U('u1'), u2 = U('u2'), cur = () => { DB.seed(); asUser('u2'); DB.setTab('role', 'cur'); };
+  const admin = () => { DB.seed(); DB.roleOn('u1', 'adm'); asUser('u1'); DB.setTab('role', 'lead'); };
+
+  // ДБ-281: «Настроить» — у своей плитки автора и у каталожной администратора; ссылочной и чужой — нет; «Сохранить» — новая версия, проверка та же
+  cur(); const pt = DB.pin('r-portfolio').tile, d0 = DB.configure(pt.id), same = d0 && d0.report === pt.report && d0.title === pt.title && d0 !== pt;
+  DB.dTitle(''); const eT = DB.cfgSave(), vT = pt.version; DB.dTitle('Мой портфель'); DB.dTl('on', 'main'); DB.dTl('red', '>', '1000');
+  const sv = DB.cfgSave(), jr = DB.state.journal[0];
+  asUser('u1'); const other = DB.configure(pt.id); asUser('u2');
+  const link = DB.TILES.find(t => t.kind === 'link'), noLink = DB.configure(link.id), noCat = DB.configure('cur-od');
+  ok(424, same && eT.error && /подпись/.test((eT.checks.find(c => !c.ok) || {}).text) && vT === 1 && sv.tile === pt && pt.version === 2 && pt.title === 'Мой портфель' && pt.tl.on === 'main'
+    && jr.action === 'изменил плитку (версия 2)' && other === null && noLink === null && noCat === null && DB.canConfigure(T('cur-od'), U('u11')) && !DB.canConfigure(T('cur-od'), u2)
+    && /function cfgDrawer\(/.test(src) && /'Настроить плитку «'/.test(src) && /onclick="DB\.cfgSave\(\)"/.test(src),
+    `«Настроить» своей плитки: черновик — копия плитки; без подписи — «${eT.error}», версия не тронута; «Сохранить» — версия ${pt.version}, журнал «${jr.action}»; чужую, ссылочную и каталожную (не администратору) не настроить (ДБ-281, ДБ-Д75)`);
+
+  // ДБ-282: администратор публикует свою плитку сам — «Опубликовать в каталог» вместо «Предложить»: роли, автопроверка, плитка заменяется каталожной;
+  // кнопки «Новая плитка» в реестре нет, каталожную правят «Настроить» в строке реестра — новая версия у всех
+  admin(); const ap = DB.pin('r-portfolio').tile, pc0 = DB.publishAsk(ap.id); DB.pubRole('cur', true);
+  const pub = DB.publishOwn(ap.id), nt = pub.tile, L1 = DB.composeLayout('u1', 'lead'), jp = DB.state.journal[0];
+  const rh = DB.registryHTML(), lv = T('lead-od').version; DB.configure('lead-od'); DB.dTitle('Просрочено в портфеле'); const ce = DB.cfgSave();
+  asUser('u2'); const npc = DB.publishCheck(DB.pin('r-portfolio').tile.id, []), nAsk = DB.publishAsk(T('cur-od').id);
+  ok(425, pc0 && pc0.ok && !pc0.waits && !pc0.copy && nt.owner === 'catalog' && nt.state === 'published' && nt.report === 'r-portfolio' && !nt.forRoles
+    && ap.state === 'accepted' && L1.includes(nt.id) && !L1.includes(ap.id) && jp.action === 'опубликовал плитку'
+    && !/>Новая плитка<|DB\.go\('builder'\)/.test(rh) && /Новая плитка каталога — «📌» из отчёта и «Опубликовать в каталог» на своей плитке/.test(rh) && /onclick="DB\.configure\('lead-od'\)">Настроить<\/button>/.test(rh) && !/DB\.publishDraft\(/.test(rh)
+    && ce.tile && T('lead-od').version === lv + 1 && !npc.ok && /публикует администратор дашборда/.test(npc.checks[0].text) && nAsk === null,
+    `администратор: «📌» → своя плитка → «Опубликовать в каталог» с ролью «Куратор кредита» — «${nt.title}» опубликована, у него заменена каталожной, журнал «${jp.action}»; в реестре нет «Новая плитка», у строк — «Настроить» (версия «Просрочено» ${lv} → ${T('lead-od').version}); не администратору — «${npc.checks[0].text}» (ДБ-282)`);
+
+  // ДБ-284: публикация плитки на личный отчёт копирует его в общий отчёт каталога, как при «Принять»
+  admin(); DB.newReportDraft(); DB.rSet('obj', 'loan'); DB.rInd('loan.overdue', true); DB.rTitle('Мой портфель для каталога'); const rp = DB.rSaveAndPlace();
+  const pp = DB.publishOwn(rp.tile.id), cr = pp.report;
+  ok(426, rp.report.shelf === 'personal' && pp.copy && cr.shelf === 'catalog' && cr.owner === 'u1' && cr.from === rp.report.id && pp.tile.report === cr.id && DB.reportById(rp.report.id) === rp.report
+    && /личный отчёт скопирован в общий/.test(DB.state.journal[0].detail),
+    `плитка на личном отчёте «${rp.report.title}» — при публикации отчёт скопирован в общий «${cr.title}» (владелец — администратор), плитка на копии, личный остался у автора (ДБ-284)`);
+
+  // ДБ-285: отчёт ещё не отвечает (эпизоды просрочки — до ядра): своя плитка стоит с отказом, публикация — черновиком «ждёт отчёта»; держатели его
+  // не видят, в раскладку роли его ставят; ночная проверка публикует сам, когда отчёт ответил
+  admin(); const ep = DB.pin('r-spells'), ps0 = ep.tile && ep.tile.state, ea = DB.ask(ep.tile, u1, 'lead', {}), epc = DB.publishCheck(ep.tile.id, []);
+  const ew = DB.publishOwn(ep.tile.id), et = ew.tile, st0 = et.state, ans0 = DB.tileAnswers(et), rh2 = DB.registryHTML();
+  DB.declaredEdit('lead', 'add', et.id); const inL0 = DB.declaredItems('lead').includes(et.id), n0 = DB.nightCheck().published;
+  DB.stand('spells', true); const n1 = DB.nightCheck().published, jn = DB.state.journal[0], inL1 = DB.declaredItems('lead').includes(et.id); DB.stand('spells', false);
+  asUser('u2'); const npin = DB.pin('r-nope');
+  ok(427, ps0 === 'personal' && ea.state === 'refusal' && epc.ok && epc.waits && ew.waits && st0 === 'draft'
+    && !ans0 && /черновик · ждёт отчёта/.test(rh2) && !inL0 && n0.length === 0 && n1.includes(et.id) && T(et.id).state === 'published'
+    && jn.action === 'опубликована автопроверкой' && jn.who === 'Автопроверка' && inL1 && npin.error === 'Отчёт не найден',
+    `эпизоды просрочки до ядра: своя плитка «${ep.tile.title}» стоит с отказом, «Опубликовать» — черновиком «ждёт отчёта» (в реестре так и подписан), в раскладку «Руководства» поставлена, держателям не видна; ночная проверка без эпизодов — ничего, с эпизодами — «${jn.action}» и плитка на главной (ДБ-285, ИДБ-14)`);
+
+  // ДБ-280: витрина отчётности (заглушка соседа) — поиск по названию и составу в круге смотрящего; «📌» оттуда — плитка со значениями «все»
+  cur(); const fu2 = DB.findReports('агрокредит'), fu1 = (asUser('u1'), DB.reportSearch(u1, 'агрокредит').map(r => r.id)), fo = DB.reportSearch(u1, 'просрочено').map(r => r.id);
+  const fr0 = DB.reportSearch(u1, ''), fd = DB.reportSearch(u1, 'по области').map(r => r.id);
+  ok(428, fu2.includes('r-u2-agro') && !fu1.includes('r-u2-agro') && fo.includes('r-portfolio') && fo.every(id => { const r = DB.reportById(id); return [r.title, ...r.cols.map(i => DB.IND[i].name)].join(' ').toLowerCase().includes('просроч'); })
+    && fr0.length === 0 && fd.length > 0 && /Витрина модуля «Отчётность»: поиск по названию и составу/.test(src),
+    `витрина отчётности: «агрокредит» — личный отчёт Бековой виден ей и не виден Асанову; «просрочено» — ${fo.length} отчётов с просрочкой в названии или колонках; «по области» — ${fd.length} (по разрезу) (ДБ-280)`);
+
+  // ДБ-286: «📌 Сохранить отчётом» из полосы — черновик уходит в конструктор отчётности (он открывается в модуле «Отчётность»), ящика поверх главной нет
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'slice'); const rd = DB.saveAsReport('lead-od');
+  const saSrc = src.slice(src.indexOf('  saveAsReport:(k)=>'), src.indexOf('  rSet:(k,v)=>'));
+  const placed = DB.rSaveAndPlace();
+  ok(429, rd && rd.obj === 'loan' && !/drawer\(|sheet =/.test(saSrc) && /Конструктор отчётности открыт в модуле «Отчётность»/.test(saSrc)
+    && /'конструктор отчётности откроется с разрезами вида и путём; плитку ставят «📌» там'/.test(src) && placed.report && placed.report.shelf === 'personal' && placed.tile.state === 'personal',
+    `«📌 Сохранить отчётом» из полосы «Просрочено»: черновик «${rd && rd.title}» передан в конструктор отчётности, ящика поверх главной нет; собранный — личный отчёт, «📌» — плитка (ДБ-286, ДБ-126)`);
+
+  // ревью волны 20: «Сохранить» перепроверяет права; «Отмена» бросает черновик «Настроить»; роли публикации живут только у черновика
+  // «ждёт отчёта» (по ним круг ночной проверки), у опубликованной их нет; телефон закрыт и при прямом вызове; CSS мастерской убран
+  cur(); const mt = DB.pin('r-portfolio').tile; DB.configure(mt.id); DB.dTitle('чужая правка'); asUser('u7'); const sx = DB.cfgSave(); asUser('u2');
+  const kept = mt.title !== 'чужая правка' && mt.version === 1; const dIn = DB.draft && DB.draft.title === 'чужая правка'; DB.close(); const dz = dIn && DB.draft === null;
+  admin(); const wt = DB.pin('r-spells').tile, ww = DB.publishOwn(wt.id, ['cur']).tile, wr0 = (ww.forRoles || []).join(); DB.stand('spells', true); DB.nightCheck(); DB.stand('spells', false);
+  ok(430, sx === null && kept && dz && wr0 === 'cur' && ww.state === 'published' && !ww.forRoles
+    && /const narrow = \(\) => HAS_DOM && window\.matchMedia\('\(max-width:600px\)'\)\.matches;/.test(src) && /configure:\(id\)=>\{ const t = tileById\(id\); if\(narrow\(\)\)/.test(src) && /publishAsk:\(id\)=>\{ const t = tileById\(id\); if\(narrow\(\)\)/.test(src)
+    && !/\.pctbox\{|\.cond-box\{|мастерск/.test(src),
+    `ревью: «Сохранить» чужим пользователем — отказ, плитка «${mt.title}» в версии ${mt.version}; «Отмена» бросает черновик; роли публикации («${wr0}») — у черновика «ждёт отчёта» до ночной публикации, у опубликованной нет; «Настроить» и «Опубликовать» закрыты на телефоне и при прямом вызове; CSS и комментарии мастерской убраны`);
   DB.seed();
 })();
 
