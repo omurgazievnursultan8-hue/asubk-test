@@ -4691,7 +4691,7 @@ function render(){
   $('notif-cnt').innerHTML = unread ? '<span class="notif-dot">'+unread+'</span>' : '';
   const nav = [['home','Главная'],['catalog','Каталог плиток']];
   if(isAdmin(u)) nav.push(['registry','Плитки дашборда'],['layouts','Раскладки ролей'],['journal','Журнал']);
-  nav.push(['stand','Стенд: соседи и сбои']);
+  if(view==='stand') nav.push(['stand','Стенд: другие модули и сбои']);   // стенда в меню нет: он открывается адресом #stand, пункт виден, пока экран открыт
   const nWait = proposalsWaiting().length;
   $('nav').innerHTML = '<div class="nav-sec">Дашборд</div>' + nav.map(([k,n])=>`<button class="nav-item ${view===k?'active':''}" onclick="DB.go('${k}')">${n}${k==='registry'&&nWait?'<span class="cnt" aria-label="предложений: '+nWait+'">'+nWait+'</span>':''}</button>`).join('');
   // узкое окно и телефон: меню слева скрыто — разделы списком в шапке (каталог на телефоне — просмотр и «Добавить»)
@@ -4704,6 +4704,7 @@ function render(){
   renderWho();
   // адрес несёт состояние главной: вкладка, полоса, путь, режим, список и дата среза — «Назад» и ссылка открывают то же место
   if(view==='home' || view==='card'){ try { history.replaceState(history.state, '', (Object.keys(S.open).length || S.who || view==='card') ? linkOf() : location.pathname+location.search); } catch(e){} }
+  else try { if((view==='stand') !== (location.hash==='#stand')) history.replaceState(null, '', view==='stand' ? '#stand' : location.pathname+location.search); } catch(e){}
   if(sheet) renderSheet();   // ящик «Настроить», «Опубликовать в каталог» или витрина отчётности перерисовывается вместе со страницей
   markScroll();
 }
@@ -6249,8 +6250,8 @@ function standOwners(){ const m = new Map(); Object.values(OBJECTS).filter(O=>!O
   return [...m].map(([o, xs])=>[o, xs.join(', ')]); }
 function renderStand(){
   const chk = (k, label) => `<label class="opt"><input type="checkbox" ${STAND[k]?'checked':''} onchange="DB.stand('${k}', this.checked)"> ${label}</label><br>`;
-  $('v-stand').innerHTML = `<div class="banner info">Стенд макета: здесь меняется то, что в системе зависит от соседей и сбоев. Пользователю этот экран не нужен.</div>
-    <div class="form-step"><h4>Запуск: готовность соседей и плиток</h4>${chk('reportsReady','модуль отчётности и отчёты каталога готовы — предусловие всего дашборда')}
+  $('v-stand').innerHTML = `<div class="banner info">Стенд макета: здесь меняется то, что в системе зависит от других модулей и сбоев. Пользователю этот экран не нужен — в меню его нет, он открывается адресом dashboard.html#stand.</div>
+    <div class="form-step"><h4>Запуск: готовность модулей и плиток</h4>${chk('reportsReady','модуль отчётности и отчёты каталога готовы — предусловие всего дашборда')}
       <div class="why">Плитка — ссылка на отчёт. Без отчётности у всех ролей минимальная раскладка с пояснением, в каталоге плитки ждут соседа.</div>
       <div style="margin-top:8px">${standOwners().map(([o, objs])=>`<label class="opt"><input type="checkbox" ${STAND.down[o]?'':'checked'} onchange="DB.standDown('${esc(o)}', this.checked)"> модуль «${esc(o)}» объявил статистике: ${esc(objs)}</label><br>`).join('')}</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
@@ -6604,11 +6605,11 @@ const api = {
   ldCancel:()=>{ S.layoutDraft = null; render(); }, toast,
 };
 seed();
-if(HAS_DOM){ document.addEventListener('DOMContentLoaded', ()=>{ if(/^#st=/.test(location.hash)) openLink(location.hash); else render(); });
+if(HAS_DOM){ document.addEventListener('DOMContentLoaded', ()=>{ if(location.hash==='#stand'){ view = 'stand'; render(); } else if(/^#st=/.test(location.hash)) openLink(location.hash); else render(); });
   // Esc закрывает панель списка, когда поверх нет окна или меню; «Назад» браузера из карточки — к дашборду на то же место
   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && S.who && view==='home' && !$('overlay').innerHTML){ e.preventDefault(); closeWho(); } });
   // «Вперёд» после «Назад» — снова карточка того же объекта из того же списка
-  window.addEventListener('popstate', ()=>{ if(view==='card'){ cardBack(); return; } if(!/^#st=/.test(location.hash)) return;
+  window.addEventListener('popstate', ()=>{ if(view==='card'){ cardBack(); return; } if(location.hash==='#stand'){ view = 'stand'; render(); return; } if(!/^#st=/.test(location.hash)) return;
     let st = null; try { st = JSON.parse(decodeURIComponent(location.hash.slice(4))); } catch(e){}
     if(st && st.card && S.who){ const m = whoModel(), i = m && !m.refused ? m.shown.findIndex(x=>x.id===st.card) : -1; if(i>=0) openCard(i, true); }
     else if(!S.who && !Object.keys(S.open).length) openLink(location.hash); });
