@@ -20,7 +20,13 @@
 //     «в просрочке» у среза и у эпизода совпадает на каждый день жизни (ИЯ-24) · дни
 //     просрочки и длительность — разные величины · слой режет эпизод · закрытый кредит
 //     закрывает эпизод своей датой · отказы и «эпизодов нет» различаются · ретро-факт
-//     меняет ключ эпизода · спор эпизод не рвёт.
+//     меняет ключ эпизода · спор эпизод не рвёт;
+//   потоки остатка и курсовая разница (11): остаток замкнут потоками на каждый день жизни
+//     (ИЯ-25) · платёж задним числом не даёт «прочего» · накопленное — назначенным целиком ·
+//     отмена расхода — сторно, а не списание · списано — по всем статьям · поток в сомах — по
+//     курсу своего дня, против независимой подневной суммы · курсовая разница сходится с прямой
+//     переоценкой остатка, разность срезов = движение долга + курсовая разница · без курса —
+//     пусто с причиной, у сомового кредита — посчитанный ноль.
 // Zero-dep: макет исполняется в node:vm без DOM, как в mirror-check.mjs.
 //   node scripts/inspect/calc-core-check.mjs
 import { readFileSync } from 'node:fs';
@@ -620,6 +626,143 @@ ok('РЯ-57 · окно спора 01.03 → 31.03.2026 внутри эпизо�
 p7.dispute = p7d;
 spRun();
 C.calcReset();
+
+/* ---- 11. ПОТОКИ ОСТАТКА И КУРСОВАЯ РАЗНИЦА (ADR-0322, РЯ-59…РЯ-70, ИЯ-25) ---------------
+   Потоки — величины ответа «сколько должен», и проверяется не их наличие, а ТОЖДЕСТВО: остаток
+   замкнут потоками копейка в копейку на каждый день жизни каждого кредита. Ради него потоки и
+   заводились: тогда «прочее» в Движении у прежнего кредита — ноль между любыми двумя строками,
+   даже если между ними пришёл факт задним числом. Сомовая часть проверяется второй, независимой
+   арифметикой: курсовая разница отдаётся остатком сомового тождества, а её смысл — переоценка
+   остатка по датам смены курса — считается рядом и обязан совпасть. */
+console.log('\n11. ПОТОКИ ОСТАТКА · КУРСОВАЯ РАЗНИЦА');
+C.calcReset();
+const FL = (c, d) => C.calcDebt(c, d).flows;
+const byId = id => C.FIXTURE.find(c => c.id === id);
+const sgSum = (o) => C.FLOW_ROWS.reduce((s, [k, , sg]) => s + sg * o[k], 0);
+
+/* РЯ-60 · ИЯ-25 подневно: от первой выдачи до 31.12.2026 */
+let flDays = 0;
+const flBad = [];
+for (const c of C.FIXTURE){
+  let s = null, n = 0;
+  for (const t of c.tranches) for (const x of (t.disbursements || [])) if (!s || PD(x.date) < PD(s)) s = x.date;
+  if (!s){ flBad.push(c.id + ' без выдачи — проверять нечего'); continue; }
+  for (let t = PD(s).getTime(); t <= PD('31.12.2026').getTime(); t += 86400000){
+    const d = C.fd(new Date(t)), F = FL(c, d);
+    n++;
+    if (Math.abs(F.gap) > 0.005) flBad.push(c.id + ' ' + d + ' ' + F.gap);
+  }
+  if (!n) flBad.push(c.id + ' — ни одной даты');
+  flDays += n;
+}
+ok('ИЯ-25 · остаток = выдано + начислено − погашено − списано на каждый день жизни каждого кредита',
+  flBad.length === 0, flBad.slice(0, 3).join(' · ') || 'кредитов ' + C.FIXTURE.length + ', дат сверено: ' + flDays);
+
+/* РЯ-60 · ретро-факт: строка «до» посчитана раньше платежа, строка «после» — позже; разность
+   остатков всё равно раскладывается потоками целиком — «прочего» нет */
+const K7f = byId('K-7');
+const F0 = FL(K7f, '30.06.2026');
+C.cureDemoToggle();
+const F1 = FL(K7f, C.TODAY), F0now = FL(K7f, '30.06.2026');
+const dBal = R2(F1.v.balance - F0.v.balance), dFlows = R2(sgSum(F1.v) - sgSum(F0.v));
+ok('РЯ-60 · платёж задним числом между двумя строками: изменение остатка = потоки, «прочее» 0,00',
+  Math.abs(dBal - dFlows) <= 0.005 && Math.abs(F0now.v.repaid - F0.v.repaid) > 0.005,
+  'К-7 30.06 → 23.07: остаток ' + dBal + ', потоки ' + dFlows + '; погашено на 30.06 было '
+  + F0.v.repaid + ', стало ' + F0now.v.repaid);
+C.cureDemoToggle();
+C.calcReset();
+
+/* РЯ-61 · накопленные — внутри процентов и пени, назначенное целиком */
+const K7d = C.calcDebt(K7f, C.TODAY), K7F = K7d.flows;
+const accI = R2(K7F.v.interest - K7d.articles.interest.accrued),
+      accP = R2(K7F.v.penalty - K7d.articles.penalty.accrued);
+ok('РЯ-61 · К-7: накопленное входит в проценты и пеню назначенным целиком, не наступившим',
+  Math.abs(K7F.gap) <= 0.005 && accI > K7d.articles.accInterest.accrued
+  && R2(accI + accP) === R2(K7d.articles.accInterest.bal + K7d.articles.accInterest.paid
+    + K7d.articles.accPenalty.bal + K7d.articles.accPenalty.paid),
+  'накопленных процентов ' + accI + ', пени ' + accP + ' (наступило '
+  + R2(K7d.articles.accInterest.accrued + K7d.articles.accPenalty.accrued) + ')');
+
+/* РЯ-62 · отмена расхода — сторно: начисленное убыло, списанное не тронуто */
+const K6f = byId('K-6b'), r6a = FL(K6f, '15.05.2026'), r6b = FL(K6f, C.TODAY);
+ok('РЯ-62 · К-6б: отмена пошлины 20.05.2026 сняла 12 300,00 с «начислено расходов», «списано» не изменилось',
+  r6a.v.recovery === 12300 && r6b.v.recovery === 0 && r6a.v.writtenOff === r6b.v.writtenOff,
+  'расходы ' + r6a.v.recovery + ' → ' + r6b.v.recovery + ', списано ' + r6a.v.writtenOff + ' → ' + r6b.v.writtenOff);
+const pf6 = C.calcPortfolio([K6f], { from: '01.05.2026', to: '31.05.2026' }).body;
+const rec6 = (pf6.articles || []).find(a => a.article === 'recovery');
+ok('РЯ-62 · ведомость за май: у седьмой статьи сторно в «начислено», не в «списано»',
+  !!rec6 && R2(rec6.accrued) === -12300 && R2(rec6.writtenOff) === 0,
+  rec6 ? 'начислено ' + R2(rec6.accrued) + ', списано ' + R2(rec6.writtenOff) : 'строки расходов нет');
+
+/* РЯ-63 · списано — по всем статьям, а поле ответа — тело */
+ok('РЯ-63 · К-6б: в потоке «списано» снятое по всем статьям, поле ответа — только тело',
+  r6b.v.writtenOff === 135578.54 && C.calcDebt(K6f, C.TODAY).writtenOff === 58000,
+  r6b.v.writtenOff + ' против ' + C.calcDebt(K6f, C.TODAY).writtenOff);
+
+/* РЯ-66 · без курсов по датам — пусто с причиной; у сомового кредита — посчитанный ноль */
+const KC2 = byId('K-C2');
+const n0 = FL(KC2, C.TODAY), k0 = FL(byId('K-4'), C.TODAY);
+ok('РЯ-66 · K-C2 без курсов по датам: сомовых потоков и курсовой разницы нет, причина названа',
+  n0.som === null && n0.fx === null && /нет курсов USD по датам/.test(n0.why || ''), n0.why);
+ok('РЯ-66 · кредит в сомах: курсовая разница — посчитанный ноль, а не пусто',
+  k0.fx === 0 && k0.som && k0.som.balance === k0.v.balance);
+
+/* РЯ-64 · РЯ-65 · с курсами по датам */
+C.ratesDemoToggle();
+const nD = FL(KC2, C.TODAY);
+const issSom = ['16.02.2026', '01.04.2026', '23.07.2026', '31.12.2026'].map(d => FL(KC2, d).som.issued);
+ok('РЯ-64 · выданное в сомах — по курсу дня выдачи и со временем не меняется',
+  issSom.every(x => x === R2(320000 * 87.30)), issSom.join(' · '));
+ok('РЯ-64 · платёж и расход — по курсу своего дня, остаток — по курсу даты ответа',
+  nD.som.repaid === R2(79761.09 * 87.45) && nD.som.recovery === R2(180 * 88.10)
+  && nD.som.balance === R2(nD.v.balance * 87.45),
+  'погашено ' + nD.som.repaid + ', расходы ' + nD.som.recovery + ', остаток ' + nD.som.balance);
+/* НЕЗАВИСИМАЯ АРИФМЕТИКА: подневно «приращение потока × курс этого дня», без сборки по
+   частям. Курсовая разница в ответе — остаток сомового тождества, и само тождество поэтому
+   сходится всегда; проверяются сомовые потоки и курсовая разница по отдельности — против
+   подневной суммы и против прямой переоценки остатка. */
+const rateOn = (d) => C.RATES_DEMO.rates.filter(r => PD(r.date) <= PD(d)).slice(-1)[0].rate;
+const daily = {}, fxMark = new Map();
+for (const [k] of C.FLOW_ROWS) daily[k] = 0;
+let prevF = null, fxDays = 0, fxWorst = 0, somWorst = 0, prevDirect = null;
+const fxBad = [];
+const chg = new Set(C.RATES_DEMO.rates.map(r => r.date));
+const MARKS = new Set(['15.05.2026', '23.07.2026', '31.12.2026']);
+for (let t = PD('15.02.2026').getTime(); t <= PD('31.12.2026').getTime(); t += 86400000){
+  const d = C.fd(new Date(t)), F = FL(KC2, d), r = rateOn(d);
+  fxDays++;
+  for (const [k] of C.FLOW_ROWS) daily[k] += (F.v[k] - (prevF ? prevF.v[k] : 0)) * r;
+  prevF = F;
+  for (const [k] of C.FLOW_ROWS){
+    somWorst = Math.max(somWorst, Math.abs(F.som[k] - daily[k]));
+    if (Math.abs(F.som[k] - daily[k]) > 0.01) fxBad.push(d + ' ' + k + ' ' + F.som[k] + '≠' + R2(daily[k]));
+  }
+  fxWorst = Math.max(fxWorst, Math.abs(F.fx - F.fxDirect));
+  if (Math.abs(F.fx - F.fxDirect) > 0.04) fxBad.push(d + ' прямая ' + R2(F.fx - F.fxDirect));
+  if (prevDirect !== null && !chg.has(d) && F.fxDirect !== prevDirect) fxBad.push(d + ' переоценка без смены курса');
+  prevDirect = F.fxDirect;
+  if (MARKS.has(d)) fxMark.set(d, { som: F.som.balance, fx: F.fx, mov: sgSum(daily) });
+}
+ok('РЯ-64 · сомовые потоки = подневная сумма «приращение × курс дня» на каждый день жизни K-C2',
+  !fxBad.some(x => !/прямая|переоценка/.test(x)), fxBad.slice(0, 3).join(' · ')
+  || 'дней ' + fxDays + ', худшее расхождение ' + R2(somWorst));
+ok('РЯ-65 · курсовая разница = прямая переоценка остатка по сменам курса, между сменами не меняется',
+  !fxBad.some(x => /прямая|переоценка/.test(x)), fxBad.filter(x => /прямая|переоценка/.test(x)).slice(0, 3).join(' · ')
+  || 'худшее расхождение ' + R2(fxWorst) + ', на 23.07.2026 — ' + nD.fx + ' по ' + nD.changes.length + ' сменам');
+const m0 = fxMark.get("15.05.2026"), m1 = fxMark.get("23.07.2026");
+const sliceDiff = R2(m1.som - m0.som), fxDiff = R2(m1.fx - m0.fx), movDiff = R2(m1.mov - m0.mov);
+ok('РЯ-65 · разность сомовых срезов = движение долга по курсу дня + курсовая разница, а не курс',
+  Math.abs(sliceDiff - fxDiff - movDiff) <= 0.05 && Math.abs(movDiff) > 1,
+  'срезы 15.05 → 23.07: ' + sliceDiff + ' = движение ' + movDiff + ' + курсовая разница ' + fxDiff);
+const r0 = KC2.mirror.rates.shift();
+C.calcReset();
+const nS = FL(KC2, C.TODAY);
+ok('РЯ-66 · нет курса на начало жизни кредита — сомовых потоков нет, причина называет дату',
+  nS.som === null && /15\.02\.2026/.test(nS.why || ''), nS.why);
+KC2.mirror.rates.unshift(r0);
+C.ratesDemoToggle();
+C.calcReset();
+ok('сценарий курсов снят — K-C2 снова без сомовых потоков', FL(KC2, C.TODAY).som === null);
 
 console.log('\nХРАНИМОЕ · ' + (fail ? fail + ' проверок провалено' : 'все проверки сошлись'));
 process.exit(fail ? 1 : 0);

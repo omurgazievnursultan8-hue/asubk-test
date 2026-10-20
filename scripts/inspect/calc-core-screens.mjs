@@ -642,5 +642,61 @@ sstep('ШОВ 9 · ПЕРЕСТРОЕНИЕ — кредит выпал с пр�
   run('projReset(); projRun(FIXTURE, {})');
 });
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   ШОВ 2 · ПОТОКИ ОСТАТКА (ADR-0322). Таблица печатает `calcDebt(...).flows` как есть, и
+   строка «Остаток задолженности» обязана равняться потокам со знаками — экран не держит
+   своего счёта. У валютного кредита без курсов по датам сомовая колонка пуста с причиной,
+   а не нулями; сценарий курсов даёт курсовую разницу, и примечание сверяет её с прямой
+   переоценкой. */
+const fstep = (title, js, checks) => {
+  if (js) run(js);
+  run('renderDebt()');
+  console.log('\n' + title);
+  console.log('   · ' + (text('#db-rates-msg') || '(без сообщения)').slice(0, 150));
+  checks();
+};
+const flCells = () => bodyRows('#tb-flows').map(spCells);
+const num = (s) => Number(String(s || '').replace(/[\s  ]/g, '').replace(',', '.').replace('−', '-'));
+const flClosed = (col) => {
+  const r = flCells(), last = r[r.length - 1];
+  const sum = r.slice(0, -1).reduce((s, c) => s + (c[1] === '−' ? -1 : 1) * (c[col] === '—' ? 0 : num(c[col])), 0);
+  return Math.abs(sum - num(last[col])) < 0.005;
+};
+
+fstep('ШОВ 2 · ПОТОКИ ОСТАТКА — кредит в сомах', 'CUR = FIXTURE.find(c => c.id === "K-7"); ON = "23.07.2026"', () => {
+  const r = flCells();
+  ok(r.length === 8 && r[7][0] === 'Остаток задолженности', 'семь потоков и строка остатка', r.length);
+  ok(flClosed(2), 'остаток в таблице равен потокам со знаками — экран не держит своего счёта');
+  ok(/сходится/.test(text('#flows-note')) && /посчитанный/.test(text('#flows-note')),
+     'примечание: замкнут, курсовая разница — посчитанный ноль', text('#flows-note').slice(0, 120));
+});
+
+fstep('ШОВ 2 · ПОТОКИ ОСТАТКА — валютный кредит без курсов по датам', 'CUR = FIXTURE.find(c => c.id === "K-C2")', () => {
+  const r = flCells();
+  ok(r.length === 9 && r[7][0] === 'Курсовая разница' && r.every(c => c[3] === '—'),
+     'сомовая колонка пуста у всех строк, строка курсовой разницы есть', r.map(c => c[3]).join(' '));
+  ok(/нет курсов USD по датам/.test(text('#flows-note')) && /пусто, а не ноль/.test(text('#flows-note')),
+     'причина названа, пустота — не ноль', text('#flows-note').slice(0, 140));
+  ok(flClosed(2), 'в валюте договора остаток замкнут');
+});
+
+fstep('ШОВ 2 · КУРСЫ USD ПО ДАТАМ — курсовая разница', 'actRatesDemo()', () => {
+  ok(/положены курсы USD по датам/.test(text('#db-rates-msg')) && /подобрал из очереди 1 кредит/.test(text('#db-rates-msg')),
+     'сценарий положил курсы, прогон подобрал K-C2');
+  const r = flCells(), fx = r.find(c => c[0] === 'Курсовая разница') || [];
+  ok(num(fx[3]) === 42384.67, 'курсовая разница на 23.07.2026 — 42 384,67', fx[3]);
+  ok(flClosed(3), 'в сомах остаток = потоки по курсу своего дня + курсовая разница');
+  ok(/Смен курса за жизнь кредита: 6/.test(text('#flows-note')) && /совпадает/.test(text('#flows-note')),
+     'примечание сверяет с прямой переоценкой по шести сменам', text('#flows-note').slice(-140));
+  ok(/Убрать/.test(text('#db-rates')), 'кнопка предлагает снять сценарий');
+  run('ON = "01.01.2026"; renderDebt()');
+  ok(/Выдачи ещё не было/.test(text('#flows-note')) && flCells().length === 9,
+     'дата до выдачи: вид не падает, пересчитывать нечего', text('#flows-note').slice(-60));
+  run('ON = "23.07.2026"; renderDebt()');
+  run('actRatesDemo(); renderDebt()');
+  ok(/сняты/.test(text('#db-rates-msg')) && flCells().every(c => c[3] === '—'), 'снятие вернуло пустую сомовую колонку');
+  run('CUR = FIXTURE[0]; projReset(); projRun(FIXTURE, {})');
+});
+
 console.log('\n' + (bad ? 'ЭКРАНЫ СТЕНДА · НЕ СОШЛОСЬ: ' + bad : 'ЭКРАНЫ СТЕНДА · все проверки сошлись'));
 if (bad) process.exit(1);

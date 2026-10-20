@@ -66,7 +66,7 @@
   ADR-0318 эпизод просрочки — по слою, склеивается из проекции; дни просрочки и
            длительность эпизода — две величины одного построения (девятый шов).
 
-  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-13, ИЯ-20…ИЯ-22, ИЯ-24)
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-13, ИЯ-20…ИЯ-22, ИЯ-24, ИЯ-25)
   ИЯ-1  Ядро хранит только то, что перестраивается из фактов С НУЛЯ, — журнал фиксаций
         и расчётную проекцию (редакция 3 ТЗ, ADR-0192; прежняя редакция «не хранит
         ничего» отменена волной 6). Отвечать из хранимой производной как из истины
@@ -110,6 +110,10 @@
         просрочке тогда и только тогда, когда открыт эпизод; начало эпизода не позже даты
         выхода, длительность не меньше дней просрочки (ADR-0318). Дни и длительность
         законно расходятся при частичном погашении, «в просрочке ли кредит» — нет.
+  ИЯ-25 Остаток замкнут своими потоками в каждом ответе: остаток (семь статей) = выдано +
+        начислено − погашено − списано, копейка в копейку; в сомах — плюс курсовая
+        разница (ADR-0322). Потоки и остаток — из одного ответа, иначе их разность
+        уходит в «прочее» Движения, где её никто не ищет.
   (ИЯ-14…ИЯ-19 живут в ТЗ и относятся к зеркалу, конверту и портфельному шву — в этом
   прототипе их предметов пока нет.)
 
@@ -394,6 +398,19 @@ table.t tr.alarm td{ background:var(--status-error-bg); }
         принадлежит взысканию и приходит зеркалом — в этот свод не входит.</p>
         <div class="scroll-x"><table class="t" id="tb-debt"></table></div>
         <p class="note" id="debt-note"></p>
+
+        <div class="section-h">Потоки остатка — с первой выдачи</div>
+        <p class="page-lead">Что втекло в остаток задолженности и что из него вытекло, нарастающим
+        итогом. Остаток замкнут потоками в каждом ответе: <b>остаток = выдано + начислено −
+        погашено − списано</b>, копейка в копейку (ИЯ-25). Седьмая статья здесь есть —
+        присоединением из реестра взыскания. Поток в сомах — по курсу своего дня, остаток — по
+        курсу даты; курсовая разница — переоценка остатка при каждой смене курса (ADR-0322).</p>
+        <div class="btn-row">
+          <button class="btn btn-sm btn-secondary" id="db-rates">Курсы USD по датам для K-C2</button>
+        </div>
+        <p class="note" id="db-rates-msg"></p>
+        <div class="scroll-x"><table class="t" id="tb-flows"></table></div>
+        <p class="note" id="flows-note"></p>
       </section>
 
       <section class="view" id="v-alloc">
@@ -3315,8 +3332,129 @@ function calcDebt(credit, on){
     writtenOff: ((b.debt || {}).principal || {}).written || 0,
     writeOffExcess: ((b.debt || {}).writeOffExcess || {}).total || 0,   // решение назвало сверх числившегося
     provisional: b.led.provisional,              // срез старше последнего снимка остатка
-    period: periodMark(credit, on)               // фиксация закрытого периода и расхождение
+    period: periodMark(credit, on),              // фиксация закрытого периода и расхождение
+    flows: debtFlows(credit, on)                 // потоки остатка и курсовая разница (ADR-0322)
   });
+}
+
+/* ---- ПОТОКИ ОСТАТКА · часть ответа «сколько должен» (ADR-0322, РЯ-59…РЯ-70) --------
+   Начислено · погашено · списано — три из шести величин каждой статьи, и они уже потоки
+   нарастающим итогом. Здесь они сводятся по кредиту в семь потоков, рядом ставится сам
+   остаток, и тождество ИЯ-25 ПРОВЕРЯЕТСЯ в ответе, а не обещается:
+       остаток = выдано + четыре «начислено» − погашено − списано, копейка в копейку.
+   Нового шва нет намеренно: потоки и остаток обязаны прийти из ОДНОГО построения. Возьми
+   «начислено процентов» из листа, а остаток из позиций — и их разность (Д-5: у К-7
+   3 986,85) молча уйдёт в «прочее» Движения, где её никто не ищет. */
+const FLOW_ROWS = [
+  ['issued',     'Выдано',                        1],
+  ['interest',   'Начислено процентов',           1],
+  ['penalty',    'Начислено пени',                1],
+  ['fees',       'Начислено сборов и комиссий',   1],
+  ['recovery',   'Начислено расходов взыскания',  1],
+  ['repaid',     'Погашено',                     -1],
+  ['writtenOff', 'Списано',                      -1]
+];
+const FLOW_ARTS = ['principal', 'interest', 'penalty', 'fees', 'accInterest', 'accPenalty'];
+
+function flowsAt(credit, on){
+  const b = calcBase(credit, on), d = b.debt, tot = b.led.artTotal || {};
+  /* НАКОПЛЕННОЕ — НАЗНАЧЕННОЕ ЦЕЛИКОМ (РЯ-61). «Начислено» накопленной статьи в ответе —
+     только наступившее, а в остатке стоит и срочная часть, назначенная документом: приход
+     без неё не замыкает остаток (у К-7 — на 22 000,00). Приходом служит назначенное, как и
+     в проекции (`projSnapshotAt`); по модели это перенос, и в сумме по кредиту он ноль. */
+  const assigned = k => (tot[k]) || d[k].accrued;
+  /* СЕДЬМАЯ СТАТЬЯ — присоединением на ту же дату (ADR-0194 §5). Одиночный ответ читает
+     реестр сам и портфельных обращений не тратит. */
+  const cf = costsFold(_recovery.filter(e => e.credit === credit.id), on || TODAY);
+  const sum = v => FLOW_ARTS.reduce((s, k) => s + (d[k][v] || 0), 0);
+  const f = {
+    issued:     round2(b.disbursed),
+    interest:   round2(d.interest.accrued + assigned('accInterest')),
+    penalty:    round2(d.penalty.accrued + assigned('accPenalty')),
+    fees:       round2(d.fees.accrued),
+    recovery:   round2(cf.accrued),
+    repaid:     round2(sum('paid') + cf.repaid),        // семь статей, без переплаты (РЯ-63)
+    writtenOff: round2(sum('written') + cf.writtenOff)  // снятое по всем статьям, не только тело
+  };
+  return { f, balance: round2(sum('bal') + cf.balance) };
+}
+const flowGap = (x) => round2(x.balance - FLOW_ROWS.reduce((s, [k, , sg]) => s + sg * x.f[k], 0));
+
+/* Курсы по датам — зеркало справочника (ADR-0090), только валюты кредита. */
+function ratesOf(credit){
+  const cur = credit.currency || 'KGS';
+  return (((credit.mirror || {}).rates) || []).filter(r => r.cur === cur)
+    .slice().sort((a, b) => pd(a.date) - pd(b.date));
+}
+/* НАЧАЛО ЖИЗНИ — ПЕРВЫЙ ПОТОК, а не только первая выдача. Сборка «по частям» опирается на то,
+   что накануне начала все потоки — ноль: расход реестра, датированный раньше выдачи, иначе
+   вошёл бы в сомы без своего курса и молча осел в курсовой разнице. */
+function lifeStartOf(credit){
+  let s = null;
+  const take = d => { if (d && (!s || pd(d) < pd(s))) s = d; };
+  for (const t of (credit.tranches || [])) for (const x of (t.disbursements || [])) take(x.date);
+  for (const e of _recovery) if (e.credit === credit.id) take(e.date);
+  return s;
+}
+
+/* ПОТОК В СОМАХ — ПО КУРСУ СВОЕГО ДНЯ (РЯ-64), КУРСОВАЯ РАЗНИЦА — ПЕРЕОЦЕНКА ОСТАТКА (РЯ-65).
+   Курс меняется только на датах смены, поэтому сумма «поток дня × курс дня» за всю жизнь
+   собирается без подневного обхода — по частям:
+       Σ ΔF(t)·r(t) = F(D)·r(D) − Σ по сменам c: F(c − 1 день)·(r(c) − r(прежний)).
+   Курсовая разница отдаётся ОСТАТКОМ сомового тождества — оно сходится копейка в копейку,
+   и копейки округления сомовых потоков не уходят в «прочее». Её смысл — «остаток накануне
+   смены × изменение курса» — считается рядом НЕЗАВИСИМО и сверяется: без этой сверки ошибка
+   любого сомового потока молча стала бы «курсом». */
+function debtFlows(credit, on){
+  const day = on || TODAY, cur = credit.currency || 'KGS';
+  const now = flowsAt(credit, day);
+  const v = Object.assign({ balance: now.balance }, now.f);
+  const out = { cur, v, gap: flowGap(now), som: null, fx: null, fxDirect: null, rate: null,
+                changes: [], why: null };
+  if (cur === 'KGS'){
+    /* у кредита в сомах курсовой разницы нет — и это ПОСЧИТАННЫЙ ноль, а не пустота */
+    out.som = Object.assign({}, v); out.fx = 0; out.fxDirect = 0;
+    out.rate = { rate: 1, date: null };
+    return out;
+  }
+  const start = lifeStartOf(credit);
+  if (!start || pd(start) > pd(day)){
+    /* жизни ещё не было — пересчитывать нечего, нули посчитаны */
+    out.som = Object.assign({}, v); out.fx = 0; out.fxDirect = 0;
+    return out;
+  }
+  const list = ratesOf(credit);
+  const r0 = list.filter(r => pd(r.date) <= pd(start)).slice(-1)[0];
+  /* НЕТ КУРСА — НЕТ СОМОВЫХ ПОТОКОВ (РЯ-66). Курс без даты (плоская таблица) ответом не
+     служит: «курс не менялся» и «курса нет» обязаны различаться. */
+  if (!r0){
+    out.why = list.length ? 'нет курса ' + cur + ' на ' + start + ' — начало жизни кредита'
+                          : 'нет курсов ' + cur + ' по датам';
+    return out;
+  }
+  let prev = r0.rate;
+  for (const r of list){
+    if (pd(r.date) <= pd(start) || pd(r.date) > pd(day) || r.rate === prev) continue;
+    out.changes.push({ date: r.date, from: prev, to: r.rate });
+    prev = r.rate;
+  }
+  const rD = prev, rDate = list.filter(r => pd(r.date) <= pd(day)).slice(-1)[0].date;
+  const som = {}, corr = {};
+  for (const [k] of FLOW_ROWS) corr[k] = 0;
+  let direct = 0;
+  for (const c of out.changes){
+    const eve = fd(new Date(pd(c.date).getTime() - 86400000));
+    const x = flowsAt(credit, eve), dr = c.to - c.from;
+    for (const [k] of FLOW_ROWS) corr[k] += x.f[k] * dr;
+    direct += x.balance * dr;
+  }
+  for (const [k] of FLOW_ROWS) som[k] = round2(v[k] * rD - corr[k]);
+  som.balance = round2(v.balance * rD);
+  out.som = som;
+  out.rate = { rate: rD, date: rDate };
+  out.fx = round2(som.balance - FLOW_ROWS.reduce((s, [k, , sg]) => s + sg * som[k], 0));
+  out.fxDirect = round2(direct);
+  return out;
 }
 
 /* ---- ШОВ 3 · «как разнесены деньги» -------------------------------------------
@@ -4531,17 +4669,22 @@ function costsScanSet(credits, to){
   return out;
 }
 
-/* СВЁРТКА РЕЕСТРА НА ДАТУ — ТЕ ЖЕ ОДОМЕТРЫ. Накопители монотонны, остаток выводится
-   вычитанием: `начислено − возмещено − списано`. Форма одна с проекцией нарочно —
-   иначе разность на концах отрезка пришлось бы считать для седьмой статьи отдельным
-   правилом, и разрез по ней сошёлся бы не так, как по остальным шести. */
+/* СВЁРТКА РЕЕСТРА НА ДАТУ — ТЕ ЖЕ ОДОМЕТРЫ. Остаток выводится вычитанием:
+   `начислено − возмещено − списано`. Форма одна с проекцией нарочно — иначе разность на
+   концах отрезка пришлось бы считать для седьмой статьи отдельным правилом, и разрез по ней
+   сошёлся бы не так, как по остальным шести.
+     ОТМЕНА — СТОРНО НАЧИСЛЕННОГО, А НЕ СПИСАНИЕ (РЯ-62). Отмена исправляет ошибочную запись
+   («пошлина проведена по чужому делу»): расхода не было, и долг ею не прощается. В «списано»
+   она смешалась бы с решением о безнадёжности — у К-6б РП-77 и снятая пошлина встали бы
+   одной строкой. Поэтому «начислено» у седьмой статьи может убывать, и это честно; «списано»
+   у неё — только решением о безнадёжности, а такого вида в реестре пока нет. */
 function costsFold(entries, on){
   const lim = pd(on);
   let accrued = 0, repaid = 0, writtenOff = 0;
   for (const e of entries || []){
     if (pd(e.date) > lim) break;
     if (e.kind === 'возмещение') repaid += Math.abs(e.amount);
-    else if (e.kind === 'отмена') writtenOff += Math.abs(e.amount);
+    else if (e.kind === 'отмена') accrued -= Math.abs(e.amount);
     else accrued += e.amount;
   }
   return { accrued, repaid, writtenOff, balance:accrued - repaid - writtenOff };
@@ -5252,7 +5395,7 @@ let CUR = FIXTURE[0], ON = DATES[0];
    ровно и создаёт впечатление, будто портфельный вопрос — это цикл по кредитам. */
 const SEAMS = [
   ['calcAccrual', '(кредит, дата)', 'сколько начислено и почему', 'лист по критическим датам, свод процентов и пени, плата за неосвоенный остаток'],
-  ['calcDebt', '(кредит, дата)', 'сколько должен на дату', 'шесть статей в пяти величинах, просрочка, снятое с баланса'],
+  ['calcDebt', '(кредит, дата)', 'сколько должен на дату', 'шесть статей в пяти величинах, просрочка, снятое с баланса; потоки остатка с первой выдачи в валюте договора и в сомах, курсовая разница'],
   ['calcAllocation', '(кредит, дата)', 'как разнесены деньги', 'очередь погашения кредита, '
     + 'разнесение каждого платежа строками «срок · слой · транш · статья», нераспределённый '
     + 'хвост, пул досрочных денег, порядок статей'],
@@ -5437,6 +5580,83 @@ function renderDebt(){
     + (d.writeOffExcess ? ' · решение назвало сверх числившегося ' + money(d.writeOffExcess) : '')
     + (o.days ? ' · просрочка с ' + o.since + ', дней ' + o.days
         + (o.disputedDays ? ' (из них спорных ' + o.disputedDays + ')' : '') : ' · просрочки нет');
+  renderFlows(d.flows);
+}
+
+const rateTxt = r => r.toFixed(Math.max(2, (String(r).split('.')[1] || '').length)).replace('.', ',');
+/* Потоки остатка — та же величина ответа, что и срез выше, а не второй расчёт: таблица
+   печатает `calcDebt(...).flows` как есть и тождество проверяет его же числами. */
+function renderFlows(F){
+  const t = $('#tb-flows'); t.innerHTML = '';
+  const cur = F.cur, fx = cur !== 'KGS';
+  t.appendChild(el('thead', null, '<tr><th>Поток</th><th class="n">Знак</th><th class="n">В валюте договора, '
+    + cur + '</th>' + (fx ? '<th class="n">В сомах</th>' : '') + '</tr>'));
+  const tb = el('tbody');
+  const somCell = v => fx ? '<td class="n">' + (F.som ? m2(v) : '—') + '</td>' : '';
+  for (const [k, label, sg] of FLOW_ROWS)
+    tb.appendChild(el('tr', null, '<td>' + label + '</td><td class="n">' + (sg > 0 ? '+' : '−')
+      + '</td><td class="n">' + m2(F.v[k]) + '</td>' + somCell(F.som && F.som[k]) + '</tr>'));
+  if (fx) tb.appendChild(el('tr', null, '<td>Курсовая разница</td><td class="n">+</td><td class="n">—</td>'
+    + somCell(F.fx) + '</tr>'));
+  tb.appendChild(el('tr', 'sum', '<td>Остаток задолженности</td><td class="n">=</td><td class="n">'
+    + m2(F.v.balance) + '</td>' + (fx ? '<td class="n">' + (F.som ? m2(F.som.balance) : '—')
+    + '</td>' : '') + '</tr>'));
+  t.appendChild(tb);
+  const parts = ['В валюте договора: ' + (Math.abs(F.gap) < 0.005 ? 'остаток замкнут потоками — сходится'
+    : 'НЕ СХОДИТСЯ на ' + m2(F.gap)) + '.'];
+  if (!fx) parts.push('Кредит в сомах — курсовая разница ноль, посчитанный.');
+  else if (!F.som) parts.push('Сомовых потоков и курсовой разницы нет: ' + F.why
+    + '. Это пусто, а не ноль: «курс не менялся» и «курса нет» — разные ответы.');
+  else if (!F.rate) parts.push('Выдачи ещё не было — потоков нет, пересчитывать нечего.');
+  else {
+    /* Равенство «остаток = потоки + курсовая разница» здесь не проверяется: курсовая разница
+       и есть его остаток. Проверка — ниже, прямой переоценкой по датам смены курса. */
+    parts.push('В сомах: остаток по курсу ' + rateTxt(F.rate.rate) + ' на ' + F.rate.date
+      + ' = потоки по курсу своего дня + курсовая разница ' + m2(F.fx) + '.');
+    parts.push(F.changes.length
+      ? 'Смен курса за жизнь кредита: ' + F.changes.length + ' (' + F.changes.map(c => c.date + ' '
+        + rateTxt(c.from) + '→' + rateTxt(c.to)).join(', ') + '); переоценка остатка по ним — ' + m2(F.fxDirect)
+        + (Math.abs(F.fx - F.fxDirect) < 0.005 ? ', совпадает.' : ', с курсовой разницей расходится на '
+        + m2(round2(F.fx - F.fxDirect)) + ' — округление сомовых потоков до копейки.')
+      : 'Курс за жизнь кредита не менялся — курсовая разница ноль.');
+  }
+  $('#flows-note').textContent = parts.join(' ');
+  $('#db-rates').textContent = ratesDemoOn() ? 'Убрать курсы USD по датам у K-C2' : 'Курсы USD по датам для K-C2';
+}
+
+/* ---- КУРСЫ НБКР ПО ДАТАМ — сценарий стенда (РЯ-Д2, РЯ-64…РЯ-66) ------------------
+   Зеркала курсов в справочниках ещё нет, и без него валютный кредит сомовых потоков не
+   получает (РЯ-66). Сценарий кладёт в зеркало K-C2 курсы USD так, как их отдаст справочник:
+   запись — дата публикации и курс, действует до следующей. Последний курс равен плоской
+   таблице (87,45), поэтому остаток в сомах на «сегодня» тот же, что без сценария, — меняются
+   только потоки и появляется курсовая разница. Курсы входят в отпечаток входа проекции,
+   поэтому после сценария прогон подбирает K-C2 из очереди. */
+const RATES_DEMO = { credit:'K-C2', rates:[
+  { date:'01.02.2026', cur:'USD', rate:87.30 },
+  { date:'02.03.2026', cur:'USD', rate:87.62 },
+  { date:'01.04.2026', cur:'USD', rate:87.18 },
+  { date:'04.05.2026', cur:'USD', rate:87.85 },
+  { date:'01.06.2026', cur:'USD', rate:88.10 },
+  { date:'01.07.2026', cur:'USD', rate:87.90 },
+  { date:'20.07.2026', cur:'USD', rate:87.45 }
+]};
+const ratesDemoCredit = () => FIXTURE.find(c => c.id === RATES_DEMO.credit);
+const ratesDemoOn = () => !!((ratesDemoCredit().mirror || {}).rates || []).length;
+function ratesDemoToggle(){
+  const c = ratesDemoCredit(), had = ratesDemoOn();
+  if (had) delete c.mirror.rates;
+  else c.mirror.rates = RATES_DEMO.rates.map(r => Object.assign({}, r));
+  calcReset();
+  return !had;
+}
+function actRatesDemo(){
+  try {
+    const on = ratesDemoToggle(), run = projRun(FIXTURE, {});
+    $('#db-rates-msg').textContent = (on ? 'В зеркало K-C2 положены курсы USD по датам (' + RATES_DEMO.rates.length
+      + ' публикаций с 01.02.2026). ' : 'Курсы по датам у K-C2 сняты. ')
+      + 'Прогон подобрал из очереди ' + run.credits.length + ' ' + plur(run.credits.length, 'кредит', 'кредита') + '.';
+  } catch (e) { $('#db-rates-msg').textContent = 'ОТКАЗ: ' + e.message; }
+  renderAll();
 }
 
 function renderQueue(){
@@ -6752,6 +6972,7 @@ function boot(){
   $('#pj-court').onclick   = actProjCourt;
   $('#pj-rebuild').onclick = actProjRebuild;
   $('#sp-cure').onclick    = actSpellCure;
+  $('#db-rates').onclick   = actRatesDemo;
   $('#sp-court').onclick   = actSpellCourt;
   $('#pj-reset').onclick   = actProjReset;
   const pb = $('#pf-by');
@@ -6855,7 +7076,9 @@ window.CALC = {
   overdueSpells, spellsOfRows, spellTie, SPELL_REASONS, SPELL_CLOSED_CREDIT,
   // шов 8 — перечисление «сейчас»
   objectRows, OBJECT_KINDS, FIELD_SETS, objFieldsOf, objMeasuresOf, objDropField,
-  objPublishCheck, objLimitOf, OBJ_LIMITS, OBJ_PASSPORT, VIEWERS, TEMPLATES, RELEASES
+  objPublishCheck, objLimitOf, OBJ_LIMITS, OBJ_PASSPORT, VIEWERS, TEMPLATES, RELEASES,
+  // потоки остатка и курсовая разница (ADR-0322)
+  debtFlows, flowsAt, FLOW_ROWS, ratesOf, RATES_DEMO, ratesDemoToggle, ratesDemoOn
 };
 
 </script>
