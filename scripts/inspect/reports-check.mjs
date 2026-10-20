@@ -1608,7 +1608,9 @@ const DEV = 'изменено — не утверждённый состав';
   const shIds = sh.shared.map(r => r.id).join();
   RP.state.sel.scTab = '';
   const first = win.VIEWS.showcase.fn();
-  ok(160, mineIds === 't-avg,t-npl,t-osh,ВД-1' && shIds === 't-sh-plan,t-sh-big' &&
+  /* Волна 58: три стартовых общих отчёта по объектам соседей открыты всем подразделениям (ОЧ-82, ОЧ-83, ПВ-15). */
+  const START = ',t-sh-claims,t-sh-pledges,t-sh-apps';
+  ok(160, mineIds === 't-avg,t-npl,t-osh,ВД-1' && shIds === 't-sh-plan,t-sh-big' + START &&
         sh.shared[0].users >= sh.shared[1].users && has(first, 'Открыть кругу') &&
         has(first, 'class="on"') && has(first, '>личный'),
     `полки: «Мои» — ${sh.mine.length} (личные отчёты автора и его вид), «Общие» — ${sh.shared.length} ` +
@@ -1620,7 +1622,7 @@ const DEV = 'изменено — не утверждённый состав';
   const shTab = showTab('общие');
   RP.TPL('t-sh-big').share.people = [];          /* владелец убрал Осмонову из круга */
   const userSh = RP.shelves('').shared.map(r => r.id).join();
-  ok(161, headSh === 't-sh-plan,t-sh-big' && userSh === 't-sh-plan' &&
+  ok(161, headSh === 't-sh-plan,t-sh-big' + START && userSh === 't-sh-plan' + START &&
         has(shTab, 'Бекова Н. · пользуются 9') && has(shTab, 'соавторы: Асанов А.') && has(shTab, 'версия 3'),
     `круг общего называет владелец — подразделения и/или люди: «Крупные кредиты» Осмонова видела ` +
     `поимённо, вне своего подразделения, и перестала видеть, когда владелец убрал её из круга; ` +
@@ -4456,6 +4458,167 @@ const DEV = 'изменено — не утверждённый состав';
         !has(src, "sel.kind = 'предварительный'"),
     `ПВ-Д4: заказа ступенью-выбором на экране показа нет — ступень кнопкой («Выпустить окончательно» / предварительно); ` +
     `RP.doOrder и RP.doIssue сняты, issueSpec ступени не несёт; выбор ступени остался только у бланка (RP.setKind)`);
+})();
+
+/* Волна 58 (блок BBB, #362–#372): стартовые общие отчёты по объектам соседей — «Взыскание» (ОЧ-82), «Залоги» (ОЧ-83),
+   «Заявки по программам и статусам» (ПВ-15); строки и показатели — зеркало реестра статистики, только на дату её снимка
+   (ОЧ-84); «один раз» — пометкой паспорта настоящего показа (ПВ-Д3). #370–#372 — правка по ревью: дата на всех входах,
+   обходы замка соседа, причина «снимки статистики — на конец месяца». */
+(() => {
+  const D = '2026-08-31', NO = '2026-08-01';
+  const ST = { 't-sh-claims':['obj-claim', 'фаза взыскания → подразделение требования'],
+               't-sh-pledges':['obj-collateral', 'вид обеспечения → залоговый статус'],
+               't-sh-apps':['obj-app', 'кредитная программа заявки → статус заявки'] };
+  const sum = (rs, f) => rs.reduce((s, r) => s + (r[f] || 0), 0);
+  const sp = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  RP.seed(); as('head'); const visH = RP.visibleTemplates(); as('user'); const visU = RP.visibleTemplates();
+  const sh = {}; Object.keys(ST).forEach(id => { sh[id] = RP.show(id, { asOf: D, dept: '' }, null); });
+  const okAll = Object.keys(ST).every(id => { const t = RP.TPL(id), ed = t.editions[0], r = sh[id];
+    return t.level === 'общий' && t.owner === 'Тентимишев К.' && t.circle.length === 3 && ed.object === ST[id][0] && ed.mode === 'на дату' &&
+      visU.indexOf(id) !== -1 && visH.indexOf(id) !== -1 && r.ok && !r.data.missing && r.data.rows.length > 0 &&
+      r.data.passport.asOf === D && r.data.levels.map(l => l.name).join(' → ') === ST[id][1] && r.data.cols.every(c => !c.lost); });
+  ok(362, okAll,
+    `три стартовых общих отчёта уполномоченного открыты всем кредитным подразделениям и показываются на 31.08.2026 ` +
+    `(Осмоновой и Асанову): ` + Object.keys(ST).map(id => `«${RP.TPL(id).name}» — ${sh[id].ok ? sh[id].data.rows.length : '?'} строк, ` +
+    `${ST[id][1]}`).join('; '));
+
+  const mk = id => (sh[id].data.passport.marks || []).filter(x => x.mark === 'один раз');
+  RP.state.view = 'issue'; RP.state.sel.params.asOf = D;
+  RP.state.sel.tpl = 't-sh-claims'; const hc = win.VIEWS.issue.fn();
+  RP.state.sel.tpl = 't-sh-pledges'; const hp = win.VIEWS.issue.fn();
+  ok(363, mk('t-sh-claims').length === 1 && has(mk('t-sh-claims')[0].where, 'каждый кредит требования один раз') &&
+        mk('t-sh-claims')[0].final === 'строка паспорта' && mk('t-sh-pledges').length === 1 &&
+        has(mk('t-sh-pledges')[0].where, 'каждый обеспечиваемый кредит один раз') && mk('t-sh-apps').length === 0 &&
+        has(hc, 'кредит требования — один раз') && has(hp, 'обеспечиваемый кредит — один раз') && !has(hc, 'class="drill"'),
+    `«один раз» — строка пометок паспорта настоящего показа: ${mk('t-sh-claims').concat(mk('t-sh-pledges')).map(x => x.where).join('; ')}; ` +
+    `у числа итога — подпись «… — один раз»; у «Заявок» дедупа нет; провала до объектов у соседа нет`);
+
+  const c = sh['t-sh-claims'].data, p = sh['t-sh-pledges'].data;
+  const tot = (d, id) => d.totals.find(x => x.id === id).value;
+  const cSum = sum(c.rows, 'sum'), pSec = sum(p.rows, 'sec');
+  const cPh = c.groups.reduce((s, g) => s + g.totals.find(x => x.id === 's-q-sum').value, 0);
+  ok(364, tot(c, 's-q-sum') < cSum && cPh > tot(c, 's-q-sum') && tot(c, 's-q-count') === c.rows.length &&
+        tot(p, 's-c-sec') < pSec && tot(p, 's-c-val') === sum(p.rows, 'val') && tot(p, 's-c-count') === p.rows.length,
+    `дедуп считает статистика на каждом узле: «Сумма требований» ${sp(tot(c, 's-q-sum'))} меньше суммы строк ${sp(cSum)} и суммы фаз ` +
+    `${sp(cPh)} — требования к заёмщику и поручителю по одному кредиту дают один долг; «Обеспечено залогом» ${sp(tot(p, 's-c-sec'))} ` +
+    `меньше суммы строк ${sp(pSec)}; счёт и оценочная стоимость складываются (${tot(c, 's-q-count')} требований, ${sp(tot(p, 's-c-val'))})`);
+
+  const a = sh['t-sh-apps'].data, f = a.totals.find(x => x.own);
+  const share = (ap, am) => ap / am * 100;
+  const gOk = a.groups.every(g => { const t = id => g.totals.find(x => x.id === id).value, fx = g.totals.find(x => x.own);
+    return fx && Math.abs(fx.value - share(t('a-sumaapproved'), t('a-sumaamount'))) < 1e-9 && t('a-sumaapproved') <= t('a-sumaamount'); });
+  RP.state.sel.tpl = 't-sh-apps'; const ha = win.VIEWS.issue.fn();
+  ok(365, !!f && f.name === 'Одобрено / запрошено' && Math.abs(f.value - share(tot(a, 'a-sumaapproved'), tot(a, 'a-sumaamount'))) < 1e-9 &&
+        f.shown === Math.round(f.value * 10) / 10 && a.groups.length > 0 && gOk && has(ha, 'ƒ своя формула') && a.passport.formulas.length === 1 &&
+        tot(a, 's-app-count') === a.rows.length && tot(a, 'a-sumaamount') === sum(a.rows, 'amount'),
+    `«Заявки»: «Одобрено / запрошено» ${String(f && f.shown).replace('.', ',')} % = ${sp(tot(a, 'a-sumaapproved'))} / ` +
+    `${sp(tot(a, 'a-sumaamount'))} — на итоге и на каждой программе заново из величин уровня; помечена «ƒ своя формула»`);
+
+  const sm = SEAM.statMeta('s-c-sec'), sq = SEAM.statMeta('s-q-sum'), fl = SEAM.fieldList('obj-claim');
+  const chC = RP.choices('t-sh-claims'), chO = RP.choices('t-overdue');
+  ok(366, !!sm && sm.object === 'obj-collateral' && sm.dedup === 'обеспечиваемый кредит' && sm.mirror === true && sm.live === false &&
+        !!sq && sq.dedup === 'кредит требования' && !!fl && fl.name === 'требование взыскания' && fl.object === 'obj-claim' &&
+        SEAM.statList().every(x => !x.mirror) && SEAM.statList('obj-app').some(x => x.id === 'a-sumaapproved') &&
+        chC.cuts.indexOf('dept') === -1 && chC.cuts.indexOf('q-role') !== -1 &&
+        ['s-q-count', 's-q-sum', 's-q-avgph'].every(id => chC.stats.indexOf(id) !== -1) &&
+        chC.stats.every(id => SEAM.statMeta(id).object === 'obj-claim') && chO.stats.every(id => !SEAM.statMeta(id).mirror),
+    `показатель соседа — запись реестра статистики: statMeta('s-c-sec') → объект ${sm && sm.object}, «${sm && sm.dedup}» один раз, ` +
+    `налету — нет; показ «Взыскания» предлагает разрезы требования (${chC.cutNames.join(', ')}), а не кредита; у отчётов по кредиту ` +
+    `показателей соседа нет`);
+
+  const g = RP.show('t-sh-claims', { asOf: NO, dept: '' }, null);
+  RP.state.sel.tpl = 't-sh-claims'; RP.state.sel.params.asOf = NO; const hg = win.VIEWS.issue.fn();
+  const j = RP.show('t-sh-claims', { asOf: '2026-07-31', dept: '' }, null);
+  ok(367, g.ok && g.data.missing && g.data.rows.length === 0 && g.data.totals.every(x => x.value === null) &&
+        !!g.data.gap && g.data.gap.before === '2026-07-31' && g.data.gap.after === D && !!g.data.gap.reason &&
+        has(hg, 'Снимка на 01.08.2026 нет — чисел нет.') && has(hg, "RP.setAsOf('2026-07-31')") && has(hg, "RP.setAsOf('2026-08-31')") &&
+        j.ok && !j.data.missing && j.data.passport.asOf === '2026-07-31' && j.data.rows.length !== c.rows.length,
+    `дата без снимка у соседа — «снимка нет», соседний снимок не подставляется: на 01.08.2026 строк 0, итоги пусты, ` +
+    `причина «${g.data.gap && g.data.gap.reason}», ближайшие 31.07 и 31.08 — кнопками; на 31.07 — свой снимок (${j.data.rows.length} ` +
+    `требований против ${c.rows.length} на 31.08)`);
+
+  const scope = RP.viewer().scope.slice();
+  const or = SEAM.objectRows('obj-claim', {}, scope), sl = SEAM.statSlice('s-q-sum', null, {}, null, scope);
+  const tc = RP.TPL('t-sh-claims'); tc.editions[0].mode = 'сейчас';
+  const now = RP.show('t-sh-claims', { dept: '' }, null); tc.editions[0].mode = 'на дату';
+  const tm = RP.timeAnswer('t-sh-claims', { mode:'сравнение', a:'2026-07-31', b: D }, { asOf: D });
+  const dr = RP.drill('t-sh-claims', { asOf: D }, null, { path: [], stat: 's-q-sum' });
+  const fa = RP.filterAnswer('t-sh-claims', { asOf: D }, { groups: [[{ field:'role', op:'равно', value:'поручитель' }]] });
+  const twC = RP.show('t-sh-claims', { asOf: D }, { cuts: ['dept'] }), twS = RP.show('t-sh-claims', { asOf: D }, { stats: ['s-portfolio'] });
+  ok(368, !!or.refused && has(or.refused, 'живым запросом нет') && or.rows.length === 0 && sl.value === null && has(sl.why, 'только на дату снимка') &&
+        !now.ok && has(now.why, 'живым запросом нет') && now.rule === 'ОЧ-84' && !tm.ok && has(tm.why, '31.07.2026, 31.08.2026') &&
+        !dr.ok && has(dr.why, 'вклада объекта') && !fa.ok && has(fa.why, 'свои условия') &&
+        !twC.ok && has(twC.why, 'разрезом «dept»') && !twS.ok && has(twS.why, 'о другом объекте'),
+    `«сейчас» у соседа — отказ с причиной («${or.refused}»); сравнение дат, провал, свои условия, разрез и показатель кредита — ` +
+    `тоже отказы словами`);
+
+  /* Дата кредита — не умолчание: возврат обязан вернуть именно её, а не последний снимок. */
+  RP.seed(); as('user'); RP.state.view = 'issue';
+  const C = '2026-07-01'; RP.selTpl('t-overdue'); RP.setAsOf(C);
+  const d0 = RP.state.sel.params.asOf;
+  RP.selTpl('t-sh-pledges'); const d1 = RP.state.sel.params.asOf, hp2 = win.VIEWS.issue.fn();
+  RP.selTpl('t-sh-claims'); RP.setAsOf('2026-07-31'); const d1b = RP.state.sel.params.asOf;
+  RP.selTpl('t-overdue'); const d2 = RP.state.sel.params.asOf;
+  ok(369, RP.hasSnapshot(C) && C !== RP.defaultAsOf() && d0 === C && d1 === D && d1b === '2026-07-31' && d2 === C &&
+        has(hp2, '>Залоги · общий<') &&
+        has(hp2, 'июль 2026 (состояние на 31.07.2026)') && has(hp2, 'август 2026 (состояние на 31.08.2026)') && !has(hp2, 'снимка нет'),
+    `экран показа открывает отчёт соседа на последнем снимке статистики (${d1}), в списке месяцев — только его снимки; ` +
+    `выбранная у кредита дата ${C} помнится и возвращается при возврате к отчёту по кредиту (${d2}), даже если у соседа меняли дату`);
+
+  /* Все входы на экран показа — одним правилом даты: полка «Общие», витрина, реестр, личный отчёт, вид. */
+  RP.seed(); as('user'); RP.selTpl('t-overdue'); RP.setAsOf(C);
+  RP.state.sel.scTab = 'общие'; const shelf = win.VIEWS.showcase.fn();
+  RP.uiOpenShared('t-sh-claims'); const o1 = RP.state.sel.params.asOf, v1 = RP.state.view;
+  RP.openIssue('t-overdue'); const o2 = RP.state.sel.params.asOf;
+  RP.openForm('t-sh-apps'); const o3 = RP.state.sel.params.asOf;
+  RP.uiShowPersonal('t-avg'); const o4 = RP.state.sel.params.asOf;
+  const sv = RP.saveView('t-sh-pledges', 'Залоги по видам', null, {});
+  RP.selTpl('t-overdue'); RP.useView(sv.id); const o5 = RP.state.sel.params.asOf, t5 = RP.state.sel.tpl;
+  ok(370, has(shelf, "RP.uiOpenShared('t-sh-claims')") && o1 === D && v1 === 'issue' && o2 === C && o3 === D && o4 === C &&
+        sv.ok && t5 === 't-sh-pledges' && o5 === D,
+    `«Открыть» на полке «Общие», витрина, реестр, личный отчёт и вид открывают соседа на ${o1}, отчёт по кредиту — на ` +
+    `выбранной дате кредита ${o2}: правило даты одно на все входы`);
+
+  RP.seed(); as('auth');
+  const n0 = RP.state.issues.length;
+  const oNo = RP.order('t-sh-claims', { params:{ asOf: NO }, kind:'предварительный' });
+  const oEmpty = RP.order('t-sh-claims', { params:{}, kind:'предварительный' });
+  const tq = RP.TPL('t-sh-claims'); tq.editions[0].mode = 'сейчас';
+  const oNow = RP.order('t-sh-claims', { params:{}, kind:'предварительный' }); tq.editions[0].mode = 'на дату';
+  const n1 = RP.state.issues.length;
+  const oOk = RP.issue('t-sh-claims', { params:{ asOf: D }, kind:'предварительный' });
+  const af = RP.addFormula('t-sh-claims', { name:'Просрочка к требованиям', a:'s-overdue-sum', op:'÷', b:'s-q-sum', k:100, unit:'%' });
+  const sg = RP.addSignal('t-sh-claims', { stat:'s-q-sum', cmp:'больше', value: 1 });
+  const sb = RP.subscribe('t-sh-claims', { freq:'ежемесячно' });
+  const n2 = RP.state.issues.length;
+  const wls = RP.worklistShown('t-sh-claims', { asOf: D }, null, 'обзвон по требованиям');
+  const n3 = RP.state.issues.length;
+  const wl = oOk.ok ? RP.makeWorklist(oOk.id, 'обзвон по требованиям') : { ok:true };
+  const raTop = RP.reportAnswer({ tpl:'t-sh-claims', form:'ответ', params:{ asOf: D }, top: 3 });
+  const raBy = RP.reportAnswer({ tpl:'t-sh-claims', form:'ответ', params:{ asOf: D }, by:['status'] });
+  const raOk = RP.reportAnswer({ tpl:'t-sh-claims', form:'ответ', params:{ asOf: D }, by:['q-phase'] });
+  const pvBad = RP.pivot('t-sh-claims', { asOf: D }, { rows:'status', cols:'borrower' });
+  const pvOk = RP.pivot('t-sh-claims', { asOf: D }, { rows:'q-phase', cols:'q-role' });
+  ok(371, !oNo.ok && has(oNo.why, 'снимка статистики нет') && !oEmpty.ok && has(oEmpty.why, 'дата не названа') &&
+        !oNow.ok && has(oNow.why, 'живым запросом нет') && n1 === n0 && oOk.ok &&
+        !af.ok && has(af.why, 'о другом объекте') && RP.TPL('t-sh-claims').editions[0].formulas === undefined &&
+        !sg.ok && has(sg.why, 'ночным прогоном') && !sb.ok && has(sb.why, 'ночным прогоном') &&
+        !wls.ok && has(wls.why, 'рабочий список ведёт живые объекты') && n3 === n2 && !wl.ok && has(wl.why, 'снимком на дату') &&
+        !raTop.ok && has(raTop.why, 'вклада объекта') && !raBy.ok && has(raBy.why, 'разреза «status»') &&
+        raOk.ok && raOk.answers[0].stats[0].groups.length > 0 && !pvBad.ok && has(pvBad.why, 'фаза взыскания') && pvOk.ok,
+    `обходы замка соседа закрыты словами: выпуск без снимка, без даты и в «сейчас» не заказывается (журнал не растёт); ` +
+    `своя формула с показателем кредита, сигнал и подписка, рабочий список (до выпуска и из выпуска), «крупнейшие» ` +
+    `и чужой разрез в ответе и сводной — отказ; разрезы самого соседа в ответе и сводной работают`);
+
+  RP.seed(); as('user'); RP.state.view = 'issue';
+  const g8 = RP.show('t-sh-claims', { asOf: NO, dept: '' }, null);
+  RP.selTpl('t-sh-claims'); RP.setAsOf(NO); const h8 = win.VIEWS.issue.fn();
+  const g15 = RP.show('t-sh-claims', { asOf: '2026-10-01', dept: '' }, null);
+  ok(372, g8.ok && g8.data.missing && g8.data.gap.reason === 'снимки статистики — на конец месяца' &&
+        g8.data.gap.before === '2026-07-31' && g8.data.gap.after === D && has(h8, 'Причина: снимки статистики — на конец месяца.') &&
+        has(h8, 'июль 2026, 01.08.2026 — снимка нет') && g15.ok && g15.data.missing && g15.data.gap.reason !== g8.data.gap.reason,
+    `01.08 у соседа — «снимка нет», причина «${g8.data.gap.reason}» (конец июля — снимок), ближайшие 31.07 и 31.08; ` +
+    `на 01.10 конец сентября не снимок — своя причина («${g15.data.gap.reason}»)`);
 })();
 
 /* ---- отчёт ---- */
