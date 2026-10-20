@@ -262,6 +262,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .sl-path .linky{ font-size:14px; white-space:nowrap; } .sl-mids{ display:inline-flex; align-items:baseline; gap:6px; } .sl-dots{ display:inline-flex; align-items:baseline; gap:6px; color:var(--text-muted); cursor:help; }
 .sl-num{ font-size:21px; line-height:1; font-weight:600; letter-spacing:-.018em; color:var(--text-heading); font-variant-numeric:tabular-nums; cursor:help; }
 .sl-num .u{ font-size:13px; font-weight:500; letter-spacing:0; color:var(--text-muted); margin-left:3px; }
+.sl-num.mine0{ font-size:15px; font-weight:500; letter-spacing:0; color:var(--text-muted); text-decoration:underline dotted var(--text-placeholder); text-underline-offset:4px; }
 .sl-shift .shift{ font-size:13px; color:var(--text-secondary); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .sl-dims{ display:inline-flex; align-items:center; gap:6px; margin:0; } .sl-dims .x{ color:var(--text-placeholder); }
 .strip-line select,.ctl select{ height:30px; max-width:220px; font-size:13px; font-weight:500; field-sizing:content; }
@@ -4328,7 +4329,7 @@ function cachedBase(t, u, roleId, panel, path){
   if(!(path && path.length)) return cachedAsk(t, u, roleId, panel);
   return cachedBy(cacheKey(t, u, roleId, panel, 'base§'+JSON.stringify(path || [])), mainQ(t) || {}, ()=>baseOf(t, u, roleId, panel, path)); }
 function cachedMini(t, u, roleId, panel){ return cachedBy(cacheKey(t, u, roleId, panel, 'mini'), mainQ(t) || {}, ()=>miniOf(t, u, roleId, panel), true); }
-function cachedView(t, kind, sel, path, u, roleId, panel){ const s = viewSel(t, kind, sel, u, path, panel);
+function cachedView(t, kind, sel, path, u, roleId, panel){ const s = viewSel(t, kind, sel, u, path, panel, roleId);
   return cachedBy(cacheKey(t, u, roleId, panel, 'view§'+kind+'§'+JSON.stringify(s)+'§'+modeOf(sel)+'§'+JSON.stringify(path || [])), mainQ(t) || {}, ()=>viewOf(t, kind, sel, path, u, roleId, panel), true); }
 
 /* ================= Пять видов в полосе ================= */
@@ -4360,12 +4361,14 @@ function colsFor(t){
   const col = temp=>i=>({ id:i, temp, name:IND[i].name, unit:IND[i].unit });
   return [...own.map(col(false)), ...share, ...rest.map(col(true))];
 }
+// плитка пуста по закону на свою дату — причина ответа; «крупнейшие» ранжируют по её числу, и у такой плитки их нет
+const lawOf = (t, u, roleId, panel, path)=>{ const b = u && cachedBase(t, u, roleId, panel || {}, path || []); return b && b.state==='mine0' ? b.msg : null; };
 // выбор вида: выбор человека ?? его память ?? умолчание автора ?? первые разрезы отчёта
-function viewSel(t, kind, sel, u, path, panel){
+function viewSel(t, kind, sel, u, path, panel, roleId){
   const m = t, src = srcOf(t); sel = sel || {}; if(!src) return {};
   const mem = ((S.viewMem || {})[(u && u.id)+'|'+t.id] || {})[kind] || {}, def = (m.views || {})[kind] || {};
   const free = dimsFor(t, path, panel).map(x=>x.dim);   // разрез, зафиксированный панелью или путём, не берётся и из выбора
-  const big = bigOK(t), okDim = d=>free.includes(d) || (d==='big' && big);   // «крупнейшие» — в выборе разреза у плитки-суммы
+  const big = bigOK(t) && !lawOf(t, u, roleId===undefined ? curRole() : roleId, panel, path), okDim = d=>free.includes(d) || (d==='big' && big);   // «крупнейшие» — в выборе разреза у плитки-суммы
   const dimOf = k=>[sel[k], mem[k], def[k]].find(okDim) || free[0] || null;
   const bn = ()=>[sel.bn, mem.bn, def.bn].map(Number).find(n=>[5, 10, 20].includes(n)) || 10;   // сколько крупнейших — своей строкой
   const withBn = o=>[o.dim, o.by, ...(o.dims || [])].includes('big') ? Object.assign(o, { bn:bn() }) : o;
@@ -4414,10 +4417,13 @@ function mvDateOf(t){ const q = mainQ(t); if(!q || qKind(q)!=='stock') return nu
   if(pt.m===0 && !pt.day) return null;
   if(pt.m===-1 && !pt.day) return { only:-1 };
   return { off:'Движение — с конца месяца по конец следующего или по сегодня; дата плитки — «'+D.label+'», не сегодня и не конец месяца' }; }
+// пусто по закону («нет объектов», «в легаси не собиралось») — ответ на дату плитки, а не на полосу: виды по своим датам (Ряд, Когорты)
+// отвечают, виды на дату плитки и двух дат гаснут той же причиной
+const stripLive = b=>!!b && (LIVE.includes(b.state) || b.state==='mine0');
 // пять видов плитки: доступен ли и почему погашен
 function viewsFor(t, u, roleId, path, panel){
   const b = t && cachedBase(t, u, roleId, panel || {}, path);
-  if(!b || !LIVE.includes(b.state)) return VIEW_KINDS.map(kind=>({ kind, ok:false, why:(b && b.msg) || 'плитка не отвечает' }));
+  if(!stripLive(b)) return VIEW_KINDS.map(kind=>({ kind, ok:false, why:(b && b.msg) || 'плитка не отвечает' }));
   const src = srcOf(t), q = mainQ(t, path), I = IND[q.inds[0]], free = dimsFor(t, path, panel).length;
   const hist = !(q.share || q.inds.slice(0, 1)).some(i=>IND[i].currentOnly), timed = !!src.module || timedReport(src);
   const noDims = src.module && !src.dims.length ? 'очередь модуля не объявила разрезов' : path && path.length ? 'разрезы объекта кончились на пути' : src.module ? 'разрез очереди зафиксирован фильтром панели' : 'у объекта нет разрезов';
@@ -4428,13 +4434,14 @@ function viewsFor(t, u, roleId, path, panel){
     move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : (mvDateOf(t) || {}).off
       || mvBaseDown(t, path) || mvLegacyOff(t, u, roleId, panel, path) || null,
     table: free ? null : noDims };
+  if(b.state==='mine0') ['slice', 'map', 'move', 'table'].forEach(k=>{ why[k] = why[k] || b.msg; });
   return VIEW_KINDS.map(kind=>({ kind, ok:!why[kind], why:why[kind] }));
 }
 // Когорты — шестой вид, открывается из «⋯» строки полосы: у объектов с датой начала (кредит, заёмщик, дело взыскания, заявка); как Ряду,
 // ему нужны история показателя и дата отчёта. Где нечего показать — пункт погашен с причиной
 function cohortFor(t, u, roleId, path, panel){
   const b = t && cachedBase(t, u, roleId, panel || {}, path || []);
-  if(!b || !LIVE.includes(b.state)) return { ok:false, why:(b && b.msg) || 'плитка не отвечает' };
+  if(!stripLive(b)) return { ok:false, why:(b && b.msg) || 'плитка не отвечает' };
   const src = srcOf(t), q = mainQ(t, path), obj = objOf(src);
   if(!COHORT_START[obj]) return { ok:false, why:'у объекта «'+OBJECTS[obj].name+'» нет даты начала — когорты считаются от выдачи кредита, первого договора заёмщика, открытия дела взыскания, подачи заявки' };
   if((q.share || q.inds.slice(0, 1)).some(i=>IND[i].currentOnly)) return { ok:false, why:NO_HIST };
@@ -4516,7 +4523,7 @@ function seriesLegacy(res, gap){ const ps = res.series.points, L = STAND.launch;
 function viewOf(t, kind, sel, path, u, roleId, panel){
   path = path || [];
   if(kind==='cohort') return cohortView(t, sel, path, u, roleId, panel);
-  const s = srcOf(t) ? viewSel(t, kind, sel, u, path, panel) : {}, used = [s.dim, s.by, ...(s.dims || [])];
+  const s = srcOf(t) ? viewSel(t, kind, sel, u, path, panel, roleId) : {}, used = [s.dim, s.by, ...(s.dims || [])];
   if(!used.includes('big') || !['slice', 'table', 'map', 'series'].includes(kind)) return viewOf0(t, kind, sel, path, u, roleId, panel);
   const B = bigOf(t, u, roleId, panel, path, s.bn), res = withBig(B, ()=>viewOf0(t, kind, sel, path, u, roleId, panel));
   if(res && LIVE.includes(res.state)) res.big = B;
@@ -4526,7 +4533,7 @@ function viewOf0(t, kind, sel, path, u, roleId, panel){
   path = path || []; const v = viewsFor(t, u, roleId, path, panel).find(x=>x.kind===kind);
   if(!v) return { kind, state:'broken', msg:'Такого вида нет' };
   if(!v.ok) return { kind, state:'off', msg:v.why };
-  const m = t, src = srcOf(t), s = viewSel(t, kind, sel, u, path, panel); let spec, shares = false, sh = null, ask = [];
+  const m = t, src = srcOf(t), s = viewSel(t, kind, sel, u, path, panel, roleId); let spec, shares = false, sh = null, ask = [];
   // Переходы — режим Карты: оси «значение на дату базы × сегодня»; недоступны — Карта двух разрезов, причина — у выбора осей
   const tv = kind==='map' ? transFor(t, u, roleId, path, panel) : null, trans = !!tv && s.axes==='trans' && tv.ok && tv.dims.includes(s.tdim);
   // «Сумма | Изменение»: в Движении переключателя нет; нет базы сдвига у плитки — «Изменение» погашено, разницы нет
@@ -4611,6 +4618,10 @@ function cohortView(t, sel, path, u, roleId, panel){
   const res = answer(q, u, roleId, panel);
   if(res.rows) countNodes(res, numQ(t, path, 'main'), u, null);
   delete res.rows; delete res.rowsAt;
+  // через дату запуска — как Ряд: клетка месяца, которого перенос не дал, — «—» с причиной из ответа, «☰» у неё нет; объём на старте остаётся
+  const sq = res.cohort && STAND.launch!==null && mainQ(t, path), gapAt = {};
+  const gap = m=>m in gapAt ? gapAt[m] : (gapAt[m] = legacyGap(t, src, u, roleId, panel, path, null, qKind(sq), [m]));
+  if(sq) res.cohort.rows.forEach(r=>{ r.cells = r.cells.map(x=>x && legacyAt(x.m) && gap(x.m) ? Object.assign({}, x, { v:null, cnt:undefined, down:LEGACY_WHY(gap(x.m)) }) : x); });
   if(STAND.partDown && res.cohort) partDownMore(res);
   return Object.assign(res, { kind:'cohort', sel:s, path:path.slice(), temp:false, mode:null, modeOff:null, next:null });
 }
@@ -4757,11 +4768,12 @@ function setViewSel(t, o, key, value, panel){
   const m = t, src = srcOf(t), free = dimsFor(t, o.path, panel || S.panel).map(x=>x.dim), fail = error=>({ error }); if(!src) return fail('Плитка не отвечает');
   const nm = d=>'«'+(DIMS[d] ? DIMS[d].name : d)+'»', known = d=>!!DIMS[d] && (src.dims.includes(d) || (!src.module && (OBJ_DIMS[objOf(src)] || []).includes(d)));
   const why = d=>o.path.some(x=>x.dim===d) ? 'Разрез '+nm(d)+' уже в пути — вернитесь по крошкам' : !known(d) ? 'У объекта нет разреза '+nm(d) : 'Разрез '+nm(d)+' зафиксирован фильтром панели';
-  const okDim = d=>free.includes(d) || (d==='big' && bigOK(t)), bigWhy = 'Крупнейшие — у плитки-суммы на отчёте: первые объекты по её показателю';
+  const law = lawOf(t, user(), curRole(), panel || S.panel, o.path), big = bigOK(t) && !law;
+  const okDim = d=>free.includes(d) || (d==='big' && big), bigWhy = law || 'Крупнейшие — у плитки-суммы на отчёте: первые объекты по её показателю';
   if(key==='dim'){ if(!okDim(value)) return fail(value==='big' ? bigWhy : why(value)); o.sel.dim = value; }
   else if(key==='dims'){ let [a, b] = [].concat(value || []); const was = viewSel(t, 'map', o.sel, user(), o.path, panel || S.panel).dims || [];
     if(a===b){ if(a!==was[0]) b = was[0]; else a = was[1]; }                  // тот же разрез в обоих — меняем местами
-    const bad = [a, b].find(d=>!okDim(d)); if(bad || free.length + (bigOK(t) ? 1 : 0)<2) return fail(bad ? (bad==='big' ? bigWhy : why(bad)) : 'Для Карты нужны два свободных разреза');
+    const bad = [a, b].find(d=>!okDim(d)); if(bad || free.length + (big ? 1 : 0)<2) return fail(bad ? (bad==='big' ? bigWhy : why(bad)) : 'Для Карты нужны два свободных разреза');
     o.sel.dims = [a, b]; }
   else if(key==='per'){ if(value!=='q' && value!=='m') return fail('Когорты — по кварталам или по месяцам начала'); o.sel.per = value; }
   else if(key==='by'){ const v = value==='' || value===null || value===undefined || value==='total' ? null : value;   // Ряд: итог или по разрезу
@@ -5188,9 +5200,10 @@ function stripCtl(k, t, kind, s, r){
   const off = (name, why)=>`<button class="off" aria-disabled="true" data-tip="${esc(why)}">${name}</button>`;
   if(kind==='slice') c = (r.format==='slice' ? topBox() : '') + bigN;
   else if(kind==='series'){ const free = dimsFor(t, (S.open[k] || {}).path || [], S.panel), first = (free[0] || {}).dim;
+    const law = lawOf(t, user(), curRole(), S.panel, (S.open[k] || {}).path), big = bigOK(t) && !law;   // пусто по закону — «крупнейших» нет
     // «итог | по разрезу ▾»: строка на значение разреза, мини-столбцы на одной шкале
-    const by = `<span class="opt">Ряд <span class="seg"><button class="${s.by ? '' : 'on'}" onclick="DB.viewSet('${id}','by','')">итог</button>${first || bigOK(t) ? `<button class="${s.by ? 'on' : ''}" onclick="DB.viewSet('${id}','by','${s.by || first || 'big'}')">по разрезу</button>` : off('по разрезу', 'разрезов на этом уровне нет')}</span>`
-      +(s.by ? `<select aria-label="Разрез ряда" data-tip="Разрез ряда" onchange="DB.viewSet('${id}','by',this.value)">${dimOptions(free, s.by, srcOf(t))}${bigOption(t, s.by)}</select>` : '')+'</span>';
+    const by = `<span class="opt">Ряд <span class="seg"><button class="${s.by ? '' : 'on'}" onclick="DB.viewSet('${id}','by','')">итог</button>${first || big ? `<button class="${s.by ? 'on' : ''}" onclick="DB.viewSet('${id}','by','${s.by || first || 'big'}')">по разрезу</button>` : off('по разрезу', law || 'разрезов на этом уровне нет')}</span>`
+      +(s.by ? `<select aria-label="Разрез ряда" data-tip="Разрез ряда" onchange="DB.viewSet('${id}','by',this.value)">${dimOptions(free, s.by, srcOf(t))}${big ? bigOption(t, s.by) : ''}</select>` : '')+'</span>';
     c = `<span class="opt">Точек ${seg('points', s.points, [[6, '6'], [12, '12'], [24, '24']])}</span>` + (!m.second ? '' : secondHist(t) ? `<span class="opt">Число ${seg('of', s.of, [['main', 'главное'], ['second', 'второе']])}</span>`
     : `<span class="opt">Число <span class="seg"><button class="on">главное</button><button class="off" aria-disabled="true" data-tip="${esc('Ряд по второму числу недоступен: '+NO_HIST)}">второе</button></span></span>`)
       + by + (s.by && !DIMS[s.by].ordered && s.by!=='big' ? topBox() : '') + bigN; }
@@ -5277,7 +5290,7 @@ function stripHTML(k, u, roleId, sc, place){
 }
 function stripIn(k, o, t, u, roleId, place, newer){
   const id = esc(k), path = o.path || [], panel = S.panel, kind = o.kind;
-  const s = Object.assign({ cols:[] }, viewSel(t, kind, o.sel, u, path, panel)), r0 = cachedView(t, kind, o.sel, path, u, roleId, panel);
+  const s = Object.assign({ cols:[] }, viewSel(t, kind, o.sel, u, path, panel, roleId)), r0 = cachedView(t, kind, o.sel, path, u, roleId, panel);
   const L = loadOf(o), queued = r0.state==='queued', wait = queued || !L.sum || (r0.axes==='trans' && !L.base);   // Переходам нужны обе даты — до базы скелет
   if(L.next!==null) loadWake = loadWake===null ? L.next : Math.min(loadWake, L.next);
   // ответ, который рисуем: целиком; без базы (пришла только «Сумма») — «Суммой» с «…» на месте разницы. Выбрано «Изменение» — до базы скелет
@@ -5291,6 +5304,7 @@ function stripIn(k, o, t, u, roleId, place, newer){
     body = skelBody(shape, queued ? `в очереди · ${++qPos}-я` : L.long ? `считается дольше обычного <span class="sep">·</span> <button class="linky" onclick="DB.loadCancel('${id}')">Отменить</button>` : 'считается…'); }
   else body = ok ? formatBody(t, r, viewQ(t, r), stripOps(k, r)) : `<div class="state-msg">${esc(r.msg || 'нет ответа')}</div>`;
   const b = cachedBase(t, u, roleId, panel, path), live = !queued && LIVE.includes(b.state), q = live && mainQ(t, path);
+  const law = !queued && b.state==='mine0';   // пусто по закону: строка повторяет плитку — серый признак вместо числа, без сдвига и «☰ N»
   // путь: название плитки › узлы; середина сворачивается в «…», когда строка не вмещает (fitStrips)
   const steps = [t.title].concat(path.map(x=>dimLabel(x.dim, x.v))), last = path.length, sep = '<span class="sep">›</span>';
   const crumb = (n, i)=>i===last ? `<b>${esc(n)}</b>` : `<button class="linky" ${i ? `data-tip="${esc(DIMS[path[i - 1].dim].name)}"` : ''} onclick="DB.crumb('${id}',${i})">${esc(n)}</button>`;
@@ -5308,9 +5322,9 @@ function stripIn(k, o, t, u, roleId, place, newer){
   const lk = o.link, linkTxt = lk && lk.day ? `<span class="sl-fresh sl-link" role="status">на конец ${esc(lk.day)} · по ссылке<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">на сегодня</button></span>`
     : lk && lk.from ? `<span class="sl-fresh sl-link" role="status">по ссылке от ${esc(lk.from)}<span class="sep">·</span>сейчас ${esc(o.snap.at)}</span>` : '';
   const fresh = linkTxt+(newer ? `<span class="sl-fresh" role="status">есть данные на ${esc(newer)}<span class="sep">·</span><button class="linky" onclick="DB.stripRefresh('${id}')">Обновить</button></span>` : '');
-  const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free, r)}
+  const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : law ? `<span class="sl-num mine0"${tipAttr(b.msg)}>${esc(b.noneLabel || 'у вас пусто')}</span>` : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free, r)}
     <span class="sl-sp"></span>${fresh}${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
-    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}"${whoOn(k, null) ? ' data-on="1"' : ''} onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
+    ${ok && !law && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}"${whoOn(k, null) ? ' data-on="1"' : ''} onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
   const tools = (queued ? '' : stripMode(k, r0, pend || (wait && !!r0.baseLabel)))+stripCtl(k, t, kind, s, queued ? {} : r0);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
@@ -5552,6 +5566,7 @@ function coBody(res, q, ops){
   const pc = x=>(Math.round(x*10)/10).toString().replace('.', ',')+' %';
   const vol = r=>c.volSum ? fmtVal(r.vol.sum, 'sum') : nbsp(r.vol.n), volTip = r=>r.label+': '+(c.volSum ? 'выдано '+fmtVal(r.vol.sum, 'sum')+' · '+nbsp(r.vol.n)+' '+plural(r.vol.n, 'кредит', 'кредита', 'кредитов') : c.vol+' '+nbsp(r.vol.n));
   const cell = (r, a, x)=>{ if(!x) return `<td class="co-y"${tipAttr(r.label+': ещё не прошло '+a+' мес. с начала')}></td>`;
+    if(x.down) return `<td class="c hm-e dn"${tipAttr(r.label+' · '+a+' мес. с начала (на '+monthEndLabel(x.m)+'): '+x.down)}>—</td>`;
     const when = x.m===0 ? todayIs() : 'на '+monthEndLabel(x.m), empty = !x.cnt && !x.v;
     const tip = [r.label+' · '+a+' мес. с начала ('+when+'): '+fmtVal(x.v, unit)+(c.volSum && unit==='sum' && r.vol.sum ? ' · '+pc(x.v / r.vol.sum * 100)+' выданного' : ''),
       x.closed ? '' : 'месяц не закрыт', 'Кто в этом числе: '+nbsp(x.cnt || 0)+' стр.'].filter(Boolean).join('\n');
