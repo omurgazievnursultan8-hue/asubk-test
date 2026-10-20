@@ -3405,9 +3405,9 @@ const DEV = 'изменено — не утверждённый состав';
   const st = KB.startFrom('p-assets'), aa = KB.answer();
   KB.setObject('offer'); const ao = KB.answer(); KB.seed();
   const noPre = KB.startFrom('zzz');
-  ok(295, st.ok && aa.ok && KB.presets().length === 4 && aa.root.count === 8 && aa.root.values['s-a-book'] === 22460000 &&
+  ok(295, st.ok && aa.ok && KB.presets().length === 5 && aa.root.count === 8 && aa.root.values['s-a-book'] === 22460000 &&
         aa.root.children.map(n => n.key).join() === 'на продаже,продано' && ao.ok && ao.root.count === 5 && !noPre.ok,
-    `ОГ-27, входящие имущества: «начать с готового» — четыре заготовки; «Реестр имущества на дату» на 31.08.2026 — 8 объектов ` +
+    `ОГ-27, входящие имущества: «начать с готового» — пять заготовок (пятая — заявки по программам и статусам); «Реестр имущества на дату» на 31.08.2026 — 8 объектов ` +
     `имущества, учётная стоимость 22 460 000, по состоянию «на продаже · продано»; второй объект — предложения имущества (5)`);
 
   RP.seed(); as('user');
