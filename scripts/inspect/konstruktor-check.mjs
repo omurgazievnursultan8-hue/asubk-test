@@ -13,6 +13,7 @@
 // Волна 24: логика конструктора влита в общий <script> reports.html внутри своей IIFE
 // (window.KB/S/scAnswer, act переименован в kbAct — не путать с window.act самого reports.html).
 // G: шаг «фильтры» — редактор наборов: в наборе условия «и», наборы между собой «или»; «топ N» строкой после наборов.
+// H: зеркало реестра статистики (читается из mockups/statistics/statistics.html): все показатели и разрезы объекта, значения стенда, группы и поиск; заготовка «Заявки по программам и статусам».
 //   node scripts/inspect/konstruktor-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -69,10 +70,12 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
   const t = KB.toggleStat('s-avg-late');
   ok(6, !t.ok && has(t.why, 'налету не берётся'),
     `неисчислимый показатель в «сейчас» отказан причиной: «${t.why.slice(0, 50)}…»`);
-  const cp = KB.addCut('program');
+  const cp = KB.addCut('purpose');
   const back = KB.setMode('на дату');
-  ok(7, cp.ok && back.ok && back.dropped.length === 1 && back.dropped[0].kind === 'разрез' && !KB.cutAvail('program').ok && has(KB.cutAvail('program').why, 'прогон'),
-    `необъявленный разрез «кредитная программа» доступен в «сейчас» и снят С ПОМЕТКОЙ при возврате в «на дату»: «${back.dropped[0].why.slice(0, 60)}…»`);
+  ok(7, cp.ok && back.ok && back.dropped.length === 1 && back.dropped[0].kind === 'разрез' && back.dropped[0].name === 'целевое назначение' &&
+        !KB.cutAvail('purpose').ok && has(KB.cutAvail('purpose').why, 'прогон') && KB.cutAvail('program').ok,
+    `необъявленный разрез «целевое назначение» (поле перечня ядра, записи в реестре разрезов нет) доступен в «сейчас» и снят С ПОМЕТКОЙ ` +
+    `при возврате в «на дату»: «${((back.dropped[0] || {}).why || '').slice(0, 60)}…»; «кредитная программа» объявлена реестром (d-program) и на дату доступна`);
   KB.seed();
   const sw = KB.setObject('borrower'); KB.setObject('credit'); KB.setMode('сейчас');
   const sw2 = KB.setObject('borrower');
@@ -134,9 +137,11 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
   const r = KB.setObject('collateral');
   const a = KB.answer();
   const st = KB.statsAvail(), cu = KB.cutsAvail(), fl = KB.fields();
+  /* Палитра — зеркало реестра по obj-collateral: 11 агрегатов и a-count, 10 разрезов реестра и свой «валюта оценки» (ОЧ-Д3). */
   ok(17, r.ok && !r.switched && a.ok && a.root.count === 41 && a.hidden === 3 && has(a.passport.short, 'вам видно 41') &&
-        st.length === 8 && st.every(x => x.id.startsWith('s-c-') && x.ok) && cu.length === 9 && cu.every(x => x.id.startsWith('c-') && x.ok) &&
-        S().cuts[0].id === 'c-dept' && fl.owner === 'залог · предметы' && fl.fields.length === 16,
+        st.length === 12 && st.every(x => x.object === 'collateral' && x.ok) && cu.length === 10 && cu.every(x => x.object === 'collateral' && x.ok) &&
+        !cu.some(x => x.id === 'dept' || x.reg === 'd-branch') &&
+        S().cuts[0].id === 'c-dept' && fl.owner === 'залог · предметы' && fl.fields.length === 23,
     `предмет залога: перечень объявил «${fl.owner}» (${fl.fields.length} полей), палитра — ${st.length} показателей и ${cu.length + 1} разрезов, и все СВОИ ` +
     `(ИС-40: «подразделение» кредита к предмету не прикладывается); вам видно ${a.root.count}, скрыто ${a.hidden}`);
 
@@ -317,6 +322,127 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
     `${sp(a.root.values['s-portfolio'])} пришёл от статистики списком отобранных строк и равен сумме этих пяти, посчитанной отдельно; ` +
     `паспорт: «${a.passport.shown.top}»; «последние 5» — пять наименьших (от ${sp(asc[0].debt_main)}); по «заёмщику» отказано словами; ` +
     `«топ 0» снимает строку; черновик хранит наборы и «топ N»`);
+})();
+
+/* ---------- H. Зеркало реестра статистики: все показатели и разрезы объекта (ОЧ-Д3, §3 п. 2; ПВ-15) ---------- */
+(() => {
+  /* Реестр — из самого макета статистики: его <script> исполняется в своей песочнице, наружу — только REGISTRY. */
+  const stSrc = readFileSync(resolve(__dir, '../../mockups/statistics/statistics.html'), 'utf8');
+  const sb2 = { window: {}, console, document: undefined, setTimeout: () => {}, clearTimeout: () => {} };
+  vm.createContext(sb2);
+  vm.runInContext(stSrc.match(/<script>([\s\S]*)<\/script>/)[1] + '\n;globalThis.__REG = REGISTRY;', sb2, { filename: 'statistics.inline.js' });
+  const REG = sb2.__REG || [];
+  const OBJ = { credit:'obj-credit', borrower:'obj-borrower', collateral:'obj-collateral', claim:'obj-claim', app:'obj-app' };
+  const FN = { sum:'сумма', count:'количество', avg:'среднее', max:'максимум', min:'минимум' };
+  const same = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const lines = [], bad = [], nulls = [];
+  Object.keys(OBJ).forEach(o => {
+    const R = REG.filter(r => r.obj === OBJ[o] || (r.obj === '*' && r.id === 'a-count'));
+    const rAgg = R.filter(r => r.kind === 'показатель' && r.src === 'агрегат'), rMeas = R.filter(r => r.kind === 'показатель' && r.src !== 'агрегат');
+    const rCut = R.filter(r => r.kind === 'разрез');
+    KB.seed(); KB.setObject(o); S().cuts = [];
+    const st = KB.statsAvail(), fl = KB.fields().fields, cu = KB.cutsAvail();
+    const sReg = st.map(x => x.reg).filter(Boolean), fReg = fl.map(x => x.reg).filter(Boolean), cReg = cu.map(x => x.reg).filter(Boolean);
+    st.concat(cu).filter(x => x.reg === null).forEach(x => nulls.push(x.id));
+    const ok1 = same(sReg, rAgg.map(r => r.id)) && new Set(sReg).size === sReg.length;
+    const ok2 = rMeas.every(r => fReg.indexOf(r.id) !== -1);
+    const ok3 = same(cReg, rCut.map(r => r.id)) && new Set(cReg).size === cReg.length;
+    /* агрегат стоит над той же мерой и той же функцией, что в реестре; корзины разреза — как объявил реестр */
+    const ok4 = rAgg.filter(r => r.over).every(r => { const s = st.find(x => x.reg === r.id), f = s && fl.find(x => x.id === s.over);
+      return s && f && f.reg === r.over && (s.agg.split(' ·')[0] === FN[r.fn]); });
+    const ok5 = rCut.filter(r => r.buckets).every(r => { const c = cu.find(x => x.reg === r.id); return c && c.buckets && same(Object.keys(c.buckets), r.buckets); });
+    if (!(ok1 && ok2 && ok3 && ok4 && ok5)) bad.push(o + ':' + [ok1, ok2, ok3, ok4, ok5].map(Number).join(''));
+    lines.push(`${win.KB.fields().name} — агрегатов ${sReg.length}/${rAgg.length}, мер ${rMeas.filter(r => fReg.indexOf(r.id) !== -1).length}/${rMeas.length}, разрезов ${cReg.length}/${rCut.length}`);
+  });
+  ok(28, REG.length > 300 && !bad.length && nulls.sort().join() === 'c-cur,purpose,s-npl,s-overdue-cnt',
+    `конструктор = реестр статистики по объекту (конструктор/реестр): ${lines.join('; ')}; у агрегата та же мера и та же функция, ` +
+    `корзины разреза — как в реестре; без пары в реестре (reg:null) — ${nulls.join(', ')}${bad.length ? '; расхождения: ' + bad.join(' ') : ''}`);
+
+  /* Значения стенда на 31.08: корень = суммы по строкам ответа; статьи сходятся в свод. */
+  const ART = ['collection', 'charges', 'debt_main', 'accInterest', 'interest', 'accPenalty', 'penalty'];
+  const OVR = ['over_collection', 'over_charges', 'over_principal', 'over_accInterest', 'over_interest', 'over_accPenalty', 'over_penalty'];
+  const A_ART = ['a-sumcoll', 'a-sumfee', 's-portfolio', 'a-sumaint', 'a-sumint', 'a-sumapen', 'a-sumpen'];
+  const A_OVR = ['a-sumocoll', 'a-sumofee', 'a-sumodebt', 'a-sumoaint', 'a-sumoint', 'a-sumoapen', 'a-sumopen'];
+  const sum = (rs, f) => rs.reduce((s, r) => s + (r[f] || 0), 0);
+  const sp = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  KB.seed(); KB.setDrill(true);
+  /* Средняя по сроку — по строкам, где срок есть: спорный — у спорных, просрочка заёмщика — у просроченных. */
+  const avgPos = (rs, f) => { const l = rs.filter(r => r[f] > 0); return l.length ? sum(l, f) / l.length : null; };
+  S().stats = ['a-sumtotal', 's-overdue-sum', 'a-sumcurr', 'a-maxodays', 'a-sumissued', 'a-avgddays'].concat(A_ART, A_OVR); S().cuts = [];
+  const a = KB.answer(), rows = KB.rowsShown(), v = a.root.values;
+  const rowsOk = rows.every(r => r.total === ART.reduce((s, f) => s + r[f], 0) && r.overdue === OVR.reduce((s, f) => s + r[f], 0) &&
+    r.current === r.total - r.overdue && r.current >= 0 && OVR.every((f, i) => r[f] >= 0 && r[f] <= r[ART[i]]) &&
+    ['flowIssued', 'flowRepaid', 'flowInterest', 'flowPenalty', 'flowFees', 'flowRecovery', 'flowWrittenOff', 'fx'].every(f => r[f] >= 0) &&
+    r.days >= 0 && r.disputedDays >= 0 && r.flowIssued === r.sum);
+  const vArt = A_ART.reduce((s, id) => s + v[id], 0), vOvr = A_OVR.reduce((s, id) => s + v[id], 0);
+  KB.setAsOf('2026-07-31'); const j = KB.answer(), jr = KB.rowsShown();
+  KB.seed(); KB.setObject('borrower'); KB.setDrill(true); S().stats = ['a-sumbtotal', 'a-sumbover', 's-b-count', 'a-avgbtenure', 'a-avgbodays']; S().cuts = [];
+  const b = KB.answer(), br = KB.rowsShown();
+  KB.seed(); KB.setObject('collateral'); KB.setDrill(true); S().stats = ['a-sumcdeals', 'a-mincnext', 'a-avgcreval']; S().cuts = [];
+  const z = KB.answer(), zr = KB.rowsShown();
+  ok(29, a.ok && rows.length === 47 && rowsOk && v['a-sumtotal'] === sum(rows, 'total') && v['a-sumodebt'] === sum(rows, 'over_principal') &&
+        v['a-maxodays'] === Math.max(...rows.map(r => r.days)) && v['a-sumissued'] === sum(rows, 'sum') &&
+        v['a-avgddays'] > 0 && Math.abs(v['a-avgddays'] - avgPos(rows, 'disputedDays')) < 1e-9 &&
+        vArt === v['a-sumtotal'] && vOvr === v['s-overdue-sum'] && v['a-sumcurr'] === v['a-sumtotal'] - v['s-overdue-sum'] &&
+        j.ok && jr.length === 45 && j.root.values['a-sumtotal'] === sum(jr, 'total') && j.root.values['a-sumtotal'] !== v['a-sumtotal'] &&
+        b.ok && b.root.values['a-sumbtotal'] === sum(br, 'btotal') && b.root.values['a-sumbtotal'] === v['a-sumtotal'] &&
+        b.root.values['a-sumbover'] === v['s-overdue-sum'] && b.root.values['s-b-count'] === br.length &&
+        Math.abs(b.root.values['a-avgbtenure'] - sum(br, 'btenure') / br.length) < 1e-9 &&
+        Math.abs(b.root.values['a-avgbodays'] - avgPos(br, 'worst')) < 1e-9 &&
+        z.ok && z.root.values['a-sumcdeals'] === sum(zr, 'deals') && z.root.values['a-mincnext'] === Math.min(...zr.map(r => r.next)) &&
+        Math.abs(z.root.values['a-avgcreval'] - sum(zr, 'reval') / zr.length) < 1e-9,
+    `на 31.08 по ${rows.length} кредитам: задолженность всего ${sp(v['a-sumtotal'])} = семь статей остатка (${sp(vArt)}); просрочено по семи ` +
+    `статьям ${sp(vOvr)} = «Сумма просроченной задолженности» ${sp(v['s-overdue-sum'])}, из них ОД ${sp(v['a-sumodebt'])}; срочно ${sp(v['a-sumcurr'])}; ` +
+    `худшая просрочка ${v['a-maxodays']} дн.; средний спорный срок ${Math.round(v['a-avgddays'])} дн. — по спорным; каждая строка сходится сама; на 31.07 — ${jr.length} кредитов, ${sp(j.root.values['a-sumtotal'])}; ` +
+    `заёмщики (${br.length}) — портфель тех же договоров: ${sp(b.root.values['a-sumbtotal'])}, просрочено ${sp(b.root.values['a-sumbover'])}; ` +
+    `залог: договоров ${z.root.values['a-sumcdeals']}, до планового обследования наименьшее ${z.root.values['a-mincnext']} дн. (наибольшая ` +
+    `просрочка контроля), с переоценки в среднем ${z.root.values['a-avgcreval'].toFixed(1).replace('.', ',')} дн. — всё равно счёту по строкам ответа`);
+
+  /* Блок «Показатели» — группами реестра и поиском; разрезы — группами по источнику и поиском. */
+  const card = (h, from, to) => { const i = h.indexOf(from); return h.slice(i, h.indexOf(to, i)); };
+  const names = h => (h.match(/<span class="t">[^<]*/g) || []).map(x => x.replace('<span class="t">', ''));
+  KB.seed();
+  const h0 = card(win.VIEWS.draft.fn(), '<h3>Показатели', '<h3>Разрезы');
+  const all0 = names(h0).length, grp0 = (h0.match(/<details class="pal-d"/g) || []).length, open0 = (h0.match(/<details class="pal-d" open>/g) || []).length;
+  KB.search('пен');
+  const h1 = card(win.VIEWS.draft.fn(), '<h3>Показатели', '<h3>Разрезы'), n1 = names(h1);
+  const sel = ['Сумма просроченной задолженности', 'Кредитов с просрочкой'];
+  const keep = KB.answer().ok && KB.saveDraft('С поиском').ok && !('q' in S().drafts[0].comp) && S().stats.join() === 's-overdue-sum,s-overdue-cnt';
+  KB.search('фактор', 'разрез');
+  const c1 = card(win.VIEWS.draft.fn(), '<select id="addCut">', '</select>');
+  const opts = (c1.match(/<option [^>]*>[^<]*/g) || []).map(x => x.replace(/<option [^>]*>/, ''));
+  KB.setObject('claim'); const qGone = S().q === '' && S().qCut === '';
+  ok(30, all0 === 42 && grp0 === 9 && open0 === 2 && has(h0, '<summary class="pal-g">статьи — остаток · 7</summary>') &&
+        has(h0, '<summary class="pal-g">статьи — просрочено · 7</summary>') && has(h0, '<summary class="pal-g">свод · 3 · выбрано 1</summary>') &&
+        has(h0, 'placeholder="поиск показателя по названию"') &&
+        n1.length === 7 && n1.every(x => /пен/i.test(x) || sel.indexOf(x) !== -1) && sel.every(x => n1.indexOf(x) !== -1) &&
+        has(h1, '<summary class="pal-g">статьи — остаток · 2 из 7</summary>') && keep &&
+        opts.length === 8 && opts.every(x => x.indexOf('фактор риска') === 0) && has(c1, '<optgroup label="признаки риска · 8">') &&
+        (c1.match(/<optgroup/g) || []).length === 1 && qGone,
+    `кредит: показателей ${all0}, групп реестра ${grp0}, раскрыты ${open0} — где выбранное («статьи — остаток · 7», «свод · 3 · выбрано 1»); ` +
+    `поиск «пен» оставил ${n1.length}: ${n1.join(', ')} — найденные и два выбранных; поиск в вопрос не входит (черновик без него); ` +
+    `разрезы — группами по источнику значения, поиск «фактор» — ${opts.length} признаков риска одной группой; смена объекта поиск сбрасывает`);
+
+  /* ПВ-15: общий стартовый отчёт «Заявки по программам и статусам». */
+  KB.seed();
+  const p = KB.startFrom('p-apps'); KB.setDrill(true);
+  const q = KB.answer(), qr = KB.rowsShown(), qv = q.root.values;
+  const nodes = []; const walk = n => { nodes.push(n); (n.children || []).forEach(walk); }; walk(q.root);
+  const prog = q.root.children.map(n => n.key).join('|');
+  const stOk = q.root.children.every(n => { const ks = n.children.map(c => c.key), d = ['на рассмотрении', 'требуется доп. информация', 'одобрена', 'оформлена', 'отклонена'];
+    return ks.every((k, i) => i === 0 || d.indexOf(ks[i - 1]) < d.indexOf(k)); });
+  const live = KB.setMode('сейчас');
+  KB.setAsOf('2026-07-31'); const qj = KB.answer();
+  ok(31, p.ok && S().object === 'app' && S().cuts.map(c => c.id).join() === 'd-aprogram,d-astatus' && S().stats.length === 4 && S().active === null &&
+        q.ok && q.root.count === 19 && q.hidden === 5 && qr.length === 19 && qv['s-app-count'] === 19 &&
+        qv['a-sumaamount'] === sum(qr, 'amount') && qv['a-sumaapproved'] === sum(qr, 'approved') &&
+        nodes.every(n => n.values['a-sumaamount'] >= n.values['a-sumaapproved']) && qv['a-maxadays'] === Math.max(...qr.map(r => r.days)) &&
+        prog === 'Промышленность|Агропереработка|Экспорт|Малый бизнес' && stOk && !live.ok && has(live.why, 'objectRows') &&
+        qj.ok && qj.root.count === 19 && qj.hidden === 3,
+    `«${S().name}»: заявка, уровни программа → статус (порядок справочников), четыре показателя; на 31.08 заявок ${q.root.count} ` +
+    `(скрыто ${q.hidden}), запрошено ${sp(qv['a-sumaamount'])} ≥ одобрено ${sp(qv['a-sumaapproved'])} в каждом узле, наибольший срок ` +
+    `рассмотрения ${qv['a-maxadays']} дн. = максимум по строкам; «сейчас» заявке недоступен; доля «одобрено / запрошено» — встроенным ` +
+    `расчётом при показе, у конструктора формул нет`);
 })();
 
 /* ---------- отчёт ---------- */
