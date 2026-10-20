@@ -101,7 +101,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   as('user');
   const pub = RP.publish('t-osh');
-  ok(2, !pub.ok && has(pub.why, 'утверждает уполномоченный') && has(pub.why, 'ИО-1'),
+  ok(2, !pub.ok && has(pub.why, 'утверждает уполномоченный') && pub.rule === 'ИО-1',
     `пользователь опубликовать не может: «${pub.why.slice(0, 70)}…»`);
 
   as('auth');
@@ -221,7 +221,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     kind:'окончательный', recipient:'a-mf' });
   const c = RP.ISS(cut.id);
   ok(20, cut.ok && c.kind === 'предварительный' && c.recipient === null &&
-        has(c.note, 'полного охвата') && has(c.note, '§13.4'),
+        has(c.note, 'полного охвата') && c.noteRule === '§13.4',
     `усечённый видимостью охват не запрещает выпуск — он делает его предварительным и запрещает ` +
     `называть получателя: «${c.note.slice(0, 80)}…» — ИО-8, §13.4`);
 
@@ -580,7 +580,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.seed(); as('auth');
   const fold = RP.foldLevelsSelf('t-npl');
   ok(62, !fold.ok && fold.parts === 3 && Math.abs(fold.sum - 83.3) < 0.05 && fold.real === 25 &&
-        has(fold.why, 'ИО-17') && has(fold.why, 'ИС-24'),
+        has(fold.rule, 'ИО-17') && has(fold.rule, 'ИС-24'),
     `число уровня приходит узлом дерева, а не сложением: доли по ${fold.parts} подразделениям в сумме ` +
     `дают ${fold.sum} %, а корень того же дерева равен ${fold.real} % — складывать детей нельзя (ИО-17, ИС-24)`);
 
@@ -610,7 +610,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   const badOrder = RP.setBands('t-avg', ['заголовок','шапка','итог','уровни','подвал']);
   const lost = RP.setBands('t-avg', ['заголовок','шапка','уровни','подвал']);
-  ok(66, !badOrder.ok && has(badOrder.why, 'ОЧ-26') && !lost.ok && has(lost.why, 'итог'),
+  ok(66, !badOrder.ok && badOrder.rule === 'ОЧ-26' && !lost.ok && has(lost.why, 'итог'),
     `итог перед уровнями отклонён: ${badOrder.why.slice(0, 96)}…`);
 
   const onPub = RP.setSheet('t-overdue', { orient:'альбомная' });
@@ -618,7 +618,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const byUser = RP.setSheet('t-avg', { orient:'альбомная' });
   as('auth');
   const onDraft = RP.setSheet('t-avg', { orient:'альбомная' });
-  ok(67, !onPub.ok && has(onPub.why, 'НОВАЯ РЕДАКЦИЯ') && !byUser.ok && has(byUser.why, 'ИО-18') &&
+  ok(67, !onPub.ok && has(onPub.why, 'НОВАЯ РЕДАКЦИЯ') && !byUser.ok && byUser.rule === 'ИО-18' &&
         onDraft.ok && RP.sheetOf('t-avg').orient === 'альбомная',
     `лист правится там же, где состав: в черновике и уполномоченным; у опубликованной редакции — ` +
     `только новой редакцией, иначе сданное перепечаталось бы иначе (ИО-18, ИО-2)`);
@@ -631,7 +631,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const xlsx = RP.exportIssue(prelim.id, 'xlsx');
   const csv  = RP.exportIssue(prelim.id, 'csv');
   const fixSheet = RP.setSheetOnIssue(prelim.id, { orient:'альбомная' });
-  ok(68, !fixSheet.ok && has(fixSheet.why, 'ИО-18') && has(fixSheet.why, 'редакцией'),
+  ok(68, !fixSheet.ok && fixSheet.rule === 'ИО-18' && has(fixSheet.why, 'редакцией'),
     `лист у выпуска не правится: печатное представление предъявлено вместе с числами — ` +
     `иначе один и тот же сданный отчёт у двух людей печатается по-разному (ИО-18)`);
   ok(69, xlsx.ok && !csv.ok && has(csv.why, 'не объявляет'),
@@ -651,7 +651,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `в снимок ложится ПОКАЗАННАЯ величина, в объявленной разрядности: доля ` +
     `${String(rounded[0].value).replace('.', ',')} % печатается как ${rounded[0].shown} %, и ` +
     `расхождение сравнивает показанное с показанным, а не ловит шум ниже разрядности (ОЧ-32)`);
-  ok(71, fin.kind === 'окончательный' && !finXlsx.ok && has(finXlsx.why, 'ИО-10'),
+  ok(71, fin.kind === 'окончательный' && !finXlsx.ok && finXlsx.rule === 'ИО-10' && has(finXlsx.why, 'только pdf'),
     `окончательный выпуск отдаётся только pdf, чем бы ни был объявлен лист: снимок в редактируемом ` +
     `формате — не снимок (ИО-10)`);
 })();
@@ -676,7 +676,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.step(bad.id);
   const err = RP.step(bad.id);
   const errRow = RP.ISS(bad.id);
-  ok(73, bad.ok && !err.ok && err.state === 'ошибка' && has(err.why, 'ИО-6') &&
+  ok(73, bad.ok && !err.ok && err.state === 'ошибка' && err.rule === 'ИО-6' &&
         errRow.state === 'ошибка' && errRow.snapshot === null && RP.ISS(bad.id) !== undefined,
     `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.12.2024 нет — ошибка, строка ` +
     `в журнале осталась и говорит почему`);
@@ -696,8 +696,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.seed(); as('auth');
   const colDate = RP.setColumnDate('t-overdue', 'debt_main', '2026-07-01');
   const rule = RP.ruleAsWorklist('крупные', 'остаток > 100 млн');
-  ok(75, !colDate.ok && has(colDate.why, 'ИО-19') && has(colDate.why, '§19 п. 6') &&
-        !rule.ok && has(rule.why, 'ИО-14') && has(rule.why, '§9'),
+  ok(75, !colDate.ok && colDate.rule === 'ИО-19' && has(colDate.why, 'отдельный вопрос') &&
+        !rule.ok && rule.rule === 'ИО-14' && has(rule.why, 'параметром'),
     `две привычки легаси названы отказом: дата состояния у ответа одна (ИО-19), а правило отбора — ` +
     `не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)`);
 
@@ -963,8 +963,8 @@ const DEV = 'изменено — не утверждённый состав';
   const dup = RP.linkForm('t-portfolio', 'ФО-01');
   const alien = RP.linkForm('t-notice', 'ФО-26');
   const noform = RP.linkForm('t-portfolio', 'ФО-99');
-  ok(105, !dup.ok && has(dup.why, RP.TPL('t-overdue').name) && has(dup.why, 'ИО-24') &&
-        has(dup.why, 'ОЧ-39') && has(dup.why, 'кладётся параметром редакции'),
+  ok(105, !dup.ok && has(dup.why, RP.TPL('t-overdue').name) && has(dup.rule, 'ИО-24') &&
+        has(dup.rule, 'ОЧ-39') && has(dup.why, 'кладётся параметром редакции'),
     `одна форма — не более одного шаблона, и отказ НАЗЫВАЕТ первый вслух: «${dup.why.slice(0, 70)}…» ` +
     `— защита от легаси-копирования устройством, а не дисциплиной (ИО-24)`);
   ok(106, !alien.ok && has(alien.why, 'вид объявляет форма, отчёт или бланк её реализует') &&
@@ -1172,20 +1172,21 @@ const DEV = 'изменено — не утверждённый состав';
   const flat = groups.flatMap(g => g.items);
   const uniq = [...new Set(flat)];
   const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
-  ok(125, flat.length === 10 && uniq.length === 10 && missing.length === 0 &&
-        groups.map(g => g.items.length).join('/') === '5/4/1' && flat.indexOf('dash') === -1 &&
+  ok(125, flat.length === 9 && uniq.length === 9 && missing.join() === 'builder' &&
+        groups.map(g => g.items.length).join('/') === '5/3/1' && flat.indexOf('dash') === -1 &&
         groups[0].items.indexOf('subs') !== -1,
-    `перегруппировка ничего не потеряла и не задвоила: все 10 экранов ровно по разу, ` +
-    `раскладка 5 / 4 / 1 — «Подписки и сигналы» на столе «Смотреть и сдавать»; экрана «Дашборд» в модуле нет`);
+    `перегруппировка ничего не потеряла и не задвоила: девять пунктов меню ровно по разу, ` +
+    `раскладка 5 / 3 / 1 — «Подписки и сигналы» на столе «Смотреть и сдавать»; карточка отчёта — не пункт ` +
+    `меню, а экран из строки реестра (ГМ-5); экрана «Дашборд» в модуле нет`);
 
   // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
   const nastr = groups[1].items;
   as('user');
   let drew = true;
   try { nastr.forEach(v => { if (V[v].fn().length < 200) drew = false; }); } catch (e) { drew = false; }
-  ok(126, nastr.join(',') === 'registry,draft,builder,blank' && drew &&
+  ok(126, nastr.join(',') === 'registry,draft,blank' && drew &&
         !has(nav, 'locked') && !/data-role|hidden/.test(nav),
-    `стол «Настраивать» пользователю НЕ заперт: все четыре его экрана рисуются ролью Осмоновой Г. — ` +
+    `стол «Настраивать» пользователю НЕ заперт: все три его экрана рисуются ролью Осмоновой Г. — ` +
     `иначе личный черновик собирать негде (§17); скрытых по роли пунктов в навигации нет`);
 
   as('auth');
@@ -1286,7 +1287,7 @@ const DEV = 'изменено — не утверждённый состав';
 
   const signed = RP.markSigned(prom.id);
   ok(135, !signed.ok && has(signed.why, 'событие контрагента, а не выпуск') &&
-        has(signed.why, 'ОЧ-59') && has(RP.markDelivered(prom.id).why, 'ИО-12'),
+        signed.rule === 'ОЧ-59' && RP.markDelivered(prom.id).rule === 'ИО-12',
     `«отметить подписанным» — такой же названный отказ, как «отметить сданным»: обязательство ` +
     `меряется тем, что модуль ПРОИЗВОДИТ, а подпись заёмщика ведёт сопровождение на объекте (ОЧ-59)`);
 
@@ -2307,7 +2308,7 @@ const DEV = 'изменено — не утверждённый состав';
   const aLeg = RP.periodActions('май 2025'), aOwn = RP.periodActions('июль 2026');
   const night = RP.nightRun('2026-01-01');
   as('auth');
-  ok(216, !rLeg.ok && has(rLeg.why, 'действия «открыть» у него нет') && has(rLeg.why, 'ADR-0207 п. 4') &&
+  ok(216, !rLeg.ok && has(rLeg.why, 'действия «открыть» у него нет') && rLeg.rule === 'ADR-0207 п. 4' &&
         !rDec.ok && RP.periods()['декабрь 2025'].state === 'закрыт' && aLeg.actions.length === 0 && aLeg.origin === 'легаси' &&
         aOwn.actions.join() === 'открыть заново' && !night.ok && has(night.why, 'загружен переносом из легаси'),
     `период из легаси не переоткрывается даже главным бухгалтером: действий у него нет, у своего — «открыть заново»; ` +
@@ -2377,7 +2378,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   ok(221, fin.ok && rec.kind === 'окончательный' && rec.passport.frozen && rec.passport.legacyGaps.length === 2 &&
         rec.snapshot.timeTable.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').value === null &&
-        pre.ok && preRec.kind === 'предварительный' && has(preRec.note, 'снимка на 01.07.2026 нет') && has(preRec.note, 'ИО-8') &&
+        pre.ok && preRec.kind === 'предварительный' && has(preRec.note, 'снимка на 01.07.2026 нет') && preRec.noteRule === 'ИО-8' &&
         soft.length === 1 && !soft.some(x => has(x, 'прошлый год')) && RP.hasSnapshot('2026-07-01'),
     `окончательная сдача проходит (${fin.id}): пустота морозится с причиной; ИО-8 у месяца из легаси не срабатывает, ` +
     `а у системного месяца без снимка — по-прежнему: «${preRec.note.slice(0, 80)}…» (ADR-0309 п. 2)`);
@@ -2608,7 +2609,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(236, nly.every(c => typeof c.value === 'number' && !c.gap) && nly[6].value === 83350000 && nly[5].value === 86550000 &&
         nly[0].value === 43300000 && fc7.gaps.length === 0 && fc7.legacyGaps.length === 0 &&
         has(fc7.cols.find(c => c.id === 'c-nly').source, 'из легаси') &&
-        fin7.ok && rec7.kind === 'окончательный' && !has(rec7.note, 'ИО-8'),
+        fin7.ok && rec7.kind === 'окончательный' && rec7.noteRule !== 'ИО-8',
     `«Портфель к прошлому году»: колонка «На отчётную дату — прошлый год» на 01.01…01.07.2026 даёт числа ` +
     `(${nly.map(c => c.value).join(', ')}); выпуск на 01.07.2026 — окончательный, а не предварительный «снимка на 01.07.2025 нет»`);
 
@@ -4042,6 +4043,45 @@ const DEV = 'изменено — не утверждённый состав';
     `реестр: утверждённая форма, у показателя которой после утверждения объявлена новая версия, — состояние ` +
     `«ожидает решения по методике» с названным показателем, «Выпустить» остаётся (предварительный законен); ` +
     `после новой редакции — снова «утверждён»`);
+})();
+
+/* Волна 53 (блок WW, #341–#343): карточка отчёта из реестра (ГМ-5), номеров решений в тексте интерфейса нет (ГМ-6),
+   служебных вставок на рабочих экранах нет (ГМ-7). */
+(() => {
+  RP.seed(); as('auth'); RP.state.view = 'registry'; RP.state.sel.regTab = 'отчёт';
+  const nav = (src.match(/<div class="nav">([\s\S]*?)<div class="sidebar-foot"/) || [])[1] || '';
+  const reg = win.VIEWS.registry.fn();
+  RP.openBuilder('t-pay04');
+  const card = win.VIEWS.builder.fn();
+  ok(341, has(reg, "RP.openBuilder('t-pay04')\">Открыть") && !has(reg, '>Состав<') &&
+        RP.state.view === 'builder' && win.VIEWS.builder.title === 'Карточка отчёта' &&
+        has(card, '← Реестр отчётов и бланков') && has(card, RP.TPL('t-pay04').name) && has(card, 'Утвердить редакцию') &&
+        !has(card, '<select onchange="RP.selDraft') && !has(nav, 'data-v="builder"') && !has(nav, 'Редакция и утверждение'),
+    `карточка отчёта открывается кнопкой «Открыть» в строке реестра: состав редакции, проверки, «Утвердить редакцию», ` +
+    `возврат в реестр; своего пункта меню и выбора отчёта списком у неё нет`);
+
+  const ID = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|СПЗ|ДБ|РЯ|СС|ИС|ADR)-[ДDВ]?\d+|§\s?\d/;
+  const text = h => h.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ');
+  const shown = [];
+  Object.keys(R).forEach(r => Object.keys(win.VIEWS).forEach(v => {
+    RP.seed(); as(r); RP.state.view = v; const t = text(win.VIEWS[v].fn());
+    const hit = t.match(ID); if (hit) shown.push(v + ' / ' + r + ': ' + hit[0]); }));
+  /* Код правила — значение поля rule (noteRule, errorRule), не текст: его из проверки вынимаем. */
+  const code = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+    .replace(/\b(?:rule|noteRule|errorRule)\s*[:=]\s*(?:[\w.]+\s*\?\s*)?'[^'\n]*'/g, '');
+  const lits = (code.match(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g) || []).filter(x => ID.test(x));
+  ok(342, shown.length === 0 && lits.length === 0,
+    `номеров решений и ссылок на разделы канона в тексте интерфейса нет: экраны ${Object.keys(win.VIEWS).length} × роли ` +
+    `${Object.keys(R).length} — ${shown.length} попаданий, строки кода — ${lits.length}${lits.length ? ' (' + lits[0].slice(0, 60) + ')' : ''}; ` +
+    `номер правила у отказа — поле rule`);
+
+  RP.seed(); as('auth');
+  const reg2 = win.VIEWS.registry.fn(), draft = win.VIEWS.draft.fn();
+  const opens = (draft.match(/<div\b/g) || []).length, closes = (draft.match(/<\/div>/g) || []).length;
+  ok(343, !has(reg2, 'Правка у соседей') && !has(draft, 'Заглушки соседей') && typeof RP.demoRename === 'undefined' &&
+        opens === closes,
+    `служебных вставок на рабочих экранах нет: карточки «Правка у соседей» в реестре и подвала «Заглушки соседей» ` +
+    `в конструкторе нет; разметка конструктора закрыта (div ${opens}/${closes})`);
 })();
 
 /* ---- отчёт ---- */

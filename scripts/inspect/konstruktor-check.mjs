@@ -73,7 +73,7 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
   KB.seed();
   const sw = KB.setObject('borrower'); KB.setObject('credit'); KB.setMode('сейчас');
   const sw2 = KB.setObject('borrower');
-  ok(8, !sw.switched && sw2.switched && S().mode === 'на дату' && has(sw2.why, 'ИО-30'),
+  ok(8, !sw.switched && sw2.switched && S().mode === 'на дату' && sw2.rule === 'ИО-30',
     `заёмщик в режиме «сейчас» переключает режим и объясняет: «${sw2.why.slice(0, 70)}…»`);
   const md = KB.setMode('сейчас');
   ok(9, !md.ok && has(md.why, 'objectRows'),
@@ -140,7 +140,7 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
   const md = KB.setMode('сейчас');
   KB.setObject('credit'); KB.setMode('сейчас');
   const sw = KB.setObject('collateral');
-  ok(18, !md.ok && has(md.why, 'objectRows') && sw.switched && S().mode === 'на дату' && has(sw.why, 'ИО-30'),
+  ok(18, !md.ok && has(md.why, 'objectRows') && sw.switched && S().mode === 'на дату' && sw.rule === 'ИО-30',
     `у предмета залога живых строк в v1 нет: «сейчас» отказан причиной, а выбор объекта в «сейчас» переключает режим и объясняет (ИО-30)`);
 
   KB.seed(); KB.setObject('collateral');
