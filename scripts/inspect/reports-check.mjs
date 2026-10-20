@@ -44,6 +44,10 @@
 // от даты вопроса, ответ через дату запуска строками переноса, дата ответа называет строку и месяц, «Сравнение» с пятью
 // базами, адрес витрины с запросом, «📌» с проверкой и умолчаниями, черновик дашборда в конструкторе, «отвечает»,
 // публикация своей плитки в каталог; #314 — «📌» на выведенный показатель теперь отказ.
+// Волна 50 (блок TT, #329–#335): входящие от дашборда по ADR-0320 (ОД-52…ОД-59, ADR-0323) — перешедший стоит в старом
+// узле остатком на базу без потоков, сумма узлов равна итогу в каждой строке Движения, переход охвата тем же правилом;
+// «срок близко» — признак обязательства по одной N модуля, правка N — уполномоченным с журналом; порог фильтра не даёт
+// «нет объектов»; экран «Календарь сдачи».
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -3859,13 +3863,107 @@ const DEV = 'изменено — не утверждённый состав';
     `круг — подразделения держателей ролей плитки; похожий — подсказка; на общем копии нет; не держатель — предлагает`);
 })();
 
+/* ---- TT. Входящие от дашборда по ADR-0320, волна 50: перешедший — остатком на базу, потоки в узле на
+        сегодня; «срок близко» — признак обязательства по одной N модуля; «нет объектов» — только от
+        параметров по значению (ОД-52…ОД-59, ADR-0323) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c2 => vm.runInContext(c2, sandbox);
+  const AB = { a:'2026-06-01', b:'2026-08-01' }, tot = { path:[], stat:'s-portfolio' };
+  const rowOf = (d, k) => d.movement.rows.find(r => r.key === k) || { value:0, ids:[] };
+  const byKind = d => { const s = {}; d.movement.rows.forEach(r => { const k = r.kind === 'переход' ? 'переход' : r.key;
+    s[k] = (s[k] || 0) + r.value; }); return s; };
+  const sumNodes = (cut, keys) => { const s = {}; keys.forEach(key => {
+    const d = RP.drillChange('t-overdue', {}, { cuts:[cut] }, { path:[{ by:cut, key }], stat:'s-portfolio' }, AB);
+    Object.entries(byKind(d)).forEach(([k, v]) => { s[k] = (s[k] || 0) + v; }); }); return s; };
+  const node = (cut, key) => RP.drillChange('t-overdue', {}, { cuts:[cut] }, { path:[{ by:cut, key }], stat:'s-portfolio' }, AB);
+
+  const act = node('status', 'действует'), od = node('status', 'просрочен');
+  const k2a = act.items.find(x => x.id === 'kr-2'), k2o = od.items.find(x => x.id === 'kr-2');
+  const out = rowOf(act, 'm:ушли в «просрочен»'), inn = rowOf(od, 'm:пришли из «действует»');
+  ok(329, act.ok && od.ok && out.value === -5900000 && out.ids.join() === 'kr-2' && k2a.move === -5900000 &&
+        Object.values(k2a.flows).every(v => v === 0) && k2a.other === 0 && inn.value === 5900000 && k2o.flows.repaid === -600000 &&
+        rowOf(act, 'f:repaid').ids.indexOf('kr-2') === -1 && rowOf(od, 'f:repaid').ids.indexOf('kr-2') !== -1 &&
+        act.movement.equal && od.movement.equal,
+    `ОД-52: КД-2024/203 перешёл из «действует» в «просрочен» — в старом узле «ушли в «просрочен»» ${out.value} (остаток на ` +
+    `базу), без потоков; в новом — «пришли из «действует»» +${inn.value} и его «погашено» −600 000: ${act.movement.chain}`);
+
+  const STATUS = ['действует', 'просрочен', 'закрыт', 'реструктурирован', 'списан'];
+  const sameRows = (S, T) => ['f:issued', 'f:repaid', 'f:woff', 'other'].every(k => (S[k] || 0) === (T[k] || 0)) && (S['переход'] || 0) === 0;
+  const all = RP.drillChange('t-overdue', {}, null, tot, AB), T = byKind(all), S = sumNodes('status', STATUS);
+  /* КД-2023/311 закрыт к 01.08 с нулевым остатком — в узле «закрыт» он есть, хоть и нулём. */
+  ev("HIST['2026-08-01']['kr-5'].was = Object.assign({}, HIST['2026-08-01']['kr-5']); Object.assign(HIST['2026-08-01']['kr-5'], {debt_main: 0, status: 'закрыт'})");
+  const T0 = byKind(RP.drillChange('t-overdue', {}, null, tot, AB)), S0 = sumNodes('status', STATUS), cl = node('status', 'закрыт');
+  ev("HIST['2026-08-01']['kr-5'] = HIST['2026-08-01']['kr-5'].was");
+  ok(330, sameRows(S, T) && S['f:repaid'] === -5750000 && sameRows(S0, T0) && rowOf(cl, 'm:пришли из «действует»').value === 1400000,
+    `ОД-54: сумма узлов статуса в каждой строке Движения равна итогу — «погашено» ${S['f:repaid']} (было −6 350 000: ` +
+    `поток перешедшего — дважды), «прочее» ${S.other}; переходы гасятся; КД-2023/311, закрытый с нулём, приходит в ` +
+    `«закрыт» строкой «пришли из «действует»» +1 400 000 — «прочее» узлов ${S0.other} = итогу ${T0.other}`);
+
+  /* КД-2024/117 передан: на 01.06 числился за администрированием, сейчас — промышленность. */
+  ev("HIST['2026-06-01']['kr-1'].dept = 'dep-admin'");
+  as('user'); const u = RP.drillChange('t-overdue', {}, null, tot, AB);
+  as('head'); const h = RP.drillChange('t-overdue', {}, null, tot, AB);
+  as('auth'); const D = sumNodes('dept', ['dep-admin', 'dep-prom', 'rep-osh']), adm = node('dept', 'dep-admin'), prm = node('dept', 'dep-prom');
+  const k1u = u.items.find(x => x.id === 'kr-1'), k1h = h.items.find(x => x.id === 'kr-1');
+  ev("delete HIST['2026-06-01']['kr-1'].dept");
+  ok(331, rowOf(u, 'm:пришли в охват').value === 8100000 && k1u.how === 'пришёл в охват' && k1u.flows.repaid === -700000 &&
+        k1u.other === 0 && rowOf(h, 'm:ушли из охвата').value === -8100000 && Object.values(k1h.flows).every(v => v === 0) &&
+        rowOf(h, 'f:repaid').value === rowOf(adm, 'f:repaid').value && rowOf(u, 'f:repaid').value === rowOf(prm, 'f:repaid').value &&
+        u.movement.equal && h.movement.equal && D['f:repaid'] === -5750000 && (D['переход'] || 0) === 0,
+    `ОД-53: КД-2024/117 передан из администрирования в промышленность — у Осмоновой «пришли в охват» ` +
+    `+${rowOf(u, 'm:пришли в охват').value} и его «погашено» −700 000, у Асанова «ушли из охвата» ${rowOf(h, 'm:ушли из охвата').value} ` +
+    `без потоков; узлы «Подразделение» в сумме — итог, переходы гасятся`);
+
+  const t7 = RP.obligationTiles();
+  RP.state.remind = 8; const t8 = RP.obligationTiles(), seam = RP.reportObligations('dep-prom');
+  RP.state.remind = 30; const t30 = RP.obligationTiles(), late30 = RP.obligations().filter(o => o.state === 'просрочено');
+  RP.state.remind = 7;
+  ok(332, t7.soon === 0 && t7.remind === 7 && t8.soon === 3 && t30.soon === 3 && t30.late === 2 && late30.every(o => !o.soon) &&
+        seam.filter(x => x.soon).map(x => x.tpl).join() === 'Акт сверки задолженности' &&
+        RP.obligationRows().filter(r => r.soon).length === 0,
+    `ОД-55, ОД-56: «срок близко» — признак строки обязательства: при N = 7 близких ${t7.soon} (акт сверки — через 8 дней), ` +
+    `при N = 8 — ${t8.soon} (день срока включительно); просроченные (${t30.late}) не «близки» и при N = 30; шов заданиям — тот же признак`);
+
+  as('user'); const byUser = RP.setRemindDays(8);
+  as('auth'); const neg = RP.setRemindDays(-1), frac = RP.setRemindDays(2.5), blank = RP.setRemindDays(''), same = RP.setRemindDays(7),
+    set = RP.setRemindDays('8');
+  const lg = RP.state.remindLog.slice(-1)[0], after = RP.obligationTiles();
+  ok(333, !byUser.ok && has(byUser.why, 'уполномоченный') && !neg.ok && !frac.ok && !blank.ok && !same.ok && set.ok && after.soon === 3 &&
+        RP.state.remindLog.length === 1 && lg.from === 7 && lg.to === 8 && lg.by === 'Тентимишев К.' && lg.at === RP.state.today &&
+        RP.state.log[0].msg.indexOf('7 → 8') !== -1,
+    `ОД-57, ОД-58: N правит только уполномоченный («${byUser.why}»); −1, 2,5 и пустое поле — отказ; 7 → 8 — запись журнала ` +
+    `«${lg.by}, ${lg.at}: ${lg.from} → ${lg.to}», плитка «близко» — ${after.soon}`);
+
+  RP.seed(); as('auth');
+  const P = { asOf:'2026-08-01' }, thr = { groups:[[{ field:'days', op:'больше', value:100000 }]] };
+  const f0 = RP.filterAnswer('t-overdue', P, thr), f1 = RP.filterAnswer('t-overdue', Object.assign({}, P, { dept:'dep-legal' }), thr);
+  const pv = RP.show('t-overdue', Object.assign({}, P, { dept:'dep-legal' }));
+  ok(334, f0.ok && f0.matched === 0 && f0.data.empty === null && f0.data.totals.every(t => t.value === 0) &&
+        pv.data.empty && pv.data.empty.cause === 'параметр' && f1.data.empty && f1.data.empty.cause === 'параметр' &&
+        has(f1.data.empty.why, 'Департамент правового обеспечения') && !has(f1.data.empty.why, 'по списку'),
+    `ОД-59: фильтр «Дней просрочки больше 100 000» не отобрал никого — число 0 без признака (было «объекты = 1 по списку»); ` +
+    `под параметром «подразделение = ДПО» — «${pv.data.empty && pv.data.empty.why}», и с фильтром тоже`);
+
+  RP.state.view = 'calendar'; const cA = win.VIEWS.calendar.fn();
+  RP.setRemindDays(8); const cA8 = win.VIEWS.calendar.fn();
+  as('user'); const cU = win.VIEWS.calendar.fn();
+  const clean = [cA, cA8, cU].every(x => !/ОД-\d|ADR-0\d|ИО-6\d/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
+  ok(335, has(cA, 'Напоминать за N к.д. до срока') && has(cA, 'type="number"') && has(cA, 'Сейчас таких: 0') &&
+        !has(cA, 'срок близко</span>') && has(cA8, 'срок близко</span>') && has(cA8, 'через 8 дней') && has(cA8, 'Сейчас таких: 3') &&
+        has(cA8, 'Изменено 24.08.2026 · Тентимишев К.: 7 → 8 к.д.') && !has(cU, 'type="number"') &&
+        has(cU, 'правит уполномоченный по отчётности') && clean,
+    `экран «Календарь сдачи»: настройка «Напоминать за N к.д. до срока» у уполномоченного, у пользователя — значением; ` +
+    `при N = 8 у акта сверки — «срок близко · через 8 дней», строка изменения; номеров решений в интерфейсе нет`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-10-19 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-10-20 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-10-19 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-10-20 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
