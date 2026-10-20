@@ -154,6 +154,12 @@
 // слой × начало · состояние тянется · закрыт и причина разрезом · дата закрытия с корзинами ·
 // длительность ≠ дни просрочки · сверка по «в просрочке» реквизитом прогона · ядро молчит —
 // строки без величин · ушедший задним числом снят в открытом месяце · лечение платежом.
+// блок волны 32 — потоки остатка у строки кредита (СС-243…СС-247, ADR-0322, ADR-0313, #332…#337):
+// все потоки кредита — один ответ calcDebt, calcAllocation и calcAccrual строку не кормят · кредит
+// из легаси — итогом с первой выдачи · курсовая разница = переоценка остатка по сменам курса, у
+// сомового кредита ноль, без курсов клетки нет · заёмщик — суммы по кредитам · перечень потоков,
+// объясняющих остаток, — реквизит записи объекта, чужое и не поточное реестр не принимает ·
+// выдано, начисленное и списанное не убывают.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -271,9 +277,12 @@ const FIZ = fizSchema();
   /* Волна 31 (переписан на месте): показателей 275 → 277, разрезов 129 → 132, записей 404 → 409 —
      у эпизода просрочки «Чем закрыт», «Дата закрытия», «Начало по переносу», спорные дни и их
      сумма (СС-234…СС-237). */
-  ok(1, st.objects.length === 16 && st.indicators.length === 277 && own1.length === 189 &&
-       twin1.length === 88 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 132 && ST.registry().length === 409 && badSrc.length === 0 &&
+  /* Волна 32 (переписан на месте): показателей 277 → 299, записей 409 → 431 — потоки остатка: у кредита
+     начислено пени, сборов и комиссий, расходов взыскания и курсовая разница, у заёмщика те же четыре, у каждой
+     свой агрегат; сомовых сторон +6 (СС-243, СС-245, СС-246). */
+  ok(1, st.objects.length === 16 && st.indicators.length === 299 && own1.length === 205 &&
+       twin1.length === 94 && twin1.every(t => !!ST.IND(t.somOf)) &&
+       st.dims.length === 132 && ST.registry().length === 431 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -1119,8 +1128,12 @@ const FIZ = fizSchema();
   const cred = ST.OBJ('obj-credit');
   const base = cred.inds.filter(m => ST.IND(m).src !== 'агрегат');
   const covered = base.filter(m => ST.state.indicators.some(i => i.src === 'агрегат' && i.over === m));
-  const seams = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast']
+  const seams = ['calcDebt','calcSchedule','calcForecast']
     .filter(sm => !base.some(m => ST.IND(m).seam === sm));
+  /* Волна 32: потоки кредита — из одного ответа calcDebt (СС-243); calcAccrual и calcAllocation у ядра
+     объявлены, но строку кредита больше не кормят — иначе «выдано», «начислено» и остаток пришли бы из
+     разных ответов, и их разность ушла бы в «прочее» Движения. */
+  const stale67 = ['calcAccrual','calcAllocation'].filter(sm => base.some(m => ST.IND(m).seam === sm));
   /* Волна 17: у кредита те же 31 своя строчная величина, и рядом с каждой денежной стоит
      сомовая — 27 близнецов, тоже полноправные строчные записи реестра, и правило «у каждой
      строчной есть агрегат» держится и на них (ИС-44, ADR-0214 §2). Утверждение прежнее и
@@ -1134,12 +1147,14 @@ const FIZ = fizSchema();
   const moneyOrig = orig.filter(m => ST.IND(m).money);
   const moneyCur = moneyOrig.filter(m => ST.IND(m).vtype !== 'money_som');
   const moneySom = moneyOrig.filter(m => ST.IND(m).vtype === 'money_som');
-  ok(67, orig.length === 31 && twin.length === 25 && base.length === 56 &&
-        covered.length === base.length && seams.length === 0 &&
-        twin.length === moneyCur.length && moneySom.join(',') === 'm-secured,m-secliq' &&
+  /* Волна 32 (переписан на месте): строчных 31 → 35, близнецов 25 → 28, всего 56 → 63; итогов в
+     сомах у кредита три — курсовая разница возникает только в сомах (СС-245). */
+  ok(67, orig.length === 35 && twin.length === 28 && base.length === 63 &&
+        covered.length === base.length && seams.length === 0 && stale67.length === 0 &&
+        twin.length === moneyCur.length && moneySom.join(',') === 'm-fx,m-secured,m-secliq' &&
         moneySom.every(m => !ST.somIdOf(m) && ST.unitOf(m) === 'сом') &&
         twin.every(m => orig.indexOf(ST.IND(m).somOf) >= 0),
-    `у кредита ${orig.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}. Рядом с каждой из ${moneyCur.length} денежных величин в валюте договора стоит своя сомовая запись (${twin.length} близнецов, всего ${base.length} строчных), и агрегат есть у каждой из них тоже — сомовая сторона не «пометка на клетке», а такая же запись реестра (ИС-44, ADR-0214 §2). Ещё ${moneySom.length} денежные (${moneySom.join(', ')}) — итоги в сомах сами по себе, без валютной стороны и без близнеца (ADR-0240 §4)`);
+    `у кредита ${orig.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); три шва ядра прочитаны, calcAccrual и calcAllocation не читает никто${stale67.length ? ' (читают: ' + stale67.join(', ') + ')' : ''}; непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}. Рядом с каждой из ${moneyCur.length} денежных величин в валюте договора стоит своя сомовая запись (${twin.length} близнецов, всего ${base.length} строчных), и агрегат есть у каждой из них тоже — сомовая сторона не «пометка на клетке», а такая же запись реестра (ИС-44, ADR-0214 §2). Ещё ${moneySom.length} денежные (${moneySom.join(', ')}) — итоги в сомах сами по себе, без валютной стороны и без близнеца (ADR-0240 §4)`);
 
   /* ИС-26: дата на срезе выражается числом дней от даты вопроса — среднюю дату
      сложить не из чего, а среднее число дней складывается. */
@@ -1170,10 +1185,12 @@ const FIZ = fizSchema();
      сомовые записи сами (ADR-0240 §4), и денежная величина здесь читает портфельный шов
      ОДИН раз, а не дважды парой. */
   const bSom = bInds.filter(i => i.money);
-  ok(69, bInds.length === 16 && bTwin.length === 0 && alien.length === 0 &&
+  /* Волна 32 (переписан на месте): строчных 16 → 20, портфельных 14 → 18, денежных 8 → 12 —
+     начислено пени, сборов и комиссий, расходов взыскания и курсовая разница по портфелю (СС-246). */
+  ok(69, bInds.length === 20 && bTwin.length === 0 && alien.length === 0 &&
         bAll.filter(i => i.src === 'шов').every(i => OWN.indexOf(i.seam) >= 0) &&
-        bInds.filter(i => i.seam === 'calcPortfolio').length === 14 &&
-        bSom.length === 8 && bSom.every(i => i.vtype === 'money_som' && i.seam === 'calcPortfolio'),
+        bInds.filter(i => i.seam === 'calcPortfolio').length === 18 &&
+        bSom.length === 12 && bSom.every(i => i.vtype === 'money_som' && i.seam === 'calcPortfolio'),
     `у заёмщика ${bInds.length} строчных показателей, и ни один не берёт шов ОДНОГО кредита${alien.length ? ': ' + alien.map(i => i.id).join(', ') : ''}: величины портфеля спрашиваются портфельным вопросом (ИС-28, ADR-0184 §1); полем осталось только собственное — ${fields.join(', ')}. Денежных ${bSom.length}, и все — итоги в сомах без близнеца (близнецов ${bTwin.length}): каждый читает портфельный шов один раз, второго источника денег у заёмщика не завелось (ИС-44, ADR-0240 §4)`);
 
   /* Свод портфеля = сумма одиночных ответов, ПО КАЖДОЙ ВАЛЮТЕ и до копейки. Курса в
@@ -3023,7 +3040,9 @@ const FIZ = fizSchema();
   /* Колонки схемы §1 с пометкой ⚑: релиз их вывел, а источника, который назвала бы запись реестра, ещё нет. Слоты классификаторов в этот счёт не входят — их называет `stat_cls_slot`. */
   const FLAG_COLS = ['d_terr_aokrug_id','d_terr_aokrug_lbl','d_terr_village_id','d_terr_village_lbl',
     'd_f_restr','d_f_coll','d_f_bankr','d_f_hold','d_f_court','d_f_dispute','d_f_transfer',
-    'i_undisb_v','i_undisb_som','i_pen_disp_v','i_pen_disp_som','i_accr_pen_v','i_accr_pen_som','i_fx_som','i_rate_w'];
+    'i_undisb_v','i_undisb_som','i_pen_disp_v','i_pen_disp_som','i_rate_w'];
+  /* Волна 32 (переписан на месте): начисленная пеня и курсовая разница получили записи — ядро отдаёт их
+     потоками ответа calcDebt (СС-243, СС-245); колонок без записи 19 → 16. */
   const addI = ST.addIndicator({dates:1, id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', col:'i_m1', vtype:'num'});
   const addD = ST.addDim({dates:1, id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
@@ -3447,7 +3466,10 @@ const FIZ = fizSchema();
   /* Волна 31 (переписан на месте): +540 строк эпизодов просрочки (10 эпизодов × 54 даты), у каждой курс
      строки и сомовый пик: строк 3472 → 4012, объектов 15 → 16, клеток 17914 → 18454, остатков
      10853 → 11393, курс у 1296 → 1836 строк. Расхождений — ноль. */
-  ok(172, a172.bad.length === 0 && a172.seen === 18454 && a172.som === 5333 && a172.flow === 1728 &&
+  /* Волна 32 (переписан на месте): клеток 18454 → 21478: потоков 1728 → 3024 (три новых потока
+     кредита в сомах на 432 строках), итогов в сомах 5333 → 7061 (курсовая разница кредита и четыре потока
+     заёмщика; у заёмщика без договоров потоков нет). Остатки, курс строки и легаси — прежние. Расхождений — ноль. */
+  ok(172, a172.bad.length === 0 && a172.seen === 21478 && a172.som === 7061 && a172.flow === 3024 &&
         a172.bal === 11393 && a172.fxOn === 1836 && a172.fxOff === 2176 &&
         dates172.length === 60 && objs172.length === 16 &&
         own172.length === 4012 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
@@ -3571,7 +3593,8 @@ const FIZ = fizSchema();
      проверки имени, и сторож доказывал бы не то; «колонки витрины не завели» читается
      теперь как «в ждущие колонку не встала» — схемы витрины больше нет (ADR-0237 §3). */
   /* Волна 28 (переписан на месте): близнецов 74 → 88 — семь новых валютных величин и их своды. */
-  ok(176, twins.length === 88 && sameName.length === 0 && dup.length === 0 &&
+  /* Волна 32 (переписан на месте): близнецов 88 → 94 — три новых потока кредита и их своды. */
+  ok(176, twins.length === 94 && sameName.length === 0 && dup.length === 0 &&
         shared.length === 1 && twinShared.length === 0 &&
         twins.every(t => /\sв сомах$/.test(t.name)) &&
         !taken.ok && has(taken.why, 'ИС-40') &&
@@ -3646,8 +3669,10 @@ const FIZ = fizSchema();
     round:'коп-2', roll:'формульный', rollBy:'d-cur', col:'i_r5', vtype:'money_cur'});  /* волна 23: годная запись называет колонку (ИС-53) */
   /* Волна 28 (переписан на месте): 37 → 44 валютных строчных (две суммы заявки, четыре числа
      расчёта, пик эпизода) и 17 → 18 итогов в сомах (база среза заявки на реструктуризацию). */
-  ok(179, moneyRows.length === 44 && badRoll.length === 0 && badBy.length === 0 &&
-        somRows.length === 18 && badSom.length === 0 &&
+  /* Волна 32 (переписан на месте): валютных строчных 44 → 47, итогов в сомах 18 → 23 (курсовая
+     разница кредита и четыре потока заёмщика). */
+  ok(179, moneyRows.length === 47 && badRoll.length === 0 && badBy.length === 0 &&
+        somRows.length === 23 && badSom.length === 0 &&
         !bare179.ok && has(bare179.why, 'ИС-44') && has(bare179.why, 'Валюта кредитного договора') &&
         has(bare179.why, 'd-cur') &&
         !ghost179.ok && has(ghost179.why, 'd-nope') &&
@@ -3693,7 +3718,8 @@ const FIZ = fizSchema();
   const dTwin = ST.REC('m-t9-som');
   const cl = ST.OBJ('obj-claim').inds;
   ok(180, noTwinRow.length === 0 && noTwinAgg.length === 0 && overTwin.length === 0 &&
-        moneyAgg.length === 44 && somOnly180.length === 18 && twinnedSom.length === 0 &&
+        /* Волна 32 (переписан на месте): 44 → 47 и 18 → 23. */
+        moneyAgg.length === 47 && somOnly180.length === 23 && twinnedSom.length === 0 &&
         shapeAt === 1 && shapeUse === 2 && declAt === 3 &&
         mig180.ok && mig180.added.length === 2 && door.ok && !door.waiting && door.som === 'm-t9-som' &&
         (door.cols || []).join() === 'i_t9_v' && (door.somCols || []).join() === 'i_t9_som' &&
@@ -3744,12 +3770,14 @@ const FIZ = fizSchema();
      254 → 261 строчная с колонками — дата окончания и шесть факторов риска. */
   /* Волна 31 (переписан на месте): 404 → 409 записей, 129 → 132 разреза, 261 → 265 строчных с колонками
      (d_closed_by, d_to, d_legacy_start, i_disputed_days), 142 → 143 агрегата. */
-  ok(181, st.registry.length === 409 && nInd === 277 && nDim === 132 && pathN === 1 &&
-        ownInd === 189 && somInd === 88 && somInd === 44 * 2 && !ST.REC('d-ocur') &&
+  /* Волна 32 (переписан на месте): 409 → 431 записей, строчных с колонками 265 → 276, агрегатов
+     143 → 154, сомовых близнецов с колонками 44 → 47. */
+  ok(181, st.registry.length === 431 && nInd === 299 && nDim === 132 && pathN === 1 &&
+        ownInd === 205 && somInd === 94 && somInd === 47 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        withCols === 265 && aggN === 143 && withCols + aggN + pathN === st.registry.length &&
-        somCols === 44 && ST.awaiting().length === 0,
+        withCols === 276 && aggN === 154 && withCols + aggN + pathN === st.registry.length &&
+        somCols === 47 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
   /* #182 — Волна 23, З-17 (переписан на месте): ADR-0240 §3 ПЕРЕПИСАЛ ADR-0151 §3 и ADR-0214 §7.
@@ -3845,12 +3873,13 @@ const FIZ = fizSchema();
      (ADR-0240 §4) и снятые сверкой. Объявляют правило сами 91 (строчные, включая итоги в
      сомах, и их сомовые стороны), наследуют 37 сомовых сводов. Правило по-прежнему одно. */
   ok(183, F183.indexOf('round') >= 0 && RU183.round === 'правило округления' &&
-        money183.length === 150 && noRule183.length === 0 &&
+        /* Волна 32 (переписан на месте): 150 → 164 денежных записи, объявляют 106 → 117, наследуют 44 → 47. */
+        money183.length === 164 && noRule183.length === 0 &&
         rules183.length === 1 && rules183[0] === RULE &&
         /* Волна 28 (переписан на месте): 128 → 150 денежных записей — запрошенная и одобренная
            суммы заявки, четыре числа расчёта реструктуризации и пик эпизода просрочки, каждая
            со своей сомовой стороной; объявляют правило 106, наследуют 44. */
-        own183.length === 106 && inh183.length === 44 &&
+        own183.length === 117 && inh183.length === 47 &&
         inh183.every(r => r.src === 'агрегат' && ST.roundOf(r.over) === RULE) &&
         alienRule183.length === 0 && pairBad183.length === 0 &&
         aggUsd183.round === RULE && flow183.ok && flow183.round === RULE &&
@@ -3998,7 +4027,9 @@ const FIZ = fizSchema();
   /* Волна 31 (переписан на месте): швов 17 → 18 — ядро отдаёт эпизоды методом API overdueSpells
      (ADR-0318), и пять записей эпизода читают его (СС-241). */
   ok(193, nbs.length === 8 && orphanSeam.length === 0 && twice.length === 0 &&
-        notReal.length === 0 && usedSeams.length === 18 &&
+        /* Волна 32 (переписан на месте): швов реестр называет 18 → 16 — calcAccrual и calcAllocation
+           строку кредита больше не кормят (СС-243); у ядра они остаются ОБЪЯВЛЕННЫМИ, как measureClock. */
+        notReal.length === 0 && usedSeams.length === 16 &&
         !noNb.ok && has(noNb.why, 'должен быть объявлен модуль-источник') &&
         !badNb.ok && has(badNb.why, 'ИС-42') && has(badNb.why, 'объявленные:') &&
         !badWhy.ok && has(badWhy.why, 'причин четыре') &&
@@ -5208,7 +5239,8 @@ const FIZ = fizSchema();
         dbtTot.refused === true && JSON.stringify(dbtTot.mixed) === '["KGS","USD"]' &&
         dbtTot.som === 'a-sumdebt-som' &&
         byCur.ok && byCur.groups.length === 2 && gv('KGS') === 9286000 && gv('USD') === 160000 &&
-        rows225.ok && has(rows225.passport.editionNote, 'собирала 6 величин из 142') &&
+        /* Волна 32 (переписан на месте): величин кредита 142 → 156 — потоки остатка. */
+        rows225.ok && has(rows225.passport.editionNote, 'собирала 6 величин из 156') &&
         has(rows225.passport.editionNote, 'ОТСУТСТВУЮТ КЛЮЧОМ, а не лежат нулём') &&
         an225.ok && an225.n === 0 &&
         has(an225.passport.editionNote, 'не видно НИ ОДНОЙ') &&
@@ -5453,7 +5485,9 @@ const FIZ = fizSchema();
   const noStore = names.filter(t => !FIZ[t].storage);
   /* Волна 28 (переписан на месте): таблиц строк 11 → 16, колонок 602 → 720 (§16–§20). */
   /* Волна 31 (переписан на месте): колонок 720 → 724 — у эпизода просрочки 18 → 22 (СС-234…СС-237). */
-  ok(235, names.length === 16 && total === 724 && !off.length && !dups.length && !noStore.length,
+  /* Волна 32 (переписан на месте): колонок 724 → 730 — у кредита i_accr_fee и i_accr_coll в валюте и в
+     сомах, у заёмщика i_accr_fee_som и i_accr_coll_som (СС-243, СС-246). */
+  ok(235, names.length === 16 && total === 730 && !off.length && !dups.length && !noStore.length,
     `схема читается смоуком сама, а не переписана в него: таблиц ${names.length}, колонок ${total} (в схеме — 602), разделов с расхождением счёта ${off.length}${off.length ? ' (' + off.join(', ') + ')' : ''}, с повторами ${dups.length}, без способа хранения ${noStore.length}. Сжатая запись раскрывается и сверяется графой «шт.»: список, переписанный в смоук, разошёлся бы со схемой так же тихо, как макет (ИС-53, ADR-0237 §3)`);
 
   /* #236 — релиз макета есть подмножество схемы: таблица названа как в схеме, способ
@@ -5509,7 +5543,8 @@ const FIZ = fizSchema();
     ['obj-borrower','obj-collateral','obj-case','obj-zdeal'].indexOf(r.obj) >= 0);
   const notSom = totals.filter(r => r.vtype !== 'money_som' || r.somOf).map(r => r.id);
   const twinned = totals.filter(r => ST.REC(r.id + ST.SOM_SUFFIX)).map(r => r.id);
-  ok(239, totals.length === 15 && !notSom.length && !twinned.length &&
+  /* Волна 32 (переписан на месте): у заёмщика 8 → 12 — четыре потока портфеля (СС-246); итого 15 → 19. */
+  ok(239, totals.length === 19 && !notSom.length && !twinned.length &&
         totals.every(r => ST.unitOf(r.id) === 'сом'),
     `итоги заёмщика, залога, дела и договора — только в сомах: денежных записей ${totals.length}, не сомовых ${notSom.length}${notSom.length ? ' (' + notSom.join(', ') + ')' : ''}, с валютным близнецом ${twinned.length}. Состав по валютам без jsonb не хранится и не складывается, а вопрос «сколько у заёмщика в долларах» точнее отвечают строки его кредитов (ИС-56, ADR-0240 §4, §5)`);
 })();
@@ -9135,6 +9170,139 @@ const FIZ = fizSchema();
         row329.dims['d-oto'] === ASK && row329.inds['m-oedays'].v === was329.days &&
         cred329.inds['m-odays'].v === 0 && tie329.bad.length === 0,
     `лечение платежом: 250 000 по КД-2025/088 покрыли просрочку — эпизод с ${was329.from} закрыт «${row329 && row329.dims['d-oby']}» ${row329 && row329.dims['d-oto']}, длительность ${row329 && row329.inds['m-oedays'].v} дн. без дня закрытия; строка эпизода пересчитана днём через видимость кредита (${poll329.by['связан через via']}), дни просрочки кредита ${cred329 && cred329.inds['m-odays'].v}, сверка без расхождений`);
+})();
+
+/* ===== Волна 32 — потоки остатка у строки кредита (СС-243…СС-248, ADR-0322, ADR-0313) =====
+   Потоки кредита — поля ОДНОГО ответа calcDebt; курсовая разница — колонка от ядра, пусто без
+   курсов; заёмщик — суммы по кредитам портфельным ответом; перечень потоков, объясняющих остаток,
+   — реквизит записи объекта, и реестр не принимает перечень, в котором есть не поток. */
+(() => {
+  ST.seed();
+  const CORE = vm.runInContext('CORE', sandbox), RATES = vm.runInContext('RATES', sandbox);
+  const W = vm.runInContext('WORLD', sandbox), ANCHOR = vm.runInContext('ANCHOR', sandbox);
+  const rowsOn = (obj, d) => ST.state.rows.filter(r => r.obj === obj && r.date === d && r.part == null);
+  const R2 = x => Math.round(x * 100) / 100;
+  const FLOWS = ['m-issued','m-accr','m-accrpen','m-accrfee','m-accrcoll','m-repaid','m-woff','m-fx'];
+
+  /* #332 — СС-243: все потоки строки кредита читают calcDebt; calcAllocation и calcAccrual строка не
+     спрашивает вовсе. Числа прежних рядов те же: «выдано» и «начислено процентов» ответа calcDebt
+     равны прежним ответам calcAllocation и calcAccrual — сменился источник, а не величина. */
+  const cnt = {calcAllocation: 0, calcAccrual: 0, calcDebt: 0}, keep = {};
+  Object.keys(cnt).forEach(k => { keep[k] = CORE[k]; CORE[k] = function(){ cnt[k]++; return keep[k].apply(CORE, arguments); }; });
+  const kd = W['obj-credit'].find(c => c.id === 'КД-2025/043');
+  let row330;
+  try { row330 = ST.buildRow('obj-credit', kd, ASK, null); }
+  finally { Object.keys(keep).forEach(k => { CORE[k] = keep[k]; }); }
+  const d330 = CORE.calcDebt(kd, ASK), al330 = CORE.calcAllocation(kd, ASK), ac330 = CORE.calcAccrual(kd, ASK);
+  ok(332, FLOWS.every(id => ST.IND(id) && ST.IND(id).seam === 'calcDebt' && ST.IND(id).flow) &&
+        cnt.calcAllocation === 0 && cnt.calcAccrual === 0 && cnt.calcDebt > 0 &&
+        FLOWS.every(id => row330.inds[id]) &&
+        d330.flowIssued.value === al330.issuedTotal.value && d330.flowRepaid.value === al330.repaidTotal.value &&
+        d330.flowInterest.value === ac330.interest.value && d330.flowIssued.som.value === al330.issuedTotal.som.value,
+    `потоки строки кредита — один ответ calcDebt (СС-243): записей ${FLOWS.length}, все на calcDebt; обращений при сборке строки КД-2025/043 — calcDebt ${cnt.calcDebt}, calcAllocation ${cnt.calcAllocation}, calcAccrual ${cnt.calcAccrual}. Величины прежние: выдано ${d330.flowIssued.value} (${d330.flowIssued.som.value} сом), погашено ${d330.flowRepaid.value}, начислено процентов ${d330.flowInterest.value} — сменился источник, а не число`);
+
+  /* #333 — СС-244: кредит из легаси несёт итог с первой выдачи, а не с переноса: на первой своей
+     строке «Выдано всего» у КД-2024/117 — вся выдача 2024 года, а не ноль. */
+  const first331 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.ref === 'КД-2024/117' && r.part == null)
+    .map(r => r.date).sort()[0];
+  const r331 = rowsOn('obj-credit', first331).find(r => r.ref === 'КД-2024/117');
+  ok(333, !!r331 && r331.inds['m-issued'].v === 1200000 && r331.inds['m-accr'].v > 0 && first331 > '2024-03-11',
+    `кредит из легаси — нарастающим итогом с первой выдачи (СС-244): КД-2024/117 выдан 11.03.2024, первая своя строка ${first331}, «Выдано всего» на ней ${r331 && r331.inds['m-issued'].v}, начислено процентов ${r331 && r331.inds['m-accr'].v} — итог на дату переноса принёс перенос, а не ноль`);
+
+  /* #334 — СС-245: курсовая разница — переоценка остатка при каждой смене курса; у сомового кредита
+     посчитанный ноль; между сменами курса не меняется; без курсов — клетки нет, а не ноль. */
+  let fx332 = 0, prev332 = RATES.USD.filter(x => x[0] <= ANCHOR).slice(-1)[0][1], ch332 = 0;
+  for (const [d, r] of RATES.USD) {
+    if (d <= ANCHOR || d > ASK) continue;
+    fx332 += CORE.debtParts(kd, eve(d)).total * (r - prev332); prev332 = r; ch332++;
+  }
+  fx332 = R2(fx332);
+  const kgs332 = rowsOn('obj-credit', ASK).find(r => r.ref === 'КД-2024/117');
+  const a332 = ST.buildRow('obj-credit', kd, '2026-08-12', null).inds['m-fx'].v;
+  const b332 = ST.buildRow('obj-credit', kd, '2026-08-17', null).inds['m-fx'].v;
+  /* Граница дня смены курса: курс, опубликованный 10.08, переоценивает остаток конца 09.08 в строке 10.08. */
+  const at = d => ST.buildRow('obj-credit', kd, d, null).inds['m-fx'].v;
+  const step332 = R2(at('2026-08-10') - at('2026-08-09'));
+  const want332 = R2(CORE.debtParts(kd, '2026-08-09').total * (88.05 - 87.90));
+  const usdRates = RATES.USD; delete RATES.USD;
+  let none332;
+  try { none332 = ST.buildRow('obj-credit', kd, ASK, null); } finally { RATES.USD = usdRates; }
+  ok(334, row330.inds['m-fx'].v === fx332 && ch332 === 4 && fx332 !== 0 && Math.abs(step332 - want332) <= 0.01 &&
+        kgs332 && kgs332.inds['m-fx'].v === 0 && a332 === b332 &&
+        !none332.inds['m-fx'] && !!none332.inds['m-total'],
+    `курсовая разница (СС-245): КД-2025/043 на ${ASK} — ${row330.inds['m-fx'].v} сом = остаток накануне смены × изменение курса по ${ch332} сменам с переноса (${fx332}); в день смены 10.08 шаг ${step332} = остаток конца 09.08 × (88,05 − 87,90) = ${want332}; 12.08 и 17.08 между сменами — ${a332} и ${b332}; у сомового КД-2024/117 — ${kgs332 && kgs332.inds['m-fx'].v}; без курсов USD клетки нет (${none332.inds['m-fx'] ? 'есть' : 'нет'}), а остаток на месте`);
+
+  /* #335 — СС-246: у заёмщика те же потоки и курсовая разница — сумма по его кредитам в сомах. */
+  const crows = rowsOn('obj-credit', ASK), brows = rowsOn('obj-borrower', ASK);
+  const pairs333 = [['m-baccrpen','m-accrpen-som'], ['m-baccrfee','m-accrfee-som'], ['m-baccrcoll','m-accrcoll-som'], ['m-bfx','m-fx']];
+  const bad333 = [];
+  brows.forEach(b => {
+    const mine = crows.filter(c => c.dims['d-binn'] === b.ref);
+    /* Заёмщик без договоров потоков не имеет вовсе — как и прежние потоки портфеля, а не нули. */
+    if (!mine.length){
+      ['m-bissued'].concat(pairs333.map(x => x[0])).forEach(bi => { if (b.inds[bi]) bad333.push(b.ref + ' без договоров, а ' + bi + ' есть'); });
+      return;
+    }
+    pairs333.forEach(([bi, ci]) => {
+      const sum = R2(mine.reduce((n, c) => n + ((c.inds[ci] || {}).v || 0), 0));
+      const got = (b.inds[bi] || {}).v;
+      if (got == null || Math.abs(got - sum) > 0.011) bad333.push(b.ref + ' ' + bi + ' ' + got + '≠' + sum);
+    });
+  });
+  const mix333 = brows.find(b => b.ref === '01234199010101');
+  const empty333 = brows.filter(b => !crows.some(c => c.dims['d-binn'] === b.ref)).length;
+  ok(335, brows.length > 0 && bad333.length === 0 && empty333 > 0 && !!mix333 && mix333.inds['m-bfx'].v !== 0,
+    `заёмщик — суммы по кредитам (СС-246): ${brows.length} заёмщиков × 4 потока (у ${empty333} без договоров потоков нет вовсе, как и прежних), расхождений ${bad333.length}${bad333.length ? ' (' + bad333.slice(0, 2).join(' · ') + ')' : ''}; у разновалютного 01234199010101 курсовая разница ${mix333 && mix333.inds['m-bfx'].v} — от его кредита в евро`);
+
+  /* #336 — СС-247: перечень потоков, объясняющих остаток, — реквизит записи объекта; объявляет его
+     владелец, и реестр не принимает перечень с чужой, не денежной или не поточной строкой. */
+  const bf = ST.balanceFlows('obj-credit');
+  const okDecl = bf.length === 1 && bf[0].of === 'm-total' && bf[0].flows.length === 8 &&
+    bf[0].flows.map(f => f.ind).join() === FLOWS.join() &&
+    bf[0].flows.filter(f => f.sign < 0).map(f => f.ind).join() === 'm-repaid,m-woff' &&
+    bf[0].flows.filter(f => f.somOnly).map(f => f.ind).join() === 'm-fx' &&
+    ST.balanceFlowsProblems('obj-credit').length === 0;
+  const plus = f => [{of: 'm-total', flows: bf[0].flows.concat(f)}];
+  const alien = ST.declareBalanceFlows('obj-credit', bf, 'Статистика');
+  const notFlow = ST.declareBalanceFlows('obj-credit', plus([{ind: 'm-amount', sign: 1}]), 'Кредиты');
+  const foreign = ST.declareBalanceFlows('obj-credit', plus([{ind: 'm-bissued', sign: 1}]), 'Кредиты');
+  const curFx = ST.declareBalanceFlows('obj-credit', [{of: 'm-total', flows: bf[0].flows.map(f => f.ind === 'm-fx' ? {ind: 'm-fx', sign: 1} : f)}], 'Кредиты');
+  const flowAsBal = ST.declareBalanceFlows('obj-credit', [{of: 'm-issued', flows: [{ind: 'm-repaid', sign: -1}]}], 'Кредиты');
+  const empty = ST.declareBalanceFlows('obj-credit', [], 'Кредиты');
+  const dupl = ST.declareBalanceFlows('obj-credit', plus([{ind: 'm-accr', sign: 1}]), 'Кредиты');
+  const same = ST.declareBalanceFlows('obj-credit', bf, 'Кредиты');
+  const html = vm.runInContext('viewSetup()', sandbox);
+  const sec = html.slice(html.indexOf('Потоки, объясняющие остаток'), html.indexOf('</table>', html.indexOf('id="bflows"')));
+  const trs = (sec.match(/<tr>/g) || []).length - 1;
+  ok(336, okDecl && !alien.ok && has(alien.why, 'модуль-владелец') && !notFlow.ok && has(notFlow.why, 'не денежный поток') &&
+        !foreign.ok && has(foreign.why, 'не величина объекта') && !curFx.ok && has(curFx.why, 'только в сомах') &&
+        !flowAsBal.ok && has(flowAsBal.why, 'величина-остаток') && !empty.ok && has(empty.why, 'пуст') &&
+        !dupl.ok && has(dupl.why, 'дважды') && same.ok && ST.balanceFlows('obj-credit')[0].flows.length === 8 &&
+        trs === 8 && !/СС-\d|РЯ-\d|ДБ-\d|ADR-\d/.test(sec),
+    `перечень у записи объекта (СС-247): «Задолженность всего» — ${bf[0].flows.length} потоков, со знаком «−» ${bf[0].flows.filter(f => f.sign < 0).length}, только в сомах — курсовая разница. Отбиты: не владелец — «${String(alien.why).slice(0, 60)}…»; «Сумма договора» — «${String(notFlow.why).slice(0, 50)}…»; поток заёмщика — «${String(foreign.why).slice(0, 50)}…»; курсовая разница как валютная; поток вместо остатка; пустой перечень; поток дважды. Владелец объявил прежний — принят. На экране реестра ${trs} строк, номеров решений нет`);
+
+  /* #337 — нарастающий итог не убывает: выдано, четыре «начислено» и списано у каждого кредита на всех
+     датах его строк. «Погашено» вправе убывать — сторно платежа (§5 канона), курсовая разница — знаковая
+     переоценка, и падает вместе с курсом. */
+  const MONO = ['m-issued','m-accr','m-accrpen','m-accrfee','m-accrcoll','m-woff'];
+  const down337 = [];
+  let pts337 = 0;
+  W['obj-credit'].forEach(c => {
+    const rs = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.ref === c.id && r.part == null)
+      .sort((x, y) => x.date < y.date ? -1 : 1);
+    MONO.forEach(id => {
+      let prev = null;
+      rs.forEach(r => {
+        const v = (r.inds[id] || {}).v;
+        if (v == null) return;
+        pts337++;
+        if (prev != null && v < prev - 0.005) down337.push(c.id + ' ' + id + ' ' + r.date + ' ' + prev + '→' + v);
+        prev = v;
+      });
+    });
+  });
+  ok(337, pts337 > 2000 && down337.length === 0,
+    `нарастающий итог не убывает: выдано, начислено процентов, пени, сборов, расходов взыскания и списано — ${pts337} клеток по ${W['obj-credit'].length} кредитам, убываний ${down337.length}${down337.length ? ' (' + down337.slice(0, 3).join(' · ') + ')' : ''}; «погашено» и курсовая разница сюда не входят — сторно и падение курса законно уменьшают их`);
 })();
 
 /* ---- отчёт ---- */
