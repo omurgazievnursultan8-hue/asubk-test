@@ -852,15 +852,34 @@ const REGISTRY = [
    seam:'calcDebt', field:'daysOverdue', unit:'дн.'},
   {kind:'показатель', id:'m-ddays', col:'i_disputed_days', vtype:'int',  name:'Спорных дней',            obj:'obj-credit', type:'число', src:'шов', grp:'неплатёж',
    seam:'calcDebt', field:'disputedDays', unit:'дн.'},
-  /* --- кредит: потоки нарастающим итогом и переплата. */
+  /* --- кредит: потоки нарастающим итогом и переплата.
+     Все потоки — поля ОДНОГО ответа `calcDebt` на дату строки, того же, что остатки: ядро держит в нём тождество
+     «остаток = выдано + начислено − погашено − списано», а два метода на одну дату расходятся, и разница ушла бы в
+     «прочее» Движения. Поэтому «выдано» и «погашено» — не `calcAllocation`, «начислено процентов» — не лист
+     `calcAccrual`; «списано» — снятое по всем статьям, а не тело. */
   {kind:'показатель', id:'m-issued', col:'i_issued', vtype:'money_cur', name:'Выдано всего',            obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
-   seam:'calcAllocation', field:'issuedTotal', money:true, flow:true, unit:'валюта договора'},
+   seam:'calcDebt', field:'flowIssued', money:true, flow:true, unit:'валюта договора'},
   {kind:'показатель', id:'m-repaid', col:'i_repaid', vtype:'money_cur', name:'Погашено всего',          obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
-   seam:'calcAllocation', field:'repaidTotal', money:true, flow:true, unit:'валюта договора'},
+   seam:'calcDebt', field:'flowRepaid', money:true, flow:true, unit:'валюта договора',
+   note:'по всем статьям, включая возмещение расходов взыскания'},
   {kind:'показатель', id:'m-accr', col:'i_accr_int', vtype:'money_cur',   name:'Начислено процентов всего', obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
-   seam:'calcAccrual', field:'interest', money:true, flow:true, unit:'валюта договора'},
+   seam:'calcDebt', field:'flowInterest', money:true, flow:true, unit:'валюта договора',
+   note:'вместе с накопленными процентами'},
+  {kind:'показатель', id:'m-accrpen', col:'i_accr_pen', vtype:'money_cur', name:'Начислено пени всего',  obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'flowPenalty', money:true, flow:true, unit:'валюта договора',
+   note:'вместе с накопленной пеней'},
+  {kind:'показатель', id:'m-accrfee', col:'i_accr_fee', vtype:'money_cur', name:'Начислено сборов и комиссий всего', obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'flowFees', money:true, flow:true, unit:'валюта договора'},
+  {kind:'показатель', id:'m-accrcoll', col:'i_accr_coll', vtype:'money_cur', name:'Начислено расходов по обращению взыскания всего', obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'flowRecovery', money:true, flow:true, unit:'валюта договора',
+   note:'расходы минус отмены: отменённый расход уменьшает начисленное, а не попадает в списанное'},
   {kind:'показатель', id:'m-woff', col:'i_woff', vtype:'money_cur',   name:'Списано всего',           obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
-   seam:'calcDebt', field:'writtenOff', money:true, flow:true, unit:'валюта договора'},
+   seam:'calcDebt', field:'flowWrittenOff', money:true, flow:true, unit:'валюта договора',
+   note:'снятое решением по всем статьям, а не только тело'},
+  /* Курсовая разница возникает только в сомах: валютной колонки у неё нет, и пары в сомах реестр к ней не строит. */
+  {kind:'показатель', id:'m-fx', col:'i_fx', vtype:'money_som',  name:'Курсовая разница всего',      obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'fx', money:true, flow:true, unit:'сом', roll:'аддитивный',
+   note:'переоценка остатка при каждой смене курса, нарастающим итогом; у кредита в сомах — ноль, без курсов по датам — пусто'},
   {kind:'показатель', id:'m-oplus', col:'i_overpaid', vtype:'money_cur',  name:'Переплата',               obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
    seam:'calcDebt', field:'overpaid', money:true, unit:'валюта договора'},
   /* --- кредит: график и прогноз. */
@@ -909,6 +928,14 @@ const REGISTRY = [
    seam:'calcPortfolio', field:'accrued', money:true, flow:true, unit:'сом', roll:'аддитивный'},
   {kind:'показатель', id:'m-bwoff', col:'i_woff', vtype:'money_som',  name:'Списано по портфелю',      obj:'obj-borrower', type:'сумма', src:'шов', grp:'потоки',
    seam:'calcPortfolio', field:'writtenOff', money:true, flow:true, unit:'сом', roll:'аддитивный'},
+  {kind:'показатель', id:'m-baccrpen', col:'i_accr_pen', vtype:'money_som', name:'Начислено пени по портфелю', obj:'obj-borrower', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcPortfolio', field:'accrPenalty', money:true, flow:true, unit:'сом', roll:'аддитивный'},
+  {kind:'показатель', id:'m-baccrfee', col:'i_accr_fee', vtype:'money_som', name:'Начислено сборов и комиссий по портфелю', obj:'obj-borrower', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcPortfolio', field:'accrFees', money:true, flow:true, unit:'сом', roll:'аддитивный'},
+  {kind:'показатель', id:'m-baccrcoll', col:'i_accr_coll', vtype:'money_som', name:'Начислено расходов взыскания по портфелю', obj:'obj-borrower', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcPortfolio', field:'accrRecovery', money:true, flow:true, unit:'сом', roll:'аддитивный'},
+  {kind:'показатель', id:'m-bfx', col:'i_fx', vtype:'money_som',  name:'Курсовая разница по портфелю', obj:'obj-borrower', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcPortfolio', field:'fx', money:true, flow:true, unit:'сом', roll:'аддитивный'},
   /* Дата на срезе — числом дней от даты вопроса (ИС-26): среднюю дату сложить не из чего. */
   {kind:'показатель', id:'m-bodays', col:'i_worst_days', vtype:'int', name:'Худшая просрочка, дней',   obj:'obj-borrower', type:'число', src:'шов', grp:'сроки',
    seam:'calcPortfolio', field:'worstDays', unit:'дн.'},
@@ -997,7 +1024,11 @@ const REGISTRY = [
   {kind:'показатель', id:'a-sumissued',name:'Выдано всего (нарастающим)', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-issued'},
   {kind:'показатель', id:'a-sumrepaid',name:'Погашено всего (нарастающим)', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-repaid'},
   {kind:'показатель', id:'a-sumaccr',  name:'Начислено процентов, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-accr'},
+  {kind:'показатель', id:'a-sumaccrpen', name:'Начислено пени, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-accrpen'},
+  {kind:'показатель', id:'a-sumaccrfee', name:'Начислено сборов и комиссий, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-accrfee'},
+  {kind:'показатель', id:'a-sumaccrcoll', name:'Начислено расходов взыскания, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-accrcoll'},
   {kind:'показатель', id:'a-sumwoff',  name:'Списано всего, итого',    obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-woff'},
+  {kind:'показатель', id:'a-sumfx',    name:'Курсовая разница, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-fx'},
   {kind:'показатель', id:'a-sumoplus', name:'Переплата, итого',        obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-oplus'},
   {kind:'показатель', id:'a-sumnpay',  name:'Ближайшие платежи, итого', obj:'obj-credit', src:'агрегат', grp:'график', fn:'sum', over:'m-npay'},
   {kind:'показатель', id:'a-minndays', name:'Ближайший платёж по кредиту — минимум дней', obj:'obj-credit', src:'агрегат', grp:'график', fn:'min', over:'m-ndays'},
@@ -1020,6 +1051,10 @@ const REGISTRY = [
   {kind:'показатель', id:'a-sumbrepaid',name:'Погашено заёмщиками, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-brepaid'},
   {kind:'показатель', id:'a-sumbaccr', name:'Начислено по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-baccr'},
   {kind:'показатель', id:'a-sumbwoff', name:'Списано по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-bwoff'},
+  {kind:'показатель', id:'a-sumbaccrpen', name:'Начислено пени по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-baccrpen'},
+  {kind:'показатель', id:'a-sumbaccrfee', name:'Начислено сборов и комиссий по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-baccrfee'},
+  {kind:'показатель', id:'a-sumbaccrcoll', name:'Начислено расходов взыскания по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-baccrcoll'},
+  {kind:'показатель', id:'a-sumbfx',   name:'Курсовая разница по заёмщикам, итого', obj:'obj-borrower', src:'агрегат', grp:'потоки', fn:'sum', over:'m-bfx'},
   {kind:'показатель', id:'a-maxbodays',name:'Худшая просрочка по заёмщикам', obj:'obj-borrower', src:'агрегат', grp:'сроки', fn:'max', over:'m-bodays'},
   {kind:'показатель', id:'a-avgbodays',name:'Средняя просрочка по заёмщикам', obj:'obj-borrower', src:'агрегат', grp:'сроки', fn:'avg', over:'m-bodays'},
   {kind:'показатель', id:'a-minbndays',name:'Ближайший платёж заёмщика — минимум дней', obj:'obj-borrower', src:'агрегат', grp:'сроки', fn:'min', over:'m-bndays'},
@@ -1177,16 +1212,23 @@ const OBJECTS = [
          'm-coll','m-fee','m-debt','m-aint','m-int','m-apen','m-pen',
          'm-ocoll','m-ofee','m-odebt','m-oaint','m-oint','m-oapen','m-open',
          'm-odays','m-ddays',
-         'm-issued','m-repaid','m-accr','m-woff','m-oplus',
+         'm-issued','m-repaid','m-accr','m-accrpen','m-accrfee','m-accrcoll','m-woff','m-fx','m-oplus',
          'm-npay','m-ndays','m-fdays','m-amount',
          'm-secured','m-crisk','m-secliq',
          'a-count','a-sumtotal','a-sumover','a-sumcurr',
          'a-sumcoll','a-sumfee','a-sumdebt','a-sumaint','a-sumint','a-sumapen','a-sumpen',
          'a-sumocoll','a-sumofee','a-sumodebt','a-sumoaint','a-sumoint','a-sumoapen','a-sumopen',
          'a-avgodays','a-maxodays','a-avgddays','a-maxddays',
-         'a-sumissued','a-sumrepaid','a-sumaccr','a-sumwoff','a-sumoplus',
+         'a-sumissued','a-sumrepaid','a-sumaccr','a-sumaccrpen','a-sumaccrfee','a-sumaccrcoll','a-sumwoff','a-sumfx','a-sumoplus',
          'a-sumnpay','a-minndays','a-avgndays','a-avgfdays','a-maxfdays','a-sumamount',
-         'a-sumsecured','a-sumcrisk','a-sumsecliq']},
+         'a-sumsecured','a-sumcrisk','a-sumsecliq'],
+   /* ПОТОКИ, ОБЪЯСНЯЮЩИЕ ОСТАТОК. Перечень объявляет модуль-владелец объекта, а не статистика и не потребитель: по нему
+      Движение раскладывает изменение остатка у прежних объектов, не покрытое — «прочее». Здесь — перечень, который
+      ядро предложило владельцу кредита; статистика держит то, что владелец объявит. */
+   balanceFlows:[{of:'m-total', flows:[
+     {ind:'m-issued', sign: 1}, {ind:'m-accr', sign: 1}, {ind:'m-accrpen', sign: 1}, {ind:'m-accrfee', sign: 1},
+     {ind:'m-accrcoll', sign: 1}, {ind:'m-repaid', sign: -1}, {ind:'m-woff', sign: -1},
+     {ind:'m-fx', sign: 1, somOnly: true}]}]},
   /* Заёмщик. */
   /* Правила видимости заёмщика идут по ВЕДУЩЕМУ куратору — своему разрезу, а не по «d-curator», которого у объекта нет и быть не может: куратор кредита у заёмщика многозначен, а ведущий ВЫЧИСЛЯЕТСЯ методом API кураторства. */
   {id:'obj-borrower', name:'Заёмщик', plural:'заёмщики', owner:'Заёмщики', refName:'ИНН',
@@ -1196,12 +1238,12 @@ const OBJECTS = [
          'd-bcur','d-bodays','d-bcdate','d-bindustry','d-ptype','d-bregion'],
    inds:['m-btotal','m-bover','m-bcurr','m-bdebt',
          'm-bcnt','m-bovercnt','m-bclosed',
-         'm-bissued','m-brepaid','m-baccr','m-bwoff',
+         'm-bissued','m-brepaid','m-baccr','m-baccrpen','m-baccrfee','m-baccrcoll','m-bwoff','m-bfx',
          'm-bodays','m-bndays','m-btenure',
          'm-bworst','m-bblack',
          'a-count','a-sumbtotal','a-sumbover','a-sumbcurr','a-sumbdebt',
          'a-sumbcnt','a-sumbovercnt','a-sumbclosed',
-         'a-sumbissued','a-sumbrepaid','a-sumbaccr','a-sumbwoff',
+         'a-sumbissued','a-sumbrepaid','a-sumbaccr','a-sumbaccrpen','a-sumbaccrfee','a-sumbaccrcoll','a-sumbwoff','a-sumbfx',
          'a-maxbodays','a-avgbodays','a-minbndays','a-avgbtenure']},
   /* Залог. */
   /* Член группы совместного риска — объект статистики с таблицей членства. */
@@ -2004,8 +2046,14 @@ const CORE = {
       overdue:    CORE.cell(item, p.overdue,    dateISO),
       current:    CORE.cell(item, p.current,    dateISO),
       writtenOff: CORE.flowCell(item, d => CORE.debtParts(item, d).writtenOff, dateISO),
-      overpaid:   CORE.cell(item, p.overpaid,   dateISO)
+      overpaid:   CORE.cell(item, p.overpaid,   dateISO),
+      fx:         CORE.somOnlyCell(CORE.fxSom(item, dateISO))
     };
+    /* Потоки остатка — нарастающим итогом с первой выдачи; у кредита из легаси итоги на дату переноса принёс перенос. */
+    [['flowIssued','issued'], ['flowInterest','interest'], ['flowPenalty','penalty'], ['flowFees','fees'],
+     ['flowRecovery','recovery'], ['flowRepaid','repaid'], ['flowWrittenOff','writtenOff']].forEach(([f, k]) => {
+      out[f] = CORE.flowCell(item, d => CORE.flowOf(item, k, d), dateISO);
+    });
     ARTICLES.forEach(a => {
       out[a] = CORE.cell(item, p.rest[a], dateISO);
       out['over_' + a] = CORE.cell(item, p.over[a], dateISO);
@@ -2109,6 +2157,53 @@ const CORE = {
   },
   calcAccrual(item, dateISO){ CORE.calls++;
     return {interest: CORE.flowCell(item, d => CORE.grow(item, 'interest', d), dateISO)}; },
+  /* ------ ПОТОКИ ОСТАТКА — ПОЛЯ ОТВЕТА calcDebt ------
+     Заглушка отвечает рядами: выдано, начислено процентов и погашено — те же ряды, что раньше отдавали
+     `calcAllocation` и `calcAccrual`; пеня, расходы взыскания и списанное копятся по линейному ряду дней
+     просрочки, замороженному в день погашения просрочки, и потому не убывают. Тождества «остаток = выдано +
+     начислено − погашено − списано» числа заглушки НЕ держат: остатки у неё — формулы от рядов, а не вывод
+     из потоков. Его держит ядро. */
+  frozenDays(item, dateISO){
+    const cure = CORE.cureOf(item);
+    return Math.round(CORE.grow(item, 'daysOverdue', cure && dateISO >= cure ? dayShift(cure, -1) : dateISO) || 0);
+  },
+  flowOf(item, kind, dateISO){
+    const amt = item.f.amount || 0, r2 = x => Math.round(x * 100) / 100;
+    if(kind === 'issued')     return CORE.grow(item, 'issuedTotal', dateISO) || 0;
+    if(kind === 'interest')   return CORE.grow(item, 'interest', dateISO) || 0;
+    if(kind === 'repaid')     return CORE.repaidOf(item, dateISO);
+    /* До договора начислять и списывать нечего. */
+    if(item.f.cdate && dateISO < item.f.cdate) return 0;
+    const fd = CORE.frozenDays(item, dateISO);
+    if(kind === 'penalty')    return r2(amt * 0.00002 * fd);
+    if(kind === 'fees')       return r2(amt * 0.001);
+    if(kind === 'recovery')   return fd > 180 ? r2(amt * 0.004) : 0;
+    if(kind === 'writtenOff') return fd > 180 ? r2(amt * 0.002 * ((fd - 180) / 30)) : 0;
+    return null;
+  },
+  /* КУРСОВАЯ РАЗНИЦА — переоценка остатка при каждой смене курса: остаток накануне смены × изменение курса,
+     нарастающим итогом. Курсы у заглушки есть с даты переноса (`ANCHOR`): сомовые потоки на эту дату — по её курсу
+     (`flowSom`), переоценка копится с неё. У кредита в сомах — посчитанный ноль; у валюты без курсов — пусто. */
+  fxSom(item, dateISO){
+    const cur = item.f.cur || 'KGS';
+    if(cur === 'KGS') return 0;
+    const list = RATES[cur];
+    if(!list || !list.length || list[0][0] > ANCHOR) return null;
+    let fx = 0, prev = rateOn(cur, ANCHOR).rate;
+    for(const [d, r] of list){
+      if(d <= ANCHOR || d > dateISO) continue;
+      fx += CORE.debtParts(item, dayShift(d, -1)).total * (r - prev);
+      prev = r;
+    }
+    return CORE.somRound(fx, CORE.SOM_ROUNDING.id);
+  },
+  /* Клетка в сомах без валютной пары: число одно, и оно — сумма в сомах. */
+  somOnlyCell(v){
+    if(v == null) return null;
+    return {value: v, cur: 'KGS', rate: 1, rateDate: null, dated: true,
+            parts: [{cur: 'KGS', value: v, rate: 1, rateDate: null}], mixed: false,
+            som: {value: v, round: CORE.SOM_ROUNDING.id, flow: true}};
+  },
   /* «Погашено всего» — НЕ самостоятельный ряд, а сумма платежей по этому кредиту. */
   /* Платёж на дату: кредит и состояние берутся ДАТИРОВАННОЙ историей, если она есть, иначе полем карточки. */
   payOn(p, d){
@@ -2199,6 +2294,14 @@ const CORE = {
       repaidTotal:CORE.portfolioFlow(all, dateISO, (c, d) => CORE.repaidOf(c, d)),
       accrued:    CORE.portfolioFlow(all, dateISO, (c, d) => CORE.grow(c, 'interest', d)),
       writtenOff: CORE.portfolioFlow(all, dateISO, (c, d) => CORE.debtParts(c, d).writtenOff),
+      /* Те же потоки, что у кредита, суммой по договорам; курсовая разница — сумма курсовых разниц договоров,
+         пусто, если хоть у одного её нет, и у заёмщика без договоров — как прочие потоки портфеля. */
+      accrPenalty:  CORE.portfolioFlow(all, dateISO, (c, d) => CORE.flowOf(c, 'penalty', d)),
+      accrFees:     CORE.portfolioFlow(all, dateISO, (c, d) => CORE.flowOf(c, 'fees', d)),
+      accrRecovery: CORE.portfolioFlow(all, dateISO, (c, d) => CORE.flowOf(c, 'recovery', d)),
+      fx: (() => { const xs = all.map(c => CORE.fxSom(c, dateISO));
+                   return !xs.length || xs.some(x => x == null) ? null
+                     : CORE.somOnlyCell(CORE.somRound(xs.reduce((n, x) => n + x, 0), CORE.SOM_ROUNDING.id)); })(),
       /* ВСЕ договоры заёмщика на дату, включая закрытые: колонка `i_credits` — «кредитов: всего» (схема §2.3). */
       credits:        {value: all.filter(c => stateOf(c) != null).length},
       overdueCredits: {value: all.filter(c => P(c).days > 0).length},
@@ -2444,8 +2547,10 @@ const CORE = {
     calcDebt:      ['total','overdue','current','writtenOff','overpaid','daysOverdue','disputedDays',
                     'collection','over_collection','charges','over_charges','principal','over_principal',
                     'accInterest','over_accInterest','interest','over_interest',
-                    'accPenalty','over_accPenalty','penalty','over_penalty'],
+                    'accPenalty','over_accPenalty','penalty','over_penalty',
+                    'flowIssued','flowInterest','flowPenalty','flowFees','flowRecovery','flowRepaid','flowWrittenOff','fx'],
     calcPortfolio: ['total','overdue','current','principal','issuedTotal','repaidTotal','accrued',
+                    'accrPenalty','accrFees','accrRecovery','fx',
                     'writtenOff','credits','overdueCredits','closedCredits','worstDays','nextInDays',
                     'firstDate','tenureDays','state','curLabel'],
     calcPledge:    ['pledgeValue','allocated','available','securedRisk','credits','deals','worstSubgroup'],
@@ -2606,10 +2711,11 @@ const RELEASE = {id:'макет · миграция № 1', tables:{
      /* Признаки состояния `d_f_*` — колонки без записи: метода API признаков на дату у «Кредитов» пока нет (схема §1.2, ⚑). */
      bool:['d_f_restr','d_f_coll','d_f_bankr','d_f_hold','d_f_court','d_f_dispute','d_f_transfer',
            'd_rf_evade','d_rf_pledge','d_rf_contact','d_rf_nocoll','d_rf_pledger','d_rf_nomon','d_rf_misuse','d_rf_other'],
-     /* Неосвоенный остаток, спорная пеня, начисленная пеня, курсовая разница и средневзвешенная ставка — тоже колонки без записи: у ядра этих величин пока нет (схема §1.3–§1.4, ⚑). */
+     /* Неосвоенный остаток, спорная пеня и средневзвешенная ставка — тоже колонки без записи: у ядра этих величин пока нет (схема §1.3–§1.4, ⚑). */
      money_cur:['i_total','i_over','i_curr','i_coll','i_fee','i_od','i_int_acc','i_int','i_pen_acc','i_pen',
                 'i_over_coll','i_over_fee','i_over_od','i_over_int_acc','i_over_int','i_over_pen_acc','i_over_pen',
-                'i_overpaid','i_npay','i_risk','i_amount','i_undisb','i_pen_disp','i_issued','i_repaid','i_accr_int','i_accr_pen','i_woff'],
+                'i_overpaid','i_npay','i_risk','i_amount','i_undisb','i_pen_disp','i_issued','i_repaid','i_accr_int','i_accr_pen',
+                'i_accr_fee','i_accr_coll','i_woff'],
      money_som:['i_secured','i_secliq','i_fx'],
      int:['i_overdue_days','i_disputed_days','i_npay_days','i_full_days']})},
   /* Член группы совместного риска — таблица ЧЛЕНСТВА «группа × член × дата»: своих сумм у группы нет, они берутся из строк заёмщиков-членов той же даты. */
@@ -2622,7 +2728,8 @@ const RELEASE = {id:'макет · миграция № 1', tables:{
      cls:['d_worst','d_subgroup'], code:['d_ptype','d_sstate','d_pstate','d_pcur'],
      date:['d_first_cdate'], bool:['d_black'],
      /* Итоги заёмщика — только в сомах: `cur`, `rate`, `rate_date` в таблице нет вовсе. */
-     money_som:['i_total','i_over','i_curr','i_od','i_issued','i_repaid','i_accr_int','i_woff'],
+     money_som:['i_total','i_over','i_curr','i_od','i_issued','i_repaid','i_accr_int','i_accr_pen','i_accr_fee','i_accr_coll',
+                'i_woff','i_fx'],
      int:['i_credits','i_over_credits','i_closed_credits','i_worst_days','i_npay_days','i_tenure_days']})},
   'obj-collateral': {table:'stat_row_collateral', storage:'state',       cols: relCols(
     ['object_id','slice_date','run_id','src_core','src_class','src_curation','src_detail','is_partial','now_cols'],
@@ -6479,6 +6586,50 @@ ST.objectRowCalls = () => CORE.rowCalls;
 ST.resetObjectRowCalls = () => { CORE.rowCalls = 0; };
 ST.cardFields = objId => clone((CARD[objId] || {fields:[]}).fields);
 ST.cardOwner  = objId => (CARD[objId] || {}).owner || null;
+/* ------ ПОТОКИ, ОБЪЯСНЯЮЩИЕ ОСТАТОК — РЕКВИЗИТ ЗАПИСИ ОБЪЕКТА ------
+   Реестр принимает перечень, только если каждая строка — денежный ПОТОК ТОГО ЖЕ объекта со знаком ±1, а остаток —
+   денежная величина этого объекта, но не поток. «Только в сомах» допустимо лишь у величины без валютной колонки:
+   иначе потребитель сложил бы её с валютными суммами. Чужая или не денежная строка дала бы Движению слагаемое,
+   которое к остатку не относится, и «прочее» стало бы ложным нулём. */
+function balanceFlowsProblems(objId, decl){
+  const o = OBJ(objId), out = [];
+  if(!o) return ['объекта ' + objId + ' в реестре нет'];
+  if(!Array.isArray(decl)) return ['перечень — не список'];
+  decl.forEach((b, i) => {
+    const B = IND(b && b.of);
+    if(!B || B.obj !== objId || !B.money || B.flow || B.src === 'агрегат')
+      out.push('остаток «' + ((B && B.name) || (b && b.of)) + '» — не денежная величина-остаток объекта «' + o.name + '»');
+    if(decl.findIndex(x => x && b && x.of === b.of) !== i) out.push('остаток «' + ((B && B.name) || b.of) + '» объявлен дважды');
+    if(!b || !Array.isArray(b.flows) || !b.flows.length){ out.push('у остатка «' + ((B && B.name) || (b && b.of)) + '» перечень потоков пуст'); return; }
+    /* Поток «только в сомах» раскладывает только сомовый остаток: у остатка должна быть сомовая сторона. */
+    if(B && b.flows.some(f => f.somOnly) && B.vtype !== 'money_som' && !IND(b.of + SOM_SUFFIX))
+      out.push('у остатка «' + B.name + '» нет суммы в сомах, а в перечне есть поток только в сомах');
+    b.flows.forEach((f, j) => {
+      if(b.flows.findIndex(x => x.ind === f.ind) !== j) out.push('«' + ((IND(f.ind) || {}).name || f.ind) + '» в перечне дважды');
+      const F = IND(f.ind), nm = (F && F.name) || f.ind;
+      if(!F || F.obj !== objId || o.inds.indexOf(f.ind) < 0) out.push('«' + nm + '» — не величина объекта «' + o.name + '»');
+      else if(!F.flow || !F.money || F.src === 'агрегат') out.push('«' + nm + '» — не денежный поток');
+      if(f.sign !== 1 && f.sign !== -1) out.push('у «' + nm + '» знак не + и не −');
+      if(f.somOnly && F && F.vtype !== 'money_som') out.push('«' + nm + '» помечен «только в сомах», но у него есть валютная колонка');
+      if(!f.somOnly && F && F.vtype === 'money_som') out.push('«' + nm + '» есть только в сомах, а помечен как валютный');
+    });
+  });
+  return out;
+}
+ST.balanceFlowsProblems = (objId, decl) => balanceFlowsProblems(objId, decl === undefined ? ((OBJ(objId) || {}).balanceFlows || []) : decl);
+ST.balanceFlows = objId => clone(((OBJ(objId) || {}).balanceFlows) || []);
+/* Объявить перечень может только владелец объекта; ошибочный перечень не принимается целиком. */
+ST.declareBalanceFlows = (objId, decl, by) => {
+  const o = OBJ(objId);
+  if(!o) return {ok: false, why: 'объекта ' + objId + ' в реестре нет'};
+  if(by !== o.owner) return {ok: false, why: 'перечень потоков объявляет модуль-владелец объекта «' + o.name + '» — «' + o.owner + '», а не «' + by + '»'};
+  /* Пустой перечень — не «снять перечень»: снять его можно только отдельным действием, а не молча. */
+  if(!Array.isArray(decl) || !decl.length) return {ok: false, why: 'перечень пуст: объявляют хотя бы один остаток с потоками'};
+  const bad = balanceFlowsProblems(objId, decl);
+  if(bad.length) return {ok: false, why: bad.join('; ')};
+  o.balanceFlows = clone(decl);
+  return {ok: true};
+};
 /* Пары «значение на дату ↔ текущее значение»: это не два адреса одного числа, а два разных вопроса с разными ответами. */
 ST.twins = objId => (CARD[objId] || {fields:[]}).fields.map(f => ({
   card: f.id, name: f.name, twin: f.twin || null,
@@ -8192,6 +8343,13 @@ function viewSetup(){
       o.inds.filter(m => IND(m).src === 'агрегат').length+' агрегатов</td>'+
     '<td>'+(o.born ? esc(SRC_LABEL(o.born.src)+' · '+(o.born.key || o.born.field)) : 'не объявлено')+'</td>'+
     '<td class="num">'+(WORLD[o.id] || []).length+'</td></tr>').join('');
+  /* Перечень потоков, объясняющих остаток, — строками «остаток · поток · знак · колонка», по объектам, где он объявлен. */
+  const bflows = st.objects.filter(o => (o.balanceFlows || []).length).map(o => o.balanceFlows.map(b =>
+    b.flows.map((f, i) => '<tr>'+(i ? '' : '<td rowspan="'+b.flows.length+'"><b>'+esc(o.name)+'</b><div class="small">'+
+      esc(IND(b.of).name)+'</div></td>')+
+      '<td>'+esc(IND(f.ind).name)+(f.somOnly ? ' <span class="pill neutral">только в сомах</span>' : '')+'</td>'+
+      '<td class="num">'+(f.sign > 0 ? '+' : '−')+'</td>'+
+      '<td><code>'+esc(physOf(IND(f.ind)).concat(physOf(IND(f.ind + SOM_SUFFIX))).join(' · '))+'</code></td></tr>').join('')).join('')).join('');
   /* Реестр один и таблица одна: строки сгруппированы по объекту записи, тип записи — отдельная колонка. Объекты идут в порядке первого появления в реестре. */
   const grp = [];
   st.registry.forEach(r => { const k = r.obj;
@@ -8471,6 +8629,15 @@ function viewSetup(){
     'исчез бы вовсе.', 'почему заёмщик — свой объект')+
     '<table class="cgrid"><thead><tr><th>Объект</th><th>Модуль-владелец списка</th><th>Разрезы</th>'+
     '<th>Показатели</th><th>Дата появления</th><th>Объектов в демо-данных</th></tr></thead><tbody>'+objs+'</tbody></table>'+
+    '<h3 class="section-h">Потоки, объясняющие остаток</h3>'+
+    '<p class="page-lead">Перечень объявляет <b>модуль-владелец объекта</b>: какие потоки и с каким знаком раскладывают '+
+    'изменение остатка у прежних объектов. Не покрытое ими Движение показывает строкой «прочее».</p>'+
+    why('Перечень — реквизит записи, а не правило отчёта или плитки: иначе смысл чужого объекта знал бы потребитель, и '+
+    'окно отчёта раскладывало бы остаток иначе, чем плитка. Ядро держит остаток кредита замкнутым этими потоками в '+
+    'каждом ответе, поэтому у кредита «прочее» — ноль, а ненулевое «прочее» — ошибка. Курсовая разница есть только в '+
+    'сомах и раскладывает только сомовый остаток.', 'почему перечень у записи объекта')+
+    '<table class="cgrid" id="bflows"><thead><tr><th>Объект · остаток</th><th>Поток</th><th>Знак</th><th>Колонки</th></tr></thead>'+
+    '<tbody>'+bflows+'</tbody></table>'+
     '<h2 class="section-h">Реестр показателей и разрезов</h2>'+
     '<p class="page-lead">Реестр <b>один</b>, и каждая запись объявляет свой <b>тип</b> — показатель или '+
     'разрез; тип определяет набор обязательных реквизитов. Записей '+
