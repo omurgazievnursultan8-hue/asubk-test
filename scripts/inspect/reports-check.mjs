@@ -61,6 +61,8 @@
 // по порогу строк с тремя действиями, «Как получено» в провале, шапка = паспорт, редактор наборов условий (ZZ);
 // проверки окончательного выпуска списком, таблица пометок числа (AAA). Переписаны #14, #32 (корректирующий —
 // после повторного закрытия июля), #114, #136, #199, #237; в konstruktor-check — #3.
+// Волна 56 (блок BBB, #358–#361): «закрыть снова» кнопкой на экране (ПВ-Д7), «топ N» по любому числовому полю и
+// условие по формуле в редакторе своих условий (ПВ-Д5), заказ ступенью-выбором с экрана показа снят (ПВ-Д4).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -4378,6 +4380,82 @@ const DEV = 'изменено — не утверждённый состав';
     `ПВ-14: вместо кнопок-образцов — редактор наборов «или» из условий «и»; отбор — после охвата роли и параметров, «в отборе 2 из 8» ` +
     `от видимых, «топ N» — поверх; фильтр отчёта и свои условия — через «и»; свои условия у официального — состав не утверждённый: ` +
     `окончательно не сдаётся, выгрузка помечена; «вернуть утверждённый» снимает условия`);
+})();
+
+/* Волна 56 (блок BBB, #358–#361): «закрыть снова» на экране (ПВ-Д7), «топ N» по любому числу и условие по формуле
+   в редакторе своих условий (ПВ-Д5), мёртвый код заказа ступенью-выбором снят (ПВ-Д4). */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), P8 = { asOf:'2026-08-01', dept:'' };
+  const jr = () => win.VIEWS.journal.fn();
+  RP.seed(); as('buh');
+  const j0 = jr(), a0 = RP.periodActions('июль 2026');
+  const re = RP.reopenPeriod('июль 2026', 'сторно платежа'), twice = RP.reopenPeriod('июль 2026', 'ещё раз');
+  const a1 = RP.periodActions('июль 2026'), j1 = jr();
+  const iss = RP.state.issues.filter(i => i.diverged)[0].id, early = RP.corrective(iss);
+  as('user'); const noRight = RP.reclosePeriod('июль 2026');
+  as('buh'); RP.doReclose('июль 2026');
+  const a2 = RP.periodActions('июль 2026'), j2 = jr(), corr = RP.corrective(iss);
+  ok(358, has(j0, 'Открыть заново период «июль 2026»') && a0.actions.join() === 'открыть заново' && re.ok &&
+        !twice.ok && has(twice.why, 'уже открыт заново') && a1.actions.join() === 'закрыть снова' &&
+        has(j1, 'Закрыть период «июль 2026» снова') && has(j1, 'RP.doReclose(\'июль 2026\')') && !has(j1, 'Открыть заново период «июль 2026»') &&
+        has(j1, 'после того как период закрыт снова') && !early.ok && early.check === 'fixed' &&
+        !noRight.ok && has(noRight.why, 'главный бухгалтер') &&
+        RP.state.periods['июль 2026'].state === 'закрыт' && a2.actions.join() === 'открыть заново' &&
+        has(j2, 'Открыть заново период «июль 2026»') && !has(j2, 'RP.doReclose') && corr.ok,
+    `ПВ-Д7: открытый заново июль закрывается снова кнопкой карточки и строки таблицы периодов («закрыть снова» — главный ` +
+    `бухгалтер); до этого «Уточнить» отказывает проверкой «строки зафиксированы», после — корректирующий ${corr.id || '?'} выпущен; ` +
+    `второе открытие открытого периода — отказ словами`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
+  const t1 = RP.fsetTop(3, 'days', 'последние'), ef1 = RP.effFilter('t-overdue');
+  const fa1 = RP.filterAnswer('t-overdue', P8, ef1.f), h1 = win.VIEWS.issue.fn();
+  const low = RP.show('t-overdue', P8, { drill:true }).data.rows.slice()
+    .sort((a, b) => a.days - b.days || String(a.id).localeCompare(String(b.id))).slice(0, 3);
+  const base = low.map(r => r.days), lowIds = low.map(r => r.id).join();
+  const bad = RP.fsetTop(3, 'borrower'), dflt = RP.fsetTop(2), ef2 = RP.effFilter('t-overdue');
+  const off = RP.fsetTop(''), ef3 = RP.effFilter('t-overdue');
+  ok(359, t1.ok && ef1.f.top.by === 'days' && ef1.f.top.dir === 'последние' && fa1.ok &&
+        fa1.data.rows.map(r => r.days).join() === base.join() && fa1.ids.join() === lowIds && has(h1, 'последние 3 по «Дней просрочки»') &&
+        has(h1, 'id="fsTb"') && has(h1, '<option value="days" selected>Дней просрочки</option>') &&
+        has(h1, '<option value="последние" selected>последние</option>') && !has(h1, 'по остатку</option>') &&
+        !bad.ok && has(bad.why, 'не число') && dflt.ok && ef2.f.top.by === 'debt_main' && !ef2.f.top.dir &&
+        off.ok && !ef3,
+    `ПВ-Д5: «топ N» — по любому числовому полю, первые или последние: последние 3 по «Дней просрочки» — ${fa1.ok ? fa1.data.rows.map(r => r.days).join(', ') : '?'} ` +
+    `дн. (наименьшие из видимых); по строке «Заёмщик» — отказ; без поля — по остатку; пустое N снимает «топ N»`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
+  const fm = RP.fsetFormulas(), nm = 'Доля просрочки в портфеле';
+  const f1 = RP.fsetFormula(nm, 'больше', 50), ef4 = RP.effFilter('t-overdue');
+  const fa2 = RP.filterAnswer('t-overdue', P8, ef4.f), h2 = win.VIEWS.issue.fn(), args = ev('shownArgs()');
+  const badCmp = RP.fsetFormula(nm, 'равно', 50), badName = RP.fsetFormula('Нет такой', 'больше', 1), noVal = RP.fsetFormula(nm, 'больше', '');
+  RP.twistFormula(); const fm2 = RP.fsetFormulas();
+  const clr = RP.fsetFormula(''), ef5 = RP.effFilter('t-overdue');
+  const ws = RP.fsetFormula(nm, 'больше', '  ');
+  const vw = RP.saveView('t-overdue', 'с формулой', null, { filter:{ formula: Object.assign({}, fm[0], { cmp:'больше', value:30 }) } });
+  RP.state.sel.view = vw.id; const dupF = RP.fsetFormula(nm, 'меньше', 10), topOk = RP.fsetTop(3);
+  RP.selTpl('t-port-ly'); const carried = RP.state.sel.fset;
+  ok(360, fm.length === 1 && fm[0].name === nm && f1.ok && ef4.f.formula.cmp === 'больше' && ef4.f.formula.value === 50 &&
+        fa2.ok && fa2.matched > 0 && fa2.matched < fa2.from && args.params.ids.length === fa2.matched &&
+        has(h2, 'Условие по формуле') && has(h2, 'сейчас: '+nm+' больше 50 %') && has(h2, 'в отборе '+fa2.matched+' из '+fa2.from) &&
+        has(fa2.filter, nm+' больше 50 %') &&
+        !badCmp.ok && has(badCmp.why, '«больше» или «меньше»') && !badName.ok && has(badName.why, 'на экране нет') &&
+        !noVal.ok && has(noVal.why, 'нужно число') && fm2.filter(f => f.name === nm).length === 1 && clr.ok && !ef5 &&
+        !ws.ok && has(ws.why, 'нужно число') && vw.ok && !dupF.ok && has(dupF.why, 'у фильтра вида «с формулой» уже есть условие по формуле') &&
+        topOk.ok && carried === null,
+    `ПВ-Д5: условие по своей формуле — в редакторе своих условий: «${nm} больше 50 %» отобрало ${fa2.matched || '?'} из ${fa2.from || '?'}, ` +
+    `шапка и параметры выпуска — те же строки; формула экрана и готовая не двоятся; сравнение — только «больше»/«меньше», без числа — отказ; ` +
+    `у вида уже есть условие по формуле — второе не ставится, а называется отказом; другой отчёт свои условия не наследует`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
+  const hi = win.VIEWS.issue.fn(), spec = ev('issueSpec()').spec;
+  ok(361, typeof RP.doOrder === 'undefined' && typeof RP.doIssue === 'undefined' && typeof RP.setKind === 'function' &&
+        !('kind' in spec) && !('recipient' in spec) && !has(hi, 'RP.setKind') && has(hi, 'RP.doFinal()') && has(src, 'onchange="RP.setKind(this.value)"') &&
+        !has(src, "sel.kind = 'предварительный'"),
+    `ПВ-Д4: заказа ступенью-выбором на экране показа нет — ступень кнопкой («Выпустить окончательно» / предварительно); ` +
+    `RP.doOrder и RP.doIssue сняты, issueSpec ступени не несёт; выбор ступени остался только у бланка (RP.setKind)`);
 })();
 
 /* ---- отчёт ---- */
