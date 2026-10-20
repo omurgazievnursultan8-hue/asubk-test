@@ -48,6 +48,9 @@
 // узле остатком на базу без потоков, сумма узлов равна итогу в каждой строке Движения, переход охвата тем же правилом;
 // «срок близко» — признак обязательства по одной N модуля, правка N — уполномоченным с журналом; порог фильтра не даёт
 // «нет объектов»; экран «Календарь сдачи».
+// Волна 51 (блок UU, #336–#339): входящие от ядра по ADR-0322 (ОД-60…ОД-65, ADR-0324) — курсовая разница — поток
+// Движения, у «Остатка основного долга» четыре потока по телу; ненулевое «прочее» — расхождение с потоками; пустой
+// поток — «нет ответа источника» с названной колонкой; Движение в сомах, пересчёт валюты — только итоги.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -3025,13 +3028,14 @@ const DEV = 'изменено — не утверждённый состав';
   const meta = SEAM.objectMeta('credit');
   const pf = RP.drillChange('t-overdue', {}, null, tot, AB);
   const kr6 = pf.items.find(x => x.id === 'kr-6');
-  ok(269, meta.flows['s-portfolio'].map(f => f.name+(f.sign > 0 ? '+' : '−')).join(' ') === 'выдано+ погашено− списано−' &&
+  ok(269, meta.flows['s-portfolio'].map(f => f.name+(f.sign > 0 ? '+' : '−')).join(' ') === 'выдано+ погашено− списано− курсовая разница+' &&
         pf.ok && pf.movement.flows && pf.change === -6000000 && rowOf(pf, 'f:issued').value === 0 && rowOf(pf, 'f:repaid').value === -5750000 &&
-        rowOf(pf, 'f:repaid').n === 7 && rowOf(pf, 'f:woff').value === 0 && rowOf(pf, 'other').value === -250000 && rowOf(pf, 'other').n === 1 &&
-        kr6.flows.repaid === -150000 && kr6.other === -250000 && pf.movement.base + sumRows(pf) === pf.movement.end && pf.movement.equal &&
+        rowOf(pf, 'f:repaid').n === 7 && rowOf(pf, 'f:woff').value === 0 && rowOf(pf, 'f:fx').value === -250000 && rowOf(pf, 'f:fx').n === 1 &&
+        rowOf(pf, 'other').value === 0 && rowOf(pf, 'other').n === 0 &&
+        kr6.flows.repaid === -150000 && kr6.flows.fx === -250000 && kr6.other === 0 && pf.movement.base + sumRows(pf) === pf.movement.end && pf.movement.equal &&
         pf.movement.rows.every(r => objSum(pf, r) === r.value),
-    `ОД-29: «Остаток, всего» 01.06 → 01.08.2026 — потоками записи объекта: ${pf.movement.chain}; «прочее» −250 000 — ` +
-    `КД-2025/126 (курсовая, потока нет); сумма объектов каждой строки = строке; «списано 0» печатается`);
+    `ОД-29, ОД-60: «Остаток, всего» 01.06 → 01.08.2026 — потоками записи объекта: ${pf.movement.chain}; «курсовая разница» ` +
+    `−250 000 — КД-2025/126, «прочее» 0; сумма объектов каждой строки = строке; «списано 0» печатается`);
 
   const fe = RP.drillChange('t-overdue', {}, null, tot, { a:'2026-02-01', b:'2026-03-01' });
   const st = RP.drillChange('t-overdue', {}, { cuts:['status'] }, { path:[{ by:'status', key:'просрочен' }], stat:'s-portfolio' }, AB);
@@ -3057,16 +3061,18 @@ const DEV = 'изменено — не утверждённый состав';
     `ОД-31: источник не ответил колонкой у КД-2024/117 — «нет ответа источника» −700 000 всей разницей, потоки и «прочее» ` +
     `по нему не считаются, «погашено» −5 050 000; строка «нет ответа» — только при сбое`);
 
-  const mo = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'other' }, AB));
+  const mo = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'f:fx' }, AB));
+  const m0 = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'other' }, AB));
   const mr = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'f:repaid', q:'ош' }, AB));
-  const wl = RP.worklistFromDrill('t-overdue', {}, null, tot, '', Object.assign({ mv:'other' }, AB));
+  const wl = RP.worklistFromDrill('t-overdue', {}, null, tot, '', Object.assign({ mv:'f:fx' }, AB));
   const wlo = wl.ok ? RP.state.worklists.find(w => w.id === wl.id) : null;
   ok(272, mo.ok && mo.shown.length === 1 && mo.shown[0].id === 'kr-6' && mo.sumShown === -250000 &&
-        mo.shownText === 'строка «прочее»: показано 1 из 7 · сумма показанных -250 000 = строке -250 000' &&
+        mo.shownText === 'строка «курсовая разница»: показано 1 из 7 · сумма показанных -250 000 = строке -250 000' &&
+        m0.ok && m0.shown.length === 0 &&
         mr.ok && mr.shown.length === 2 && mr.shown.every(x => has(x.cells.dept, 'Ош')) && mr.sumShown === mr.shown.reduce((s2, x) => s2 + x.flows.repaid, 0) && mr.sumShown !== mr.sumDiff &&
-        wl.ok && wlo.objects.join() === 'kr-6' && has(wlo.name, '· прочее'),
-    `ОД-32, ОД-33: «прочее» — остаток со своим списком: клик по строке — ${mo.shownText}; поиск внутри строки сужает и её; ` +
-    `рабочий список из строки «прочее» — один объект, имя по пути с именем строки`);
+        wl.ok && wlo.objects.join() === 'kr-6' && has(wlo.name, '· курсовая разница'),
+    `ОД-32, ОД-33: строка Движения — со своим списком: клик по строке — ${mo.shownText}; «прочее» 0 — список пуст; поиск ` +
+    `внутри строки сужает и её; рабочий список из строки — один объект, имя по пути с именем строки`);
 
   const k2 = pf.items.find(x => x.id === 'kr-2');
   ok(273, k2 && k2.how === 'снизилось' && k2.flows.repaid === -600000 && k2.other === 0 && k2.diff === -600000 &&
@@ -3104,16 +3110,17 @@ const DEV = 'изменено — не утверждённый состав';
   win.VIEWS.issue.fn();
   const iPf = ev('DRILL_NODES').findIndex(n => n.a && n.stat === 's-portfolio' && !n.path.length);
   RP.uiDrill(iPf); const e2 = win.VIEWS.issue.fn();
-  const iOther = RP.state.sel.drillRes.movement.rows.findIndex(r => r.key === 'other');
-  RP.uiDrillMvAt(iOther); const e3 = win.VIEWS.issue.fn();
+  const iFx = RP.state.sel.drillRes.movement.rows.findIndex(r => r.key === 'f:fx');
+  RP.uiDrillMvAt(iFx); const e3 = win.VIEWS.issue.fn();
   RP.uiDrillMv(null); const e4 = win.VIEWS.issue.fn();
-  const clean = [e1, e2, e3].every(x => !/ОД-\d|ADR-031\d|ИО-6[0-2]/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
+  const clean = [e1, e2, e3].every(x => !/ОД-\d|ADR-03[12]\d|ИО-6[0-2]/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
   ok(276, has(e1, 'Нет объектов.') && has(e1, 'Департамент правового обеспечения') && iPf !== -1 &&
-        has(e2, 'Как сложилось изменение — потоки записи объекта') && has(e2, 'не объяснено потоками') && has(e2, '<th class="num">Погашено</th>') &&
-        has(e2, '<th class="num">Прочее</th>') && has(e2, '70 100 000 + 0 − 5 750 000 + 0 − 250 000 = 64 100 000') &&
-        has(e3, 'строка «прочее»: показано 1 из 7') && has(e3, 'class="mvsel"') && has(e3, 'все объекты') && !has(e4, 'class="mvsel"') && clean,
+        has(e2, 'Как сложилось изменение — потоки записи объекта') && has(e2, 'потоки объяснили всё') && has(e2, '<th class="num">Погашено</th>') &&
+        has(e2, '<th class="num">Курсовая разница</th>') && has(e2, '<th class="num">Прочее</th>') &&
+        has(e2, '70 100 000 + 0 − 5 750 000 + 0 − 250 000 + 0 = 64 100 000') &&
+        has(e3, 'строка «курсовая разница»: показано 1 из 7') && has(e3, 'class="mvsel"') && has(e3, 'все объекты') && !has(e4, 'class="mvsel"') && clean,
     `экраны: плашка «Нет объектов» над итогами при подразделении без кредитов; провал «Изменения» «Остатка» — строки Движения ` +
-    `с цепочкой, колонки «Погашено» и «Прочее» у объектов; клик по «прочему» сужает список; номеров решений в интерфейсе нет`);
+    `с цепочкой, колонки «Погашено», «Курсовая разница» и «Прочее» у объектов; клик по строке сужает список; номеров решений в интерфейсе нет`);
 })();
 
 /* ---------- OO. Добор старых решений и хвосты волн 42–43 (волна 45, ADR-0316) ----------
@@ -3195,9 +3202,10 @@ const DEV = 'изменено — не утверждённый состав';
   const usd = g => g.groups.find(x => x.cur === 'USD');
   ok(281, c8.ok && c8.total === 64100000 && c8.groups.reduce((a, g) => a + g.som, 0) === c8.total && usd(c8).som === 5000000 &&
         usd(c6).orig === 61538.46 && usd(c7).orig === 61538.46 && c8.shown.value === Math.round(64100000 / 83.66 * 100) / 100 &&
-        has(c8.shown.note, 'отображение') && !mix.ok && has(mix.why, 'однородной группе') && has(c8.fx, '«прочее»'),
-    `ОГ-26: итог «Остатка» на 01.08.2026 — 64 100 000 сом = сом 59 100 000 + USD-группа 5 000 000; КД-2025/126 в долларах — ` +
-    `61 538,46 USD и на 01.06, и на 01.07 (снижение в сомах на 200 000 — курс, «прочее» Движения); пересчёт итога в USD — ` +
+        has(c8.shown.note, 'отображение') && !mix.ok && has(mix.why, 'однородной группе') && has(c8.fx, 'своей строкой') &&
+        has(c8.fx, 'не пересчитываются'),
+    `ОГ-26, ОД-64: итог «Остатка» на 01.08.2026 — 64 100 000 сом = сом 59 100 000 + USD-группа 5 000 000; КД-2025/126 в долларах — ` +
+    `61 538,46 USD и на 01.06, и на 01.07 (снижение в сомах на 200 000 — строка «курсовая разница» Движения); пересчёт итога в USD — ` +
     `отображение (${c8.shown.value}); сумма в исходной валюте по смешанной группе — отказ`);
 
   RP.seed(); as('head');
@@ -3955,6 +3963,68 @@ const DEV = 'изменено — не утверждённый состав';
         has(cU, 'правит уполномоченный по отчётности') && clean,
     `экран «Календарь сдачи»: настройка «Напоминать за N к.д. до срока» у уполномоченного, у пользователя — значением; ` +
     `при N = 8 у акта сверки — «срок близко · через 8 дней», строка изменения; номеров решений в интерфейсе нет`);
+})();
+
+/* ---- UU. Входящие от ядра по ADR-0322, волна 51: курсовая разница — поток Движения, «Остаток основного долга» —
+        четыре потока по телу, ненулевое «прочее» — расхождение, пустой поток — с колонкой, Движение в сомах
+        (ОД-60…ОД-65, ADR-0324) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c2 => vm.runInContext(c2, sandbox);
+  const tot = { path:[], stat:'s-portfolio' }, AB = { a:'2026-06-01', b:'2026-08-01' };
+  const rowOf = (d, k) => d.movement.rows.find(r => r.key === k) || {};
+  const STATUS = ['действует', 'просрочен', 'закрыт', 'реструктурирован', 'списан'];
+  const node = key => RP.drillChange('t-overdue', {}, { cuts:['status'] }, { path:[{ by:'status', key }], stat:'s-portfolio' }, AB);
+  const fl = SEAM.objectMeta('credit').flows['s-portfolio'];
+  const pf = RP.drillChange('t-overdue', {}, null, tot, AB), pr = node('просрочен');
+  const fxNodes = STATUS.reduce((s2, k) => s2 + (rowOf(node(k), 'f:fx').value || 0), 0);
+  const kr1 = pf.items.find(x => x.id === 'kr-1');
+  ok(336, fl.length === 4 && fl[3].name === 'курсовая разница' && fl[3].src === 'i_fx_od_som' && fl[3].sign === 1 &&
+        rowOf(pf, 'f:fx').value === -250000 && rowOf(pf, 'f:fx').ids.join() === 'kr-6' && rowOf(pf, 'other').value === 0 &&
+        rowOf(pr, 'f:fx').value === -250000 && rowOf(pr, 'other').value === 0 && pr.movement.equal && fxNodes === -250000 &&
+        kr1.flows.fx === 0 && pf.movement.equal,
+    `ОД-60, ОД-61: запись кредита объявляет у «Остатка основного долга» четыре потока — ${fl.map(f => f.name).join(' · ')}; ` +
+    `КД-2025/126 (USD) 01.06 → 01.08.2026 — «курсовая разница» −250 000, «прочее» 0; в узле «просрочен» то же: ` +
+    `${pr.movement.chain}; сумма узлов статуса по курсовой = итогу; у кредита в сомах курсовая — 0`);
+
+  const saved = ev("JSON.stringify(HIST['2026-08-01']['kr-6'])");
+  ev("HIST['2026-08-01']['kr-6'].i_fx_od_som = -200000");
+  const bad = RP.drillChange('t-overdue', {}, null, tot, AB), k6 = bad.items.find(x => x.id === 'kr-6');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.time = null; RP.state.sel.top = false;
+  RP.state.sel.drillRes = bad; RP.state.sel.drillMv = null; RP.state.sel.drillQ = ''; RP.state.sel.drillCard = null;
+  const eb = win.VIEWS.issue.fn();
+  ev("HIST['2026-08-01']['kr-6'] = JSON.parse(" + JSON.stringify(saved) + ")");
+  ok(337, rowOf(bad, 'other').value === -50000 && rowOf(bad, 'other').ids.join() === 'kr-6' && k6.otherOff && bad.movement.equal &&
+        has(eb, 'не сходится с потоками') && has(eb, 'расхождение у источника') && has(eb, 'не сходится с потоками записи') &&
+        RP.drillChange('t-overdue', {}, null, tot, AB).items.every(x => !x.otherOff),
+    `ОД-62: источник отдал курсовую −200 000 вместо −250 000 — «прочее» −50 000 у КД-2025/126 печатается, строка помечена ` +
+    `«не сходится с потоками · у остатка, замкнутого потоками, здесь 0 — расхождение у источника», объект — «не сходится с ` +
+    `потоками записи»; цепочка сходится; на данных стенда меток нет`);
+
+  ev("HIST['2026-08-01']['kr-6'].i_fx_od_som = null");
+  const na = RP.drillChange('t-overdue', {}, null, tot, AB), n6 = na.items.find(x => x.id === 'kr-6');
+  RP.state.sel.drillRes = na; const en = win.VIEWS.issue.fn();
+  ev("HIST['2026-08-01']['kr-6'] = JSON.parse(" + JSON.stringify(saved) + ")");
+  /* Строка переноса без колонки-источника — «до запуска не перенесено», а не «пусто: …». */
+  const kept = ev("HIST['2025-10-01']['kr-1'].i_issued_som");
+  ev("delete HIST['2025-10-01']['kr-1'].i_issued_som");
+  const pre = RP.drillChange('t-overdue', {}, null, tot, { a:'2025-10-01', b:'2026-08-01' }), p1 = pre.items.find(x => x.id === 'kr-1');
+  ev("HIST['2025-10-01']['kr-1'].i_issued_som = " + kept);
+  ok(338, rowOf(na, 'noans').value === -400000 && rowOf(na, 'noans').ids.join() === 'kr-6' && n6.empty.join() === 'пусто: курсовая разница' &&
+        n6.other === 0 && !n6.otherOff && rowOf(na, 'f:fx').value === 0 && na.movement.equal &&
+        has(en, 'нет ответа источника (пусто: курсовая разница)') && !has(en, 'потоки объяснили всё') &&
+        p1 && p1.prel && !p1.empty.length && !p1.noans,
+    `ОД-63: курсов по датам нет — курсовая разница КД-2025/126 пуста; его разница −400 000 — «нет ответа источника», ` +
+    `не «прочее» и не ноль; у объекта названа колонка — «${n6.empty.join()}»`);
+
+  const c8 = RP.currencyAnswer('t-overdue', { asOf:'2026-08-01' }, { stat:'s-portfolio', show:'USD' });
+  RP.state.sel.drillRes = null; RP.state.sel.usd = true; const eu = win.VIEWS.issue.fn(); RP.state.sel.usd = false;
+  const clean = [eb, en, eu].every(x => !/ОД-\d|ADR-03\d\d|ИО-6\d/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
+  ok(339, c8.ok && has(c8.fx, 'своей строкой') && has(c8.fx, 'в сомах') && has(c8.fx, 'не пересчитываются') && pf.unit === 'сом' &&
+        has(eu, 'строки Движения не пересчитываются') && clean,
+    `ОД-64: пересчёт в USD — только итог (${c8.shown.value} USD по курсу 83,66), подсказка: «${c8.fx}»; Движение — в сомах; ` +
+    `номеров решений в интерфейсе нет`);
 })();
 
 /* ---- отчёт ---- */
