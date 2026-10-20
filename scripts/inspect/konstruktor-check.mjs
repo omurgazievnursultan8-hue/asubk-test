@@ -445,6 +445,35 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
     `расчётом при показе, у конструктора формул нет`);
 })();
 
+/* ОЧ-Д7: категория риска — пять подписей классификатора из реестра статистики, в его порядке; у кредита — по ступени
+   дней просрочки (допущение стенда), у заёмщика — худшая из категорий его кредитов на ту же дату. */
+(() => {
+  const stSrc = readFileSync(resolve(__dir, '../../mockups/statistics/statistics.html'), 'utf8');
+  const sb3 = { window: {}, console, document: undefined, setTimeout: () => {}, clearTimeout: () => {} };
+  vm.createContext(sb3);
+  vm.runInContext(stSrc.match(/<script>([\s\S]*)<\/script>/)[1] + '\n;globalThis.__RISK = REF.risk;', sb3, { filename: 'statistics.inline.js' });
+  const vals = sb3.__RISK.versions[0].values;
+  const reg = Object.keys(vals).sort((a, b) => vals[a].ord - vals[b].ord).map(k => vals[k].lbl);
+  const dictOf = name => { const x = src.match(new RegExp('\\n  ' + name + ': \\[([^\\]]*)\\]')); return x ? x[1].split(',').map(s => s.trim().replace(/^'|'$/g, '')) : []; };
+  const same = (a, b) => a.join('|') === b.join('|');
+  const band = d => d === 0 ? 0 : d <= 30 ? 1 : d <= 90 ? 2 : d <= 180 ? 3 : 4;
+  KB.seed(); KB.setDrill(true); S().stats = ['s-count']; S().cuts = [{ id:'d-category', bucket:null, total:true }];
+  const c = KB.answer(), cr = KB.rowsShown();
+  const crOk = cr.length === 47 && cr.every(r => r.category === reg[band(r.days)]);
+  const cKeys = c.root.children.map(n => n.key);
+  KB.seed(); KB.setObject('borrower'); KB.setDrill(true); S().stats = ['s-b-count']; S().cuts = [{ id:'b-risk', bucket:null, total:true }];
+  const b = KB.answer(), br = KB.rowsShown();
+  const worst = id => reg[Math.max(...cr.filter(x => x.borrowerId === id).map(x => reg.indexOf(x.category)))];
+  const brOk = br.length === 16 && br.every(r => r.risk === worst(r.id));
+  const bKeys = b.root.children.map(n => n.key);
+  const ordered = ks => ks.every(k => reg.indexOf(k) !== -1) && ks.every((k, i) => i === 0 || reg.indexOf(ks[i - 1]) < reg.indexOf(k));
+  ok(32, reg.length === 5 && same(dictOf('risk'), reg) && same(dictOf('category'), reg) && c.ok && same(cKeys, reg) && crOk &&
+        b.ok && brOk && ordered(bKeys) && bKeys.length >= 2,
+    `категория риска = классификатор реестра статистики: ${reg.join(' · ')}; кредиты (${cr.length}) на 31.08 — по ступени дней ` +
+    `0 · 1–30 · 31–90 · 91–180 · 181+, дерево кредита — все пять узлов в порядке реестра; заёмщики (${br.length}) — худшая категория ` +
+    `их кредитов: ${b.root.children.map(n => n.key + ' ' + n.count).join(', ')}`);
+})();
+
 /* ---------- отчёт ---------- */
 const pass = results.filter(r => r.pass).length;
 const body = results.map(r => `  ${r.pass ? 'PASS' : 'FAIL'}  #${String(r.n).padStart(2)}  ${r.note}`).join('\n');
