@@ -12,6 +12,7 @@
 // агрегата (`over`), поле-уровень не повторяет, идентификатор и признаки — в первой колонке.
 // Волна 24: логика конструктора влита в общий <script> reports.html внутри своей IIFE
 // (window.KB/S/scAnswer, act переименован в kbAct — не путать с window.act самого reports.html).
+// G: шаг «фильтры» — редактор наборов: в наборе условия «и», наборы между собой «или»; «топ N» строкой после наборов.
 //   node scripts/inspect/konstruktor-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -48,8 +49,10 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
     `снимок — это и СОСТАВ: на 31.07 видно ${b.root.count} (два договора рождены в августе); 31.07 — «${b.passport.fixed}», 31.08 — «${a.passport.fixed}»`);
   const r = KB.setAsOf('2026-09-05');
   const c = KB.answer();
-  ok(3, r.ok && c.substituted === '2026-08-31' && c.passport.asked === '2026-09-05' && S().notices.some(n => has(n.text, 'снимка нет')),
-    `дата без снимка подставляется ВСЛУХ: спрошено ${c.passport.asked}, показано ${c.substituted}, баннер называет подстановку (ИО-26)`);
+  const scr = win.scAnswer ? win.scAnswer() : '';
+  ok(3, r.ok && r.gap && !c.ok && !c.root && c.gap.reason === 'пропуск прогона' && c.gap.before === '2026-08-31' &&
+        has(c.why, 'на 05.09.2026 снимка нет') && has(scr, 'чисел нет') && has(scr, 'KB.ui.asOf(\'2026-08-31\')'),
+    `дата без снимка чисел не даёт: «${c.why}», ближайший снимок раньше — ${c.gap.before} кнопкой; соседний не подставляется (ИО-26, ПВ-8)`);
 })();
 
 /* ---------- B. Режим — часть вопроса; отказы словами (ИО-30, ADR-0159) ---------- */
@@ -242,6 +245,78 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
         a2.passport.shown.drill.some(x => has(x, 'Остаток основного долга — под своим агрегатом')) && !a2.passport.shown.drill.some(x => has(x, 'своей колонкой')),
     `мера без агрегата — своя колонка «только строки» («остаток» у кредита); «дней просрочки» стоит уровнем «срок неплатежа» и не повторяется; ` +
     `включили «Остаток, всего» — остаток ушёл под свой агрегат, колонок «только строки» 0, паспорт называет размещение`);
+})();
+
+/* ---------- G. Фильтры — редактор наборов: «или» из «и», «топ N» строкой после (ПВ-Д1, §3 п. 12, ОГ-9, ИО-17) ---------- */
+(() => {
+  KB.seed(); KB.setDrill(true);
+  const all = KB.rowsShown();
+  const A = r => r.days > 90, B = r => r.debt_main > 5000000, C = r => r.status === 'на взыскании';
+  const nA = all.filter(A).length, nB = all.filter(B).length, nAnd = all.filter(r => A(r) && B(r)).length;
+  const nOr = all.filter(r => A(r) || B(r)).length, nBC = all.filter(r => B(r) || C(r)).length, nOpen = all.filter(r => r.status !== 'закрыт').length;
+  const nOrOpen = all.filter(r => (A(r) || B(r)) && r.status !== 'закрыт').length;
+  KB.addFilter('days', '>', 90);
+  const one = KB.answer();
+  const s1 = KB.addSet(), s2 = KB.addSet();
+  const f2 = KB.addFilter('debt_main', '>', 5000000, s1.set);
+  const or = KB.answer(), rowsOr = KB.rowsShown();
+  const html = win.VIEWS.draft.fn();
+  KB.setActive(true); const chip = KB.answer(); KB.setActive(false);
+  KB.addSet(); KB.addFilter('status', 'равно', 'на взыскании', 2);
+  KB.removeFilter(0);                                   // последнее условие набора 1: набор уходит, номера сдвигаются
+  const ren = S().filters.map(f => f.set).join(), sets2 = S().sets, after = KB.answer();
+  KB.removeFilter(1);                                   // и набора «на взыскании» — остаётся один набор
+  const last = KB.answer();
+  ok(26, one.root.count === nA && one.passport.shown.filters.join() === 'Дней просрочки > 90' &&
+        s1.ok && s1.set === 1 && !s2.ok && has(s2.why, 'пустой набор') && f2.ok &&
+        or.root.count === nOr && nOr > nA && nOr > nB && nAnd > 0 && rowsOr.length === nOr && rowsOr.every(r => A(r) || B(r)) &&
+        or.passport.shown.filters.length === 1 && or.passport.shown.filters[0] === '(Дней просрочки > 90) или (Остаток основного долга > 5000000)' &&
+        has(html, 'Набор 2') && has(html, '<div class="kor">или</div>') && has(html, '+ или — новый набор') && has(html, '+ и — условие') &&
+        has(html, 'Порядок: охват роли → фильтры (наборы «или» из «и») → «топ N» → разрезы и итоги по отобранному.') &&
+        chip.root.count === nOrOpen && nOrOpen < nOpen && chip.passport.shown.filters.indexOf('действующие (закрытые не входят)') === 1 &&
+        ren === '0,1' && sets2 === 2 && after.root.count === nBC &&
+        after.passport.shown.filters[0] === '(Остаток основного долга > 5000000) или (Состояние равно на взыскании)' &&
+        last.root.count === nB && S().sets === 1 && last.passport.shown.filters.join() === 'Остаток основного долга > 5000000',
+    `набор 1 «дней просрочки > 90» — ${nA} кредитов, набор 2 «остаток > 5 млн» — ${nB}, вместе ${nAnd}; «или» наборов дал ${or.root.count} = ` +
+    `${nA} + ${nB} − ${nAnd}, посчитано отдельно по строкам среза; второй пустой набор подряд отказан словами («${s2.why}»); паспорт: «${or.passport.shown.filters[0]}»; ` +
+    `чип «действующие» — «и» поверх наборов, не третий набор: ${chip.root.count}, а не ${nOpen}; снято последнее условие набора 1 — набор ушёл, ` +
+    `остальные сдвинулись в наборы 1 и 2, ответ ${after.root.count}; снят и набор «на взыскании» — один набор, ${last.root.count}`);
+})();
+(() => {
+  KB.seed(); KB.setDrill(true); KB.toggleStat('s-portfolio');   // остаток ставит «действующие» сам (ОД-7): чип — «и» поверх отбора
+  KB.addFilter('days', '>', 0); KB.addSet(); KB.addFilter('debt_main', '>', 5000000, 1);
+  const a0 = KB.answer(), base = KB.rowsShown(), M = base.length;
+  const ids = rs => rs.map(r => r.id).sort().join(), sum = (rs, f) => rs.reduce((s, r) => s + r[f], 0);
+  const sp = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const desc = base.slice().sort((x, y) => y.debt_main - x.debt_main), asc = base.slice().sort((x, y) => x.debt_main - y.debt_main);
+  const t = KB.setTop(5, 'debt_main', 'первые');
+  const a = KB.answer(), top = KB.rowsShown(), scr = win.scAnswer(), html = win.VIEWS.draft.fn();
+  const d = KB.saveDraft('Пять крупнейших');
+  KB.setTop(5, 'debt_main', 'последние');
+  const b = KB.answer(), low = KB.rowsShown();
+  const bad = KB.setTop(5, 'borrower', 'первые'), keptDir = S().top.dir;
+  const clr = KB.setTop(0), topGone = S().top, c = KB.answer();
+  KB.openDraft(d.id); const back = KB.answer(), topBack = S().top, setsBack = S().sets;
+  const half = KB.setTop(0.5), halfTop = S().top; KB.openDraft(d.id);
+  const nFl = S().filters.length, badNum = KB.addFilter('days', '>', 'девяносто'), badSet = KB.setFilter(0, { value:'много' });
+  ok(27, t.ok && a.root.count === 5 && top.length === 5 && ids(top) === ids(desc.slice(0, 5)) &&
+        half.ok && halfTop === null && !badNum.ok && has(badNum.why, 'числом не читается') && S().filters.length === nFl &&
+        !badSet.ok && S().filters[0].value === '0' &&
+        a.root.values['s-portfolio'] === sum(top, 'debt_main') && a.root.values['s-portfolio'] === sum(desc.slice(0, 5), 'debt_main') &&
+        a.root.values['s-overdue-sum'] === sum(top, 'overdue') && a.passport.seams.indexOf('statRows') !== -1 &&
+        a.passport.topOf.n === 5 && a.passport.topOf.from === M && a.passport.visible === M && a.passport.hidden === a0.passport.hidden &&
+        has(a.passport.shown.top, 'топ 5 по «Остаток основного долга»') && has(a.passport.shown.top, 'в отборе 5 из ' + M) &&
+        has(a.passport.short, 'вам видно ' + M + ' · в отборе 5 из ' + M) && has(scr, 'в отборе 5 из ' + M) &&
+        has(html, '<option value="5" selected>5</option>') &&
+        b.root.count === 5 && ids(low) === ids(asc.slice(0, 5)) && b.root.values['s-portfolio'] === sum(asc.slice(0, 5), 'debt_main') &&
+        has(b.passport.shown.top, 'последние 5 по «Остаток основного долга»') &&
+        !bad.ok && has(bad.why, '«Заёмщик» — текст') && keptDir === 'последние' &&
+        clr.ok && topGone === null && c.root.count === M && c.passport.shown.top === null && !has(c.passport.short, 'в отборе') &&
+        back.root.count === 5 && topBack && topBack.n === 5 && topBack.dir === 'первые' && setsBack === 2 && ids(KB.rowsShown()) === ids(top),
+    `после наборов и чипа видно ${M}; «топ 5 по остатку» — 5 крупнейших из них (наибольший ${sp(desc[0].debt_main)}), итог «остатка» по отобранным ` +
+    `${sp(a.root.values['s-portfolio'])} пришёл от статистики списком отобранных строк и равен сумме этих пяти, посчитанной отдельно; ` +
+    `паспорт: «${a.passport.shown.top}»; «последние 5» — пять наименьших (от ${sp(asc[0].debt_main)}); по «заёмщику» отказано словами; ` +
+    `«топ 0» снимает строку; черновик хранит наборы и «топ N»`);
 })();
 
 /* ---------- отчёт ---------- */
