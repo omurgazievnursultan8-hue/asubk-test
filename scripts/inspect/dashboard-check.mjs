@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–25, 11–19.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–26, 11–20.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-334, ИДБ-1…ИДБ-21):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-338, ИДБ-1…ИДБ-21):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -170,6 +170,9 @@
 //      Ряда; чего перенос не дал (куратор, объект кроме кредита, колонки потоков) — пусто с причиной; строка Движения «до запуска не
 //      перенесено»; поток за период через запуск — одно число с пометкой «из легаси»; пометка — у даты, не у числа; «Сравнение» окна
 //      отчёта; «📌» проверяет только бланк, видимость и числовую колонку. Переписаны 418 и 457 (через запуск — не отказ).
+//   AM волна 26 (20.10.2026), ДБ-335…ДБ-338: плитка «пусто по закону» не гасит полосу — Ряд и Когорты отвечают по своим датам,
+//      Разрез, Карта, Таблица, «Изменение», Движение, Переходы и «крупнейшие» гаснут причиной плитки, строка полосы печатает признак;
+//      Когорты через дату запуска — клетка месяца, которого перенос не дал, «—» с причиной.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -5383,6 +5386,72 @@ const asUser = id => { DB.state.userId = id; };
   ok(465, bl === 'бланк — плитке нечего показать' && nc === 'в отчёте нет числовой колонки' && hid.error === 'отчёт не открыт вашей роли' && !hid.tile
     && pd.tile && pd.tile.state === 'personal' && !pac.ok && pac.checks.some(c => !c.ok && /^предпросмотр без отказа/.test(c.text)),
     `«📌»: бланк, чужой отчёт («${hid.error}»), нет числовой колонки — отказ; статистика не отвечает — плитка всё равно стоит, автопроверка «Сохранить» её ловит (ДБ-331)`);
+  DB.seed();
+})();
+
+/* ---------- AM. Волна 26 (20.10.2026): полоса у плитки «пусто по закону» — ДБ-335…ДБ-338 ---------- */
+(() => {
+  const lead = () => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.STAND.launch = -7; DB.state.cache.clear(); };
+  const on = vs => vs.filter(v => v.ok).map(v => v.kind).join(), whyOf = (vs, k) => vs.find(v => v.kind === k).why;
+  const iss = p => Object.assign({}, T('lead-issued'), { id:'x-iss-' + p, params:Object.assign({}, T('lead-issued').params, { period:p }) });
+  const pts = r => r.series.points;
+
+  // ДБ-335: «Выдано с начала года» без колонок потоков — плитка пуста по закону, Ряд отвечает своими месяцами; клик — Ряд, не список
+  lead(); const s0 = DB.view('lead-issued', 'series', null, [], 'u1', 'lead', {});
+  DB.stand('legacyNoFlows', true);
+  const b1 = DB.base('lead-issued', 'u1', 'lead'), v1 = DB.views('lead-issued', 'u1', 'lead', [], {}), s1 = DB.view('lead-issued', 'series', null, [], 'u1', 'lead', {});
+  const c1 = DB.clickOf('lead-issued', 'u1', 'lead', {}), pre = pts(s1).filter(p => p.m < -7), own = pts(s1).filter(p => p.m >= -7);
+  ok(466, b1.state === 'mine0' && b1.value == null && on(v1) === 'series' && c1.act === 'view' && c1.kind === 'series' && s1.state === 'ok'
+    && pre.length === 4 && pre.every(p => p.vals[0] === null && /в легаси не собиралось: потоки за ноябрь 2025 – февраль — перенос без колонок потоков$/.test(p.down || ''))
+    && own.length === 8 && own.every(p => p.vals[0] !== null && p.vals[0] === pts(s0).find(x => x.m === p.m).vals[0]),
+    `«Выдано с начала года» без колонок потоков — «${b1.noneLabel}», полоса открывается Рядом: март–октябрь своими строками (март ${(own[0].vals[0] / 1e6).toFixed(1)} млн, как без флажка), ноябрь–февраль — точек нет, причина своя: «потоки за ноябрь 2025 – февраль» (ДБ-335, ДБ-Д80)`);
+
+  // ДБ-335: «у вас пусто» и «нет объектов» — Ряд арифметический, признак у каждой точки, на дату плитки тоже; Когорты открыты
+  DB.seed(); DB.USERS.push({ id:'c99', name:'Куратор без кредитов', roles:['cur'], dept:'rp-nar' }); asUser('c99'); DB.setTab('role', 'cur'); DB.state.cache.clear();
+  const b2 = DB.base('cur-bal', 'c99', 'cur'), v2 = DB.views('cur-bal', 'c99', 'cur', [], {}), s2 = DB.view('cur-bal', 'series', null, [], 'c99', 'cur', {});
+  const co2 = DB.cohortFor('cur-bal', 'c99', 'cur', [], {}), c2 = DB.clickOf('cur-bal', 'c99', 'cur', {});
+  DB.USERS.pop(); asUser('u1'); DB.setTab('role', 'lead'); DB.state.cache.clear();
+  const b3 = DB.base('p-u1-rem', 'u1', 'lead'), s3 = DB.view('p-u1-rem', 'series', null, [], 'u1', 'lead', {});
+  ok(467, b2.state === 'mine0' && b2.noneLabel === 'у вас пусто' && on(v2) === 'series' && co2.ok && c2.kind === 'series'
+    && pts(s2).length === 12 && pts(s2).every(p => p.vals[0] === 0 && /^кредитов под .* не было$/.test(p.noneObj || ''))
+    && b3.noneLabel === 'нет объектов' && pts(s3).every(p => p.vals[0] === 0 && /Ремесленники/.test(p.noneObj || '')),
+    `«у вас пусто» у куратора без кредитов и «нет объектов» у «Остаток · Ремесленники»: Ряд — 12 точек по нулю, у каждой «${pts(s2)[11].noneObj}», Когорты открыты (ДБ-335)`);
+
+  // ДБ-336: виды на дату плитки и двух дат — причина плитки; «крупнейшие» — тоже; структурная причина вида остаётся своей
+  DB.seed(); DB.USERS.push({ id:'c99', name:'Куратор без кредитов', roles:['cur'], dept:'rp-nar' }); asUser('c99'); DB.setTab('role', 'cur'); DB.state.cache.clear();
+  const v4 = DB.views('cur-bal', 'c99', 'cur', [], {}), b4 = DB.base('cur-bal', 'c99', 'cur');
+  const ch4 = DB.view('cur-bal', 'series', { mode:'change' }, [], 'c99', 'cur', {}), tr4 = DB.transFor('cur-bal', 'c99', 'cur', [], {});
+  const bg4 = DB.view('cur-bal', 'series', { by:'big' }, [], 'c99', 'cur', {}), rg4 = DB.view('cur-bal', 'series', { by:'region' }, [], 'c99', 'cur', {});
+  DB.state.viewMem['c99|cur-bal'] = { last:'series', series:{ by:'big' } }; DB.state.open = {};   // «крупнейшие» в памяти с прежней даты
+  const ck4 = DB.clickOf('cur-bal', 'c99', 'cur', {}); DB.openView('cur-bal', 'series'); const mv4 = DB.view('cur-bal', 'series', DB.state.open['cur-bal'].sel, [], 'c99', 'cur', {});
+  const vs4 = DB.viewSet('cur-bal', 'by', 'big'), h4 = DB.stripHTML('cur-bal', 'c99', 'cur'); DB.state.open = {};
+  DB.USERS.pop(); lead(); DB.stand('legacyNoFlows', true); const v5 = DB.views('lead-issued', 'u1', 'lead', [], {});
+  ok(468, ['slice', 'map', 'move', 'table'].every(k => whyOf(v4, k) === b4.msg) && ch4.mode === 'sum' && ch4.modeOff === b4.msg
+    && !tr4.ok && tr4.why === 'нужна база: ' + b4.msg && bg4.state === 'ok' && !bg4.series.by && rg4.state === 'ok' && rg4.series.by
+    && ck4.kind === 'series' && mv4.state === 'ok' && !mv4.series.by && vs4.error === b4.msg && !/value="big"/.test(h4)
+    && whyOf(v5, 'slice') === DB.base('lead-issued', 'u1', 'lead').msg && whyOf(v5, 'move') === 'у показателя не объявлены потоки',
+    `«у вас пусто»: Разрез, Карта, Движение, Таблица, «Изменение», Переходы — «${b4.msg}»; «крупнейших» нет — выбор отказывает той же причиной, из памяти — Ряд итогом; Ряд по области отвечает; у «Выдано» Движение — своя причина «у показателя не объявлены потоки» (ДБ-336)`);
+
+  // ДБ-337: строка полосы повторяет плитку — серый признак вместо числа, без сдвига и «☰ N»
+  lead(); DB.stand('legacyNoFlows', true); DB.state.open = {}; DB.openView('lead-issued', 'series'); const h6 = DB.stripHTML('lead-issued', 'u1', 'lead');
+  DB.stand('legacyNoFlows', false); DB.state.cache.clear(); const h7 = DB.stripHTML('lead-issued', 'u1', 'lead'); DB.state.open = {};
+  const line = h => h.split('<div class="strip-b">')[0];
+  ok(469, /<span class="sl-num mine0" data-tip="до запуска системы[^"]*перенос без колонок потоков">в легаси не собиралось<\/span>/.test(line(h6))
+    && !/class="sl-cnt"/.test(line(h6)) && !/data-fit="shift"/.test(line(h6)) && /<div class="rz-chart|sr-b/.test(h6)
+    && /<span class="sl-num"/.test(line(h7)) && /class="sl-cnt"/.test(line(h7)) && /\.sl-num\.mine0\{[^}]*color:var\(--text-muted\)/.test(src),
+    `строка полосы «Выдано с начала года» без колонок потоков — серое «в легаси не собиралось» с причиной, без сдвига и «☰ N»; без флажка — число и «☰ N» (ДБ-337)`);
+
+  // ДБ-338: Когорты через дату запуска — клетка месяца без потоков «—» с причиной, «☰» нет; свои месяцы — как без флажка; остаток не тронут
+  lead(); T('lead-issued').params.period = 'curMonth'; DB.state.cache.clear();   // «Выдано» за текущий месяц: число на свою дату есть
+  const k0 = DB.view('lead-issued', 'cohort', null, [], 'u1', 'lead', {}), kb0 = DB.view('lead-bal', 'cohort', null, [], 'u1', 'lead', {});
+  DB.stand('legacyNoFlows', true); const k1 = DB.view('lead-issued', 'cohort', null, [], 'u1', 'lead', {}), kb1 = DB.view('lead-bal', 'cohort', null, [], 'u1', 'lead', {});
+  const cells = k => k.cohort.rows.flatMap(r => r.cells.filter(Boolean)), dn = cells(k1).filter(x => x.down), mine = cells(k1).filter(x => !x.down);
+  DB.state.open = {}; DB.openView('lead-issued', 'cohort'); const hk = DB.stripHTML('lead-issued', 'u1', 'lead'); DB.state.open = {};
+  ok(470, DB.base('lead-issued', 'u1', 'lead').state === 'ok' && dn.length > 0 && dn.every(x => x.m < -7 && x.v === null && x.cnt === undefined && /в легаси не собиралось: потоки за .* — перенос без колонок потоков$/.test(x.down))
+    && mine.every(x => { const y = cells(k0).find(z => z.m === x.m && z.a === x.a); return x.m >= -7 && !!y && x.v === y.v; })
+    && cells(k0).filter(x => x.m < -7).every(x => x.v !== null) && JSON.stringify(cells(kb1).map(x => x.v)) === JSON.stringify(cells(kb0).map(x => x.v))
+    && k1.cohort.rows.every((r, i) => r.vol.sum === k0.cohort.rows[i].vol.sum) && /<td class="c hm-e dn" data-tip="[^"]*потоки за декабрь 2024 — перенос без колонок потоков">—<\/td>/.test(hk),
+    `Когорты «Выдано за месяц» без колонок потоков: ${dn.length} клеток до запуска — «—» с причиной (у 4 кв 2024 — «потоки за декабрь 2024»), свои месяцы и объём на старте как без флажка; Когорты «Остатка» не тронуты (ДБ-338, ДБ-Д81)`);
   DB.seed();
 })();
 
