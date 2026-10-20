@@ -2,7 +2,7 @@
 
 **Статус:** принято · 2026-10-20 · модуль «Отчётность», межмодульный (дашборд, статистика, задания) · автогриллинг
 входящих от дашборда по `ADR-0320`, волна 50: решения приняты Claude рекомендованным вариантом, владелец может
-переиграть; `ОД-52`, `ОД-57`, `ОД-59` — на подтверждение · **принимает** [ADR-0320](./0320-potoki-pereshedshego-v-uzle-segodnya-srok-blizko-po-nastroyke-otchetnosti.md)
+переиграть; `ОД-52`, `ОД-57`, `ОД-59` подтверждены владельцем 20.10.2026 · **принимает** [ADR-0320](./0320-potoki-pereshedshego-v-uzle-segodnya-srok-blizko-po-nastroyke-otchetnosti.md)
 п. 1 и п. 2 · **уточняет** [ADR-0315](./0315-potoki-dvizheniya-k-kazhdomu-obektu-uzla-net-obektov-v-otvete-periody.md)
 п. 2 (строка перехода и потоки перешедшего) и п. 7 (кто ставит признак «нет объектов») · **применяет**
 [ADR-0289](./0289-filtr-chast-voprosa-plitki-dolya-s-filtrom-chislitelya.md) (фильтр — часть вопроса) и
