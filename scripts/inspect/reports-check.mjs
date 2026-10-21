@@ -63,6 +63,10 @@
 // после повторного закрытия июля), #114, #136, #199, #237; в konstruktor-check — #3.
 // Волна 56 (блок BBB, #358–#361): «закрыть снова» кнопкой на экране (ПВ-Д7), «топ N» по любому числовому полю и
 // условие по формуле в редакторе своих условий (ПВ-Д5), заказ ступенью-выбором с экрана показа снят (ПВ-Д4).
+// Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — полоса, панель «Как смотреть»,
+// вкладки, выпуск панелью, провал снизу, итоги в колонках, сводка и отказ у группы, «Найти», долгий расчёт по кнопке.
+// Правка по ревью волны 59 (#393–#399): отказ листа без разрезов, найденное и задание живут, пока настройка та же,
+// «сейчас» в фоне, журнал просмотров без «open», шапка с основанием и областью видимости, расчёт снимается настройкой.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -722,7 +726,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
   const j = V.journal.fn(), i2 = V.issue.fn();
   ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Задания на выпуск') &&
-        has(i, 'Итог по «') && has(i2, 'Шаг задания') && has(j, 'задание: заказан') &&
+        has(i, 'Итого по «') && has(i2, 'Шаг задания') && has(j, 'задание: заказан') &&
         has(b, 'Сложить итоги уровней самим') && has(w, 'Завести список правилом'),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
     `состояния задания в выпуске и журнале, отказы легаси там, где их просят`);
@@ -914,7 +918,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.state.sel.tpl = 't-overdue'; RP.state.sel.twist = { cuts:['dept'], stats:['s-overdue-sum','s-overdue-cnt'],
     drill:true, layout:'показатели в колонках' };
   const i1 = V.issue.fn();
-  ok(99, has(i0, 'Как смотреть — всё, что доступно отчёту') && has(i0, 'НЕ ВЫПУСК') &&
+  ok(99, has(i0, '<b>Как смотреть</b>') && has(i0, 'НЕ ВЫПУСК') &&
         has(i0, 'Мой вид') && !has(i0, 'жёстко') && !has(i0, DEV) &&
         has(i1, DEV) && has(i1, 'Вернуть утверждённый') && has(i1, 'devmark'),
     `экран показа без границ: пока состав утверждённый — пометки нет; накрутили — в шапке ` +
@@ -1030,9 +1034,9 @@ const DEV = 'изменено — не утверждённый состав';
     `«за кем» названо подразделением, а не ролью: ${subs.map(s => s.who).join('; ')} — иначе сдача ` +
     `встала бы на отпуске; у шаблона без расписания сдающего нет вовсе`);
 
-  as('head');
-  const scr = win.VIEWS.issue.fn();
-  ok(112, has(scr, 'Сдача — окончательный выпуск') &&
+  as('head'); RP.state.sel.pvSide = 'выпуск';
+  const scr = win.VIEWS.issue.fn(); RP.state.sel.pvSide = null;
+  ok(112, has(scr, 'id="pvIssue"') && has(scr, 'Проверки окончательного выпуска') &&
         (has(scr, 'окончательно выпускает тот, за кем обязательство') ||
          has(scr, 'обязательство за вами')),
     `экран выпуска проговаривает право словами, а не гасит кнопку молча: рядом со ступенью стоит ` +
@@ -1056,14 +1060,18 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.seed(); as('auth');
   RP.selTpl('t-portfolio');
+  const heavy = win.VIEWS.issue.fn();
+  RP.pvDept('dep-prom');
   const gate = win.VIEWS.issue.fn();
   RP.askLive();
   const live = win.VIEWS.issue.fn();
-  ok(115, has(gate, 'Числа не запрошены') && has(gate, 'Посчитать на сейчас') &&
-        !has(gate, 'sheet-h') && has(live, 'sheet-h') && !has(live, 'Числа не запрошены') &&
+  ok(115, has(gate, 'Числа не запрошены') && has(gate, 'Посчитать на сейчас') && has(heavy, 'расчёт сам не начинается') &&
+        !has(heavy, 'Посчитать на сейчас') && has(heavy, 'Посчитать в фоне') &&
+        !has(gate, 'id="pvTw"') && has(live, 'id="pvTw"') && !has(live, 'Числа не запрошены') &&
         !has(win.VIEWS.issue.fn(), 'Числа не запрошены'),
     `момент показа ВЫВЕДЕН из режима времени, а не назначен: «на дату» считается сразу, «сейчас» — ` +
-    `по кнопке, потому что это живой запрос к ядру, а не готовые строки прогона (ОЧ-44)`);
+    `по кнопке, потому что это живой запрос к ядру, а не готовые строки прогона (ОЧ-44); по всему кругу оценка больше 15 с — ` +
+    `только «Посчитать в фоне» (ПВ-41)`);
 })();
 
 (() => {
@@ -1085,9 +1093,9 @@ const DEV = 'изменено — не утверждённый состав';
     `нечего, пока у ответа нет паспорта — ${wl.id} отобран выпуском ${wl.issue} (ИО-14, ОЧ-49)`);
 
   const sc = win.VIEWS.issue.fn();
-  ok(118, has(sc, 'Что делают с показанным') && has(sc, 'Завести рабочий список') &&
-        has(sc, 'из провала') && has(sc, '📌 на дашборд') && has(sc, 'Сохранить вид'),
-    `дороги с показанного названы на экране: выгрузить, сдать, сохранить видом, завести рабочий ` +
+  ok(118, has(sc, 'class="pv-bar"') && has(sc, 'Выгрузить ▾') && has(sc, 'Завести рабочий список') &&
+        has(sc, 'из провала') && has(sc, '📌 на дашборд') && has(sc, 'Сохранить вид') && has(sc, "RP.pvSide('выпуск')\">Выпустить</button>"),
+    `дороги с показанного названы полосой над листом: выгрузить, выпустить, сохранить видом, завести рабочий ` +
     `список (из провала или выгрузкой) и «📌 на дашборд» — ссылка, а не своя плитка`);
 })();
 
@@ -1153,7 +1161,7 @@ const DEV = 'изменено — не утверждённый состав';
         !has(first, 'tabs sub') && (first.match(/class="on"/g) || []).length === 1 && !has(first, 'Где печатается') &&
         blanks.length > 0 && blanks.every(r => !has(first, "openForm('" + r.id)) &&
         has(showTab('отчёт'), 'Обязательные') && has(showTab('отчёт'), 'По запросу') &&
-        has(V.issue.fn(), 'Что делают с показанным') && Object.keys(V)[0] === 'showcase',
+        has(V.issue.fn(), 'class="pv-bar"') && Object.keys(V)[0] === 'showcase',
     `витрина первым экраном модуля и разложена на четыре полки одним рядом — Мои · Общие · Официальные · Бланки; ` +
     `второго ряда вкладок нет, ${blanks.length} бланков в ленту отчётов не подмешаны, обязательность делит внутри полки`);
 
@@ -1767,8 +1775,8 @@ const DEV = 'изменено — не утверждённый состав';
   const reg = RP.registerDoc(unit.rec.doc);
   const addrs = RP.addressees();
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.kind = 'окончательный';
-  RP.state.sel.recipient = 'unit:dep-legal';
-  const scr = win.VIEWS.issue ? win.VIEWS.issue.fn() : '';
+  RP.state.sel.recipient = 'unit:dep-legal'; RP.state.sel.pvSide = 'выпуск';
+  const scr = win.VIEWS.issue ? win.VIEWS.issue.fn() : ''; RP.state.sel.pvSide = null;
   ok(172, !asAddr.ok && has(asAddr.why, 'справочник адресатов держит только внешние') &&
         addrs.every(a => !/^(dep|rep)-/.test(a.id)) && reg.ok && /^ВН-/.test(reg.number) &&
         (!scr || (has(scr, 'Адресат сдачи — внешняя организация') && has(scr, 'Подразделение (оргструктура)') &&
@@ -2015,9 +2023,9 @@ const DEV = 'изменено — не утверждённый состав';
   ok(191, dyn.ok && pts.length === 8 && pts[6].value === 10800000 && pts.every(p => p.value != null) &&
         fp.length === 4 && fp[2].gap === 'снимка нет' && fp[2].value === null && fp[3].gap === 'снимка нет' &&
         lp.length === 5 && lp[2].value === null && lp[2].gap === 'в легаси не собиралось' && lp[3].value === 7300000 &&
-        dyn.passport.seam === 'statSeries' && !long.ok && has(long.why, 'длиннее 36') && q.ok && q.dates.length === 15,
+        dyn.passport.seam === 'statSeries' && !long.ok && has(long.why, 'длиннее 36') && q.ok && q.dates.length === 16 && q.dates[15] === '2026-08-01',
     `динамика — ряд statSeries по месяцам (8 точек, июль — 10 800 000; без снимка — «снимка нет», конец июля 2025 — «в легаси не собиралось», а не ноль); ` +
-    `44 месяца — отказ «длиннее 36», по кварталам — ${q.ok ? q.dates.length : '?'} точек (ОГ-6)`);
+    `44 месяца — отказ «длиннее 36», по кварталам — ${q.ok ? q.dates.length : '?'} точек, последняя — дата «по» (ОГ-6)`);
 
   const stock = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01' }, P);
   const turn = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01', turnover:true }, P);
@@ -2105,10 +2113,10 @@ const DEV = 'изменено — не утверждённый состав';
   RP.state.sel.fset = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]], top:null };
   const iss = win.VIEWS.issue.fn();
   ok(199, has(subsScr, 'Мои подписки и условия') && has(subsScr, 'стало выполняться на 01.07.2026') &&
-        has(subsScr, 'на почту: ссылка') && has(iss, 'Время, фильтр, график, заметки') && has(iss, 'динамика по месяцам') &&
+        has(subsScr, 'на почту: ссылка') && has(iss, '<span class="t">Время</span>') && has(iss, '<span class="t">Отбор</span>') && has(iss, 'динамика по месяцам') &&
         has(iss, 'в отборе 2 из') && has(iss, 'id="fset"') && has(iss, '<svg class="chart line"'),
-    `экраны: «Подписки и сигналы» — подписки, условия, история и уведомления; на показе — режимы времени, фильтр ` +
-    `с паспортом, график рядом с таблицей, заметки`);
+    `экраны: «Подписки и сигналы» — подписки, условия, история и уведомления; на показе — режимы времени и отбор ` +
+    `разделами панели, график над таблицей`);
 })();
 
 /* ---- FF. Остаток гибкости: колонки-даты официальной формы, режим и фильтр в виде и отчёте,
@@ -2253,14 +2261,17 @@ const DEV = 'изменено — не утверждённый состав';
   const vv = RP.saveView('t-overdue', 'моя динамика', null, { time: dyn });
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.useView(vv.id); RP.state.sel.chart = true;
-  const s1 = win.VIEWS.issue.fn();
+  const s1v = win.VIEWS.issue.fn(); RP.state.sel.chart = false; RP.setTime('отчёт');
+  const s1r = win.VIEWS.issue.fn(), s1 = s1v + s1r, keptView = RP.state.sel.view === vv.id;
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.tpl = 't-pay04';
   const s2 = win.VIEWS.issue.fn();
-  ok(210, has(s1, 'class="noted"') && has(s1, 'заметка к ячейке') && has(s1, 'Режим времени из вида «моя динамика»') &&
+  ok(210, /class="obj noted/.test(s1r) && has(s1r, 'заметка к ячейке') && has(s1v, 'Режим времени из вида «моя динамика»') &&
+        has(s1v, '>как сохранено</button>') && has(s1r, '<button class="on" onclick="RP.setTime(\'отчёт\')">отчёт</button>') && keptView &&
         has(s1, '<svg class="chart line"') && has(s1, 'Заметка к строке') && has(s1, 'к ячейке') &&
         has(s2, 'Колонки-даты формы — от отчётной даты 01.08.2026') && has(s2, 'С начала года — прошлый год') &&
         has(s2, '2 400 000') && has(s2, 'колонки-даты') && !has(s2, 'Не закрыты:'),
-    `экраны: на показе — значок заметки у строки и ячейки, режим из вида, линия динамики; у формы с колонками-датами — ` +
+    `экраны: на показе — значок заметки у строки и ячейки, режим из вида, линия динамики; «отчёт» рядом с «как сохранено» ` +
+    `возвращает основную таблицу, вид остаётся; у формы с колонками-датами — ` +
     `таблица «строки × даты», даты в паспорте; все месяцы колонок закрыты — строки «не закрыты» нет`);
 })();
 
@@ -3214,12 +3225,14 @@ const DEV = 'изменено — не утверждённый состав';
   const e1 = RP.estimate('t-overdue', heavySpec, { dept:'' }, { cuts:['dept', 'status'] });
   const e2 = RP.estimate('t-overdue', { mode:'динамика', from:'2026-01-01', to:'2026-08-01', step:'месяц' }, { dept:'' });
   const e3 = RP.estimate('t-portfolio', null, { dept:'' }), e4 = RP.estimate('t-portfolio', null, { dept:'dep-prom' });
-  const hv = RP.runShow('t-overdue', heavySpec, { asOf:'2026-08-01', dept:'' }, { cuts:['dept', 'status'] });
+  const gate = RP.runShow('t-overdue', heavySpec, { asOf:'2026-08-01', dept:'' }, { cuts:['dept', 'status'] });
+  const hv = RP.runShow('t-overdue', heavySpec, { asOf:'2026-08-01', dept:'' }, { cuts:['dept', 'status'] }, { background:true });
   const lt = RP.runShow('t-overdue', { mode:'динамика', from:'2026-01-01', to:'2026-08-01', step:'месяц' }, { asOf:'2026-08-01', dept:'' });
   const jobs = RP.myJobs(), nj = RP.notices().filter(n => n.kind === 'задание');
-  ok(280, e1.sec === 28 && e1.heavy && e2.sec === 7 && !e2.heavy && e3.heavy && !e4.heavy && hv.ok && hv.background && jobs.length === 1 &&
+  ok(280, e1.sec === 28 && e1.heavy && e2.sec === 7 && !e2.heavy && e3.heavy && !e4.heavy && !gate.ok && gate.gate && has(gate.why, 'сам не начинается') &&
+        hv.ok && hv.background && jobs.length === 1 &&
         jobs[0].until === '2026-08-31' && nj.length === 1 && has(nj[0].text, '«Мои задания»') && lt.ok && lt.onScreen && lt.answer.ok,
-    `ОГ-17: оценка у статистики — динамика 36 месяцев по двум разрезам ${e1.sec} с — фоновое задание ${hv.job} с уведомлением, ` +
+    `ОГ-17, ПВ-41: оценка у статистики — динамика 36 месяцев по двум разрезам ${e1.sec} с — сама не считается; по кнопке — фоновое задание ${hv.job} с уведомлением, ` +
     `результат в «Моих заданиях» до 31.08.2026; 8 месяцев без разрезов — ${e2.sec} с, на экране; «сейчас» по всему портфелю — в фоне, ` +
     `по одному подразделению — на экране`);
 
@@ -3436,18 +3449,18 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('head');
   Object.assign(RP.state.sel, { tpl:'t-overdue', params:{ asOf:'2026-08-01', dept:'' }, wide:true, usd:true, pivot:true, rel:'dept' });
   const s1 = win.VIEWS.issue.fn();
-  as('auth'); RP.doHeavy('t-overdue'); const s2 = win.VIEWS.subs.fn();
+  as('auth'); RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const s2 = win.VIEWS.subs.fn();
   as('buh'); RP.doMigrationEvents(); as('auth'); const s3 = win.VIEWS.journal.fn();
   as('user'); RP.doNumbers(); const s4 = win.VIEWS.worklists.fn();
   as('head'); RP.state.sel.scTab = 'общие'; const s5 = win.VIEWS.showcase.fn();
   const from = (x, h) => x.indexOf(h) === -1 ? '' : x.slice(x.indexOf(h));
-  const mineOO = [from(s1, 'Значения параметров'), from(s2, 'Мои задания'), from(s3, 'События месяцу без событий'),
+  const mineOO = [from(s1, 'class="pv"'), from(s2, 'Мои задания'), from(s3, 'События месяцу без событий'),
     from(s4, 'Список из внешнего перечня'), from(s5, '>Название<')];
   const cleanOO = mineOO.every(x => x.length > 100 && !/О[ГД]-\d|ADR-\d|ИО-\d/.test(x));
   ok(298, has(s1, 'Подставлено по вам') && has(s1, 'по валюте договора') && has(s1, 'Итоги шире зоны — только итоги') &&
         has(s1, 'скрыто: в группе меньше 3 объектов') && has(s1, 'План выдачи и факт') && has(s1, 'подразделение × состояние кредита') &&
         has(s2, 'Мои задания') && has(s2, 'МЗ-1') && has(s3, 'Журнал просмотров') && has(s3, 'нет (события не перенесены)') &&
-        has(s4, 'внешнего перечня') && has(s5, 'предлагается в архив') && has(s1, 'Подсветка по порогам (задана формой)') && cleanOO,
+        has(s4, 'внешнего перечня') && has(s5, 'предлагается в архив') && has(s1, 'Пороги формы — утверждены с редакцией') && cleanOO,
     `экраны: на показе — значения по смотрящему, валюта договора, сводная, итоги шире зоны, план и факт; «Мои задания»; журнал ` +
     `просмотров и события декабря 2024; список из перечня; архив общего; номеров решений в новых карточках нет`);
 })();
@@ -3839,7 +3852,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.time = null; RP.state.sel.rel = 'date';
-  RP.doPin();
+  RP.doPin(); const tst = RP.state.lastToast || {};
   const tScr = RP.tilesOf('t-overdue').slice(-1)[0] || {};
   const iss = win.VIEWS.issue.fn();
   RP.state.sel.rel = null;
@@ -3847,11 +3860,11 @@ const DEV = 'изменено — не утверждённый состав';
   RP.uiPin('t-portfolio'); const tMenu = RP.tilesOf('t-portfolio').slice(-1)[0] || {};
   const scPin = win.VIEWS.showcase.fn();
   ok(325, tScr.params && tScr.params.asOf === '@конец прошлого месяца' && tScr.main === 's-overdue-sum' &&
-        has(iss, 'Плитка на главной') && has(iss, 'Настроить ↗') && !has(after, 'Плитка на главной') &&
+        has(tst.msg, 'Плитка на главной') && has(tst.link, 'Настроить ↗') && !has(iss, 'Плитка на главной') && !has(after, 'Плитка на главной') &&
         tMenu.params && Object.keys(tMenu.params).length === 0 && has(scPin, 'Плитка на главной · '),
     `ОД-48, ОД-Д1: из окна отчёта плитка берёт значения как на экране — относительное остаётся относительным ` +
-    `(«@конец прошлого месяца», а не 01.08.2026); из «⋯» витрины — умолчания; плашка «Плитка на главной · Настроить ↗» ` +
-    `гаснет при переходе`);
+    `(«@конец прошлого месяца», а не 01.08.2026); из «⋯» витрины — умолчания; из окна — тост «Плитка на главной · Настроить ↗», ` +
+    `на витрине — плашка, гаснет при переходе`);
 
   RP.seed(); as('auth');
   const fd = RP.openDraftFromDashboard({ object:'credit', stats:['s-overdue-sum', 's-npl'], cuts:['dept', 'late'],
@@ -4196,10 +4209,10 @@ const DEV = 'изменено — не утверждённый состав';
         tOf(pl, 's-overdue-sum').th.state === 'плохо' && pl.groups.find(g => g.key === 'dep-prom').totals[0].th.state === 'внимание' &&
         pl.thresholds.by === 'автор' && pl.thresholds.who === 'Бекова Н., Асанов А.' &&
         has(t1, 'title="внимание: от 2">●</span>') && has(t1, 'Пороги формы — утверждены с редакцией: Кредитов с просрочкой — ● внимание от 2, ▲ плохо от 4.') &&
-        has(t2, 'class="tv th-bad"') && has(t2, 'title="плохо: от 10 000 000">▲</span>') && has(t2, '<b class="th-warn">') &&
+        /<td class="num st[^"]* th-bad/.test(t2) && has(t2, 'title="плохо: от 10 000 000">▲</span>') && has(t2, '<b class="th-warn">') &&
         has(t2, 'Пороги автора — Бекова Н., Асанов А.'),
     `порог — цвет и знак у числа: «Кредитов с просрочкой» 2 — ● внимание (порог формы); у общего — «Сумма просроченной» 10 300 000 — ▲ плохо, ` +
-    `итог «промышленность» — ● внимание (порог автора); под таблицей — чьи пороги; просрочка без порога не красится`);
+    `итог «промышленность» — ● внимание (порог автора); клетка итога — цветом порога; чьи пороги — в паспорте; просрочка без порога не красится`);
 
   RP.seed(); as('auth');
   const d = RP.show('t-overdue', p8, null).data, k6 = d.rows.find(r => r.id === 'kr-6'), k1r = d.rows.find(r => r.id === 'kr-1');
@@ -4217,9 +4230,9 @@ const DEV = 'изменено — не утверждённый состав';
 /* Волна 55 (блок AAA, #356–#357): проверки окончательного выпуска списком (ПВ-12), пометки числа одной таблицей паспорта (ПВ-13). */
 (() => {
   const ev = c => vm.runInContext(c, sandbox), P8 = { asOf:'2026-08-01', dept:'' }, p8 = () => Object.assign({}, P8);
-  const blk = h => { const i = h.indexOf('<h3>Сдача — окончательный выпуск</h3>'); return h.slice(i, h.indexOf('<div class="facts"><div class="f">предварительный', i)); };
+  const blk = h => { const i = h.indexOf('id="pvIssue"'); return h.slice(i, h.indexOf('<details class="pv-info">', i)); };
   const marks = b => (b.match(/<div class="f (?:yes|no)">/g) || []).map(x => has(x, 'yes') ? '✓' : '✕').join('');
-  const scr = () => { RP.state.view = 'issue'; return blk(win.VIEWS.issue.fn()); };
+  const scr = () => { RP.state.view = 'issue'; RP.state.sel.pvSide = 'выпуск'; return blk(win.VIEWS.issue.fn()); };
   RP.seed(); as('auth'); RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = p8();
   const b1 = scr(), c1 = RP.finalChecks('t-overdue', P8, { recipient:'a-mf' });
   const f1 = RP.issue('t-overdue', { params: p8(), kind:'окончательный', recipient:'a-mf' }), r1 = RP.ISS(f1.id) || {};
@@ -4256,7 +4269,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   const lv = RP.show('t-portfolio', { dept:'' }, null).data, k3 = lv.rows.find(r => r.id === 'kr-3') || {};
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-portfolio'; RP.state.sel.live = true; const h1 = win.VIEWS.issue.fn();
-  const row3 = (h1.match(/<tr><td>КД-2025\/014<\/td>[\s\S]*?<\/tr>/) || [''])[0];
+  const row3 = (h1.match(/<tr class="obj[^"]*"[^>]*data-r="kr-3"[\s\S]*?<\/tr>/) || [''])[0];
   const ex = RP.exportShown('t-portfolio', { dept:'' }, null, 'xlsx'), xp = (RP.ISS(ex.id) || { passport:{} }).passport;
   const d8 = RP.show('t-overdue', P8, null).data;
   const fin = RP.issue('t-overdue', { params: p8(), kind:'окончательный', recipient:'a-mf' }), fp = (RP.ISS(fin.id) || { passport:{} }).passport;
@@ -4299,30 +4312,43 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
-  ev('ROWS_MAX.statRows = 3');
+  ev('ROWS_MAX.statRows = 2');
+  const pk = p => ev('pathKey')(p), DP = [{ by:'dept', key:'dep-prom' }], RO = [{ by:'dept', key:'rep-osh' }];
   const sh = RP.show('t-overdue', P8, null), lim = win.VIEWS.issue.fn();
+  RP.state.sel.pvG = { [pk(DP)]:'open', [pk(RO)]:'open' }; const opn = win.VIEWS.issue.fn();
+  RP.state.sel.pvG = { [pk(DP)]:'next' }; const nxt = win.VIEWS.issue.fn();
+  const sh2 = RP.show('t-overdue', Object.assign({}, P8, { open:[DP, RO] }), null).data;
+  const gP = sh2.groups.find(g => g.key === 'dep-prom') || {}, gO = sh2.groups.find(g => g.key === 'rep-osh') || {};
   const fx = (RP.finalChecks('t-overdue', P8, { recipient:'a-mf' }).items.find(c => c.id === 'fixed') || { reasons:[] }).reasons;
-  const sd = lim.slice(lim.indexOf('<h3>Сдача — окончательный выпуск</h3>')), ck3 = (sd.match(/✕ строки зафиксированы[\s\S]*?<\/div><\/div>/) || [''])[0];
+  RP.state.sel.pvSide = 'выпуск'; const isc = win.VIEWS.issue.fn(); RP.state.sel.pvSide = null;
+  const sd = isc.slice(isc.indexOf('id="pvIssue"')), ck3 = (sd.match(/✕ строки зафиксированы[\s\S]*?<\/div><\/div>/) || [''])[0];
   const job = RP.statExportJob('t-overdue', P8, null, null);
+  const gjob = RP.statExportJob('t-overdue', Object.assign({}, P8, { open:[DP] }), null, null, { group: DP });
   const iss = RP.issue('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' });
-  RP.twistDrill(); const grp = win.VIEWS.issue.fn();
+  RP.state.sel.pvG = {}; RP.twistDrill(); const grp = win.VIEWS.issue.fn();
   const nodes = ev('DRILL_NODES'), ni = nodes.findIndex(n => n.stat === 's-overdue-sum' && !(n.path || []).length);
   ev('ROWS_MAX.statRows = 1'); RP.uiDrill(ni); const dp = win.VIEWS.issue.fn(); RP.uiStatExport(true);
   ev('ROWS_MAX.statRows = 5000');
-  ok(352, sh.data.over && sh.data.over.n === 8 && sh.data.over.max === 3 && sh.data.rows.length === 0 &&
-        has(lim, 'Строк 8 — больше порога 3.') && has(lim, 'RP.twistDrill()">Показать только группы') &&
-        has(lim, 'RP.uiNarrow()">Сузить отбор') && has(lim, 'RP.uiStatExport(false)">Заказать выгрузку') && !has(lim, 'class="sheet"') &&
-        job.ok && has(job.note, 'о готовности придёт уведомление') && !/хран|живёт|дней/.test(job.note) &&
-        !iss.ok && iss.refused && has(iss.why, 'больше порога 3') &&
-        fx.length === 1 && fx[0].rule === 'ADR-0178 §5' && has(ck3, 'строк 8 — больше порога 3') &&
+  ok(352, sh.data.over && sh.data.over.n === 8 && sh.data.over.max === 2 && sh.data.rows.length === 0 &&
+        sh.data.groups.length === 3 && sh.data.groups.every(g => g.totals && !g.rows) && !sh.data.passport.params.open &&
+        !has(lim, 'rowcap') && !has(lim, 'class="obj') && has(lim, 'строки — при раскрытии') && has(lim, 'Итого по отчёту') &&
+        gP.over && gP.over.n === 3 && !gP.rows && gO.loaded && (gO.children || []).every(c => c.inherit && c.rows) &&
+        (gO.children || []).reduce((a, c) => a + c.rows.length, 0) === 2 &&
+        has(opn, 'Строк в группе 3 — больше порога 2.') && has(opn, 'RP.uiNarrow()">Сузить отбор') && has(opn, 'RP.pvGroupExport(') &&
+        has(opn, 'RP.pvNext(') && (opn.match(/<tr class="obj/g) || []).length === 2 &&
+        !has(nxt, 'Строк в группе 3') && (nxt.match(/<tr class="grp g2/g) || []).length >= 2 && !has(nxt, 'class="obj') &&
+        job.ok && has(job.note, 'о готовности придёт уведомление') && !/хран|живёт|дней/.test(job.note) && gjob.ok &&
+        !iss.ok && iss.refused && has(iss.why, 'больше порога 2') &&
+        fx.length === 1 && fx[0].rule === 'ADR-0178 §5' && has(ck3, 'строк 8 — больше порога 2') &&
         has(ck3, 'RP.twistDrill()">Показать только группы') && has(ck3, 'RP.uiNarrow()">Сузить отбор') &&
         !has(sd, 'RP.doPrelim()') && !has(sd, 'RP.doFinal()') &&
-        !has(grp, 'rowcap') && has(grp, 'class="sheet"') && ni !== -1 &&
+        !has(grp, '<tr class="gover"') && has(grp, 'id="pvTw"') && ni !== -1 &&
         has(dp, 'RP.uiStatExport(true)">Заказать выгрузку') && !has(dp, 'Показать только группы') &&
-        RP.state.statJobs.length === 2 && RP.state.statJobs[0].what === 'строки показа' && RP.state.statJobs[1].what === 'список провала',
-    `ПВ-9: выше порога — отказ «Строк 8 — больше порога 3» и три выхода: только группы, сузить отбор, задание статистики на ` +
-    `выгрузку (уведомление о готовности, срок хранения не обещан); выпуск выше порога — ошибка, поэтому в «Сдаче» проверка ` +
-    `«строки зафиксированы» ✕ с теми же «только группы» / «сузить отбор», кнопок выпуска нет; у провала — «сузить» и «заказать»`);
+        RP.state.statJobs.map(j => j.what).join() === 'строки показа,строки группы «Отраслевой департамент промышленности»,список провала',
+    `ПВ-38 (переигрывает ПВ-9): выше порога statRows показ не отказывает целиком — сводка групп с итогами, строки — по раскрытию; ` +
+    `группа в пределах порога раскрылась строками, группа больше порога (3 > 2) — отказ у неё: следующий уровень, сузить отбор, ` +
+    `задание статистики на её строки; выпуск выше порога — ошибка, в панели «Выпуск» ✕ «строки зафиксированы» с выходами, кнопок ` +
+    `выпуска нет; у провала — «сузить» и «заказать»`);
 
   RP.seed(); as('auth');
   const tot = { path:[], stat:'s-portfolio' }, AB = { a:'2026-06-01', b:'2026-08-01' };
@@ -4452,7 +4478,7 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
-  const hi = win.VIEWS.issue.fn(), spec = ev('issueSpec()').spec;
+  RP.state.sel.pvSide = 'выпуск'; const hi = win.VIEWS.issue.fn(), spec = ev('issueSpec()').spec;
   ok(361, typeof RP.doOrder === 'undefined' && typeof RP.doIssue === 'undefined' && typeof RP.setKind === 'function' &&
         !('kind' in spec) && !('recipient' in spec) && !has(hi, 'RP.setKind') && has(hi, 'RP.doFinal()') && has(src, 'onchange="RP.setKind(this.value)"') &&
         !has(src, "sel.kind = 'предварительный'"),
@@ -4509,10 +4535,10 @@ const DEV = 'изменено — не утверждённый состав';
     return fx && Math.abs(fx.value - share(t('a-sumaapproved'), t('a-sumaamount'))) < 1e-9 && t('a-sumaapproved') <= t('a-sumaamount'); });
   RP.state.sel.tpl = 't-sh-apps'; const ha = win.VIEWS.issue.fn();
   ok(365, !!f && f.name === 'Одобрено / запрошено' && Math.abs(f.value - share(tot(a, 'a-sumaapproved'), tot(a, 'a-sumaamount'))) < 1e-9 &&
-        f.shown === Math.round(f.value * 10) / 10 && a.groups.length > 0 && gOk && has(ha, 'ƒ своя формула') && a.passport.formulas.length === 1 &&
+        f.shown === Math.round(f.value * 10) / 10 && a.groups.length > 0 && gOk && /<span class="own" title="[^"]+">ƒ<\/span>/.test(ha) && a.passport.formulas.length === 1 &&
         tot(a, 's-app-count') === a.rows.length && tot(a, 'a-sumaamount') === sum(a.rows, 'amount'),
     `«Заявки»: «Одобрено / запрошено» ${String(f && f.shown).replace('.', ',')} % = ${sp(tot(a, 'a-sumaapproved'))} / ` +
-    `${sp(tot(a, 'a-sumaamount'))} — на итоге и на каждой программе заново из величин уровня; помечена «ƒ своя формула»`);
+    `${sp(tot(a, 'a-sumaamount'))} — на итоге и на каждой программе заново из величин уровня; в заголовке колонки — «ƒ» с выражением`);
 
   const sm = SEAM.statMeta('s-c-sec'), sq = SEAM.statMeta('s-q-sum'), fl = SEAM.fieldList('obj-claim');
   const chC = RP.choices('t-sh-claims'), chO = RP.choices('t-overdue');
@@ -4621,13 +4647,245 @@ const DEV = 'изменено — не утверждённый состав';
     `на 01.10 конец сентября не снимок — своя причина («${g15.data.gap.reason}»)`);
 })();
 
+/* Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — таблица в центре, панель
+   «Как смотреть» справа пятью разделами, полоса действий и «Выпустить» сверху, вкладки под листом; выпуск — панелью,
+   провал — снизу; итоги числами в колонках показателей, вклад объекта в строке; сводка выше 300 строк, отказ statRows
+   у группы; поиск строки; режимы времени на месте листа; долгий расчёт в фон — по кнопке. Переписаны #76, #99, #112,
+   #115, #118, #123, #172, #199, #210, #280, #298, #325, #349, #352 (ПВ-38 переигрывает ПВ-9), #356, #357, #361, #365. */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
+  const scr = () => V.issue.fn();
+  const at = (h, a) => h.indexOf(a);
+  const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const NUM = /ПВ-\d|ОД-\d|ОЧ-\d|ИО-\d|ОГ-\d|ADR-\d|ГМ-\d/;
+
+  start(); const h0 = scr();
+  start('t-sh-claims'); const hm = scr();
+  ok(373, at(h0, 'class="pv-bar"') < at(h0, 'class="pv-head"') && at(h0, 'class="pv-head"') < at(h0, 'id="pvTw"') &&
+        at(h0, 'id="pvTw"') < at(h0, 'id="pvTabs"') && at(h0, 'id="pvTw"') < at(h0, 'class="pv-side"') &&
+        has(h0, 'Выгрузить ▾') && has(h0, 'В рабочий список') && has(h0, '📌 на дашборд') && has(h0, 'Поставить сигнал…') &&
+        has(h0, "RP.pvSide('выпуск')\">Выпустить</button>") && !has(hm, 'Поставить сигнал…') && has(hm, '📌 на дашборд') &&
+        ['Паспорт', 'Заметки', 'Задания'].every(t => has(h0, '>' + t)),
+    `каркас: полоса (параметры, «Мой вид ▾» | Выгрузить ▾ · В рабочий список · ⋯ · Выпустить) → шапка → таблица в центре, ` +
+    `«Как смотреть» справа, вкладки Паспорт · Заметки · Задания под листом; «📌» и «Поставить сигнал…» — в «⋯», у соседа сигнала нет`);
+
+  start(); const secs = h0.match(/<span class="t">[^<]+<\/span>/g) || [];
+  const opened = (h0.match(/<details class="pv-sec"[^>]*\sopen>/g) || []).length;
+  RP.pvSec('время', true); const h1 = scr(); RP.pvPanel(false); const h2 = scr(); RP.pvPanel(true);
+  ok(374, secs.join() === ['Состав', 'Раскладка', 'Время', 'Отбор', 'Ещё'].map(t => '<span class="t">' + t + '</span>').join() &&
+        opened === 1 && has(h0, 'ontoggle="RP.pvSec(\'состав\',this.open)" open>') &&
+        (h1.match(/<details class="pv-sec"[^>]*\sopen>/g) || []).length === 2 &&
+        !has(h2, 'class="pv-side"') && has(h2, 'class="pv-tongue"') && has(h2, '⚙ Как смотреть') && has(h2, 'pv-body noside') &&
+        has(h0, 'Сохранить вид') && has(h0, '>конец прошлого месяца — ') && has(h0, '>моё подразделение — ') &&
+        at(h0, '>конец прошлого месяца — ') < at(h0, '>июль 2026 (состояние на 01.08.2026)<'),
+    `панель «Как смотреть»: пять разделов Состав · Раскладка · Время · Отбор · Ещё, при первом входе раскрыт один «Состав», ` +
+    `раскрытое помнится; скрытая панель — язычок «⚙ Как смотреть»; «моё подразделение» и «конец прошлого месяца» — первыми пунктами`);
+
+  start(); RP.pvDept('@'); RP.pvAsOf('@'); const h3 = scr();
+  RP.doPin(); const tile = RP.tilesOf('t-overdue').slice(-1)[0] || {}, tst = RP.state.lastToast || {};
+  const head = (h3.match(/<div class="pv-head">[\s\S]*?паспорт ↓<\/a><\/div><\/div>/) || [''])[0];
+  ok(375, (head.match(/<div class="l[12]">/g) || []).length === 2 && has(head, 'Подставлено по вам: ') && has(head, 'моё подразделение = ') &&
+        has(head, 'конец прошлого месяца = ') && (head.match(/подразделение — /g) || []).length === 1 && has(head, 'паспорт ↓') && has(head, 'Показ — не выпуск') &&
+        tile.params && tile.params.dept === '@моё подразделение' && tile.params.asOf === '@конец прошлого месяца' &&
+        has(tst.msg, 'Плитка на главной') && !has(tst.msg, 'Настроить') && has(tst.link, 'Настроить ↗'),
+    `шапка — две строки и «паспорт ↓»; значения набора подставлены по смотрящему и названы; «📌» уносит значение набора ` +
+    `(«@моё подразделение», «@конец прошлого месяца»), «сделано» — тостом со ссылкой`);
+
+  start(); RP.pvSide('выпуск'); const h4 = scr(); RP.pvSide(null); const h5 = scr();
+  ok(376, has(h4, 'id="pvIssue"') && !has(h4, '<b>Как смотреть</b>') && has(h4, 'Проверки окончательного выпуска') &&
+        has(h4, 'fin-rcp') && has(h4, 'ⓘ Предварительный и окончательный') && has(h4, 'Мои заказы — вкладка «Задания»') &&
+        has(h4, 'id="pvTw"') && has(h5, '<b>Как смотреть</b>') && !has(h5, 'id="pvIssue"'),
+    `выпуск — панелью справа на месте настроек: получатель, проверки, кнопки, ⓘ, «Мои заказы» → вкладка «Задания»; лист остаётся`);
+
+  start(); RP.setTime('сравнение'); const h6 = scr(); RP.setTime(''); RP.toggleTop(); RP.doUsd(); const h7 = scr();
+  ok(377, !has(h6, '<tr class="obj') && has(h6, '<th class="num">Изменение</th>') && has(h6, 'Паспорт: сравнение') &&
+        at(h7, 'id="pvTw"') < at(h7, '<b>Крупнейшие 3</b>') && at(h7, '<b>Крупнейшие 3</b>') < at(h7, 'id="pvTabs"') &&
+        has(h7, 'onclick="RP.toggleTop()">✕') && has(h7, '<b>Валюта договора</b>') && has(h7, 'onclick="RP.doUsd()">✕'),
+    `сравнение, динамика и «за период» — на месте листа; «Крупнейшие 3» и валюта — блоками под листом, у каждого ✕`);
+
+  start(); scr(); const nodes = ev('DRILL_NODES'), ti = nodes.findIndex(n => n.stat === 's-overdue-sum' && !(n.path || []).length);
+  RP.uiDrill(ti); const h8 = scr(); RP.pvDrillFull(); const h9 = scr();
+  ok(378, ti !== -1 && has(h8, 'class="pv-drill" id="pvDrill"') && has(h8, 'pv-grip') && has(h8, 'class="pv drill-on"') &&
+        /<td class="num st[^"]*drill-on/.test(h8) && has(h8, 'id="pvTw"') && has(h9, 'class="pv-drill full"'),
+    `провал — снизу на всю ширину, край тянется, «⤢» — на весь экран; таблица остаётся сверху, открытое число подсвечено`);
+
+  start(); const rowsN = (h0.match(/<tr class="obj/g) || []).length, menus = (h0.match(/<details class="pv-rm">/g) || []).length;
+  const menu = (h0.match(/<details class="pv-rm">[\s\S]*?<\/details>/) || [''])[0];
+  ok(379, rowsN === 8 && menus === 8 && has(menu, 'Открыть карточку кредита') && has(menu, '✎ Заметка к строке') &&
+        has(menu, '✎ Заметка к ячейке ▸') && has(menu, 'Заметки строки · ') && has(menu, 'Копировать значение') &&
+        (h0.match(/oncontextmenu="return RP.pvCtx\(event,'kr-\d+'\)"/g) || []).length === 8,
+    `меню строки «⋯» у каждой из ${rowsN} строк и то же — правой кнопкой: карточка кредита, заметка к строке и к ячейке, заметки строки, копировать`);
+
+  start('t-sh-big'); RP.state.down = ['залог']; const ha = scr(); RP.state.down = [];
+  const top = ha.slice(0, at(ha, 'id="pvTw"')), pass = ha.slice(at(ha, 'id="pvTabs"'));
+  ok(380, has(top, '<div class="pv-msg warn"') && has(top, '<b>Источник не ответил.</b>') && has(pass, 'pv-msgs flat') &&
+        has(pass, '<b>Источник не ответил.</b>') && has(src, 'setTimeout(() => el.remove(), 6000)') && !has(ha, 'class="banner warn"><b>Источник'),
+    `«показано не так» — строкой над таблицей и той же строкой в паспорте; «сделано» — тостом на 6 с`);
+
+  start(); const st = ev('pvStand()'); RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const hj = scr();
+  ok(381, has(st, 'Стенд ▾') && has(st, 'Вписать получателя строкой «Минфин КР»') && has(st, 'Пороги стенда') && has(st, 'проверяет:') &&
+        !has(h0, 'Стенд ▾') && has(hj, 'class="btn btn-sm pv-stand"') && has(hj, 'Шаг задания <span class="tag">стенд</span>') &&
+        has(src, '<span id="stand"></span>'),
+    `кнопки стенда — меню «Стенд ▾» в шапке рядом с ролью, у каждой — что проверяет; «Шаг задания» — у задания пунктиром с меткой «стенд»`);
+
+  start(); RP.twistCut('borrower'); RP.twistStat('s-overdue-cnt'); const hb = scr();
+  RP.pvFormEdit(null); const hf = scr(); ev("RP.state.sel.pvF.name = 'Доля просрочки'"); RP.pvFormOk(); const hg = scr();
+  ok(382, has(hb, '<span class="chip add">＋ добавлен</span>') && has(hb, '<span class="chip">убран</span>') && has(hb, '>вернуть</button>') &&
+        has(hb, '＋ Разрез') && has(hb, '＋ Показатель') && has(hb, 'ещё в реестре статистики') && has(hb, 'placeholder="поиск"') &&
+        has(hf, 'class="pv-form"') && has(hf, 'На итоге:') && has(hf, 'Добавить в показатели') &&
+        !has(hg, 'class="pv-form"') && /ƒ<\/span><span class="th-sub">%/.test(hg) && has(hg, 'ƒ Доля просрочки'),
+    `«Состав» — стопкой: уровни с номером, ↑↓ и ✕, «＋ добавлен», «убран — вернуть»; выбор — поиском и группами; своя формула — ` +
+    `формой с предпросмотром на итоге, готовая — строкой «ƒ …» и «ƒ» в заголовке колонки`);
+
+  start(); const lays = (h0.match(/<button class="pv-lay/g) || []).length;
+  RP.twistCut('status'); const one = scr(); RP.pvLayout('показатели в строках'); const hr = scr();
+  const side = h0.slice(at(h0, 'class="pv-side"'));
+  ok(383, lays === 3 && has(one, 'disabled title="нужны два разреза"') && has(hr, 'class="cgrid pvt rot"') &&
+        /<th class="num grand">Итого по отчёту<\/th><\/tr>/.test(hr) && has(h0, 'печатать строки') && has(h0, 'только итоги групп') &&
+        has(h0, '<span class="s">подразделение → состояние кредита · 2 показателя</span>') && !has(side, 'statRows'),
+    `«Раскладка» — тремя картинками («разрез в колонках» — у двух разрезов); «показатели в строках» — группы колонками и ` +
+    `«Итого по отчёту» последней; строки — сегментом «печатать строки | только итоги групп»; свёрнутый раздел показывает выбранное`);
+
+  start(); RP.setTime('динамика'); RP.pvTimeField('tStep', 'год'); RP.pvTimeField('tFrom', '2025-01-01'); const hd = scr();
+  const tb = hd.slice(at(hd, 'ontoggle="RP.pvSec(\'время\''));
+  ok(384, ['отчёт', 'сравнение', 'динамика', 'за период'].every(x => has(tb, '>' + x + '</button>')) &&
+        has(tb, '>год</button>') && has(hd, 'динамика 01.01.2025 — 01.08.2026 по годам') && has(tb, 'Скорость:') &&
+        has(tb, 'По периоду начала') && (tb.match(/'tFrom',this\.value\)">([\s\S]*?)<\/select>/) || ['', ''])[1].match(/value="[^"]+"/g)
+          .every(v => RP.hasSnapshot(v.slice(7, -1))),
+    `«Время» — сегментом режимов и полями только выбранного: «с · по» из дат со снимком, шаг месяц · квартал · год, «по периоду начала», скорость подписью`);
+
+  start(); RP.state.sel.fset = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]], top:null };
+  RP.pvSec('отбор', true); const hs = scr(); const fs = hs.slice(at(hs, 'id="fset"'));
+  ok(385, has(fs, '<b>Набор 1</b>') && has(fs, '<b>Набор 2</b>') && has(fs, '<div class="kor">или</div>') &&
+        has(fs, '＋ или — новый набор') && has(fs, 'Условие по формуле') && has(fs, '«Топ N»') && /отобрано \d+ из 8/.test(fs) &&
+        /<span class="s">отобрано \d+ из 8<\/span>/.test(hs),
+    `«Отбор» — наборами-карточками (внутри «и», между — «или»), формула и «топ N» строками ниже, «отобрано N из M» и в заголовке раздела`);
+
+  start(); const d0 = RP.show('t-overdue', P8, null).data;
+  const kr2 = (h0.match(/<tr class="obj[^"]*"[^>]*data-r="kr-2"[\s\S]*?<\/tr>/) || [''])[0];
+  const kr1 = (h0.match(/<tr class="obj[^"]*"[^>]*data-r="kr-1"[\s\S]*?<\/tr>/) || [''])[0];
+  ok(386, d0.cols.some(c => c.id === 'dept') && !/<th[^>]*>Подразделение/.test(h0.slice(at(h0, 'id="pvTw"'), at(h0, '</table>'))) && has(h0, '<span class="th-sub">сом</span>') &&
+        has(kr2, '<td class="num st">5 300 000</td>') && has(kr2, '<td class="num st">1</td>') && has(kr1, '<td class="num st zero">0</td>') &&
+        has(h0, 'Итого по «Отраслевой департамент промышленности»') && has(h0, '<tfoot><tr class="grand">') &&
+        has(h0, '>Итого по отчёту</td>') && has(h0, 'class="pv-i"') && !has(h0, 'class="totals"'),
+    `таблица: колонка-дубль разреза убрана, единица — в заголовке; в строке объекта — его вклад в показатель (0 серым); ` +
+    `«Итого по «…»» — числами после группы; «Итого по отчёту» — закреплённой последней строкой с ⓘ; плиток нет`);
+
+  start(); scr(); RP.pvFold(0); const hn = scr(), ns = (hn.match(/<tr class="obj[^"]*" data-n="(\d+)"/g) || []).map(x => +x.match(/data-n="(\d+)"/)[1]);
+  ok(387, has(h0, 'id="pvCnt"') && has(h0, 'строки 1–8 из 8 · группа 1 из 3') && has(h0, 'К группе ▾') &&
+        has(h0, 'Показать до уровня:') && has(src, 'table.cgrid.pvt tr.grp.g1 td{ position:sticky;') &&
+        ns.length === 6 && ns[0] === 3 && ns[5] === 8,
+    `сплошная таблица: шапка и итог закреплены, группа прилипает, «строки a–b из N · группа k из m», «К группе ▾»; ` +
+    `номер строки сквозной — свёрнутая первая группа (2 строки) сдвигает его: ${ns[0]}–${ns[ns.length - 1]}`);
+
+  start(); ev('PV_SUMMARY.rows = 3'); const hs1 = scr();
+  RP.pvLevel('строки'); const hs2 = scr();
+  RP.pvFold(0); const hs3 = scr(); ev('PV_SUMMARY.rows = 300');
+  ok(388, !has(hs1, '<tr class="obj') && (hs1.match(/<tr class="grp g1/g) || []).length === 3 && has(hs1, '>строки</button>') &&
+        (hs2.match(/<tr class="obj/g) || []).length === 8 && (hs3.match(/<tr class="obj/g) || []).length < 8 &&
+        has(src, 'const PV_SUMMARY = {rows: 300}'),
+    `выше 300 строк вход — сводкой по первому уровню (свёрнутая группа — строкой с итогами), «Показать до уровня: 1 · 2 · строки»; ` +
+    `своё свёрнутое важнее порога; порог — настройкой модуля`);
+
+  start(); const fr = RP.findRows('t-overdue', P8, null, 'тянь'); ev('PV_SUMMARY.rows = 3');
+  const tf0 = (scr().match(/<tfoot>[\s\S]*?<\/tfoot>/) || [''])[0].replace(/uiDrill\(\d+\)/g, '');
+  RP.pvFind('тянь'); const hq = scr(); const tf1 = (hq.match(/<tfoot>[\s\S]*?<\/tfoot>/) || [''])[0].replace(/uiDrill\(\d+\)/g, '');
+  RP.pvFindStep(1); const hq2 = scr(); RP.pvFindEsc(); const hq3 = scr(); ev('PV_SUMMARY.rows = 300');
+  ok(389, fr.ok && fr.hits.length === 2 && fr.hits.every(x => x.path[0].key === 'dep-admin') &&
+        has(hq, '1 из 2 · в 1 группе') && (hq.match(/<tr class="obj hit/g) || []).length === 2 && (hq.match(/<tr class="obj hit cur"/g) || []).length === 1 && tf0 === tf1 &&
+        has(hq2, '2 из 2 · в 1 группе') && !has(hq3, '<tr class="obj') && has(src, "['f', 'F', 'а', 'А']"),
+    `«Найти» (Ctrl+F): ищет по всем строкам, «1 из 2 · в 1 группе», Enter — следующая, группа раскрывается; итоги не меняются; Esc сворачивает обратно`);
+
+  start(); RP.setTime('динамика'); const hy = scr(); RP.setTime(''); RP.pvHideCol('days', true); const hh = scr();
+  ok(390, has(hy, '<tr class="yr">') && has(hy, 'colspan="8">2026</th>') && has(hy, 'class="pv-colcnt') && has(hy, 'pv-tw dyn') &&
+        /<th[^>]*>Дней просрочки/.test(h0) && !/<th[^>]*>Дней просрочки/.test(hh) && has(hh, 'Колонки ▾') && has(hh, 'убирает только с экрана') && has(h0, 'key last') &&
+        has(h0, 'скрыть панель'),
+    `широкая таблица листается вбок: ключевые колонки закреплены, шапка динамики в 2 этажа (год → месяцы), «колонки a–b из N ◂ ▸», ` +
+    `«Колонки ▾» убирает с экрана, подсказка «скрыть панель»`);
+
+  start(); RP.doHeavy('t-overdue'); const hz = scr(); RP.pvHeavyGo(); const job = (RP.myJobs()[0] || {}), tz = RP.state.lastToast || {};
+  RP.pvJobOpen(job.id); const hz2 = scr();
+  RP.selTpl('t-portfolio'); const hl = scr(); RP.selTpl('t-overdue'); RP.pvCalcDemo(6); const hc = scr();
+  RP.pvCalcBg(); const bg = RP.state.lastToast || {}, bj = RP.myJobs().slice(-1)[0] || {};
+  ok(391, has(hz, 'расчёт сам не начинается') && has(hz, 'RP.pvHeavyGo()">Посчитать в фоне') && has(hz, 'RP.pvHeavyEdit()">Изменить настройку') &&
+        !has(hz, 'id="pvTw"') && job.id === 'МЗ-1' && has(tz.msg, 'результат на вкладке «Задания»') && has(tz.link, 'Открыть') &&
+        has(hz2, 'Результат задания МЗ-1') && has(hz2, '<button class="on" onclick="RP.pvTab(\'задания\')">Задания') &&
+        has(hl, 'расчёт сам не начинается') && !has(hl, 'Посчитать на сейчас') && has(hl, 'Посчитать в фоне') && has(hc, 'pv-sheet calc') &&
+        bj.id === 'МЗ-2' && has(bg.msg, 'задание МЗ-2') && has(bg.link, "RP.pvJobOpen('МЗ-2')") && !RP.state.sel.pvCalc,
+    `долгий расчёт — на месте листа: оценка больше 15 с — сам не стартует («Посчитать в фоне / Изменить настройку»); готово — тост ` +
+    `и вкладка «Задания»; «сейчас» по всему кругу (18,8 с) — те же ворота; 1–15 с — числа приглушены, «Отменить», «Досчитать в фоне» — заданием`);
+
+  const all = [h0, h1, h2, h3, h4, h6, h7, h8, hb, hf, hd, hs, hq, hy, hz, hz2, hl, st].join('\n');
+  ok(392, !NUM.test(all.replace(/<!--[\s\S]*?-->/g, '')),
+    `в тексте экрана показа и меню стенда номеров решений нет`);
+})();
+
+/* Волна 59, правка по ревью (блок CCC, #393–#399): «Досчитать в фоне» — заданием, отказ листа без разрезов, «отчёт» рядом
+   с «как сохранено», найденное и задание живут, пока настройка та же, «сейчас» в фоне открывается таблицей, журнал
+   просмотров без служебного «open», шапка с основанием и областью видимости. */
+(() => {
+  const V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' }, scr = () => V.issue.fn();
+  const start = tpl => { RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const ev = c => vm.runInContext(c, sandbox);
+
+  start(); RP.twistCut('dept'); RP.twistCut('status'); RP.pvStandLimits(true); const h1 = scr(); RP.pvStandLimits(false);
+  ok(393, has(h1, 'Строк 8 — больше порога 2.') && has(h1, 'Добавьте разрез в «Составе»') && has(h1, 'RP.uiNarrow()">Сузить отбор') &&
+        has(h1, 'RP.uiStatExport(false)">Заказать выгрузку') && !has(h1, '<tr class="obj') && has(src, "(m ? ' — группы свёрнуты' : '')"),
+    `без разрезов групп нет — выше порога строк отказ получает весь лист: причина и «Сузить отбор · Заказать выгрузку», ` +
+    `а не пустая таблица; «группы свёрнуты» — только когда группы есть`);
+
+  start(); RP.pvFind('КД'); const n0 = (RP.state.sel.pvFound.hits || []).length;
+  RP.pvDept('rep-osh'); scr(); const n1 = (RP.state.sel.pvFound.hits || []).length;
+  RP.pvFind(''); RP.pvDept(''); scr(); RP.pvFold(1); const fold = JSON.stringify(RP.state.sel.pvG);
+  RP.pvFind('Ош-Текстиль'); const opened = JSON.stringify(RP.state.sel.pvG); RP.pvFindEsc(); const back = JSON.stringify(RP.state.sel.pvG);
+  RP.pvFind('5000000'); const byNum = RP.state.sel.pvFound.hits.length;
+  RP.pvFind('КД'); RP.selTpl('t-portfolio'); const afterTpl = RP.state.sel.pvFind;
+  ok(394, n0 === 8 && n1 === 2 && fold !== opened && back === fold && byNum === 0 && afterTpl === '',
+    `найденное пересчитывается при новой настройке (8 → ${n1} после смены подразделения); Esc возвращает своё свёрнутое; ` +
+    `по числам не ищет; смена отчёта снимает поиск`);
+
+  start(); RP.doHeavy('t-overdue'); const g1 = scr(); RP.setTime('сравнение'); const g2 = scr(); RP.setTime('');
+  RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const j1 = RP.myJobs().slice(-1)[0]; RP.pvJobOpen(j1.id); const o1 = scr();
+  RP.setTime('сравнение'); const o2 = scr(); RP.setTime(''); const o3 = scr();
+  ok(395, has(g1, 'расчёт сам не начинается') && !has(g2, 'расчёт сам не начинается') && has(o1, 'Результат задания '+j1.id) &&
+        !has(o2, 'Результат задания') && !has(o3, 'Результат задания'),
+    `ворота и открытое задание живут, пока настройка та же: смена режима времени снимает их, лист — по новой настройке`);
+
+  start('t-portfolio'); scr(); RP.pvHeavyGo(); const j2 = RP.myJobs().slice(-1)[0]; RP.pvJobOpen(j2.id); const lv = scr();
+  ok(396, j2 && j2.tpl === 't-portfolio' && has(lv, 'Результат задания '+j2.id) && has(lv, 'id="pvTw"') &&
+        (lv.match(/<tr class="obj/g) || []).length > 0 && !has(lv, 'Числа не запрошены') && !has(lv, 'расчёт сам не начинается'),
+    `фоновый расчёт «сейчас» открывается таблицей: задание проверяется раньше ворот «сейчас»`);
+
+  start(); scr(); const L0 = RP.viewLog().rows.length; RP.pvFold(0); scr(); RP.pvFold(0); scr(); const L1 = RP.viewLog().rows.length;
+  RP.pvStandLimits(true); scr(); const L2 = RP.viewLog().rows.length; const gi = ev('G_NODES').findIndex(n => n.path.length === 1 && n.path[0].key === 'rep-osh');
+  RP.pvFold(gi); scr(); const last = RP.viewLog().rows[0]; RP.pvStandLimits(false);
+  ok(397, L1 === L0 && L2 === L1 && last && last.rows === 2 && !('open' in last.params),
+    `журнал просмотров: сворачивание ниже порога новых строк не пишет; выше порога сводка без строк не пишется, раскрытая группа — ` +
+    `${last ? last.rows : '?'} строки; служебное «open» в параметры журнала не уходит`);
+
+  start(); const hh = scr(); RP.pvLayout('разрез в колонках'); const hp = scr();
+  RP.setTime('динамика'); RP.pvTimeField('tStep', 'год'); RP.pvTimeField('tFrom', '2025-01-01'); const hy = scr();
+  const head = (hh.match(/<div class="pv-head">[\s\S]*?паспорт ↓<\/a><\/div><\/div>/) || [''])[0];
+  ok(398, has(head, 'п. 12 ') && has(head, 'область видимости: 3 подразделения') && has(hp, '<span class="sep">·</span>разрез в колонках</div>') &&
+        !has(hy, 'шов statSeries') && has(hy, '>на 01.01</th>') && has(hy, '>на 01.08</th>') && has(hy, 'colspan="2">2026</th>') &&
+        has(src, "m.onclick = e => { if(e.target.closest('button')) m.remove(); };"),
+    `шапка называет основание, область видимости и «разрез в колонках»; подпись режима — без служебных слов; шаг «год» — ` +
+    `«на 01.01 · на 01.08», дата «по» — последней точкой; меню правой кнопки закрывается после пункта`);
+
+  start(); RP.pvCalcDemo(6); scr(); RP.setTime('сравнение'); scr(); const c1 = RP.state.sel.pvCalc;
+  ok(399, c1 === null,
+    `идущий расчёт снимается новой настройкой — как обещает подпись над листом`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-10-20 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-10-21 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-10-20 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-10-21 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
