@@ -82,6 +82,9 @@
 // Правка по ревью волны 60 (блок HHH, #435–#440): условие по формуле считает год даты показа и не берёт план; «В рабочий список»
 // у показа без строк объектов — причина без записи выпуска; запасной колонки `__lvl` в колонках нет; язычок без своей вкладки
 // открывает первую; в меню правой кнопки — «Заметки строки · n»; над таблицей без строк объектов — «групп N». #417 — язычок.
+// Волна 61 (экран «Конструктор» на рамке показа; блок проверок — в konstruktor-check #33…): с витрины «Собрать отчёт» ведёт RP.kbNew()
+// — стартовый экран (#296); «один раз» — строкой во вкладке «Паспорт» конструктора (#348); номера КН- и ВБ- среди запрещённых в тексте
+// экранов (#342); разметка конструктора закрыта на стартовом экране и в рамке (#343).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -3450,10 +3453,10 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('user');
   RP.state.sel.scTab = 'мои'; const vit = win.VIEWS.showcase.fn();
   const shell = src.slice(0, src.indexOf('<script>'));
-  ok(296, has(vit, 'Собрать отчёт') && has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
+  ok(296, has(vit, 'Собрать отчёт') && has(vit, 'RP.kbNew()') && !has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
         has(shell, '<div class="brand">АСУБК') && !has(shell, 'ГФХ'),
     `ОГ-Д1: оболочка «Формирования» — экран «Конструктор» внутри общей оболочки АСУБК (топбар, меню трёх столов, одна палитра); ` +
-    `с витрины в него ведёт «Собрать отчёт»`);
+    `с витрины в него ведёт «Собрать отчёт» — через RP.kbNew(): стартовый экран «Новый отчёт»`);
 
   RP.seed(); as('buh');
   const h8 = RP.highlight('t-sh-plan', { asOf:'2026-08-01' }), h6 = RP.highlight('t-sh-plan', { asOf:'2026-06-01' });
@@ -4123,7 +4126,7 @@ const DEV = 'изменено — не утверждённый состав';
     `карточка отчёта открывается кнопкой «Открыть» в строке реестра: состав редакции, проверки, «Утвердить редакцию», ` +
     `возврат в реестр; своего пункта меню и выбора отчёта списком у неё нет`);
 
-  const ID = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|ПВ|СПЗ|ДБ|РЯ|СС|ИС|ADR)-[ДDВ]?\d+|§\s?\d/;
+  const ID = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|ПВ|СПЗ|ДБ|РЯ|СС|ИС|КН|ВБ|ADR)-[ДDВ]?\d+|§\s?\d/;
   const text = h => h.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ');
   const shown = [];
   Object.keys(R).forEach(r => Object.keys(win.VIEWS).forEach(v => {
@@ -4139,12 +4142,16 @@ const DEV = 'изменено — не утверждённый состав';
     `номер правила у отказа — поле rule`);
 
   RP.seed(); as('auth');
+  win.S().started = false;
   const reg2 = win.VIEWS.registry.fn(), draft = win.VIEWS.draft.fn();
   const opens = (draft.match(/<div\b/g) || []).length, closes = (draft.match(/<\/div>/g) || []).length;
-  ok(343, !has(reg2, 'Правка у соседей') && !has(draft, 'Заглушки соседей') && typeof RP.demoRename === 'undefined' &&
-        opens === closes,
+  /* Конструктор — два вида: стартовый экран «Новый отчёт» и рамка (с волны 61); закрыты оба. */
+  win.S().started = true; const frame = win.VIEWS.draft.fn();
+  const fOpens = (frame.match(/<div\b/g) || []).length, fCloses = (frame.match(/<\/div>/g) || []).length;
+  ok(343, !has(reg2, 'Правка у соседей') && !has(draft, 'Заглушки соседей') && !has(frame, 'Заглушки соседей') && typeof RP.demoRename === 'undefined' &&
+        opens === closes && fOpens === fCloses && has(draft, 'kb-start') && has(frame, 'class="pv kb"'),
     `служебных вставок на рабочих экранах нет: карточки «Правка у соседей» в реестре и подвала «Заглушки соседей» ` +
-    `в конструкторе нет; разметка конструктора закрыта (div ${opens}/${closes})`);
+    `в конструкторе нет; разметка конструктора закрыта: стартовый экран div ${opens}/${closes}, рамка ${fOpens}/${fCloses}`);
 })();
 
 /* Волна 54 (блок XX, #344): подтверждение новой редакции при смене методики — в карточке отчёта (ГМ-8). */
@@ -4218,13 +4225,16 @@ const DEV = 'изменено — не утверждённый состав';
   const KB = win.KB, S = win.S;
   KB.seed(); KB.setObject('claim'); S().stats = ['s-q-count', 's-q-sum']; S().cuts = [{ id:'q-role', bucket:null, total:true }];
   const qa = KB.answer(), qh = win.scAnswer();
+  /* Строка паспорта «один раз» — во вкладке «Паспорт» конструктора (КН-15), не под листом. */
+  S().started = true; KB.ui.tab('паспорт'); const qp = win.VIEWS.draft.fn(); KB.ui.tab('настройки');
   KB.setObject('credit'); const ch = win.scAnswer();
   ok(348, qa.passport.dedupBy.length === 1 && qa.passport.dedupBy[0].stat === 's-q-sum' && qa.passport.dedupBy[0].key === 'кредит требования' &&
         has(qh, 'title="итог считает каждый кредит требования один раз, поэтому он меньше суммы строк">кредит требования — один раз</span>') &&
-        (qh.match(/ — один раз<\/span>/g) || []).length === 1 && has(qh, '<span class="k">один раз</span>Сумма требований, итого — каждый кредит требования один раз') &&
+        (qh.match(/ — один раз<\/span>/g) || []).length === 1 && !has(qh, '<span class="k">один раз</span>') &&
+        has(qp, '<span class="k">один раз</span>Сумма требований, итого — каждый кредит требования один раз') &&
         !has(ch, '— один раз'),
     `итог «один раз»: под заголовком колонки «Сумма требований, итого» — «кредит требования — один раз», объяснение при наведении; ключ — ` +
-    `строкой паспорта и полем dedupBy; у показателя без ключа подписи нет`);
+    `строкой паспорта во вкладке «Паспорт» и полем dedupBy; у показателя без ключа подписи нет`);
 
   RP.seed(); as('auth');
   const o = RP.show('t-overdue', p8, null).data, pl = RP.show('t-sh-plan', p8, null).data, tOf = (d, id) => d.totals.find(x => x.id === id);
