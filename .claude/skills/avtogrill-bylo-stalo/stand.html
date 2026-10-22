@@ -1,0 +1,126 @@
+<title>‹Предмет›: было и станет</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@700&family=PT+Mono&display=swap">
+<!-- Шаблон скилла avtogrill-bylo-stalo. Заполнить всё в ‹угловых скобках›, лишние блоки удалить.
+     Снимки кладутся рядом и публикуются через files: bylo.png, stalo.png (первый экран 1920×1080). -->
+<style>
+/* Раскладка: одна колонка-разбор; что мешало → было/станет рядом → решения таблицей → найдено, следствия, на подтверждение → не сделано. */
+:root{
+  --bg:#f3f5f8; --card:#ffffff; --fg:#1d2a3a; --muted:#5d6b7c; --line:#d6dde6; --tint:#f7f9fc;
+  --accent:#1a56b8; --accent-soft:#e6eefb; --ok:#1f7a45; --ok-bg:#e4f3ea; --mid:#946300; --mid-bg:#fbf1d9; --bad:#b3261e; --bad-bg:#fbe5e3;
+  --f-body:"PT Sans", "Segoe UI", Arial, sans-serif; --f-head:"PT Sans Narrow", "Arial Narrow", "PT Sans", sans-serif; --f-num:"PT Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111821; --card:#18222e; --fg:#e3e9f1; --muted:#9aa8b8; --line:#2c3a4a; --tint:#1c2733;
+  --accent:#7aa7ff; --accent-soft:#1d2d47; --ok:#6fd39a; --ok-bg:#16301f; --mid:#f0c060; --mid-bg:#33290f; --bad:#ff8a80; --bad-bg:#3a1a18; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#111821; --card:#18222e; --fg:#e3e9f1; --muted:#9aa8b8; --line:#2c3a4a; --tint:#1c2733;
+  --accent:#7aa7ff; --accent-soft:#1d2d47; --ok:#6fd39a; --ok-bg:#16301f; --mid:#f0c060; --mid-bg:#33290f; --bad:#ff8a80; --bad-bg:#3a1a18; color-scheme:dark; }
+body{ background:var(--bg); color:var(--fg); font:16px/1.5 var(--f-body); }
+.wrap{ max-width:1280px; margin:0 auto; padding-block:28px 64px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex; flex-direction:column; gap:22px; }
+h1{ font:700 30px/1.15 var(--f-head); margin:0; text-wrap:balance; }
+h2{ font:700 22px/1.2 var(--f-head); margin:0; text-wrap:balance; }
+.kick{ font:700 12px/1 var(--f-body); letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+.lede{ color:var(--muted); max-width:78ch; margin:0; }
+.card{ background:var(--card); border:1px solid var(--line); border-radius:8px; padding:18px 20px; display:flex; flex-direction:column; gap:12px; min-width:0; }
+.card > p{ margin:0; max-width:80ch; }
+.q{ border-left:4px solid var(--accent); }
+.facts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; }
+.fact{ border:1px solid var(--line); border-radius:6px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+.fact b{ font:400 24px/1.1 var(--f-num); font-variant-numeric:tabular-nums; }
+.fact span{ font-size:13.5px; color:var(--muted); }
+.ba{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.ba h3{ font:700 15px/1.2 var(--f-body); margin:0; display:flex; gap:8px; align-items:center; }
+.tag{ font:700 11.5px/1 var(--f-body); padding:3px 8px; border-radius:999px; }
+.tag.was{ background:var(--bad-bg); color:var(--bad); } .tag.will{ background:var(--ok-bg); color:var(--ok); }
+.shot{ margin:0; display:flex; flex-direction:column; gap:6px; min-width:0; }
+.shot .frame{ overflow:auto; border:1px solid var(--line); border-radius:6px; background:var(--bg); cursor:zoom-in; }
+.shot .frame img{ display:block; width:100%; height:auto; }
+.shot .frame.big{ cursor:zoom-out; } .shot .frame.big img{ width:1920px; max-width:none; }
+.shot figcaption{ font-size:13px; color:var(--muted); }
+.meas{ font:14px/1.4 var(--f-num); font-variant-numeric:tabular-nums; color:var(--muted); }
+.tw{ overflow-x:auto; }
+table{ border-collapse:collapse; width:100%; font-size:14.5px; }
+th, td{ border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th{ font-weight:700; color:var(--muted); font-size:13px; }
+td.id{ white-space:nowrap; font:700 13px/1.4 var(--f-num); color:var(--accent); }
+td.was{ color:var(--muted); }
+.flag{ font:700 11px/1 var(--f-body); padding:2px 6px; border-radius:999px; background:var(--mid-bg); color:var(--mid); white-space:nowrap; }
+details.rej{ border:1px solid var(--line); border-radius:6px; padding:10px 14px; background:var(--tint); }
+details.rej summary{ cursor:pointer; font-weight:700; }
+details.rej ul{ margin:8px 0 0; padding-left:20px; display:flex; flex-direction:column; gap:4px; font-size:14.5px; }
+.lists{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
+.lists ul{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:5px; font-size:15px; }
+.lists h3{ font:700 15px/1.2 var(--f-body); margin:0 0 6px; }
+.confirm{ border-left:4px solid var(--mid); }
+@media (max-width:900px){ .ba{ grid-template-columns:1fr; } h1{ font-size:25px; } }
+</style>
+
+<div class="wrap">
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="kick">‹Модуль› · ‹экран› · автогриллинг ‹дата›</span>
+    <h1>‹Предмет›: было и станет</h1>
+    <p class="lede">‹N› решений приняты Claude рекомендованным вариантом, владелец может переиграть любое. Снимки — живой макет <code>‹путь›</code>, экран 1920×1080; «станет» — эскиз на том же макете, собранный правкой страницы на лету. Щелчок по снимку — в натуральную величину.</p>
+  </div>
+
+  <section class="card q">
+    <h2>Что мешало</h2>
+    <p>‹Жалоба владельца одной фразой, его словами.›</p>
+    <div class="facts">
+      <div class="fact"><b>‹573 px›</b><span>‹что это за число›</span></div>
+      <div class="fact"><b>‹1 080 → 1 443›</b><span>‹что это за число›</span></div>
+      <div class="fact"><b>‹9 из 17›</b><span>‹что это за число›</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Было и станет</h2>
+    <div class="ba">
+      <figure class="shot"><h3><span class="tag was">было</span>‹подпись›</h3>
+        <div class="frame"><img src="bylo.png" alt="‹что на снимке›"></div>
+        <div class="meas">‹высота · прокрутка · строки›</div></figure>
+      <figure class="shot"><h3><span class="tag will">станет</span>‹подпись›</h3>
+        <div class="frame"><img src="stalo.png" alt="‹что на снимке›"></div>
+        <div class="meas">‹высота · прокрутка · строки›</div></figure>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Решения</h2>
+    <div class="tw"><table style="min-width:820px">
+      <thead><tr><th>№</th><th>Вопрос</th><th>Было</th><th>Станет</th><th>Почему</th></tr></thead>
+      <tbody>
+        <tr><td class="id">‹ПВ-42›</td><td>‹вопрос›</td><td class="was">‹как сейчас›</td><td>‹решение› <span class="flag">переигрывает ‹ID›</span></td><td>‹одна фраза›</td></tr>
+      </tbody>
+    </table></div>
+    <details class="rej"><summary>Отвергнутые варианты</summary>
+      <ul>
+        <li><b>‹ПВ-42›</b> — ‹вариант›: ‹чем плох одной фразой›.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="card">
+    <div class="lists">
+      <div><h3>Найдено по ходу</h3><ul><li>‹несогласованность или лишнее, с числом›</li></ul></div>
+      <div><h3>Следствия без отдельного вопроса</h3><ul><li>‹что переезжает вслед за решением›</li></ul></div>
+    </div>
+  </section>
+
+  <section class="card confirm">
+    <h2>На подтверждение</h2>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px">
+      <li><b>‹ПВ-44›</b> — ‹что переигрывает или почему решать владельцу›.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Что не сделано</h2>
+    <p>В репозитории пока ничего не менялось. Если решения принять, придётся править: ‹канон — разделы›, ‹макет — функция›, ‹смоук — проверки №›, ‹ТЗ и постановка — разделы›.</p>
+  </section>
+</div>
+<script>
+document.querySelectorAll('.shot .frame').forEach(f => f.addEventListener('click', () => f.classList.toggle('big')));
+</script>
