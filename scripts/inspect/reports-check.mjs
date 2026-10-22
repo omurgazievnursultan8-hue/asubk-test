@@ -63,10 +63,36 @@
 // после повторного закрытия июля), #114, #136, #199, #237; в konstruktor-check — #3.
 // Волна 56 (блок BBB, #358–#361): «закрыть снова» кнопкой на экране (ПВ-Д7), «топ N» по любому числовому полю и
 // условие по формуле в редакторе своих условий (ПВ-Д5), заказ ступенью-выбором с экрана показа снят (ПВ-Д4).
-// Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — полоса, панель «Как смотреть»,
-// вкладки, выпуск панелью, провал снизу, итоги в колонках, сводка и отказ у группы, «Найти», долгий расчёт по кнопке.
+// Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — полоса, правая панель (с волны 60 —
+// вкладками «Настройки · Паспорт · Заметки · Задания»), выпуск режимом панели, провал снизу, итоги в колонках, сводка и
+// отказ у группы, «Найти», долгий расчёт по кнопке.
 // Правка по ревью волны 59 (#393–#399): отказ листа без разрезов, найденное и задание живут, пока настройка та же,
 // «сейчас» в фоне, журнал просмотров без «open», шапка с основанием и областью видимости, расчёт снимается настройкой.
+// Волна 60 (блок DDD, #400–#419): правая панель экрана показа вкладками (ПВ-42, ПВ-43, ПВ-45…ПВ-49) — под листом ничего,
+// вход и смена отчёта — «Настройки», ссылки открывают свою вкладку, паспорт без повторов шапки, выпуск режимом поверх
+// вкладок, язычок со значками, «Задания» только этого отчёта; общая рамка sidePanel. Переписаны #76, #99, #210, #218,
+// #227, #246, #298, #345, #347, #349, #354, #355, #357 (паспорт — вкладкой), #373…#377, #380, #391, #398.
+// Волна 60 (блок EEE, #420–#424): план-факт колонками отчёта (ПВ-44) — «План выдачи» в «＋ Показатель», группа «план»; план и «Выдано
+// с начала года» равны ответу планфакта по подразделениям и в итоге; у плана нет вклада объекта и провала, на дроблении пусто с причиной;
+// стартовый общий отчёт «План и факт выдачи» — таблица «подразделение · план · выдано · %» с итогом.
+// Волна 60 (блок FFF, #425–#429): число группы один раз — в «Итого по …» у уровня с итогом, иначе в строке группы (ПВ-50,
+// ПВ-Д12); закреплены все ведущие текстовые колонки, счётчик колонок у основной таблицы (ПВ-Д9). #347 — четыре ⚠.
+// Волна 60 (блок GGG, #430–#434): списки «＋ Разрез», «＋ Показатель», «Поле» — слева от панели поверх листа, число в группе,
+// поиск (ПВ-Д13); в режиме времени меню «Выгрузить ▾» и «В рабочий список» называют отчёт на дату, который уйдёт (ПВ-51).
+// Правка по ревью волны 60 (блок HHH, #435–#440): условие по формуле считает год даты показа и не берёт план; «В рабочий список»
+// у показа без строк объектов — причина без записи выпуска; запасной колонки `__lvl` в колонках нет; язычок без своей вкладки
+// открывает первую; в меню правой кнопки — «Заметки строки · n»; над таблицей без строк объектов — «групп N». #417 — язычок.
+// Волна 61 (экран «Конструктор» на рамке показа; блок проверок — в konstruktor-check #33…): с витрины «Собрать отчёт» ведёт RP.kbNew()
+// — стартовый экран (#296); «один раз» — строкой во вкладке «Паспорт» конструктора (#348); номера КН- и ВБ- среди запрещённых в тексте
+// экранов (#342); разметка конструктора закрыта на стартовом экране и в рамке (#343).
+// #441 — источник в паспорте выпуска словами (ПВ-Д19).
+// Волна 62 (блок III, #442–#466): экран «Верстальщик бланка» на рамке показа (ВБ-1…ВБ-23) — полоса, шапка, строка над листом,
+// лист, панель «Палитра · Паспорт», окна печати, загрузки, отправки и возврата, «Стенд ▾», путь редакции, свои примеры;
+// переписаны #61, #166, #168, #170, #175, #179, #181, #182, #302, #307, #361 (окно печати, «Стенд ▾», строка ошибки, основание
+// при отправке, утверждение только из «на утверждении»). Правка по ревью #467–#472: окно «Печать» — объекты и задания
+// в области видимости смотрящего, дата окна акта — одна на бумагу и заказ; на утверждении не правятся ни текст, ни лист;
+// отправляет только ведущий бланки; возвращённая PDF-форма после сопоставления — черновик; «снять» у ушедшего поля формы;
+// причина без повтора метки; поле формы выбирается по индексу.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -589,10 +615,13 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
   const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn();
+  /* Верстальщик (волна 62, ВБ-3): отказ — причиной у недоступной главной кнопки на её месте. */
   ok(61, has(reg, 'Не видно этой роли') && has(cal, 'Три кнопки, которых в модуле нет') &&
-        has(jr, 'что мы отдали наружу') && has(bl, 'Проверка документом') &&
+        has(jr, 'что мы отдали наружу') &&
+        /id="vbMain" disabled title="черновика нет — загрузите исправленный макет">Отправить на утверждение</.test(bl) &&
         has(wl, 'Завести список правилом'),
-    `отказы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
+    `отказы проговорены на самих экранах, а не спрятаны за отсутствием кнопки; у верстальщика — причиной у недоступной ` +
+    `«Отправить на утверждение» («черновика нет — загрузите исправленный макет», ВБ-3)`);
 })();
 
 /* ---------- R. Волна 4: итоги уровней, лист выгрузки, выпуск заданием ---------- */
@@ -722,10 +751,12 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)`);
 
   const V = win.VIEWS;
+  /* Заказы выпуска — на вкладке «Задания» правой панели (ПВ-42, ПВ-49). */
+  RP.state.sel.tpl = 't-overdue'; RP.state.sel.pvTab = 'задания';
   const b = V.builder.fn(), i = V.issue.fn(), w = V.worklists.fn();
   RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
   const j = V.journal.fn(), i2 = V.issue.fn();
-  ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Задания на выпуск') &&
+  ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Заказы выпуска') && has(i, 'Состояния заказа: заказан → считается') &&
         has(i, 'Итого по «') && has(i2, 'Шаг задания') && has(j, 'задание: заказан') &&
         has(b, 'Сложить итоги уровней самим') && has(w, 'Завести список правилом'),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
@@ -918,7 +949,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.state.sel.tpl = 't-overdue'; RP.state.sel.twist = { cuts:['dept'], stats:['s-overdue-sum','s-overdue-cnt'],
     drill:true, layout:'показатели в колонках' };
   const i1 = V.issue.fn();
-  ok(99, has(i0, '<b>Как смотреть</b>') && has(i0, 'НЕ ВЫПУСК') &&
+  ok(99, has(i0, 'class="on" onclick="RP.pvTab(\'настройки\')">Настройки</button>') && has(i0, 'Показ — не выпуск') &&
         has(i0, 'Мой вид') && !has(i0, 'жёстко') && !has(i0, DEV) &&
         has(i1, DEV) && has(i1, 'Вернуть утверждённый') && has(i1, 'devmark'),
     `экран показа без границ: пока состав утверждённый — пометки нет; накрутили — в шапке ` +
@@ -1616,8 +1647,9 @@ const DEV = 'изменено — не утверждённый состав';
   const shIds = sh.shared.map(r => r.id).join();
   RP.state.sel.scTab = '';
   const first = win.VIEWS.showcase.fn();
-  /* Волна 58: три стартовых общих отчёта по объектам соседей открыты всем подразделениям (ОЧ-82, ОЧ-83, ПВ-15). */
-  const START = ',t-sh-claims,t-sh-pledges,t-sh-apps';
+  /* Волна 58: три стартовых общих отчёта по объектам соседей открыты всем подразделениям (ОЧ-82, ОЧ-83, ПВ-15);
+     волна 60: четвёртый стартовый — «План и факт выдачи» по кредитам (ПВ-44). */
+  const START = ',t-sh-claims,t-sh-pledges,t-sh-apps,t-sh-planfact';
   ok(160, mineIds === 't-avg,t-npl,t-osh,ВД-1' && shIds === 't-sh-plan,t-sh-big' + START &&
         sh.shared[0].users >= sh.shared[1].users && has(first, 'Открыть кругу') &&
         has(first, 'class="on"') && has(first, '>личный'),
@@ -1695,14 +1727,19 @@ const DEV = 'изменено — не утверждённый состав';
   const dl = RP.downloadLayout('t-notice');
   const up = RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: {{borrower}}\nДоговор ${Кредит.Номер}');
   const t = RP.TPL('t-notice');
-  const send1 = RP.sendForApproval('t-notice');
+  /* Основание при отправке обязательно (ВБ-20): ошибка закрывает отправку и с основанием. */
+  const send1 = RP.sendForApproval('t-notice', 'исправлено обращение');
   const up2 = RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}');
-  const send2 = RP.sendForApproval('t-notice');
+  const send0 = RP.sendForApproval('t-notice');
+  const send2 = RP.sendForApproval('t-notice', 'исправлено обращение');
   ok(166, dl.ok && has(dl.note, 'Word или LibreOffice') && up.ok && up.errors === 1 &&
         has(up.note, 'работа сохранена') && RP.draftEd('t-notice').n === 2 && RP.pubEd('t-notice').n === 1 &&
-        !send1.ok && has(send1.why, 'стр. 2') && up2.ok && up2.errors === 0 && send2.ok && t.asked === true,
+        !send1.ok && has(send1.why, 'стр. 2') && up2.ok && up2.errors === 0 &&
+        !send0.ok && has(send0.why, 'назовите основание') && send2.ok && t.asked === true &&
+        RP.blankFlow('t-notice').flow === 'на утверждении' && RP.pubEd('t-notice').n === 1,
     `файл ходит «скачать → поправить → загрузить»: загрузка с ошибкой легла черновиком ред. 2 ` +
-    `(прежняя печатается), ошибка закрыла только отправку на утверждение — «${send1.why.slice(0, 60)}…»`);
+    `(прежняя печатается), ошибка закрыла только отправку на утверждение — «${send1.why.slice(0, 60)}…»; ` +
+    `чистый черновик без основания не уходит («${send0.why}», ВБ-20), с основанием — «на утверждении»`);
 
   const pal = RP.palette('t-contract', '', 'kr-6');
   const roles = pal.map(g => g.role);
@@ -1728,10 +1765,12 @@ const DEV = 'изменено — не утверждённый состав';
         has(withG, 'шесть миллионов двести тысяч') && has(withG, '«01» июля 2025 г.') && has(withG, 'lcheck sample') &&
         has(noG, 'не выполнено, раздела не будет') && has(names, '${Поручитель.ФИО | род.}') &&
         !has(names, 'lcheck sample') && has(recon, 'повтор · каждый платёж · строк 4') &&
-        has(recon, 'Ошибок нет'),
+        has(recon, '<span class="vb-ok">✓ ошибок нет</span>') && !has(recon, 'Ошибок нет') &&
+        has(withG, 'onclick="RP.vbVals(false)">Имена полей</button>'),
     `проверка — документ: поля подсвечены, вид значения применён («Асанова Т. К.», сумма прописью, ` +
     `дата словами), условие о поручителе выполнено у КД-2025/126 и не выполнено у КД-2024/203, ` +
-    `повтор акта сверки дал 4 строки платежей; на примерах — «ОБРАЗЕЦ», переключатель «имена / значения»`);
+    `повтор акта сверки дал 4 строки платежей; на примерах — «ОБРАЗЕЦ», переключатель «Значения | Имена полей»; ` +
+    `карточки «Ошибок нет» нет — «✓ ошибок нет» над листом (ВБ-8)`);
 
   RP.seed(); as('clerk');
   const c = RP.issue('t-contract', { params:{ obj:'kr-6' }, kind:'окончательный' });
@@ -1747,13 +1786,19 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.seed(); as('auth');
   RP.newEdition('t-claim');
-  RP.state.templates.find(x => x.id === 't-claim').editions.find(e => e.state === 'черновик')
-    .layoutText = 'ПРЕТЕНЗИЯ\nКому: ${Заёмщик.ФИО | вин}\n${Если: есть Поручитель}\nтекст';
+  const clDr = RP.state.templates.find(x => x.id === 't-claim').editions.find(e => e.state === 'черновик');
+  clDr.layoutText = 'ПРЕТЕНЗИЯ\nКому: ${Заёмщик.ФИО | вин}\n${Если: есть Поручитель}\nтекст';
   const ch = RP.publishChecks('t-claim').filter(x => x.check === 'проверка макета');
+  const clSend = RP.sendForApproval('t-claim', 'добавлен поручитель');
+  /* Утверждается только редакция «на утверждении» (ВБ-4); проверка повторяется и на ней —
+     черновик, сломанный уже после отправки, ставится на утверждение напрямую. */
+  clDr.flow = 'на утверждении';
+  const clPub = RP.publish('t-claim');
   ok(170, ch.length === 2 && ch.some(x => has(x.why, 'стр. 2')) && ch.some(x => has(x.why, 'условие не закрыто')) &&
-        !RP.publish('t-claim').ok,
+        !clSend.ok && has(clSend.why, 'стр. 2') && !clPub.ok && has(clPub.why, 'стр. 2') &&
+        (clPub.all || []).filter(x => x.check === 'проверка макета').length === 2 && RP.pubEd('t-claim').n === 1,
     `утверждение повторяет проверку документом: ошибка с местом («${ch[0].why.slice(0, 50)}…») ` +
-    `не пускает редакцию в печать`);
+    `закрывает отправку и не пускает в печать редакцию «на утверждении» — отказ называет ошибку, а не путь редакции`);
 })();
 
 /* ---- CC. Получатель сдачи — «вид + значение»; повтор в режиме бланка (ADR-0305, волна 34) ---- */
@@ -1809,11 +1854,16 @@ const DEV = 'изменено — не утверждённый состав';
   const onDate = RP.parseLayout(txt, 'credit', 'на дату');
   const nowP = RP.parseLayout(txt, 'credit', 'сейчас');
   as('auth'); RP.newEdition('t-recon');
-  RP.state.templates.find(x => x.id === 't-recon').editions.find(e => e.state === 'черновик').layoutText = txt;
+  const rcDr = RP.state.templates.find(x => x.id === 't-recon').editions.find(e => e.state === 'черновик');
+  rcDr.layoutText = txt;
   const chk = RP.publishChecks('t-recon').filter(x => x.check === 'проверка макета');
+  const rcSend = RP.sendForApproval('t-recon', 'строки графика');
+  rcDr.flow = 'на утверждении';                     // утверждается только «на утверждении» (ВБ-4)
+  const rcPub = RP.publish('t-recon');
   const pal = RP.palette('t-recon', '', 'kr-2').map(g => g.role);
   ok(175, onDate.errors.length === 1 && has(onDate.errors[0].why, 'строки графика на дату не хранятся') &&
-        nowP.errors.length === 0 && chk.length === 1 && !RP.publish('t-recon').ok &&
+        nowP.errors.length === 0 && chk.length === 1 && !rcSend.ok && has(rcSend.why, 'строки графика на дату не хранятся') &&
+        !rcPub.ok && has(rcPub.why, 'строки графика на дату не хранятся') &&
         pal.indexOf('Платёж — в повторе') !== -1 && pal.indexOf('Строка графика — в повторе') === -1,
     `повтор по строке графика у бланка «на дату» — ошибка проверки макета: «${(onDate.errors[0] || {}).why}»; ` +
     `у бланка «сейчас» тот же текст чист; палитра бланка «на дату» строк графика не предлагает (ADR-0305 п. 4)`);
@@ -1853,12 +1903,19 @@ const DEV = 'изменено — не утверждённый состав';
   const cmp = RP.compareEditions('t-notice');
   RP.state.view = 'blank'; RP.state.sel.blank = 't-notice';
   const scr = win.VIEWS.blank.fn();
+  /* Сравнение — режим листа (ВБ-9): сегмент «Сравнение с ред. 1 · N», бумага «до и после» — двумя колонками. */
+  RP.state.sel.vbMode = 'cmp'; const scrC = win.VIEWS.blank.fn(); RP.state.sel.vbMode = 'doc';
+  const cmpCol = scrC.slice(scrC.indexOf('class="vb-cmp2"'));
   ok(179, cmp.ok && cmp.was === 1 && cmp.now === 2 && cmp.changed > 0 && cmp.lines.some(x => x.op === '+') &&
         cmp.conds.added.join() === 'есть Поручитель' && cmp.fields.added.indexOf('Поручитель.ФИО') !== -1 &&
         cmp.paper.length > 0 && cmp.paper[0].before !== cmp.paper[0].after &&
-        has(scr, 'Сравнение: ред. 1 → ред. 2') && has(scr, 'Бумага «до и после»'),
+        has(scr, `onclick="RP.vbMode('cmp')">Сравнение с ред. 1 · ${cmp.changed}</button>`) && !has(scr, 'class="vb-cmp2"') &&
+        has(scrC, '<span class="tk ok">+ Поручитель.ФИО</span>') && has(scrC, '<span class="tk ok">+ есть Поручитель</span>') &&
+        has(cmpCol, '<h4>ред. 1 — печатается · ') && has(cmpCol, '<h4>ред. 2 — черновик</h4>') &&
+        (cmpCol.match(/<div class="lcheck sample">/g) || []).length === 2,
     `утверждение по сравнению: ред. 1 → 2 — изменённых строк ${cmp.changed}, условия +${cmp.conds.added.join()}, ` +
-    `поля +${cmp.fields.added.join(', ')}; бумага «до и после» на тех же примерах (ADR-0297 п. 13)`);
+    `поля +${cmp.fields.added.join(', ')}; бумага «до и после» на тех же примерах двумя колонками в режиме листа ` +
+    `«Сравнение с ред. 1 · ${cmp.changed}» (ADR-0297 п. 13, ВБ-9)`);
 
   RP.seed(); as('clerk');
   const f2 = RP.pdfFill('t-bankform', 'kr-2'), f6 = RP.pdfFill('t-bankform', 'kr-6');
@@ -1877,12 +1934,15 @@ const DEV = 'изменено — не утверждённый состав';
   const refuse = RP.issue('t-bankform', { params:{ obj:'kr-2' }, kind:'предварительный' });
   t.editions[0].pdfForm.overflow = 'лист продолжения';
   const up = RP.uploadPdfForm('t-bankform', 'bank-agent-confirm-v2.pdf', ['BorrowerName','ContractNo','DebtSum','chkGuarantee','BankNote','PayRow1']);
-  const send = RP.sendForApproval('t-bankform');
+  const send = RP.sendForApproval('t-bankform', 'новая версия формы банка');
   as('auth'); const pc = RP.publishChecks('t-bankform').filter(x => x.check === 'проверка макета');
+  RP.TPL('t-bankform').editions.find(e => e.state === 'черновик').flow = 'на утверждении';   // утверждается только «на утверждении» (ВБ-4)
+  const bfPub = RP.publish('t-bankform');
   const cmp2 = RP.compareEditions('t-bankform');
   ok(181, !refuse.ok && has(refuse.why, 'лист продолжения эта форма не принимает') &&
         up.ok && up.carried === 5 && up.lost.join() === 'DebtAmount' && up.fresh.join() === 'DebtSum' &&
-        !send.ok && has(send.why, 'сопоставление формы') && pc.length === 2 && !RP.publish('t-bankform').ok &&
+        !send.ok && has(send.why, 'сопоставление формы') && pc.length === 2 && !bfPub.ok &&
+        (bfPub.all || []).filter(x => x.check === 'проверка макета').length === 2 &&
         cmp2.pdf && cmp2.mapping.removed.some(x => has(x, 'DebtAmount')) && cmp2.mapping.added.some(x => has(x, 'DebtSum')),
     `форма с признаком «отказать» отклоняет переполнение с причиной; новая версия формы перенесла сопоставление ` +
     `по именам (${up.carried} из 6), не совпавшее — ошибка проверки, утверждение закрыто; сравнение показывает ` +
@@ -1891,9 +1951,13 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('clerk');
   RP.state.view = 'blank'; RP.state.sel.blank = 't-bankform'; RP.state.sel.blankObj = 'kr-2';
   const pscr = win.VIEWS.blank.fn();
-  ok(182, has(pscr, 'мимо движка') && has(pscr, 'Страница формы') && has(pscr, 'на листе продолжения') &&
-        has(pscr, 'оставить пустым') && !has(pscr, 'Проверка документом'),
-    `экран PDF-формы — картинка страницы с полями, сопоставление и заполнение на примере, а не проверка docx`);
+  RP.state.sel.vbMode = 'fill'; const pfill = win.VIEWS.blank.fn(); RP.state.sel.vbMode = 'doc';
+  const pSheet = pscr.slice(pscr.indexOf('id="vbSheet"'), pscr.indexOf('<aside class="sp'));
+  ok(182, !has(pscr, 'мимо движка') && has(pSheet, '<div class="pf-page">') && !has(pSheet, 'class="lcheck') &&
+        has(pscr, ">Сопоставление</button>") && has(pscr, ">Заполнение</button>") &&
+        has(pfill, '3 на листе продолжения') && has(pSheet, 'оставить пустым') && !has(pscr, 'Проверка документом'),
+    `экран PDF-формы — страница формы с полями (сопоставление) и заполнение на примере («на листе продолжения»), ` +
+    `а не проверка docx; баннера «мимо движка» нет (ВБ-16, ВБ-18)`);
 })();
 
 /* ---- EE. Своя формула по уровням и вид отличиями (ИО-46, ИО-43, ОГ-Д3, волна 34) ---- */
@@ -2264,8 +2328,9 @@ const DEV = 'изменено — не утверждённый состав';
   const s1v = win.VIEWS.issue.fn(); RP.state.sel.chart = false; RP.setTime('отчёт');
   const s1r = win.VIEWS.issue.fn(), s1 = s1v + s1r, keptView = RP.state.sel.view === vv.id;
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.tpl = 't-pay04';
+  RP.state.sel.pvTab = 'паспорт';   /* строка «колонки-даты» — во вкладке «Паспорт» (ПВ-43) */
   const s2 = win.VIEWS.issue.fn();
-  ok(210, /class="obj noted/.test(s1r) && has(s1r, 'заметка к ячейке') && has(s1v, 'Режим времени из вида «моя динамика»') &&
+  ok(210,/class="obj noted/.test(s1r) && has(s1r, 'заметка к ячейке') && has(s1v, 'Режим времени из вида «моя динамика»') &&
         has(s1v, '>как сохранено</button>') && has(s1r, '<button class="on" onclick="RP.setTime(\'отчёт\')">отчёт</button>') && keptView &&
         has(s1, '<svg class="chart line"') && has(s1, 'Заметка к строке') && has(s1, 'к ячейке') &&
         has(s2, 'Колонки-даты формы — от отчётной даты 01.08.2026') && has(s2, 'С начала года — прошлый год') &&
@@ -2355,6 +2420,7 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  RP.state.sel.pvTab = 'паспорт';   /* источник колонок и пометки — во вкладке «Паспорт» (ПВ-43) */
   const s1 = win.VIEWS.issue.fn(), jr = win.VIEWS.journal.fn(), sb = win.VIEWS.subs.fn();
   ok(218, has(s1, '<sup class="fn">1</sup>') && has(s1, '<sup class="fn">2</sup>') &&
         has(s1, '«На начало года»: из легаси — перенос, выпуск миграции М-1') && has(s1, 'в легаси не собиралось') &&
@@ -2498,6 +2564,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  RP.state.sel.pvTab = 'паспорт';   /* пометки «нет в легаси» — во вкладке «Паспорт» (ПВ-43) */
   const s1 = win.VIEWS.issue.fn();
   const sc = win.VIEWS.showcase.fn();
   ok(227, has(s1, 'На отчётную дату — прошлый год') && (s1.match(/>в легаси не собиралось</g) || []).length === 2 &&
@@ -2772,6 +2839,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-07-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  RP.state.sel.pvTab = 'паспорт';   /* строка «методика» — во вкладке «Паспорт» (ПВ-43) */
   const s7 = win.VIEWS.issue.fn();
   RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:5000000, each:'dept' }); RP.nightRun('2026-05-01');
   const subsScr = win.VIEWS.subs.fn();
@@ -3428,10 +3496,10 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('user');
   RP.state.sel.scTab = 'мои'; const vit = win.VIEWS.showcase.fn();
   const shell = src.slice(0, src.indexOf('<script>'));
-  ok(296, has(vit, 'Собрать отчёт') && has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
+  ok(296, has(vit, 'Собрать отчёт') && has(vit, 'RP.kbNew()') && !has(vit, "RP.go('draft')") && has(shell, 'data-v="draft"') &&
         has(shell, '<div class="brand">АСУБК') && !has(shell, 'ГФХ'),
     `ОГ-Д1: оболочка «Формирования» — экран «Конструктор» внутри общей оболочки АСУБК (топбар, меню трёх столов, одна палитра); ` +
-    `с витрины в него ведёт «Собрать отчёт»`);
+    `с витрины в него ведёт «Собрать отчёт» — через RP.kbNew(): стартовый экран «Новый отчёт»`);
 
   RP.seed(); as('buh');
   const h8 = RP.highlight('t-sh-plan', { asOf:'2026-08-01' }), h6 = RP.highlight('t-sh-plan', { asOf:'2026-06-01' });
@@ -3447,7 +3515,8 @@ const DEV = 'изменено — не утверждённый состав';
     `помимо редакции порог не ставится`);
 
   RP.seed(); as('head');
-  Object.assign(RP.state.sel, { tpl:'t-overdue', params:{ asOf:'2026-08-01', dept:'' }, wide:true, usd:true, pivot:true, rel:'dept' });
+  /* Пороги формы — во вкладке «Паспорт» (ПВ-43); план-факт — не вкладкой, а колонками отчёта (ПВ-44). */
+  Object.assign(RP.state.sel, { tpl:'t-overdue', params:{ asOf:'2026-08-01', dept:'' }, wide:true, usd:true, pivot:true, rel:'dept', pvTab:'паспорт' });
   const s1 = win.VIEWS.issue.fn();
   as('auth'); RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const s2 = win.VIEWS.subs.fn();
   as('buh'); RP.doMigrationEvents(); as('auth'); const s3 = win.VIEWS.journal.fn();
@@ -3458,10 +3527,11 @@ const DEV = 'изменено — не утверждённый состав';
     from(s4, 'Список из внешнего перечня'), from(s5, '>Название<')];
   const cleanOO = mineOO.every(x => x.length > 100 && !/О[ГД]-\d|ADR-\d|ИО-\d/.test(x));
   ok(298, has(s1, 'Подставлено по вам') && has(s1, 'по валюте договора') && has(s1, 'Итоги шире зоны — только итоги') &&
-        has(s1, 'скрыто: в группе меньше 3 объектов') && has(s1, 'План выдачи и факт') && has(s1, 'подразделение × состояние кредита') &&
+        has(s1, 'скрыто: в группе меньше 3 объектов') && !has(s1, 'План-факт') && !has(s1, 'План выдачи и факт') && has(s1, 'подразделение × состояние кредита') &&
         has(s2, 'Мои задания') && has(s2, 'МЗ-1') && has(s3, 'Журнал просмотров') && has(s3, 'нет (события не перенесены)') &&
         has(s4, 'внешнего перечня') && has(s5, 'предлагается в архив') && has(s1, 'Пороги формы — утверждены с редакцией') && cleanOO,
-    `экраны: на показе — значения по смотрящему, валюта договора, сводная, итоги шире зоны, план и факт; «Мои задания»; журнал ` +
+    `экраны: на показе — значения по смотрящему, валюта договора, сводная, итоги шире зоны, пороги формы в паспорте, вкладки ` +
+    `«План-факт» нет (план — колонками отчёта); «Мои задания»; журнал ` +
     `просмотров и события декабря 2024; список из перечня; архив общего; номеров решений в новых карточках нет`);
 })();
 
@@ -3489,7 +3559,7 @@ const DEV = 'изменено — не утверждённый состав';
   const V = win.VIEWS;
   const docOf = (obj, down) => { RP.state.down = down || []; RP.state.sel.blank = 't-zspr'; RP.state.sel.blankObj = obj;
     RP.state.sel.blankVals = true; const h = V.blank.fn(); const i = h.indexOf('<div class="lcheck sample">');
-    RP.state.down = []; return h.slice(i, h.indexOf('<div class="legend', i)); };
+    RP.state.down = []; return h.slice(i, h.indexOf('<aside class="sp', i)); };     // лист — до правой панели (ВБ-1)
   const txt = h => String(h).replace(/<[^>]+>/g, '');
   const t = RP.TPL('t-zspr'), ed = t.editions[0];
   const p = RP.parseLayout(ed.layoutText, 'borrower', 'сейчас');
@@ -3518,13 +3588,13 @@ const DEV = 'изменено — не утверждённый состав';
     `нулевая статья не печатается (${peni4})`);
 
   const d5 = docOf('su-5'), d3 = docOf('su-3');
-  ok(302, has(txt(d5), 'каждый действующий кредит · строк 0') && has(d5, '<span class="tx">нет <span') &&
+  ok(302, has(txt(d5), 'каждый действующий кредит · строк 0') && has(d5, '<span class="tx">нет</span>') &&
         has(txt(d5), 'есть ПогашенныеКредиты — выполнено') &&
         has(txt(d5), 'Погашено кредитов: 1 на сумму 20 000 000 сом, последний закрыт 14.08.2026') &&
         has(txt(d5), 'Обеспеченность: нет действующих кредитов') && has(txt(d5), 'Куратор: не назначен') &&
         has(txt(d3), 'Заёмщик.ВидЛица = физлицо или ИП — выполнено') && has(txt(d3), 'Заёмщик.ВидЛица = юрлицо — не выполнено') &&
         has(txt(d3), 'ИП, документ: паспорт'),
-    `пустой раздел — «нет», погашенные — одной строкой, куратора нет — «не назначен», а не пусто; реквизиты — ` +
+    `пустой раздел — «нет» без пояснения (ВБ-18), погашенные — одной строкой, куратора нет — «не назначен», а не пусто; реквизиты — ` +
     `условием по виду лица: у ИП паспорт, у юрлица ОПФ и руководитель`);
 
   const r1 = RP.issue('t-zspr', {params:{obj:'su-6'}, kind:'окончательный'});
@@ -3576,16 +3646,27 @@ const DEV = 'изменено — не утверждённый состав';
     `повтор и условие говорят о своём объекте: платёж — у бланка кредита, разделы справки — у бланка заёмщика; ` +
     `вложенного повтора по-прежнему нет`);
 
+  /* С волны 62: молчание модуля — в «Стенд ▾» (ВБ-15), объект и получатель печати — в окне «Печать» (ВБ-14),
+     примеры — чипами (ВБ-6), повторы палитры — свёрнутыми группами (ВБ-11), номер и получатель — в шапке (ВБ-5). */
+  const ev = c => vm.runInContext(c, sandbox);
+  RP.state.view = 'blank'; RP.state.sel.vbDlg = null;
   RP.state.sel.blank = 't-zspr'; RP.state.sel.blankObj = 'su-6'; RP.state.sel.obj = 'kr-2';
-  const s1 = V.blank.fn();
+  const s1 = V.blank.fn(), st1 = ev('pvStand()');
+  RP.blankPrint('t-zspr'); const pr1 = RP.vbDialogs(); RP.state.sel.vbDlg = null;
   RP.state.sel.blank = 't-recon';
-  const s2 = V.blank.fn();
-  ok(307, has(s1, 'Заёмщик (объект бланка)') && has(s1, 'Если модуль не ответит') && has(s1, 'RP.setDown(') &&
-        (s1.match(/RP\.state\.sel\.blankObj='su-/g) || []).length === 4 && has(s1, 'заказавший — сотрудник, напечатавший бумагу') &&
-        has(s1, '<details class="pal-d"') && has(s1, 'ПредметЗалога.Стоимость') && has(s1, 'рабочая бумага — без номера') &&
-        !has(s2, 'Если модуль не ответит') && has(s2, 'Кредит (объект бланка)'),
-    `экран верстальщика: четыре трудных заёмщика, переключатель «если модуль не ответит», объект печати — заёмщик, ` +
-    `получатель — заказавший; группы повтора в палитре свёрнуты; у бланка «на дату» переключателя нет`);
+  const s2 = V.blank.fn(), st2 = ev('pvStand()');
+  RP.blankPrint('t-recon'); const pr2 = RP.vbDialogs(); RP.state.sel.vbDlg = null;
+  const repG = s1.match(/<details class="vb-g" data-key="t-zspr\|f:[^"]*— в повторе"[^>]*>/g) || [];
+  ok(307, has(pr1, '<span class="small muted">заёмщик</span><span class="ob">') && /<span class="ob">[^<]*ИНН \d+<\/span>/.test(pr1) &&
+        has(st1, 'Если модуль не ответит') && has(st1, 'RP.setDown(') &&
+        (s1.match(/onclick="RP\.vbObj\('su-/g) || []).length === 4 &&
+        has(pr1, 'Получатель — заказавший — сотрудник, напечатавший бумагу') && has(s1, 'получатель — заказавший — сотрудник, напечатавший бумагу') &&
+        repG.length === 6 && repG.every(x => !/ open>$/.test(x)) && has(s1, 'ПредметЗалога.Стоимость') &&
+        has(s1, 'номер — рабочая бумага — без номера') && has(pr1, 'рабочая бумага — без номера') &&
+        !has(st2, 'Если модуль не ответит') && has(pr2, '<span class="small muted">кредит</span><span class="ob">КД-2024/203'),
+    `экран верстальщика: четыре трудных заёмщика чипами, «Если модуль не ответит» — в «Стенд ▾», объект печати в окне ` +
+    `«Печать» — заёмщик, хотя выбран кредит; получатель — заказавший; ${repG.length} групп повтора в палитре свёрнуты; ` +
+    `у бланка «на дату» молчания модуля в стенде нет, объект печати — кредит`);
 })();
 
 /* ---------- RR. Волна 48: страница «Отчётность» — каталог «где мой отчёт» (ВТ-1…ВТ-14) ---------- */
@@ -4099,7 +4180,7 @@ const DEV = 'изменено — не утверждённый состав';
     `карточка отчёта открывается кнопкой «Открыть» в строке реестра: состав редакции, проверки, «Утвердить редакцию», ` +
     `возврат в реестр; своего пункта меню и выбора отчёта списком у неё нет`);
 
-  const ID = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|ПВ|СПЗ|ДБ|РЯ|СС|ИС|ADR)-[ДDВ]?\d+|§\s?\d/;
+  const ID = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|ПВ|СПЗ|ДБ|РЯ|СС|ИС|КН|ВБ|ADR)-[ДDВ]?\d+|§\s?\d/;
   const text = h => h.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ');
   const shown = [];
   Object.keys(R).forEach(r => Object.keys(win.VIEWS).forEach(v => {
@@ -4115,12 +4196,16 @@ const DEV = 'изменено — не утверждённый состав';
     `номер правила у отказа — поле rule`);
 
   RP.seed(); as('auth');
+  win.S().started = false;
   const reg2 = win.VIEWS.registry.fn(), draft = win.VIEWS.draft.fn();
   const opens = (draft.match(/<div\b/g) || []).length, closes = (draft.match(/<\/div>/g) || []).length;
-  ok(343, !has(reg2, 'Правка у соседей') && !has(draft, 'Заглушки соседей') && typeof RP.demoRename === 'undefined' &&
-        opens === closes,
+  /* Конструктор — два вида: стартовый экран «Новый отчёт» и рамка (с волны 61); закрыты оба. */
+  win.S().started = true; const frame = win.VIEWS.draft.fn();
+  const fOpens = (frame.match(/<div\b/g) || []).length, fCloses = (frame.match(/<\/div>/g) || []).length;
+  ok(343, !has(reg2, 'Правка у соседей') && !has(draft, 'Заглушки соседей') && !has(frame, 'Заглушки соседей') && typeof RP.demoRename === 'undefined' &&
+        opens === closes && fOpens === fCloses && has(draft, 'kb-start') && has(frame, 'class="pv kb"'),
     `служебных вставок на рабочих экранах нет: карточки «Правка у соседей» в реестре и подвала «Заглушки соседей» ` +
-    `в конструкторе нет; разметка конструктора закрыта (div ${opens}/${closes})`);
+    `в конструкторе нет; разметка конструктора закрыта: стартовый экран div ${opens}/${closes}, рамка ${fOpens}/${fCloses}`);
 })();
 
 /* Волна 54 (блок XX, #344): подтверждение новой редакции при смене методики — в карточке отчёта (ГМ-8). */
@@ -4148,6 +4233,7 @@ const DEV = 'изменено — не утверждённый состав';
   const p8 = { asOf:'2026-08-01', dept:'' };
   RP.seed(); as('auth'); RP.state.view = 'issue';
   RP.state.down = ['залог']; RP.state.sel.tpl = 't-sh-big'; RP.state.sel.live = true;
+  RP.state.sel.pvTab = 'паспорт';   /* пометки числа — во вкладке «Паспорт» (ПВ-43) */
   const nb = RP.show('t-sh-big', { dept:'' }, null).data, na = nb.noAnswer, h1 = win.VIEWS.issue.fn();
   RP.state.down = []; const h0 = win.VIEWS.issue.fn(), nb0 = RP.show('t-sh-big', { dept:'' }, null).data;
   ok(345, na.length === 1 && na[0].col === 'cover' && na[0].owner === 'залог' && na[0].reason === 'недоступен' && na[0].rows === nb.rows.length &&
@@ -4174,6 +4260,7 @@ const DEV = 'изменено — не утверждённый состав';
   const s8 = RP.show('t-overdue', p8, null).data, s7 = RP.show('t-overdue', { asOf:'2026-07-01', dept:'' }, null).data;
   const tot = id => s8.totals.find(x => x.id === id), grp = k => s8.groups.find(g => g.key === k).totals[0], kr2 = s8.rows.find(r => r.id === 'kr-2');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = p8;
+  RP.state.sel.pvTab = 'паспорт';   /* пометки числа — во вкладке «Паспорт» (ПВ-43) */
   const f1 = win.VIEWS.issue.fn(), nodes = ev('FIX_NODES');
   RP.uiFix(nodes.findIndex(n => n.what.indexOf('итог') === 0)); const f2 = win.VIEWS.issue.fn();
   as('user'); const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' }, kind:'окончательный', recipient:'a-mf' });
@@ -4181,28 +4268,32 @@ const DEV = 'изменено — не утверждённый состав';
   ok(347, kr2.debt_main === 5300000 && kr2.__fix.debt_main.now === 5000000 && tot('s-overdue-sum').shown === 10300000 &&
         tot('s-overdue-sum').fix.now === 10000000 && !tot('s-overdue-cnt').fix && grp('dep-prom').fix.now === 5000000 && !grp('rep-osh').fix &&
         ev('HIST')['2026-08-01']['kr-2'].debt_main === 5300000 && !s7.passport.fixes && !s7.rows.some(r => r.__fix) &&
-        (f1.match(/class="fixmk"/g) || []).length === 3 && has(f1, '<td>поправка закрытого месяца</td><td>июль 2026: КД-2024/203') &&
+        (f1.match(/class="fixmk"/g) || []).length === 4 && has(f1, '<td>поправка закрытого месяца</td><td>июль 2026: КД-2024/203') &&
         has(f2, 'Поправка закрытого месяца · итог · Сумма просроченной задолженности') && has(f2, '10 300 000 сом — число отчёта и выпуска') &&
         has(f2, '10 000 000 сом — это не отчётное число') && has(f2, 'учтена в месяце «август 2026»') && has(f2, 'проведён ядром 12.08.2026') &&
         fin.ok && fi.kind === 'окончательный' && fi.passport.fixes[0].booked === 'август 2026' && !fi.diverged && !RP.recompute(fin.id).changed,
-    `поправка закрытого июля: закрытое число на месте (КД-2024/203 — 5 300 000) с ⚠ у клетки, у итога узла «промышленность» и у итога ` +
-    `(${(f1.match(/class="fixmk"/g) || []).length} маркера); по клику — объекты, месяц учёта «август 2026», сегодняшний пересчёт 10 000 000 ` +
+    `поправка закрытого июля: закрытое число на месте (КД-2024/203 — 5 300 000) с ⚠ у клетки, у числа группы «просрочен» (уровень без итога, ПВ-50), ` +
+    `у итога узла «промышленность» и у итога (${(f1.match(/class="fixmk"/g) || []).length} маркера); по клику — объекты, месяц учёта «август 2026», сегодняшний пересчёт 10 000 000 ` +
     `«это не отчётное число» и основание; маркер — в паспорте выпуска, сданный не метится; на 01.07 поправки нет`);
 
   const KB = win.KB, S = win.S;
   KB.seed(); KB.setObject('claim'); S().stats = ['s-q-count', 's-q-sum']; S().cuts = [{ id:'q-role', bucket:null, total:true }];
   const qa = KB.answer(), qh = win.scAnswer();
+  /* Строка паспорта «один раз» — во вкладке «Паспорт» конструктора (КН-15), не под листом. */
+  S().started = true; KB.ui.tab('паспорт'); const qp = win.VIEWS.draft.fn(); KB.ui.tab('настройки');
   KB.setObject('credit'); const ch = win.scAnswer();
   ok(348, qa.passport.dedupBy.length === 1 && qa.passport.dedupBy[0].stat === 's-q-sum' && qa.passport.dedupBy[0].key === 'кредит требования' &&
         has(qh, 'title="итог считает каждый кредит требования один раз, поэтому он меньше суммы строк">кредит требования — один раз</span>') &&
-        (qh.match(/ — один раз<\/span>/g) || []).length === 1 && has(qh, '<span class="k">один раз</span>Сумма требований, итого — каждый кредит требования один раз') &&
+        (qh.match(/ — один раз<\/span>/g) || []).length === 1 && !has(qh, '<span class="k">один раз</span>') &&
+        has(qp, '<span class="k">один раз</span>Сумма требований, итого — каждый кредит требования один раз') &&
         !has(ch, '— один раз'),
     `итог «один раз»: под заголовком колонки «Сумма требований, итого» — «кредит требования — один раз», объяснение при наведении; ключ — ` +
-    `строкой паспорта и полем dedupBy; у показателя без ключа подписи нет`);
+    `строкой паспорта во вкладке «Паспорт» и полем dedupBy; у показателя без ключа подписи нет`);
 
   RP.seed(); as('auth');
   const o = RP.show('t-overdue', p8, null).data, pl = RP.show('t-sh-plan', p8, null).data, tOf = (d, id) => d.totals.find(x => x.id === id);
   RP.state.view = 'issue'; RP.state.sel.params = p8;
+  RP.state.sel.pvTab = 'паспорт';   /* чьи пороги — во вкладке «Паспорт» (ПВ-43) */
   RP.state.sel.tpl = 't-overdue'; const t1 = win.VIEWS.issue.fn();
   RP.state.sel.tpl = 't-sh-plan'; const t2 = win.VIEWS.issue.fn();
   ok(349, tOf(o, 's-overdue-cnt').th.state === 'внимание' && !tOf(o, 's-overdue-sum').th && o.thresholds.by === 'форма' &&
@@ -4268,7 +4359,8 @@ const DEV = 'изменено — не утверждённый состав';
 
   RP.seed(); as('auth');
   const lv = RP.show('t-portfolio', { dept:'' }, null).data, k3 = lv.rows.find(r => r.id === 'kr-3') || {};
-  RP.state.view = 'issue'; RP.state.sel.tpl = 't-portfolio'; RP.state.sel.live = true; const h1 = win.VIEWS.issue.fn();
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-portfolio'; RP.state.sel.live = true;
+  RP.state.sel.pvTab = 'паспорт'; const h1 = win.VIEWS.issue.fn();   /* таблица пометок — во вкладке «Паспорт» (ПВ-43) */
   const row3 = (h1.match(/<tr class="obj[^"]*"[^>]*data-r="kr-3"[\s\S]*?<\/tr>/) || [''])[0];
   const ex = RP.exportShown('t-portfolio', { dept:'' }, null, 'xlsx'), xp = (RP.ISS(ex.id) || { passport:{} }).passport;
   const d8 = RP.show('t-overdue', P8, null).data;
@@ -4372,18 +4464,21 @@ const DEV = 'изменено — не утверждённый состав';
   const sa = ev('shownArgs()'), hs = RP.show('t-overdue', sa.params, null), hd = win.VIEWS.issue.fn(), fr = hs.head.frame;
   const ex = RP.exportShown(sa.tid, sa.params, sa.twist, 'xlsx'), rec = RP.ISS(ex.id) || { passport:{} };
   const pbx = ev('passportBox')(rec.passport, false), rowsOf = h => ev('frameRows')(fr).every(r => has(h, '<span class="k">'+r[0]+'</span>'+r[1]));
+  /* На экране фиксация, охват и отбор — в шапке; паспорт панели их не повторяет (ПВ-43). */
+  RP.state.sel.pvTab = 'паспорт'; const hp = win.VIEWS.issue.fn(); RP.state.sel.pvTab = null;
+  const noRows = h => ev('frameRows')(fr).every(r => !has(h, '<span class="k">'+r[0]+'</span>'));
   RP.state.periods['июль 2026'] = { state:'открыт заново', why:'поправка', at:'2026-08-20' };
   const reo = RP.show('t-overdue', P8, null).head.frame.fixed;
   RP.state.today = '2026-08-02'; const yd = win.VIEWS.issue.fn();
   ok(354, fr.fixed === 'месяц «июль 2026» закрыт 05.08.2026' && fr.cover.of === fr.cover.seen + fr.cover.hidden && fr.cover.hidden > 0 &&
         fr.sel.text === 'подразделение — Отраслевой департамент промышленности; Дней просрочки больше 0' &&
         fr.sel.of === fr.cover.seen && fr.sel.n === 1 && fr.sel.n < fr.sel.of &&
-        has(hd, '<span class="k">охват</span>видно '+fr.cover.seen+' из '+fr.cover.of+', '+fr.cover.hidden+' скрыто') &&
-        has(hd, 'в отборе '+fr.sel.n+' из '+fr.sel.of) && rowsOf(hd) && ex.ok &&
+        has(hd, 'охват: видно '+fr.cover.seen+' из '+fr.cover.of+', '+fr.cover.hidden+' скрыто') &&
+        has(hd, 'в отборе '+fr.sel.n+' из '+fr.sel.of) && has(hd, fr.fixed) && has(hp, 'class="sp-pane pv-pass"') && noRows(hp) && ex.ok &&
         JSON.stringify(rec.passport.frame) === JSON.stringify(fr) && rowsOf(pbx) &&
         reo === 'месяц «июль 2026» открыт заново — числа могут измениться' && has(yd, '01.08.2026 · вчера'),
     `ПВ-11: шапка показа называет фиксацию («${fr.fixed}»; открытый — «числа могут измениться»), охват (видно ${fr.cover.seen} ` +
-    `из ${fr.cover.of}, ${fr.cover.hidden} скрыто), отбор («в отборе ${fr.sel.n} из ${fr.sel.of}»), «вчера» у даты; паспорт выгрузки — те же строки`);
+    `из ${fr.cover.of}, ${fr.cover.hidden} скрыто), отбор («в отборе ${fr.sel.n} из ${fr.sel.of}»), «вчера» у даты; паспорт выгрузки — те же строки, паспорт панели их не повторяет`);
 
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue';
@@ -4403,7 +4498,7 @@ const DEV = 'изменено — не утверждённый состав';
         has(e1, 'Порядок: охват роли → параметры отчёта → фильтры отчёта, вида и свои условия → формула и «топ N» → разрезы и итоги по отобранному') &&
         args.params.ids.slice().sort().join() === 'kr-3,kr-6' && !fin.ok && fin.rule === 'ИО-21' &&
         pre.ok && prec.deviated && has(prec.passport.label, 'не утверждённый состав') && prec.passport.frame.sel.n === 2 &&
-        ef.f.top.n === 1 && has(e2, 'в отборе 1 из 8') && !RP.state.sel.fset && has(e3, 'без условий — все видимые') &&
+        ef.f.top.n === 1 && has(e2, 'в отборе 1 из 8') && !RP.state.sel.fset && has(e3, '<span class="sep">·</span>без отбора<span class="sep">') &&
         JSON.stringify(and.groups) === JSON.stringify([[A, B], [A, C]]),
     `ПВ-14: вместо кнопок-образцов — редактор наборов «или» из условий «и»; отбор — после охвата роли и параметров, «в отборе 2 из 8» ` +
     `от видимых, «топ N» — поверх; фильтр отчёта и свои условия — через «и»; свои условия у официального — состав не утверждённый: ` +
@@ -4479,11 +4574,14 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
   RP.state.sel.pvSide = 'выпуск'; const hi = win.VIEWS.issue.fn(), spec = ev('issueSpec()').spec;
+  /* Выбор ступени у бланка — сегментом окна «Печать» (волна 62, ВБ-14). */
+  RP.blankPrint('t-contract', 'kr-6'); const pk = RP.vbDialogs(); RP.state.sel.vbDlg = null;
   ok(361, typeof RP.doOrder === 'undefined' && typeof RP.doIssue === 'undefined' && typeof RP.setKind === 'function' &&
-        !('kind' in spec) && !('recipient' in spec) && !has(hi, 'RP.setKind') && has(hi, 'RP.doFinal()') && has(src, 'onchange="RP.setKind(this.value)"') &&
+        !('kind' in spec) && !('recipient' in spec) && !has(hi, 'RP.setKind') && has(hi, 'RP.doFinal()') &&
+        has(pk, `onclick="RP.setKind('предварительный')">предварительный</button>`) && has(pk, `onclick="RP.setKind('окончательный')">окончательный</button>`) &&
         !has(src, "sel.kind = 'предварительный'"),
     `ПВ-Д4: заказа ступенью-выбором на экране показа нет — ступень кнопкой («Выпустить окончательно» / предварительно); ` +
-    `RP.doOrder и RP.doIssue сняты, issueSpec ступени не несёт; выбор ступени остался только у бланка (RP.setKind)`);
+    `RP.doOrder и RP.doIssue сняты, issueSpec ступени не несёт; выбор ступени остался только у бланка — сегментом окна «Печать» (RP.setKind)`);
 })();
 
 /* Волна 58 (блок BBB, #362–#372): стартовые общие отчёты по объектам соседей — «Взыскание» (ОЧ-82), «Залоги» (ОЧ-83),
@@ -4647,28 +4745,32 @@ const DEV = 'изменено — не утверждённый состав';
     `на 01.10 конец сентября не снимок — своя причина («${g15.data.gap.reason}»)`);
 })();
 
-/* Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — таблица в центре, панель
-   «Как смотреть» справа пятью разделами, полоса действий и «Выпустить» сверху, вкладки под листом; выпуск — панелью,
-   провал — снизу; итоги числами в колонках показателей, вклад объекта в строке; сводка выше 300 строк, отказ statRows
-   у группы; поиск строки; режимы времени на месте листа; долгий расчёт в фон — по кнопке. Переписаны #76, #99, #112,
-   #115, #118, #123, #172, #199, #210, #280, #298, #325, #349, #352 (ПВ-38 переигрывает ПВ-9), #356, #357, #361, #365. */
+/* Волна 59 (блок CCC, #373–#392): раскладка экрана «Показ и выпуск» (ПВ-17…ПВ-41) — таблица в центре, справа
+   панель с вкладками «Настройки · Паспорт · Заметки · Задания» (волна 60, ПВ-42; «Настройки» — пять разделов), полоса
+   действий и «Выпустить» сверху, под листом ничего нет; выпуск — режимом панели поверх вкладок (ПВ-45), провал — снизу;
+   итоги числами в колонках показателей, вклад объекта в строке; сводка выше 300 строк, отказ statRows у группы; поиск
+   строки; режимы времени на месте листа; долгий расчёт в фон — по кнопке. Переписаны #76, #99, #112, #115, #118, #123,
+   #172, #199, #210, #280, #298, #325, #349, #352 (ПВ-38 переигрывает ПВ-9), #356, #357, #361, #365. */
 (() => {
   const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
   const scr = () => V.issue.fn();
   const at = (h, a) => h.indexOf(a);
+  const tabOn = h => (h.match(/<button role="tab" data-tab="([^"]+)" aria-selected="true"/) || [])[1] || null;
+  const SIDE = '<aside class="sp pv-side"';
   const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
     RP.state.sel.params = Object.assign({}, P8); };
   const NUM = /ПВ-\d|ОД-\d|ОЧ-\d|ИО-\d|ОГ-\d|ADR-\d|ГМ-\d/;
 
   start(); const h0 = scr();
   start('t-sh-claims'); const hm = scr();
+  const side0 = h0.slice(at(h0, SIDE));
   ok(373, at(h0, 'class="pv-bar"') < at(h0, 'class="pv-head"') && at(h0, 'class="pv-head"') < at(h0, 'id="pvTw"') &&
-        at(h0, 'id="pvTw"') < at(h0, 'id="pvTabs"') && at(h0, 'id="pvTw"') < at(h0, 'class="pv-side"') &&
+        at(h0, 'id="pvTw"') < at(h0, SIDE) && !has(h0, 'id="pvTabs"') &&
         has(h0, 'Выгрузить ▾') && has(h0, 'В рабочий список') && has(h0, '📌 на дашборд') && has(h0, 'Поставить сигнал…') &&
         has(h0, "RP.pvSide('выпуск')\">Выпустить</button>") && !has(hm, 'Поставить сигнал…') && has(hm, '📌 на дашборд') &&
-        ['Паспорт', 'Заметки', 'Задания'].every(t => has(h0, '>' + t)),
+        ['Настройки', 'Паспорт', 'Заметки', 'Задания'].every(t => has(side0, 'onclick="RP.pvTab(\'' + t.toLowerCase() + '\')">' + t)),
     `каркас: полоса (параметры, «Мой вид ▾» | Выгрузить ▾ · В рабочий список · ⋯ · Выпустить) → шапка → таблица в центре, ` +
-    `«Как смотреть» справа, вкладки Паспорт · Заметки · Задания под листом; «📌» и «Поставить сигнал…» — в «⋯», у соседа сигнала нет`);
+    `справа панель с вкладками Настройки · Паспорт · Заметки · Задания, под листом вкладок нет; «📌» и «Поставить сигнал…» — в «⋯», у соседа сигнала нет`);
 
   start(); const secs = h0.match(/<span class="t">[^<]+<\/span>/g) || [];
   const opened = (h0.match(/<details class="pv-sec"[^>]*\sopen>/g) || []).length;
@@ -4676,31 +4778,33 @@ const DEV = 'изменено — не утверждённый состав';
   ok(374, secs.join() === ['Состав', 'Раскладка', 'Время', 'Отбор', 'Ещё'].map(t => '<span class="t">' + t + '</span>').join() &&
         opened === 1 && has(h0, 'ontoggle="RP.pvSec(\'состав\',this.open)" open>') &&
         (h1.match(/<details class="pv-sec"[^>]*\sopen>/g) || []).length === 2 &&
-        !has(h2, 'class="pv-side"') && has(h2, 'class="pv-tongue"') && has(h2, '⚙ Как смотреть') && has(h2, 'pv-body noside') &&
-        has(h0, 'Сохранить вид') && has(h0, '>конец прошлого месяца — ') && has(h0, '>моё подразделение — ') &&
+        tabOn(h0) === 'настройки' && !has(h2, SIDE) && has(h2, 'class="sp-tongue"') && has(h2, '>⚙ Настройки<small>') && has(h2, 'pv-body noside') &&
+        !has(h0 + h2, 'Как смотреть') && has(h0, 'Сохранить вид') && has(h0, '>конец прошлого месяца — ') && has(h0, '>моё подразделение — ') &&
         at(h0, '>конец прошлого месяца — ') < at(h0, '>июль 2026 (состояние на 01.08.2026)<'),
-    `панель «Как смотреть»: пять разделов Состав · Раскладка · Время · Отбор · Ещё, при первом входе раскрыт один «Состав», ` +
-    `раскрытое помнится; скрытая панель — язычок «⚙ Как смотреть»; «моё подразделение» и «конец прошлого месяца» — первыми пунктами`);
+    `вкладка «Настройки» (бывшая «Как смотреть»): пять разделов Состав · Раскладка · Время · Отбор · Ещё, при первом входе раскрыт один «Состав», ` +
+    `раскрытое помнится; скрытая панель — язычок «⚙ Настройки»; «моё подразделение» и «конец прошлого месяца» — первыми пунктами`);
 
   start(); RP.pvDept('@'); RP.pvAsOf('@'); const h3 = scr();
   RP.doPin(); const tile = RP.tilesOf('t-overdue').slice(-1)[0] || {}, tst = RP.state.lastToast || {};
-  const head = (h3.match(/<div class="pv-head">[\s\S]*?паспорт ↓<\/a><\/div><\/div>/) || [''])[0];
+  const head = (h3.match(/<div class="pv-head">[\s\S]*?паспорт →<\/a><\/div><\/div>/) || [''])[0];
   ok(375, (head.match(/<div class="l[12]">/g) || []).length === 2 && has(head, 'Подставлено по вам: ') && has(head, 'моё подразделение = ') &&
-        has(head, 'конец прошлого месяца = ') && (head.match(/подразделение — /g) || []).length === 1 && has(head, 'паспорт ↓') && has(head, 'Показ — не выпуск') &&
+        has(head, 'конец прошлого месяца = ') && (head.match(/подразделение — /g) || []).length === 1 &&
+        has(head, 'onclick="RP.pvOpen(\'паспорт\');return false">паспорт →</a>') && has(head, 'Показ — не выпуск') &&
         tile.params && tile.params.dept === '@моё подразделение' && tile.params.asOf === '@конец прошлого месяца' &&
         has(tst.msg, 'Плитка на главной') && !has(tst.msg, 'Настроить') && has(tst.link, 'Настроить ↗'),
-    `шапка — две строки и «паспорт ↓»; значения набора подставлены по смотрящему и названы; «📌» уносит значение набора ` +
+    `шапка — две строки и «паспорт →» (открывает вкладку «Паспорт»); значения набора подставлены по смотрящему и названы; «📌» уносит значение набора ` +
     `(«@моё подразделение», «@конец прошлого месяца»), «сделано» — тостом со ссылкой`);
 
   start(); RP.pvSide('выпуск'); const h4 = scr(); RP.pvSide(null); const h5 = scr();
-  ok(376, has(h4, 'id="pvIssue"') && !has(h4, '<b>Как смотреть</b>') && has(h4, 'Проверки окончательного выпуска') &&
-        has(h4, 'fin-rcp') && has(h4, 'ⓘ Предварительный и окончательный') && has(h4, 'Мои заказы — вкладка «Задания»') &&
-        has(h4, 'id="pvTw"') && has(h5, '<b>Как смотреть</b>') && !has(h5, 'id="pvIssue"'),
-    `выпуск — панелью справа на месте настроек: получатель, проверки, кнопки, ⓘ, «Мои заказы» → вкладка «Задания»; лист остаётся`);
+  ok(376, has(h4, 'id="pvIssue"') && !has(h4, 'class="sp-tabs"') && has(h4, '<div class="sp-mode-h"><b>Выпуск</b>') &&
+        has(h4, 'onclick="RP.pvSide(null)">✕</button>') && has(h4, 'Проверки окончательного выпуска') &&
+        has(h4, 'fin-rcp') && has(h4, 'ⓘ Предварительный и окончательный') && has(h4, 'onclick="RP.pvMyOrders()">Мои заказы →</button>') &&
+        has(h4, 'id="pvTw"') && tabOn(h5) === 'настройки' && !has(h5, 'id="pvIssue"'),
+    `выпуск — режимом панели поверх вкладок «Выпуск ✕»: получатель, проверки, кнопки, ⓘ, «Мои заказы»; ✕ — обратно к вкладкам; лист остаётся`);
 
   start(); RP.setTime('сравнение'); const h6 = scr(); RP.setTime(''); RP.toggleTop(); RP.doUsd(); const h7 = scr();
   ok(377, !has(h6, '<tr class="obj') && has(h6, '<th class="num">Изменение</th>') && has(h6, 'Паспорт: сравнение') &&
-        at(h7, 'id="pvTw"') < at(h7, '<b>Крупнейшие 3</b>') && at(h7, '<b>Крупнейшие 3</b>') < at(h7, 'id="pvTabs"') &&
+        at(h7, 'id="pvTw"') < at(h7, '<b>Крупнейшие 3</b>') && at(h7, '<b>Крупнейшие 3</b>') < at(h7, SIDE) && !has(h7, 'id="pvTabs"') &&
         has(h7, 'onclick="RP.toggleTop()">✕') && has(h7, '<b>Валюта договора</b>') && has(h7, 'onclick="RP.doUsd()">✕'),
     `сравнение, динамика и «за период» — на месте листа; «Крупнейшие 3» и валюта — блоками под листом, у каждого ✕`);
 
@@ -4717,9 +4821,9 @@ const DEV = 'изменено — не утверждённый состав';
         (h0.match(/oncontextmenu="return RP.pvCtx\(event,'kr-\d+'\)"/g) || []).length === 8,
     `меню строки «⋯» у каждой из ${rowsN} строк и то же — правой кнопкой: карточка кредита, заметка к строке и к ячейке, заметки строки, копировать`);
 
-  start('t-sh-big'); RP.state.down = ['залог']; const ha = scr(); RP.state.down = [];
-  const top = ha.slice(0, at(ha, 'id="pvTw"')), pass = ha.slice(at(ha, 'id="pvTabs"'));
-  ok(380, has(top, '<div class="pv-msg warn"') && has(top, '<b>Источник не ответил.</b>') && has(pass, 'pv-msgs flat') &&
+  start('t-sh-big'); RP.state.down = ['залог']; const ha = scr(); RP.pvTab('паспорт'); const hpa = scr(); RP.state.down = [];
+  const top = ha.slice(0, at(ha, 'id="pvTw"')), pass = hpa.slice(at(hpa, 'class="sp-pane pv-pass"'));
+  ok(380, has(top, '<div class="pv-msg warn"') && has(top, '<b>Источник не ответил.</b>') && at(hpa, 'class="sp-pane pv-pass"') > at(hpa, SIDE) && has(pass, 'pv-msgs flat') &&
         has(pass, '<b>Источник не ответил.</b>') && has(src, 'setTimeout(() => el.remove(), 6000)') && !has(ha, 'class="banner warn"><b>Источник'),
     `«показано не так» — строкой над таблицей и той же строкой в паспорте; «сделано» — тостом на 6 с`);
 
@@ -4810,7 +4914,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.pvCalcBg(); const bg = RP.state.lastToast || {}, bj = RP.myJobs().slice(-1)[0] || {};
   ok(391, has(hz, 'расчёт сам не начинается') && has(hz, 'RP.pvHeavyGo()">Посчитать в фоне') && has(hz, 'RP.pvHeavyEdit()">Изменить настройку') &&
         !has(hz, 'id="pvTw"') && job.id === 'МЗ-1' && has(tz.msg, 'результат на вкладке «Задания»') && has(tz.link, 'Открыть') &&
-        has(hz2, 'Результат задания МЗ-1') && has(hz2, '<button class="on" onclick="RP.pvTab(\'задания\')">Задания') &&
+        has(hz2, 'Результат задания МЗ-1') && tabOn(hz2) === 'задания' && has(hz2, '<div class="sp-card hi"><div class="hd"><b>Расчёт МЗ-1</b>') &&
         has(hl, 'расчёт сам не начинается') && !has(hl, 'Посчитать на сейчас') && has(hl, 'Посчитать в фоне') && has(hc, 'pv-sheet calc') &&
         bj.id === 'МЗ-2' && has(bg.msg, 'задание МЗ-2') && has(bg.link, "RP.pvJobOpen('МЗ-2')") && !RP.state.sel.pvCalc,
     `долгий расчёт — на месте листа: оценка больше 15 с — сам не стартует («Посчитать в фоне / Изменить настройку»); готово — тост ` +
@@ -4867,7 +4971,7 @@ const DEV = 'изменено — не утверждённый состав';
 
   start(); const hh = scr(); RP.pvLayout('разрез в колонках'); const hp = scr();
   RP.setTime('динамика'); RP.pvTimeField('tStep', 'год'); RP.pvTimeField('tFrom', '2025-01-01'); const hy = scr();
-  const head = (hh.match(/<div class="pv-head">[\s\S]*?паспорт ↓<\/a><\/div><\/div>/) || [''])[0];
+  const head = (hh.match(/<div class="pv-head">[\s\S]*?паспорт →<\/a><\/div><\/div>/) || [''])[0];
   ok(398, has(head, 'п. 12 ') && has(head, 'область видимости: 3 подразделения') && has(hp, '<span class="sep">·</span>разрез в колонках</div>') &&
         !has(hy, 'шов statSeries') && has(hy, '>на 01.01</th>') && has(hy, '>на 01.08</th>') && has(hy, 'colspan="2">2026</th>') &&
         has(src, "m.onclick = e => { if(e.target.closest('button')) m.remove(); };"),
@@ -4879,13 +4983,1166 @@ const DEV = 'изменено — не утверждённый состав';
     `идущий расчёт снимается новой настройкой — как обещает подпись над листом`);
 })();
 
+/* ВОЛНА 60 · ПАНЕЛЬ — блок DDD (#400–#419): вкладки правой панели экрана показа (ПВ-42, ПВ-43, ПВ-45…ПВ-49). */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
+  const scr = () => V.issue.fn(), at = (h, a) => h.indexOf(a);
+  const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const SIDE = '<aside class="sp pv-side"', TABS = ['Настройки', 'Паспорт', 'Заметки', 'Задания'];
+  const tabsOf = h => (h.match(/<button role="tab" data-tab="[^"]+"[^>]*>[^<]+/g) || []).map(x => x.replace(/^[\s\S]*>/, ''));
+  const tabOn = h => (h.match(/<button role="tab" data-tab="([^"]+)" aria-selected="true"/) || [])[1] || null;
+  const cnt = (h, k) => +((h.match(new RegExp('data-tab="' + k + '"[^>]*>[^<]+<span class="n">(\\d+)</span>')) || [])[1] || 0);
+  const badges = h => (h.match(/<button class="sp-badge" data-tab="[^"]+"[^>]*>[^<]+<\/button>/g) || [])
+    .map(b => ({ key: b.match(/data-tab="([^"]+)"/)[1], text: b.match(/>([^<]+)<\/button>$/)[1], on: b.match(/onclick="([^"]+)"/)[1] }));
+  const pane = h => h.slice(at(h, '<div class="sp-body"'), at(h, '</aside>'));
+  const cards = (h, cls) => (pane(h).match(new RegExp('<div class="sp-card' + (cls || '') + '[" ]', 'g')) || []).length;
+  const click = (h, re) => { const m = h.match(re); if (!m) return false; ev(m[1]); return true; };
+  const keys = h => (pane(h).match(/<span class="k">([^<]+)<\/span>/g) || []).map(x => x.replace(/<[^>]+>/g, ''));
+  const text = h => h.replace(/<[^>]+>/g, ' ');
+  const NUM = /ПВ-\d|ПВ-Д\d|ОД-\d|ОЧ-\d|ИО-\d|ОГ-\d|ADR-\d|ГМ-\d|КН-\d|ВБ-\d/;
+  const SERVICE = /statRows|statSlice|statSeries|objectRows|живое ядро|(^|[^а-яё])швы?([^а-яё]|$)/i;
+
+  /* ПВ-42: вкладки в правой панели, под листом ничего; рисуется только открытая вкладка. */
+  start(); const h0 = scr(), center = h0.slice(at(h0, 'class="pv-center"'), at(h0, SIDE)), tail = center.slice(center.lastIndexOf('</table>'));
+  ok(400, tabsOf(h0).join(' · ') === TABS.join(' · ') && at(h0, 'id="pvTw"') < at(h0, SIDE) && !has(h0, 'id="pvTabs"') &&
+        !/data-tab=|class="tabs"|Паспорт|Задания|pv-pass|pv-notes|pv-jobs/.test(tail) && tail.length < 200 &&
+        has(h0, 'class="pv-secs"') && !has(h0, 'class="sp-pane pv-pass"') && !has(h0, 'class="sp-pane pv-notes"') && !has(h0, 'class="sp-pane pv-jobs"'),
+    `ПВ-42: у правой панели вкладки «${tabsOf(h0).join(' · ')}»; под листом после таблицы ничего (${tail.length} знаков разметки), ` +
+    `рисуется только открытая вкладка`);
+
+  /* ПВ-47: вход на экран и смена отчёта — «Настройки», выпуск закрыт; раскрытые разделы и «скрыта» помнятся. */
+  start(); RP.pvSec('время', true); RP.pvTab('паспорт'); RP.selTpl('t-portfolio'); const e1 = scr();
+  RP.pvTab('заметки'); RP.go('journal'); RP.go('issue'); const e2 = scr();
+  RP.pvTab('задания'); RP.pvPanel(false); RP.go('journal'); RP.go('issue'); const e3 = scr(), hid = RP.state.sel.pvTab; RP.pvPanel(true);
+  RP.pvSide('выпуск'); RP.selTpl('t-overdue'); const e4 = scr();
+  const entry = ['openIssue', 'openForm', 'uiOpenShared', 'uiShowPersonal'].map(f => { RP.pvTab('паспорт'); RP.go('journal'); RP[f]('t-portfolio');
+    return RP.state.view + '/' + RP.state.sel.pvTab; });
+  ok(401, tabOn(e1) === 'настройки' && has(e1, 'ontoggle="RP.pvSec(\'время\',this.open)" open>') && tabOn(e2) === 'настройки' &&
+        !has(e3, SIDE) && has(e3, 'class="sp-tongue"') && hid === 'настройки' && tabOn(e4) === 'настройки' && !has(e4, 'id="pvIssue"') &&
+        entry.every(x => x === 'issue/настройки'),
+    `ПВ-47: смена отчёта, вход с другого экрана и входы ${entry.length} обработчиков — «Настройки», выпуск закрыт; раскрытое «Время» ` +
+    `и скрытая панель помнятся`);
+
+  /* ПВ-43, ПВ-47: «паспорт →» открывает «Паспорт» — и из скрытой панели, и из выпуска. */
+  const PASS = /onclick="(RP\.pvOpen\('паспорт'\));return false">паспорт →<\/a>/;
+  start(); const l1 = click(scr(), PASS), p1 = scr();
+  RP.pvTab('заметки'); RP.pvPanel(false); const l2 = click(scr(), PASS), p2 = scr();
+  RP.pvTab('задания'); RP.pvSide('выпуск'); const l3 = click(scr(), PASS), p3 = scr();
+  ok(402, l1 && l2 && l3 && [p1, p2, p3].every(p => tabOn(p) === 'паспорт' && has(p, SIDE) && has(p, 'class="sp-pane pv-pass"') && !has(p, 'id="pvIssue"')),
+    `ПВ-43, ПВ-47: ссылка шапки «паспорт →» открывает вкладку «Паспорт»: с другой вкладки, скрытую панель показывает, выпуск закрывает`);
+
+  /* ПВ-43: паспорт — только то, чего нет в шапке; полная область видимости, пометки и пороги. */
+  start(); RP.pvTab('паспорт'); const pp = scr(), pk = keys(pp), hd = RP.show('t-overdue', P8, null).head;
+  const REP = ['показ', 'отчёт', 'режим', 'состояние на', 'фиксация', 'охват', 'отбор', 'смотрит', 'состав', 'вид', 'редакция', 'источник', 'числа'];
+  ok(403, pk.join(' | ') === 'область видимости | показанный состав | уровни разрезов | разрядность | лист выгрузки | пометки числа' &&
+        REP.every(k => pk.indexOf(k) === -1) && has(pane(pp), '<span class="k">область видимости</span>' + hd.scope.join(', ')) &&
+        has(pp, 'область видимости: 3 подразделения') && has(pane(pp), '<th>пометка</th><th>где</th><th>окончательному</th>') &&
+        has(pane(pp), 'Пороги формы — утверждены с редакцией') && !SERVICE.test(pane(pp)) && !/живые|смотрит|НЕ ВЫПУСК/.test(pane(pp)),
+    `ПВ-43: в паспорте ${pk.length} строк и пороги формы — «${pk.join(' · ')}»; повторов шапки, «числа живые» и служебных имён нет; ` +
+    `область видимости — полностью (в шапке — «3 подразделения»)`);
+
+  /* ПВ-Д19: паспорт выпуска в «Журнале выпусков» — строка «источник» словами; имён запросов и слова «швы» нет ни в одной роли. */
+  {
+  RP.seed(); as('auth');
+  const pSrc =p => ev('passportSource')(p), pRows = ev('passportRows'), srcOf = id => (pRows(RP.ISS(id).passport, false).find(r => r[0] === 'источник') || [])[1];
+  const w1 = srcOf('ВП-103'), w2 = srcOf('ВП-104'), lab = pRows(RP.ISS('ВП-103').passport, false).map(r => r[0]);
+  const w3 = pSrc({ seams: ['statSlice (дерево)', 'statSlice'], issuedAt: '2026-08-24' });
+  const w4 = pSrc({ seams: ['statRows', 'statSlice ×2', 'statRows (платёж)'], asOf: '2026-08-01', dates: ['на 01.06 · на 01.08'] });
+  const w5 = pSrc({ seams: [], ordered: true }), w6 = pSrc({ seams: ['статистика, снимок 31.08.2026'] }), w7 = pSrc({ seams: ['objectRows'], issuedAt: '2026-08-24' });
+  RP.state.view = 'journal'; RP.selIssue('ВП-103'); const jp = V.journal.fn(), leaks = []; let seen = 0;
+  Object.keys(R).forEach(role => { RP.seed(); as(role); RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
+    const sa = ev('shownArgs()'); RP.exportShown(sa.tid, sa.params, sa.twist, 'xlsx'); RP.order('t-portfolio', { params: { dept: '' }, kind: 'предварительный' });
+    RP.state.view = 'journal';
+    RP.state.issues.forEach(i => { RP.selIssue(i.id); const t = text(V.journal.fn()); seen++; if (SERVICE.test(t) || /спрошенные/.test(t)) leaks.push(role + '/' + i.id); }); });
+  ok(441, w1 === 'статистика, снимок 01.08.2026' && w2 === 'ядро, живое состояние на 10.04.2026 · статистика, текущее состояние на 10.04.2026' &&
+        w3 === 'статистика, текущее состояние на 24.08.2026' && w4 === 'статистика, снимки на даты колонок' && w5 === 'ещё нет — заказ принят, числа ещё не запрашивались' &&
+        w6 === 'статистика, снимок 31.08.2026' && w7 === 'ядро, живое состояние на 24.08.2026' && lab.indexOf('источник') !== -1 && lab.indexOf('спрошенные швы') === -1 &&
+        has(jp, '<span class="k">источник</span>статистика, снимок 01.08.2026') && leaks.length === 0 && seen > 20,
+    `ПВ-Д19: строка паспорта «источник» — словами («${w1}»; «${w2}»; заказ без чисел — «${w5}»; готовая фраза конструктора идёт как есть); ` +
+    `на «Журнале выпусков» ни имён запросов, ни слов «швы» и «спрошенные» — ${seen} паспортов в ${Object.keys(R).length} ролях, утечек ${leaks.length}`);
+  }
+
+  /* ПВ-43, ПВ-27: строки «показано не так» — над таблицей и в паспорте, с полной причиной. */
+  start('t-sh-big'); RP.state.down = ['залог']; const m0 = scr(); RP.pvTab('паспорт'); const m1 = scr(); RP.state.down = [];
+  const msgTop = (m0.slice(0, at(m0, 'id="pvTw"')).match(/<div class="pv-msg [^"]+"/g) || []).length;
+  const msgPass = (pane(m1).match(/<div class="pv-msg [^"]+"/g) || []).length;
+  const why = (m0.match(/<b>Источник не ответил\.<\/b> ([^<]+)<\/span>/) || [])[1];
+  ok(404, msgTop > 0 && msgTop === msgPass && has(pane(m1), 'pv-msgs flat') && !!why && has(pane(m1), why) && !has(pane(m1), 'щёлкните — причина целиком'),
+    `ПВ-43: строки «показано не так» — над таблицей (${msgTop}) и те же в паспорте (${msgPass}), в паспорте — причиной целиком`);
+
+  /* ПВ-45: выпуск — режим поверх вкладок; ✕ возвращает на ту вкладку, с которой ушли. */
+  const X = /<div class="sp-mode-h"><b>Выпуск<\/b><button class="x"[^>]*onclick="([^"]+)">✕<\/button>/;
+  const back = k => { start(); RP.pvTab(k); RP.pvSide('выпуск'); const h = scr(); const c = click(h, X); return { h, c, after: scr() }; };
+  const bP = back('паспорт'), bN = back('заметки');
+  ok(405, [bP, bN].every(b => b.c && !has(b.h, 'class="sp-tabs"') && has(b.h, 'id="pvIssue"') && has(b.h, 'id="pvTw"') && !has(b.after, 'id="pvIssue"')) &&
+        tabOn(bP.after) === 'паспорт' && tabOn(bN.after) === 'заметки',
+    `ПВ-45: «Выпустить» — панель «Выпуск ✕» без вкладок, лист виден; ✕ возвращает на прежнюю вкладку (${tabOn(bP.after)}, ${tabOn(bN.after)})`);
+
+  /* ПВ-45: «Мои заказы» закрывают выпуск и открывают «Задания». */
+  start(); RP.pvTab('паспорт'); RP.pvSide('выпуск'); const mo = click(scr(), /onclick="(RP\.pvMyOrders\(\))">Мои заказы →<\/button>/), ma = scr();
+  ok(406, mo && tabOn(ma) === 'задания' && !has(ma, 'id="pvIssue"') && has(ma, 'class="sp-pane pv-jobs"'),
+    `ПВ-45: «Мои заказы» в выпуске — выпуск закрыт, открыта вкладка «Задания»`);
+
+  /* ПВ-48: язычок — «⚙ Настройки», итог выбранного, значки только ненулевые и с теми же числами, что у вкладок. */
+  start(); RP.pvPanel(false); const g0 = scr();
+  RP.doNote('t-overdue', '2026-08-01'); RP.doNoteAt('t-overdue', '2026-08-01', 'kr-2');
+  RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); const g1 = scr(); RP.pvPanel(true); const g1o = scr();
+  const b0 = badges(g0), b1 = badges(g1), sum = ev('pvLookSummary')({ w: RP.show('t-overdue', P8, null).twist });
+  ok(407, b0.length === 0 && has(g0, '>⚙ Настройки<small>' + sum + '</small>') &&
+        b1.map(b => b.key).join() === 'заметки,задания' && b1[0].text === '✎ ' + cnt(g1o, 'заметки') && b1[1].text === '⏱ ' + cnt(g1o, 'задания') &&
+        cnt(g1o, 'заметки') === 2 && cnt(g1o, 'задания') === 1 && at(g1, 'class="sp-badge"') < at(g1, 'class="sp-tongue-m"'),
+    `ПВ-48: язычок «⚙ Настройки» с итогом «${sum}»; без заметок и заданий значков нет, есть — «${b1.map(b => b.text).join('», «')}» сверху, ` +
+    `числа = счётчикам вкладок`);
+
+  /* ПВ-48: щелчок по значку — панель сразу на этой вкладке; по язычку — на «Настройках». */
+  const viaBadge = k => { RP.pvTab('паспорт'); RP.pvPanel(false); const b = badges(scr()).find(x => x.key === k); ev(b.on); return scr(); };
+  const vn = viaBadge('заметки'), vj = viaBadge('задания');
+  RP.pvTab('паспорт'); RP.pvPanel(false); const tg = click(scr(), /<button class="sp-tongue-m"[^>]*onclick="([^"]+)">/), vt = scr();
+  ok(408, has(vn, SIDE) && tabOn(vn) === 'заметки' && has(vj, SIDE) && tabOn(vj) === 'задания' && tg && has(vt, SIDE) && tabOn(vt) === 'настройки',
+    `ПВ-48: «✎ n» открывает панель на «Заметках», «⏱ n» — на «Заданиях», сам язычок — на «Настройках»`);
+
+  /* ПВ-49: «Задания» — только мои и только этого отчёта; счётчик = числу карточек; внизу — журнал выпусков. */
+  start(); const mine = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' });
+  const other = RP.order('t-portfolio', { params: { dept:'' }, kind:'предварительный' });
+  as('head'); const alien = RP.order('t-overdue', { params: Object.assign({}, P8, { dept:'' }), kind:'предварительный' }); as('auth');
+  RP.state.sel.tpl = 't-portfolio'; RP.pvHeavyGo(); const bgOther = RP.myJobs().slice(-1)[0] || {}; RP.state.sel.tpl = 't-overdue';
+  RP.pvTab('задания'); const jz = scr(), jp = pane(jz);
+  const allOpen = RP.state.issues.filter(i => i.state !== 'готов').length;
+  const jl = click(jz, /<button class="lnk" onclick="(RP\.go\('journal'\))">Все мои заказы — Журнал выпусков →<\/button>/), jv = RP.state.view;
+  ok(409, mine.ok && other.ok && bgOther.tpl === 't-portfolio' && has(jp, 'Заказ ' + mine.id) && !has(jp, other.id) && !has(jp, bgOther.id) &&
+        alien.ok && !has(jp, alien.id) && cnt(jz, 'задания') === cards(jz) && cards(jz) === 1 && allOpen > 1 &&
+        !has(jp, '<table') && jl && jv === 'journal',
+    `ПВ-49: «Задания» — карточками мои заказы по этому отчёту (${cards(jz)} из ${allOpen} незакрытых в журнале): заказ и расчёт в фоне по другому ` +
+    `отчёту и чужой заказ не видны и не считаются; «Все мои заказы — Журнал выпусков →» ведёт в журнал`);
+
+  /* ПВ-49: «Шаг задания · стенд» — на карточке; готовый заказ уходит из вкладки и из счётчика. */
+  start(); const so = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const s0 = scr();
+  const stepRe = new RegExp('<div class="sp-card"><div class="hd"><b>Заказ ' + so.id + '</b>[\\s\\S]*?onclick="(RP\\.doStep\\(\'' + so.id + '\'\\))">Шаг задания <span class="tag">стенд</span>');
+  const st1 = click(s0, stepRe), s1 = scr(), st2 = click(s1, stepRe), s2 = scr();
+  ok(410, st1 && st2 && cnt(s0, 'задания') === 1 && has(pane(s1), '>считается</span>') && cnt(s2, 'задания') === 0 && cards(s2) === 0 &&
+        RP.ISS(so.id).state === 'готов' && has(pane(s2), 'Незакрытых заказов по этому отчёту нет.'),
+    `ПВ-49: «Шаг задания · стенд» — на карточке заказа: заказан → считается → готов; готовый уходит из вкладки и счётчика`);
+
+  /* ПВ-47: «Готово · Открыть» — результат на листе и «Задания», с подсвеченной карточкой; скрытая панель и выпуск — не помеха. */
+  start(); RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const tj = RP.state.lastToast || {}, jb = RP.myJobs().slice(-1)[0] || {};
+  const JO = /onclick="(RP\.pvJobOpen\('[^']+'\))/;
+  RP.pvPanel(false); const op1 = click(tj.link || '', JO), o1 = scr();
+  RP.pvTab('настройки'); RP.pvSide('выпуск'); const op2 = click(tj.link || '', JO), o2 = scr();
+  ok(411, op1 && op2 && has(tj.link, "RP.pvJobOpen('" + jb.id + "')") && [o1, o2].every(o => has(o, SIDE) && tabOn(o) === 'задания' &&
+        has(o, 'Результат задания ' + jb.id) && cards(o, ' hi') === 1 && !has(o, 'id="pvIssue"')),
+    `ПВ-47: «Готово · Открыть» по заданию ${jb.id} — результат на листе и вкладка «Задания» с подсвеченной карточкой — и из скрытой панели, и из выпуска`);
+
+  /* ПВ-47: уведомление о заметке — экран показа, отчёт заметки, «Заметки», нить подсвечена. */
+  start(); const stand = ev('pvStand()'); RP.pvNoteDemo(); const nd = scr(), hiN = RP.state.notes.slice(-1)[0];
+  start(); as('head'); const nOther = RP.addNote('t-portfolio', { asOf:'2026-08-01', text:'проверьте Ош' }); as('auth');
+  RP.addNote('t-portfolio', { asOf:'2026-08-01', text:'моя заметка' });
+  RP.pvTab('задания'); RP.pvPanel(false); RP.go('journal'); RP.openNote(nOther.id); const no = scr(), noTpl = RP.state.sel.tpl, noView = RP.state.view;
+  start('t-ref', 'user'); const pers = (RP.pvNoteDemo(), RP.state.lastToast || {});
+  ok(412, has(stand, 'Уведомление о заметке коллеги') && has(stand, 'проверяет: щелчок по уведомлению открывает вкладку «Заметки»') &&
+        hiN.by !== R.auth.replace(/^.*\(|\)$/g, '') && hiN.by && tabOn(nd) === 'заметки' && cards(nd, ' pv-note hi') === 1 &&
+        has(nd, 'data-note="' + hiN.id + '"') && nOther.ok && noTpl === 't-portfolio' && noView === 'issue' && has(no, SIDE) && tabOn(no) === 'заметки' &&
+        cards(no, ' pv-note') === 2 && cards(no, ' pv-note hi') === 1 && has(no, 'class="sp-card pv-note hi" data-note="' + nOther.id + '"') &&
+        has(pers.msg || '', 'видит только автор'),
+    `ПВ-47: уведомление о заметке (пункт стенда «Уведомление о заметке коллеги») — экран показа на отчёте заметки, вкладка «Заметки», ` +
+    `нить коллеги ${hiN.by} подсвечена; из журнала и со скрытой панелью — так же; в личном отчёте уведомления о заметке коллеги нет`);
+
+  /* Следствие: «Заметки строки · n» в меню строки — вкладка на заметках этой строки; «все заметки» снимают отбор. */
+  start(); RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'kr-2' }, text:'на контроле' });
+  RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'ячейка', row:'kr-2', col:'debt_main' }, text:'сверить' });
+  RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'ячейка', row:'kr-6', col:'debt_main' }, text:'сверить остаток' });
+  RP.doNote('t-overdue', '2026-08-01'); const r0 = scr();
+  const rm = (r0.match(/<tr class="obj[^"]*"[^>]*data-r="kr-2"[\s\S]*?<\/tr>/) || [''])[0];
+  const rn = +((rm.match(/Заметки строки · (\d+)/) || [])[1] || -1);
+  const rc = click(rm, /onclick="(RP\.pvRowNotes\('kr-2'\))">Заметки строки · \d+</), r1 = scr();
+  const ra = click(r1, /onclick="(RP\.pvNotesAll\(\))">все заметки/), r2 = scr();
+  ok(413, rc && ra && rn === 2 && tabOn(r1) === 'заметки' && cards(r1, ' pv-note') === rn && /Заметки строки КД-[^<]+ · 2/.test(pane(r1)) &&
+        has(pane(r1), 'все заметки · 4') && cards(r2, ' pv-note') === 4 && cnt(r2, 'заметки') === 4 && !has(pane(r2), 'Заметки строки КД'),
+    `«Заметки строки · ${rn}» в меню строки — вкладка «Заметки» на ${cards(r1, ' pv-note')} заметках этой строки; «все заметки» — снова все 4 (= счётчику)`);
+
+  /* Следствие: «Заметка к данным на …» — во вкладке «Заметки», и только там; щелчок — +1 к счётчику и карточкам. */
+  start(); const z0 = scr(); RP.pvTab('заметки'); const z1 = scr();
+  const zc = click(pane(z1), /onclick="(RP\.doNote\('t-overdue','2026-08-01'\))">Заметка к данным на 01\.08\.2026</), z2 = scr();
+  ok(414, !has(z0, 'Заметка к данным на') && has(pane(z1), '>Заметка к данным на 01.08.2026</button>') && has(pane(z1), 'Заметок к этому отчёту нет.') &&
+        zc && cnt(z2, 'заметки') === 1 && cards(z2, ' pv-note') === 1 && at(pane(z2), 'class="sp-card pv-note') < at(pane(z2), 'Заметка к данным на'),
+    `«Заметка к данным на 01.08.2026» — внизу вкладки «Заметки» (не под листом и не в «Настройках»); новая заметка — карточкой и в счётчике`);
+
+  /* ПВ-44: вкладки «План-факт» нет — ни у какого отчёта, и у официального; движок плана на месте. */
+  start(); const vis = ev("RP.visibleTemplates().filter(id => TPL(id).kind === 'отчёт' && liveEd(TPL(id)))");
+  const allTabs = vis.map(id => { RP.state.sel.tpl = id; return tabsOf(scr()).join(' · '); });
+  const offi = vis.filter(id => ev("levelOf(TPL('" + id + "'))") === 'официальный');
+  ok(415, vis.length > 5 && offi.length > 0 && allTabs.every(t => t === TABS.join(' · ')) && typeof RP.planFact === 'function' &&
+        !has(src, "['план-факт', 'План-факт'"),
+    `ПВ-44: у всех ${vis.length} отчётов (официальных — ${offi.length}) вкладки «${TABS.join(' · ')}» — «План-факт» нет; движок плана остался`);
+
+  /* ПВ-46: «Настройки» вместо «Как смотреть»; скрыть — кружок «›» на левом краю панели; подписи не переносятся. */
+  start(); const k0 = scr(), hb = click(k0, /<button class="sp-hide"[^>]*onclick="([^"]+)">›<\/button>/), k1 = scr();
+  ok(416, hb && !has(k1, SIDE) && has(k1, 'class="sp-tongue"') && !has(k0, 'Как смотреть') && !has(k0, '⇥') &&
+        at(k0, 'class="sp-hide"') > at(k0, SIDE) && at(k0, 'class="sp-hide"') < at(k0, 'class="sp-tabs"') &&
+        /\.sp-hide\{ position:absolute; left:-11px;/.test(src) && /\.sp-tabs button\{[^}]*flex:1 1 auto; white-space:nowrap;/.test(src),
+    `ПВ-46: вкладка «Настройки» (не «Как смотреть»), скрыть — кружок «›» на левом краю панели; подписи вкладок — в одну строку`);
+
+  /* Общая рамка: без логики экрана, тело — лениво, только открытая; режим поверх; язычок — только ненулевые значки. */
+  const SP = ev('sidePanel'); let lazy = 0;
+  const T = [{ key:'a', label:'Альфа', n:2, body: () => '<i>A</i>' }, { key:'b', label:'Бета', n:0, body: () => { lazy++; return '<i>B</i>'; } }];
+  const f1 = SP({ tabs: T, tab:'a', onTab:'X.tab', onShow:'X.show', onHide:'X.hide()', cls:'kn-side', open:true });
+  const f2 = SP({ tabs: T, tab:'a', onTab:'X.tab', mode:{ title:'Режим', body:'<i>M</i>', onClose:'X.close' }, open:true });
+  const f3 = SP({ tabs: T, tab:'b', onShow:'X.show', open:false, tongue:{ label:'Язык', sum:'итог', badges:[{ key:'a', icon:'✎', n:2 }, { key:'b', icon:'⏱', n:0 }] } });
+  const spSrc = SP.toString();
+  ok(417, lazy === 0 && has(f1, '<aside class="sp kn-side">') && has(f1, '<i>A</i>') && !has(f1, '<i>B</i>') && has(f1, '>Альфа<span class="n">2</span>') &&
+        has(f1, '>Бета</button>') && has(f1, 'onclick="X.tab(\'b\')"') && has(f1, 'onclick="X.hide()">›') &&
+        !has(f2, 'sp-tabs') && has(f2, '<b>Режим</b>') && has(f2, 'onclick="X.close()">✕') && has(f2, '<i>M</i>') &&
+        !has(f3, '<aside') && (f3.match(/class="sp-badge"/g) || []).length === 1 && has(f3, 'onclick="X.show(\'a\')">✎ 2') &&
+        has(f3, 'onclick="X.show(\'a\')">Язык<small>итог</small>') && !/RP\.|pv[A-Z]|pvS\(|sel\./.test(spSrc),
+    `общая рамка sidePanel — без логики экрана: тело только открытой вкладки (закрытая не считалась), счётчик 0 не печатается, ` +
+    `режим поверх вкладок, язычок — только ненулевые значки, главная кнопка язычка без своей вкладки открывает первую; ` +
+    `её берут конструктор и верстальщик бланка`);
+
+  /* Номеров решений и служебных имён в тексте панели нет — ни в одной вкладке, ни в выпуске, ни на язычке и в меню стенда. */
+  start(); RP.doNote('t-overdue', '2026-08-01'); RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' });
+  const all = ['настройки', 'паспорт', 'заметки', 'задания'].map(k => { RP.pvTab(k); return pane(scr()); });
+  RP.pvSide('выпуск'); all.push(pane(scr())); RP.pvSide(null); RP.pvPanel(false); const tgS = scr(); all.push(tgS.slice(at(tgS, 'class="sp-tongue"')), ev('pvStand()'));
+  start('t-sh-big'); RP.state.down = ['залог']; RP.pvTab('паспорт'); all.push(pane(scr())); RP.state.down = [];
+  const allT = text(all.join('\n'));
+  ok(418, all.every(x => x.length > 40) && !NUM.test(allT) && !SERVICE.test(allT),
+    `в тексте вкладок, выпуска, язычка и меню стенда номеров решений и служебных имён нет`);
+
+  /* Смена вкладки снимает отбор строки и подсветку нити; счётчик заметок — только этого отчёта и = числу карточек. */
+  start(); RP.addNote('t-overdue', { asOf:'2026-08-01', target:{ kind:'строка', row:'kr-2' }, text:'на контроле' });
+  RP.addNote('t-overdue', { asOf:'2026-07-01', text:'к прошлой дате' }); RP.addNote('t-portfolio', { asOf:'2026-08-01', text:'чужой отчёт' });
+  RP.pvRowNotes('kr-2'); const w1 = scr(); RP.pvTab('паспорт'); RP.pvTab('заметки'); const w2 = scr();
+  ok(419, cards(w1, ' pv-note') === 1 && RP.state.sel.pvNoteRow === null && cards(w2, ' pv-note') === 2 && cnt(w2, 'заметки') === 2 &&
+        has(pane(w2), 'к прошлой дате — данным на 01.07.2026') && !has(pane(w2), 'чужой отчёт'),
+    `смена вкладки снимает отбор строки; счётчик «Заметок» — заметки этого отчёта (и к прошлой дате), = числу карточек; заметка к другому отчёту не видна`);
+})();
+
+/* ВОЛНА 60 · ПЛАН — блок EEE (#420–#424): план-факт колонками отчёта (ПВ-44). */
+/* Волна 60 (блок EEE, #420–#424): план-факт колонками отчёта (ПВ-44, ADR-0288 п. 1). «План выдачи» — показатель реестра рода
+   «план» (справочник «Плановые показатели»): в «＋ Показатель» — в группе «план»; рядом — «Выдано с начала года»; процент —
+   своей формулой. Числа плана и факта равны ответу RP.planFact по каждому подразделению и в итоге; у плана нет вклада объекта,
+   на дроблении мельче подразделения клетка пуста с причиной, провала из числа плана нет; стартовый общий отчёт «План и факт
+   выдачи» читается таблицей «подразделение · план · выдано · %» с итогом. */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, D = '2026-08-01', P8 = { asOf: D, dept: '' };
+  const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const strip = x => x.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const heads = h => ((h.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<th[\s\S]*?<\/th>/g) || []).map(strip);
+  const cellsOf = tr => tr.match(/<td[\s\S]*?<\/td>/g) || [];
+  const pickOf = h => (h.match(/＋ Показатель<\/summary>[\s\S]*?<\/details>/) || [''])[0];
+  const groupsOf = pk => pk.split('<div class="pick-grp">').slice(1).map(g => ({ name: ((g.match(/class="pick-g">([^<]*?)\s*<span/) || [])[1] || ''), text: g }));
+  const money = ev('money'), PL = ev("PLANS['2026']");
+  const at = (list, id) => (list.find(x => x.id === id) || {}).value;
+  const sameCirc = (a, b) => a.length === b.length && a.every(x => b.indexOf(x) !== -1);
+  const TW = { stats: ['s-overdue-sum', 's-plan-issue', 's-issued-ytd'] };
+
+  start(); const h0 = V.issue.fn(); const g0 = groupsOf(pickOf(h0));
+  const gPlan = g0.find(x => x.name === 'план'), gBase = g0.find(x => x.name === 'в утверждённом составе'), gReg = g0.find(x => x.name === 'ещё в реестре статистики');
+  start('t-sh-planfact'); const hp = V.issue.fn(); const gp = groupsOf(pickOf(hp));
+  const mP = SEAM.statMeta('s-plan-issue'), mY = SEAM.statMeta('s-issued-ytd');
+  ok(420, !!gPlan && has(gPlan.text, "RP.twistStat('s-plan-issue')") && !has(gBase.text, 's-plan-issue') && !has(gReg.text, 's-plan-issue') &&
+        has(gReg.text, "RP.twistStat('s-issued-ytd')") && mP.kind === 'план' && has(mP.source, 'Плановые показатели') && mP.live === true &&
+        mY.live === true && !mY.kind && SEAM.statList().some(m => m.id === 's-issued-ytd') &&
+        !gp.some(x => x.name === 'план') && has(gp.find(x => x.name === 'в утверждённом составе').text, "RP.twistStat('s-plan-issue')"),
+    `«План выдачи» — в «＋ Показатель», группа «план» (одна строка), рядом в реестре — «Выдано с начала года»; у отчёта, где план уже в составе, он стоит ` +
+    `в «в утверждённом составе», группы «план» нет; план — рода «план», источник — справочник «Плановые показатели»`);
+
+  RP.seed(); as('auth');
+  const pf = RP.planFact(D, {}), od = RP.show('t-overdue', P8, TW).data;
+  const byDept = od.groups.reduce((m, g) => (m[g.key] = g.totals, m), {});
+  const sumPlan = pf.rows.reduce((a, r) => a + r.plan, 0), sumFact = pf.rows.reduce((a, r) => a + r.fact, 0);
+  const eqAll = pf.rows.every(r => at(byDept[r.dept], 's-plan-issue') === r.plan && r.plan === PL[r.dept] && at(byDept[r.dept], 's-issued-ytd') === r.fact);
+  as('user'); const pfU = RP.planFact(D, {}), odU = RP.show('t-overdue', P8, TW).data;
+  ok(421, pf.ok && pf.rows.length === 3 && eqAll && at(od.totals, 's-plan-issue') === sumPlan && sumPlan === 30000000 &&
+        at(od.totals, 's-issued-ytd') === sumFact && sumFact === 2500000 &&
+        pfU.rows.length === 1 && pfU.rows[0].dept === 'dep-prom' && odU.groups.length === 1 && at(odU.totals, 's-plan-issue') === PL['dep-prom'] &&
+        at(odU.totals, 's-plan-issue') === pfU.rows[0].plan && at(odU.totals, 's-issued-ytd') === pfU.rows[0].fact,
+    `«Просроченная задолженность» с добавленным планом на 01.08.2026: план по подразделениям = справочнику и ответу планфакта (${pf.rows.map(r => money(r.plan)).join(' · ')}), ` +
+    `итог = сумме по видимой области (${money(sumPlan)}; у Осмоновой — только своё подразделение, ${money(at(odU.totals, 's-plan-issue'))}), «выдано» = факту планфакта (${money(sumFact)})`);
+
+  start(); RP.twistStat('s-plan-issue'); RP.twistStat('s-issued-ytd'); const h2 = V.issue.fn(), dn2 = ev('DRILL_NODES').slice();
+  start('t-sh-planfact'); RP.setTime('сравнение'); const hc = V.issue.fn();
+  const cmpRow = n => (hc.match(new RegExp('<tr><td>' + n + '</td>[\\s\\S]*?</tr>')) || [''])[0];
+  const scope = RP.viewer().scope.slice(), cutN = { dept: null, ids: null };
+  const sl = SEAM.statSlice('s-plan-issue', ['dept', 'status'], cutN, D, scope), kids = sl.groups.reduce((a, g) => a.concat(g.children || []), []);
+  const byId = SEAM.statSlice('s-plan-issue', ['id'], cutN, D, scope);
+  const lt = ev('levelTotals')({ stats: ['s-plan-issue', 's-issued-ytd'], formulas: RP.TPL('t-sh-planfact').editions[0].formulas }, 'status', cutN, D, scope);
+  const stRow = lt('просрочен'), stPlan = stRow.find(x => x.id === 's-plan-issue'), stF = stRow.find(x => x.own);
+  const objTr = h2.match(/<tr class="obj[\s\S]*?<\/tr>/g) || [], totTr = (h2.match(/<tr class="gtot[\s\S]*?<\/tr>/g) || []).concat(h2.match(/<tfoot>[\s\S]*?<\/tfoot>/g) || []);
+  const planCell = tr => cellsOf(tr).slice(-2)[0], dr = RP.drill('t-overdue', P8, TW, { path: [], stat: 's-plan-issue' });
+  ok(422, objTr.length === 8 && objTr.every(tr => planCell(tr) === '<td class="num st"></td>') && byId.groups.length > 0 && byId.groups.every(g => g.value === null) &&
+        kids.length > 0 && kids.every(k => k.value === null && has(k.note, 'не делится')) &&
+        stPlan.value === null && stPlan.shown === null && has(stPlan.why, 'не делится') && stF.value === null &&
+        totTr.length === 4 && totTr.every(tr => !has(planCell(tr), 'class="drill"') && has(planCell(tr), 'title="план — из справочника «Плановые показатели»')) &&
+        totTr.every(tr => has(cellsOf(tr).slice(-3)[0], 'class="drill"')) && dn2.length > 0 && dn2.every(n => n.stat !== 's-plan-issue') &&
+        has(cmpRow('План выдачи'), '<td class="num">0</td>') && !has(cmpRow('План выдачи'), 'class="drill"') && has(cmpRow('Выдано с начала года'), 'class="drill"') &&
+        has(h2, '<td class="num st" title="план задан по подразделениям: на этом уровне разреза он не делится"><b>—</b>') && !dr.ok && has(dr.why, 'Плановые показатели'),
+    `у плана нет вклада объекта (клетка пуста в ${objTr.length} строках, не ноль); на дроблении по состоянию кредита план пуст с причиной («—» с подсказкой; формула над ним пуста тоже); ` +
+    `число плана в итогах — без провала, с подсказкой «из справочника», и «Изменение» плана в сравнении — без ссылки; соседние числа провал сохраняют; провал плана отказывает по существу`);
+
+  start('t-sh-planfact'); const h3 = V.issue.fn(); RP.seed(); as('auth');
+  const rp = RP.show('t-sh-planfact', P8, null), dd = rp.data, tp = RP.TPL('t-sh-planfact'), ed = tp.editions[0];
+  const nums = g => g.sums || g.totals;
+  const perDept = pf.rows.every(r => { const g = dd.groups.find(x => x.key === r.dept), n = g && nums(g);
+    return !!n && at(n, 's-plan-issue') === r.plan && at(n, 's-issued-ytd') === r.fact && n.find(x => x.own).shown === r.pct; });
+  const pctTot = Math.round(sumFact / sumPlan * 1000) / 10, ownTot = dd.totals.find(x => x.own);
+  const grpTr = h3.match(/<tr class="grp[\s\S]*?<\/tr>/g) || [], hd3 = heads(h3).join('|');
+  const rowOf = r => grpTr.find(tr => has(tr, ev('deptName')(r.dept)));
+  const rowsOk = pf.rows.every(r => { const tr = rowOf(r); return !!tr && has(tr, money(r.plan)) && has(tr, money(r.fact)) && has(tr, String(r.pct).replace('.', ',')); });
+  as('user'); RP.state.sel.scTab = 'общие'; const shelf = showTab('общие'); RP.uiOpenShared('t-sh-planfact');
+  const opened = RP.state.view === 'issue' && RP.state.sel.tpl === 't-sh-planfact';
+  ok(423, rp.ok && perDept && at(dd.totals, 's-plan-issue') === sumPlan && at(dd.totals, 's-issued-ytd') === sumFact && ownTot.shown === pctTot &&
+        ownTot.name === 'Исполнение плана' && ownTot.own && ev('formulaExpr')(ed.formulas[0]) === '«Выдано с начала года» ÷ «План выдачи» × 100' && ed.formulas[0].dp === 1 &&
+        tp.kind === 'отчёт' && tp.level === 'общий' && tp.owner === 'Тентимишев К.' && ed.object === 'credit' && ed.mode === 'на дату' && ed.drill === false &&
+        sameCirc(tp.circle, ev('ALL_DEPTS')) && !has(h3, '<tr class="obj') && has(h3, 'Итого по отчёту') && rowsOk &&
+        hd3.indexOf('Подразделение|План выдачи сом|Выдано с начала года сом|Исполнение плана') !== -1 &&
+        has(shelf, 'План и факт выдачи') && has(shelf, "RP.uiOpenShared('t-sh-planfact')") && opened,
+    `«План и факт выдачи» — общий отчёт Тентимишева по кредитам «на дату»: шапка «${heads(h3).filter(Boolean).map(x => x.replace(/ сом$| %$/, '')).join(' · ')}», по строке на подразделение ` +
+    `(${pf.rows.map(r => r.dept + ' ' + money(r.plan) + ' / ' + money(r.fact) + ' / ' + String(r.pct).replace('.', ',') + ' %').join('; ')}), ` +
+    `итог ${money(sumPlan)} / ${money(sumFact)} / ${String(pctTot).replace('.', ',')} %, строк объектов нет; числа = ответу планфакта; на полке «Общие», открывается на экране показа`);
+
+  RP.seed(); as('auth');
+  const iy = SEAM.statSlice('s-issued-ytd', 'dept', cutN, D, RP.viewer().scope.slice());
+  const drIs = RP.drill('t-sh-planfact', { asOf: D }, null, { path: [{ by: 'dept', key: 'dep-prom' }], stat: 's-issued-ytd' });
+  const tNow = RP.TPL('t-sh-planfact'); tNow.editions[0].mode = 'сейчас';
+  const now = RP.show('t-sh-planfact', { dept: '' }, null).data, yNow = RP.state.today.slice(0, 4);
+  const liveY = ev('OBJECTS').filter(o => o.type === 'credit' && o.issued && o.issued.slice(0, 4) === yNow).reduce((a, o) => a + o.sum, 0);
+  tNow.editions[0].mode = 'на дату';
+  const r25 = RP.show('t-sh-planfact', { asOf: '2025-12-01', dept: '' }, null).data, pf25 = RP.planFact('2025-12-01', {});
+  ok(424, iy.value === sumFact && pf.rows.every(r => (iy.groups.find(g => g.key === r.dept) || {}).value === r.fact) &&
+        drIs.ok && drIs.sum === drIs.cell && drIs.cell === pf.rows.find(r => r.dept === 'dep-prom').fact && drIs.items.length === pf.rows.find(r => r.dept === 'dep-prom').count &&
+        at(now.totals, 's-issued-ytd') === liveY && at(now.totals, 's-plan-issue') === sumPlan && liveY > 0 &&
+        at(r25.totals, 's-plan-issue') === null && has(r25.totals[0].why, 'плана на 2025 г.') && r25.totals.find(x => x.own).value === null && at(r25.totals, 's-issued-ytd') > 0 &&
+        !pf25.ok,
+    `«Выдано с начала года» сходится с фактом планфакта по подразделениям и в итоге (${money(sumFact)}), провал даёт ту же сумму одним кредитом; в «сейчас» — год сегодняшней даты ` +
+    `(${money(liveY)}), на 01.12.2025 плана 2025 г. в справочнике нет — клетка плана и процент пусты с причиной, выдано за год — на месте`);
+})();
+
+/* ВОЛНА 60 · ТАБЛИЦА — блок FFF (#425–#429): дефекты таблицы показа (ПВ-Д12, ПВ-Д9). */
+/* ПВ-Д12 (ПВ-50, как КН-13): число группы — один раз; у уровня без итога оно в строке самой группы (раскрытой тоже), у уровня с итогом —
+   в «Итого по …», а свёрнутая группа несёт его в своей строке; пустых строк групп без чисел нет ни в «только итоги групп», ни в «печатать строки».
+   ПВ-Д9 (ПВ-40): закреплены все ведущие текстовые колонки, у широкой основной таблицы — счётчик «колонки a–b из N ◂ ▸».
+   Переписан #347: четвёртый маркер ⚠ — у числа группы «просрочен» (уровень без итога), в которую вошло закрытое число. */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
+  const scr = () => V.issue.fn();
+  const start = (tpl, asOf) => { RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8, asOf ? { asOf } : {}); };
+  /* Таблица показа — строками: группа (уровень, ключ, числа), «Итого по …», строка объекта (её вклад в числа). */
+  const dig = x => String(x).replace(/<[^>]+>/g, '').replace(/[^\d]/g, '');
+  const stOf = tr => (tr.match(/<td class="num st[^"]*"[^>]*>[\s\S]*?<\/td>/g) || []).map(dig);
+  const parse = h => ((h.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0].match(/<tr class="(?:grp|obj|gtot)[\s\S]*?<\/tr>/g) || []).map(tr => {
+    const g = tr.match(/^<tr class="grp g(\d)([^"]*)"[^>]*data-k="([^"]*)"/);
+    if(g) return { kind:'grp', lvl:+g[1], open:/ open/.test(g[2]), key:g[3], st:stOf(tr), name:(tr.match(/<b>([^<]*)<\/b>/) || [])[1] };
+    if(/^<tr class="gtot/.test(tr)) return { kind:'tot', st:stOf(tr), name:(tr.match(/Итого по «(.*)»<\/td>/) || [])[1] };
+    return { kind:'obj', st:stOf(tr) }; });
+  const grand = h => stOf((h.match(/<tfoot>[\s\S]*?<\/tfoot>/) || [''])[0]);
+  const full = x => x.st.length === 2 && x.st.every(v => v !== '');
+  const empty = x => x.st.every(v => v === '');
+  const add = (a, b) => a.map((v, i) => String((+v || 0) + (+b[i] || 0)));
+  const same = (a, b) => a.join('|') === b.join('|');
+  const lvl = (rows, n) => rows.filter(x => x.kind === 'grp' && x.lvl === n);
+
+  /* ПВ-Д12: «только итоги групп» — у «Просроченной задолженности» (подразделение → состояние кредита, итог — у подразделения). */
+  start(); RP.twistDrillSet(false); const hA = scr(), A = parse(hA);
+  const a1 = lvl(A, 1), a2 = lvl(A, 2), aT = A.filter(x => x.kind === 'tot');
+  /* Согласованность: числа состояний подразделения в сумме дают его «Итого по …», а подразделений — «Итого по отчёту». */
+  let cur = null, byDept = true; const dsum = {};
+  A.forEach(x => { if(x.kind === 'grp' && x.lvl === 1) cur = x.name; else if(x.kind === 'grp') dsum[cur] = add(dsum[cur] || ['0', '0'], x.st);
+    else if(x.kind === 'tot' && !same(dsum[x.name] || ['0', '0'], x.st)) byDept = false; });
+  const sumAll = aT.reduce((s, x) => add(s, x.st), ['0', '0']);
+  ok(425, A.every(x => x.kind !== 'obj') && a2.length === 5 && a2.every(full) && a1.length === 3 && a1.every(empty) && aT.length === 3 && aT.every(full) &&
+        byDept && same(sumAll, grand(hA)) && a2.some(x => x.name === 'просрочен' && x.st[0] === '5300000'),
+    `«только итоги групп»: у «Просроченной задолженности» каждая из ${a2.length} строк состояния (уровень без итога) несёт числа — «действует · 2 объекта» уже не пустая; ` +
+    `раскрытая строка подразделения (уровень с итогом) пуста, её число — один раз, в «Итого по …»; числа состояний подразделения в сумме дают его итог, ` +
+    `подразделений — «Итого по отчёту» ${grand(hA)[0]}: числа берутся из дерева ответа, не складываются на экране`);
+
+  /* «Печатать строки»: те же числа в строке группы без итога (по ключу — те же, что в «только итоги групп») и вклад строк в сумме даёт их. */
+  start(); const hB = scr(), B = parse(hB);
+  const b2 = lvl(B, 2), keyed = rs => { const m = {}; lvl(rs, 2).forEach(x => { m[x.key] = x.st.join('|'); }); return m; };
+  const kA = keyed(A), kB = keyed(B);
+  let contrib = true; B.forEach((x, i) => { if(x.kind === 'grp' && x.lvl === 2){ let s = ['0', '0'], j = i + 1;
+      while(B[j] && B[j].kind === 'obj'){ s = add(s, B[j].st); j++; } if(!same(s, x.st)) contrib = false; } });
+  ok(426, b2.length === 5 && b2.every(full) && lvl(B, 1).every(empty) && B.filter(x => x.kind === 'tot').every(full) &&
+        Object.keys(kA).length === 5 && Object.keys(kA).every(k => kA[k] === kB[k]) && contrib && same(grand(hB), grand(hA)),
+    `«печатать строки»: у состояния (уровень без итога) числа в строке группы — те же, что в «только итоги групп», по каждому из ${b2.length} ключей; ` +
+    `вклад строк объектов под группой в сумме даёт число группы (ΣЧисел строк = числу группы); итог отчёта в обоих режимах один`);
+
+  /* Свёрнутая группа уровня с итогом несёт его в своей строке — и «Итого по …» после неё нет: число стоит один раз. */
+  start(); ev('PV_SUMMARY.rows = 3'); const C0 = parse(scr()); RP.pvLevel(2); const C2 = parse(scr()); ev('PV_SUMMARY.rows = 300');
+  const openTot = {}; aT.forEach(x => { openTot[x.name] = x.st.join('|'); });
+  const sumC = lvl(C0, 1);
+  ok(427, sumC.length === 3 && sumC.every(full) && C0.filter(x => x.kind === 'tot').length === 0 &&
+        sumC.every(x => x.st.join('|') === openTot[x.name]) &&
+        lvl(C2, 1).every(empty) && lvl(C2, 2).length === 5 && lvl(C2, 2).every(full) && C2.filter(x => x.kind === 'tot').length === 3,
+    `сводка (выше порога строк): свёрнутая группа подразделения несёт итог в своей строке, «Итого по …» после неё нет — те же числа, что в раскрытом виде; ` +
+    `«до уровня 2»: подразделение раскрыто и пусто, его число — в «Итого по …», состояния (уровень без итога) — с числами в своих строках`);
+
+  /* Уровни переставлены (состояние → подразделение): итог теперь у второго уровня; повёрнутая раскладка берёт числа первого уровня без итога. */
+  start(); RP.twistDown('dept'); const hT = scr(), T = parse(hT);
+  const t1 = lvl(T, 1), t2 = lvl(T, 2); const sumT = t1.reduce((s, x) => add(s, x.st), ['0', '0']);
+  RP.twistLayout('показатели в строках'); const hR = scr();
+  const rot = (hR.match(/<table class="cgrid pvt rot"[\s\S]*?<\/table>/) || [''])[0];
+  const rcells = (rot.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0].match(/<tr>[\s\S]*?<\/tr>/g) || [];
+  const rfirst = rcells[0] ? (rcells[0].match(/<td class="num[^"]*"[^>]*>[\s\S]*?<\/td>/g) || []).map(dig) : [];
+  RP.pvStandLimits(true); start(); RP.pvLevel(2); const hO = scr(), O = parse(hO); RP.pvStandLimits(false);
+  ok(428, t1.length === 2 && t1.every(full) && t2.length >= 3 && t2.every(empty) && T.filter(x => x.kind === 'tot').length === t2.length &&
+        same(sumT, grand(hT)) && rfirst.length >= 3 && rfirst.slice(0, -1).every(v => v !== '') && !has(rot, '<td class="num muted">—</td>') &&
+        lvl(O, 2).length === 5 && lvl(O, 2).every(full) && lvl(O, 1).every(empty) && has(hO, 'строки — при раскрытии'),
+    `уровни переставлены (состояние → подразделение, итог — у подразделения): строка состояния несёт числа и в сумме даёт итог отчёта, строки подразделения пусты ` +
+    `с «Итого по …» после них; «показатели в строках» берёт числа первой группы без итога — прочерков нет; выше порога строк «до уровня 2» — числа в строках состояний`);
+
+  /* ПВ-Д9: «Взыскание» — все пять ведущих текстовых колонок закреплены, счётчик колонок у основной таблицы. */
+  start('t-sh-claims', '2026-08-31'); const hC = scr();
+  const keys = hC.match(/<th class="key[^"]*"[^>]*>/g) || [], kw = keys.map(k => +(k.match(/min-width:(\d+)px/) || [0, 0])[1]), kl = keys.map(k => +(k.match(/left:(\d+)px/) || [0, 0])[1]);
+  const block = kw.reduce((a, b) => a + b, 0), gl = (hC.match(/<tr class="grp g1[^>]*>[\s\S]*?<\/tr>/) || [''])[0];
+  start(); const hO2 = scr(), keys2 = hO2.match(/<th class="key[^"]*"[^>]*>/g) || [];
+  ok(429, keys.length === 5 && kl[0] === 24 && kl.every((l, i) => !i || l === kl[i - 1] + kw[i - 1]) && 24 + block <= 1224 - 560 &&
+        has(hC, 'id="pvColCnt" hidden') && has(hC, 'RP.pvHBy(this,-1)') && has(hC, 'RP.pvHBy(this,1)') && has(hC, 'data-ci="5"') && !has(hC, 'data-ci="6"') &&
+        /<th class="num"[^>]*data-ci="1">Сумма требования/.test(hC) && has(gl, 'colspan="5"') && has(gl, '<td colspan="2" class="gfill"') &&
+        keys2.length === 2 && has(hO2, 'data-ci="4"') && !has(hO2, 'data-ci="5"'),
+    `ПВ-40: у «Взыскания» закреплены все пять ведущих текстовых колонок (было три — «Обязанное лицо» и «Роль» уходили в прокрутку): блок ${block} px + «⋯» ` +
+    `на экране 1920 при панели 340 (окно таблицы ≈ 1224) оставляет числам ${1224 - 24 - block} px; подпись группы стоит над закреплённым блоком и не накрывает числа; ` +
+    `счётчик «колонки a–b из N ◂ ▸» — у основной таблицы (скрыт, пока она не шире окна), в «Просроченной задолженности» закреплены две колонки, числа и дни — в прокрутке`);
+})();
+
+/* ВОЛНА 60 · СПИСКИ — блок GGG (#430–#434): список «＋ Показатель» поверх листа (ПВ-Д13), выгрузка в режиме времени (ПВ-Д11). */
+/* Блок GGG (#430–#434): выбор из многих в панели — список слева от панели поверх листа, число в группе, серое с причиной,
+   поиск (ПВ-Д13, КН-8); меню «Выгрузить ▾» и «В рабочий список» в режиме времени называют отчёт, который уйдёт (ПВ-51, ПВ-Д11).
+   Окна нет: размещение проверяется на подставных узлах с теми же методами, что у настоящих. */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
+  const scr = () => V.issue.fn();
+  const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const picksOf = h => h.split('<details class="pv-pick"').slice(1).map(x => '<details class="pv-pick"' + x.split('</details>')[0]);
+  const sumOf = p => (p.match(/<summary[^>]*>([^<]*)<\/summary>/) || ['', ''])[1];
+  const groupsOf = p => p.split('<div class="pick-grp">').slice(1).map(g => ({
+    name: (g.match(/<div class="pick-g">([^<]*?) <span class="n">/) || ['', ''])[1],
+    n: +(g.match(/<span class="n">(\d+)<\/span>/) || ['', -1])[1], items: (g.match(/<button class="mi/g) || []).length }));
+
+  /* Размещение: окно и панель — подставные, у них те же getBoundingClientRect / closest / querySelector / style.setProperty. */
+  const place = (innerW, innerH, panelLeft, btnTop, hasPanel = true) => {
+    const set = {}; let focused = false;
+    const q = { focus: () => { focused = true; } };
+    const menu = { style: { setProperty: (k, v) => { set[k] = v; } }, querySelector: s => s === '.pick-q' ? q : null };
+    const panel = { getBoundingClientRect: () => ({ left: panelLeft, top: 139, right: panelLeft + 340, bottom: 846 }) };
+    const sm = { getBoundingClientRect: () => ({ top: btnTop, left: panelLeft + 27, bottom: btnTop + 28 }) };
+    const el = { open: true, closest: () => hasPanel ? panel : null, querySelector: s => s === '.pv-menu' ? menu : s === 'summary' ? sm : null };
+    win.innerWidth = innerW; win.innerHeight = innerH; sandbox.document = {};
+    try { RP.pvPickPlace(el); } finally { delete sandbox.document; delete win.innerWidth; delete win.innerHeight; }
+    return Object.assign(set, { focused });
+  };
+
+  start(); RP.twistCut('borrower'); RP.twistStat('s-overdue-cnt'); const h0 = scr();
+  const pk0 = picksOf(h0);
+  const noDom = (() => { try { RP.pvPickPlace({ open: true }); RP.pvPickPlace(null); return true; } catch (e) { return false; } })();
+  ok(430, pk0.map(x => sumOf(x).replace(/^(Поле: ).*/, '$1…')).join('|') === '＋ Разрез|＋ Показатель|Поле: …' &&
+        (h0.match(/<details class="pv-pick"/g) || []).length === 3 &&
+        (h0.match(/<details class="pv-pick" ontoggle="RP\.pvPickPlace\(this\)">/g) || []).length === 3 &&
+        pk0.every(p => has(p, 'class="pick-q"') && has(p, '<div class="pick-l">')) && noDom,
+    `«＋ Разрез», «＋ Показатель» и «Поле: … ▾» в панели — каждый с обработчиком размещения при открытии, поиск закреплён над своим ` +
+    `списком; без окна размещение ничего не делает и не падает`);
+
+  const rule = (src.match(/\.sp \.pv-pick > \.pv-menu, \.pv-side \.pv-pick > \.pv-menu\{[^}]*\}/) || [''])[0];
+  const lrule = (src.match(/\.sp \.pv-pick \.pick-l, \.pv-side \.pv-pick \.pick-l\{[^}]*\}/) || [''])[0];
+  const wide = place(1920, 1080, 1556, 469), low = place(1920, 1080, 1556, 1000), narrow = place(700, 900, 16, 500), lone = place(1920, 1080, 1556, 469, false);
+  ok(431, has(rule, 'position:fixed') && has(rule, 'left:var(--pk-l') && has(rule, 'top:var(--pk-t') && has(rule, 'max-height:var(--pk-h') &&
+        has(rule, 'width:320px') && has(lrule, 'overflow:auto') && has(lrule, 'min-height:0') &&
+        wide['--pk-l'] === '1228px' && wide['--pk-t'] === '469px' && wide['--pk-h'] === '599px' && wide.focused &&
+        1228 + 320 + 8 === 1556 && 469 + 599 <= 1080 &&
+        low['--pk-t'] === '708px' && low['--pk-h'] === '360px' && 708 + 360 <= 1080 &&
+        Object.keys(narrow).join() === 'focused' && Object.keys(lone).join() === 'focused',
+    `список — слева от панели, в 8 px от неё (шириной 320), сверху на уровне кнопки и вниз до края окна (599 px при кнопке на 469), у нижнего края ` +
+    `встаёт выше и остаётся не короче 360 px; свой список прокручивается сам; на узком окне и вне панели — обычный выпадающий`);
+
+  start(); RP.twistCut('borrower'); RP.twistStat('s-overdue-cnt');
+  const w = ev('curTwist()'), ch = RP.choices('t-overdue');
+  const pS = pk0.find(p => sumOf(p) === '＋ Показатель'), pC = pk0.find(p => sumOf(p) === '＋ Разрез'), pF = pk0.find(p => sumOf(p).startsWith('Поле: '));
+  const gS = groupsOf(pS), gC = groupsOf(pC), gF = groupsOf(pF);
+  const nums = ev("SEAM.fieldList(liveEd(TPL('t-overdue')).object).fields.filter(f => fieldType(f.id) === 'число').length");
+  const fAll = ev("SEAM.fieldList(liveEd(TPL('t-overdue')).object).fields.length");
+  const off = ev(`pvPick('＋ Х', [{id:'a', name:'Первый', g:'доступно'}, {id:'b', name:'Второй', g:'доступно', off:true, why:'нет данных на дату'}, {id:'c', name:'Третий', g:'нельзя', off:true}], 'RP.f')`);
+  const offG = groupsOf(off);
+  ok(432, [gS, gC, gF].every(g => g.length && g.every(x => x.n === x.items)) &&
+        gS.reduce((a, x) => a + x.items, 0) === ev(`uniq(${JSON.stringify(ch.base.stats)}.concat(${JSON.stringify(ch.stats)})).length`) &&
+        (pS.match(/<button class="mi on"/g) || []).length === w.stats.length && (pC.match(/<button class="mi on"/g) || []).length === w.cuts.length &&
+        gF.reduce((a, x) => a + x.items, 0) === fAll && gF.find(x => x.name === 'числа').n === nums &&
+        offG.map(x => x.n + ':' + x.items).join() === '2:2,1:1' && has(off, '<button class="mi off" disabled data-t="второй" title="нет данных на дату">Второй<small>нет данных на дату</small></button>') &&
+        has(off, '<button class="mi off" disabled data-t="третий">Третий</button>') && !/<button class="mi off"[^>]*onclick/.test(off) && has(off, "onclick=\"RP.f('a')\""),
+    `число в заголовке группы = числу пунктов группы (показатели ${gS.map(x => x.n).join('+')}, разрезы ${gC.map(x => x.n).join('+')}, ` +
+    `поля ${gF.map(x => x.n).join('+')}); сумма по группам = весь реестр; ✓ у выбранных (${w.stats.length} показ., ${w.cuts.length} раз.); ` +
+    `недоступное — серым, без щелчка, причина под названием и в подсказке`);
+
+  /* Поиск: узлы подставные — те же querySelectorAll / dataset / hidden / textContent, что у настоящих. */
+  const mkItem = t => ({ dataset: { t }, hidden: false });
+  const mkGrp = items => { const n = { textContent: String(items.length) };
+    return { hidden: false, items, n, querySelectorAll: () => items, querySelector: s => s === '.pick-g .n' ? n : null }; };
+  const g1 = mkGrp([mkItem('банк'), mkItem('вклад'), mkItem('бонус')]), g2 = mkGrp([mkItem('бизнес'), mkItem('кредит')]), none = { hidden: true };
+  const menu = { querySelectorAll: () => [g1, g2], querySelector: s => s === '.pick-none' ? none : null };
+  const state = () => [g1.hidden, g1.n.textContent, g1.items.map(x => x.hidden ? 0 : 1).join(''), g2.hidden, g2.n.textContent, none.hidden].join('/');
+  RP.pvPickQ({ value: ' Б ', parentNode: menu }); const sB = state();
+  RP.pvPickQ({ value: 'вкл', parentNode: menu }); const sV = state();
+  RP.pvPickQ({ value: 'яя', parentNode: menu }); const sN = state();
+  RP.pvPickQ({ value: '', parentNode: menu }); const sE = state();
+  /* Закрыли и открыли снова — поиск чистый, пункты все. */
+  const qq = { value: 'б', parentNode: menu }; RP.pvPickQ(qq); const sD = state();
+  win.innerWidth = 1920; win.innerHeight = 1080; sandbox.document = {};
+  try { RP.pvPickPlace({ open: true, querySelector: s => s === '.pick-q' ? qq : null, closest: () => null }); }
+  finally { delete sandbox.document; delete win.innerWidth; delete win.innerHeight; }
+  ok(433, sB === 'false/2/101/false/1/true' && sV === 'false/1/010/true/0/true' && sN === 'true/0/000/true/0/false' && sE === 'false/3/111/false/2/true' &&
+        sD === 'false/2/101/false/1/true' && qq.value === '' && state() === sE &&
+        pk0.every(p => has(p, 'placeholder="поиск" oninput="RP.pvPickQ(this)"') && has(p, '<div class="pick-none" hidden>ничего не нашлось</div>') &&
+          (p.match(/<button class="mi/g) || []).length === (p.match(/ data-t="/g) || []).length),
+    `поиск прячет пункты, группа без совпадений уходит целиком, число в группе пересчитывается под найденное (б → 2 и 1, «вкл» → 1 и нет группы), ` +
+    `ничего не нашлось — своей строкой, пустой поиск возвращает всё, открытие списка снова — тоже; у каждого пункта есть строка для поиска`);
+
+  /* Режим времени: лист — сравнение, динамика или оборот, а файл и список берут основной отчёт на дату показа. */
+  const ddOf = (h, name) => (h.match(new RegExp('<details class="pv-dd"><summary([^>]*)>' + name + '</summary>([\\s\\S]*?)</details>')) || ['', '', ''])
+    .slice(1, 3).join('§');
+  const modes = ['отчёт', 'сравнение', 'динамика', 'за период'];
+  const seen = m => { start(); RP.setTime(m); const h = scr(), a = ev('shownArgs()'), file = ddOf(h, 'Выгрузить ▾'), list = ddOf(h, 'В рабочий список');
+    const r = RP.exportShown(a.tid, a.params, a.twist, 'xlsx'), pa = RP.ISS(r.id).passport.asOf, d = pa ? ev(`fmt('${pa}')`) : null;
+    return { m, a, file, list, ok: r.ok, pa, d, lst: ev('timeText(timeSpecNow(RP.state.sel.tpl))') }; };
+  const S = modes.map(seen), plain = S[0], tm = S.slice(1);
+  RP.pvAsOf('2026-07-01'); const hj = scr(), aj = ev('shownArgs()'), rj = RP.exportShown(aj.tid, aj.params, aj.twist, 'xlsx');
+  const dj = ev(`fmt('${RP.ISS(rj.id).passport.asOf}')`);
+  start('t-portfolio'); RP.setTime('динамика'); const hl = scr(), al = ev('shownArgs()'), rl = RP.exportShown(al.tid, al.params, al.twist, 'xlsx');
+  ok(434, tm.every(s => s.ok && s.pa === '2026-08-01' && s.d === '01.08.2026' &&
+          has(s.file, 'Выгрузится отчёт на ' + s.d + '. Того, что на листе (' + s.lst + '), в файле не будет.') && has(s.file, 'title="В файл уйдёт отчёт на ' + s.d) &&
+          has(s.file, "RP.doExportShown('xlsx')") && has(s.file, "RP.doExportShown('pdf')") &&
+          has(s.list, 'Список — из объектов отчёта на ' + s.d + ', а не из того, что на листе (' + s.lst + ')') && has(s.list, 'title="В список войдут объекты отчёта на ' + s.d) &&
+          has(s.list, 'RP.doWorklistShown()')) &&
+        tm.map(s => s.lst.replace(/ \d.*$/, '') + '/' + s.a.params.asOf).join() === 'сравнение/2026-08-01,динамика/2026-08-01,за период/2026-08-01' &&
+        !has(plain.file, 'Выгрузится отчёт') && !has(plain.file, 'на листе') && !has(plain.file, 'title="В файл') &&
+        !has(plain.list, 'Список — из объектов отчёта') && !has(plain.list, 'на листе') && !has(plain.list, 'title="В список') &&
+        has(plain.list, 'все строки показа; список из части — из провала: щёлкните число') &&
+        has(ddOf(hj, 'Выгрузить ▾'), 'Выгрузится отчёт на 01.07.2026.') && aj.params.asOf === '2026-07-01' && dj === '01.07.2026' &&
+        has(ddOf(hl, 'Выгрузить ▾'), 'Выгрузится отчёт на сегодня (' + ev('fmt(RP.state.today)') + ')') && rl.ok && RP.ISS(rl.id).passport.asOf == null,
+    `в сравнении, динамике и обороте «Выгрузить ▾» и «В рабочий список» называют отчёт, который уйдёт, — на ${tm[0].d}, ту же дату берёт выгрузка (паспорт ${tm[0].pa}), — ` +
+    `и режим листа; форматы и «Завести список» на месте; в обычном режиме строки нет; у отчёта «сейчас» — «на сегодня»`);
+})();
+
+/* Волна 60, правка по ревью (блок HHH, #435–#440): условие по формуле считает год даты показа и не берёт план (его нет на строке
+   объекта); «В рабочий список» у показа без строк объектов — причина без записи выпуска; запасной колонки `__lvl` нет в колонках
+   и подписях, в строке объекта под ней — имя группы; язычок без своей вкладки открывает первую; меню правой кнопки — с
+   «Заметки строки · n»; над таблицей без строк объектов — «групп N», уровня «строки» нет. */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS, P8 = { asOf:'2026-08-01', dept:'' };
+  const scr = () => V.issue.fn();
+  const start = (tpl, role) => { RP.seed(); as(role || 'auth'); RP.state.view = 'issue'; RP.state.sel.tpl = tpl || 't-overdue';
+    RP.state.sel.params = Object.assign({}, P8); };
+  const text = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const ddOf = (h, name) => (h.match(new RegExp('<details class="pv-dd"><summary([^>]*)>' + name + '</summary>([\\s\\S]*?)</details>')) || ['', '', ''])
+    .slice(1, 3).join('§');
+
+  /* 1. Условие по формуле: «Выдано с начала года» — год даты показа; формул с планом в условиях нет. */
+  start('t-sh-planfact');
+  const fYtd = { formula: { name: 'Выдано к себе', a: 's-issued-ytd', op: '÷', b: 's-issued-ytd', k: 100, unit: '%', cmp: 'больше', value: 50 } };
+  const fPlan = { formula: { name: 'Исполнение плана', a: 's-issued-ytd', op: '÷', b: 's-plan-issue', k: 100, unit: '%', cmp: 'больше', value: 0 } };
+  const yearKeep = d => { const p = { asOf: d, dept: '' }, base = RP.show('t-sh-planfact', p, { drill: true }).data.rows;
+    const want = base.filter(x => x.issued && x.issued.slice(0, 4) === d.slice(0, 4) && x.sum > 0), got = RP.filterAnswer('t-sh-planfact', p, fYtd, null);
+    return { want: want.map(x => x.id).sort().join(), sum: want.reduce((a, x) => a + x.sum, 0), n: want.length, from: base.length, got: got.ok ? got.ids.slice().sort().join() : null,
+      tot: got.ok ? (got.data.totals.find(x => x.id === 's-issued-ytd') || {}).value : null }; };
+  const y25 = yearKeep('2025-12-01'), y26 = yearKeep('2026-08-01');
+  const offered = RP.fsetFormulas(), isPlan = f => ev(`planStat('${f.a}') || planStat('${f.b}')`);
+  const rP = RP.fsetFormula('Исполнение плана', 'меньше', 50), rI = RP.fsetFormula('ф-исполнение', 'меньше', 50);
+  const rFilt = RP.filterAnswer('t-sh-planfact', P8, fPlan, null), fine = RP.fsetFormula('Доля просрочки в портфеле', 'больше', 1);
+  ok(435, y25.n > 0 && y25.n < y25.from && y25.got === y25.want && y25.tot === y25.sum && y26.n > 0 && y26.got === y26.want && y26.tot === y26.sum && y25.n !== y26.n &&
+        offered.length > 0 && offered.every(f => !isPlan(f)) && !offered.some(f => f.name === 'Исполнение плана') &&
+        !rP.ok && has(rP.why, 'план задан по подразделениям — на строки объектов он не делится') && !rI.ok && rI.why === rP.why &&
+        !rFilt.ok && has(rFilt.why, 'на строки объектов он не делится') && fine.ok,
+    `условие по формуле над «Выдано с начала года» на 01.12.2025 оставляет кредиты 2025 г. (${y25.n} из ${y25.from}, итог ${y25.tot} = сумма оставленных), на 01.08.2026 — 2026 г. ` +
+    `(${y26.n}); формул с планом среди предлагаемых нет (${offered.length}: ${offered.map(f => f.name).join(', ')}), «Исполнение плана» в условие — отказ «${rP.why}», в отбор — тоже; формула без плана ставится`);
+
+  /* 2. «В рабочий список» у показа без строк объектов: причина в меню и при вызове, выпуск в журнал не пишется. */
+  start('t-sh-planfact'); RP.state.sel.wlName = 'обзвон';
+  const n0 = RP.state.issues.length, w0 = RP.state.worklists.length, args0 = ev('shownArgs()');
+  const rNo = RP.worklistShown(args0.tid, args0.params, args0.twist, 'обзвон'); RP.doWorklistShown();
+  const n1 = RP.state.issues.length, w1 = RP.state.worklists.length, menuNo = ddOf(scr(), 'В рабочий список');
+  RP.twistDrillSet(true); RP.state.sel.wlName = 'обзвон';
+  const menuYes = ddOf(scr(), 'В рабочий список'); RP.doWorklistShown();
+  ok(436, !rNo.ok && has(rNo.why, 'у показа без строк объектов списка не завести — включите «печатать строки» в «Составе»') && n1 === n0 && w1 === w0 &&
+        has(menuNo, 'у показа без строк объектов списка не завести') && !has(menuNo, 'doWorklistShown') && !has(menuNo, '<input') &&
+        has(menuYes, 'RP.doWorklistShown()') && has(menuYes, 'Завести рабочий список') &&
+        RP.state.issues.length === n0 + 1 && RP.state.worklists.length === w0 + 1 && /^РС-/.test(RP.state.sel.wl || ''),
+    `у «Плана и факта выдачи» в «только итогах групп» кнопка и вызов отказывают причиной, выпусков в журнале ${n0} → ${n1} (не растёт), списков ${w0} → ${w1}; в меню вместо кнопки — строка-причина; ` +
+    `с «печатать строки» кнопка есть, выпуск и список заводятся (${n0 + 1}, ${w0 + 1})`);
+
+  /* 3. Запасная колонка: только когда все поля отчёта — разрезы; в колонках и подписях её нет; в строке объекта — имя группы. */
+  start('t-sh-planfact'); RP.twistDrillSet(true);
+  const hP = scr(), shP = RP.show('t-sh-planfact', P8, RP.state.sel.twist).data, expectNames = shP.groups.reduce((a, g) => a.concat(g.rows.map(() => g.name)), []);
+  const objRows = hP.match(/<tr class="obj[^"]*"[\s\S]*?<\/tr>/g) || [], keyCells = objRows.map(r => text((r.match(/<td[\s\S]*?<\/td>/g) || [])[1]));
+  const colsP = (hP.match(/data-cols="([^"]*)"/) || [])[1], namesP = (hP.match(/data-names="([^"]*)"/) || [])[1];
+  const cmP = ((hP.match(/Колонки ▾<\/summary>([\s\S]*?)<\/details>/) || [])[1]) || '';
+  const ctxLvl = ev(`pvCtxHtml('kr-2', ${JSON.stringify(colsP.split(',')[1])}, 'Подразделение', 'x')`);
+  start('t-overdue'); ['no', 'borrower', 'debt_main', 'days'].forEach(c => RP.pvHideCol(c, true));
+  const hO = scr(), headO = (hO.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0];
+  ok(437, objRows.length === expectNames.length && objRows.length > 0 && keyCells.join('|') === expectNames.join('|') && !keyCells.includes('—') &&
+        !has(hP, '__lvl') && colsP.split(',')[1] === '' && has(namesP, '|Подразделение|') && !has(ctxLvl, 'Заметка к ячейке') && has(ctxLvl, 'Заметка к строке') &&
+        !has(cmP, 'Подразделение') && has(cmP, 'План выдачи') &&
+        !has(hO, '__lvl') && !has(text(headO), 'Подразделение') && has(text(headO), 'Сумма просроченной задолженности') && !has((hO.match(/data-cols="([^"]*)"/) || [])[1], '__lvl'),
+    `у «Плана и факта» в строках объектов под «Подразделение» — имя группы (${keyCells.length} строк, ни одного «—»), id колонки в data-cols пуст (правый клик по ней — без «Заметки к ячейке»), ` +
+    `в «Колонки ▾» её нет; у «Просроченной задолженности» со скрытыми текстовыми колонками запасной колонки нет`);
+
+  /* 4. Язычок: главная кнопка — своя вкладка язычка, а без неё — первая из вкладок (не открытая сейчас). */
+  const SP = ev('sidePanel'), TB = [{ key: 'a', label: 'Альфа', n: 0, body: '' }, { key: 'b', label: 'Бета', n: 0, body: '' }];
+  const c1 = SP({ tabs: TB, tab: 'b', onShow: 'X.show', open: false, tongue: { label: 'Язык' } }),
+    c2 = SP({ tabs: TB, tab: 'b', onShow: 'X.show', open: false, tongue: { label: 'Язык', tab: 'b' } }),
+    c3 = SP({ tabs: TB, tab: 'zz', onShow: 'X.show', open: false, tongue: { label: 'Язык' } }), c4 = SP({ tabs: [], onShow: 'X.show', open: false, tongue: { label: 'Язык' } });
+  ok(438, has(c1, 'onclick="X.show(\'a\')">Язык') && has(c2, 'onclick="X.show(\'b\')">Язык') && has(c3, 'onclick="X.show(\'a\')">Язык') && has(c4, '>Язык</button>'),
+    `язычок без tongue.tab при открытой «Бета» открывает первую вкладку («Альфа»), с tongue.tab — свою, при несуществующей открытой — тоже первую; без вкладок не падает`);
+
+  /* 5. Меню правой кнопки: «Заметки строки · n» — как в «⋯». */
+  start(); RP.doNoteAt('t-overdue', '2026-08-01', 'kr-2'); const hR = scr();
+  const rowR = (hR.match(/<tr class="obj[^"]*"[^>]*data-r="kr-2"[\s\S]*?<\/tr>/) || [''])[0], menuR = (rowR.match(/<details class="pv-rm">[\s\S]*?<\/details>/) || [''])[0];
+  const labelsOf = h => (h.match(/<button class="mi"[^>]*>[^<]*<\/button>/g) || []).map(x => text(x));
+  const rowMenu = labelsOf(menuR), ctxR = ev("pvCtxHtml('kr-2', 'debt_main', 'Остаток основного долга', '12 000')"), ctxMenu = labelsOf(ctxR);
+  RP.pvTab('настройки'); RP.pvRowNotes('kr-2');
+  ok(439, rowMenu.includes('Заметки строки · 1') && ctxMenu.includes('Заметки строки · 1') && has(ctxR, "RP.pvRowNotes('kr-2')") &&
+        rowMenu.filter(x => !/^Заметка к ячейке|«/.test(x) && x !== 'Копировать значение').every(x => ctxMenu.includes(x)) &&
+        has(ctxMenu.join('|'), 'Заметка к ячейке «Остаток основного долга»') &&
+        RP.state.sel.pvTab === 'заметки' && RP.state.sel.pvNoteRow === 'kr-2',
+    `меню правой кнопки по строке — те же действия, что в «⋯» (${rowMenu.length} пунктов в «⋯», ${ctxMenu.length} в правой кнопке), с «Заметки строки · 1» (число — по заметкам строки); пункт открывает вкладку «Заметки» на этой строке`);
+
+  /* 6. Над таблицей без строк объектов: «групп N», уровня «строки» нет; со строками — как было; счётчик по прокрутке — тоже. */
+  start('t-sh-planfact'); const hF = scr(), cntF = text((hF.match(/<span id="pvCnt"[\s\S]*?<\/span>/) || [''])[0]), lvF = text((hF.match(/Показать до уровня:[\s\S]*?<\/span>/) || [''])[0]),
+    gF = RP.show('t-sh-planfact', P8, null).data.groups.length;
+  RP.twistDrillSet(true); const hD = scr(), cntD = text((hD.match(/<span id="pvCnt"[\s\S]*?<\/span>/) || [''])[0]), lvD = text((hD.match(/Показать до уровня:[\s\S]*?<\/span>/) || [''])[0]);
+  const cntEl = { textContent: '' }, tw = { dataset: { n: '0', m: String(gF) }, parentNode: null, scrollWidth: 1, clientWidth: 1,
+    getBoundingClientRect: () => ({ top: 0, bottom: 500, left: 0, right: 1000 }), querySelector: () => null, querySelectorAll: () => [] };
+  sandbox.document = { getElementById: id => id === 'pvCnt' ? cntEl : null };
+  try { RP.pvScroll(tw); } finally { delete sandbox.document; }
+  ok(440, gF === 3 && cntF === 'групп ' + gF && !has(cntF, 'строк нет') && !has(cntF, 'группа 1 из') && lvF === 'Показать до уровня: 1' &&
+        cntD === 'строки 1–8 из 8 · группа 1 из ' + gF && lvD === 'Показать до уровня: 1 · строки' && cntEl.textContent === 'групп ' + gF,
+    `у «Плана и факта» без строк объектов тулбар — «${cntF}» (без «строк нет» и «группа 1 из»), «${lvF}» без пункта «строки»; со строками — «${cntD}» и «${lvD}»; счётчик по прокрутке — «${cntEl.textContent}»`);
+})();
+
+/* Волна 62 (блок III, #442–#466): экран «Верстальщик бланка» на рамке показа (ВБ-1…ВБ-23) — полоса со списком бланков,
+   PDF-форм и фрагментов и одной главной кнопкой, шапка в две строки, строка над листом, ошибка под своей строкой,
+   сравнение — режим листа, панель «Палитра · Паспорт», окна печати, загрузки, отправки и возврата, «Стенд ▾», путь
+   редакции «черновик → на утверждении → утверждена / возвращена с замечанием», свои примеры. Автор — делопроизводитель,
+   утверждающий — уполномоченный. Каждая проверка начинается с RP.seed() (start). */
+(() => {
+  const ev = c => vm.runInContext(c, sandbox), V = win.VIEWS;
+  const scr = () => V.blank.fn(), at = (h, a) => h.indexOf(a);
+  const start = (tid, role) => { RP.seed(); as(role || 'clerk'); return RP.blankEnter(tid); };
+  const cut = (h, a, b) => { const i = at(h, a); if (i === -1) return ''; const j = b ? h.indexOf(b, i) : -1; return j === -1 ? h.slice(i) : h.slice(i, j); };
+  const bar = h => cut(h, '<div class="pv-bar">', '<div class="pv-body');
+  const head = h => cut(h, '<div class="pv-head">', '<div class="pv-tb');
+  const msgs = h => cut(cut(h, '<div class="pv-center">', '<div class="pv-tb'), '<div class="pv-msgs">');
+  const tb = h => cut(h, '<div class="pv-tb', '<div class="vb-sheet"');
+  const sheet = h => cut(h, '<div class="vb-sheet"', '<aside class="sp');
+  const side = h => cut(h, '<aside class="sp');
+  const text = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const mainBtn = h => (bar(h).match(/<button class="btn btn-primary btn-sm" id="vbMain"[^>]*>[^<]*<\/button>/) || [''])[0];
+  const upBtn = h => (bar(h).match(/<button[^>]*>⬆ Загрузить исправленный<\/button>/) || [''])[0];
+  const tabsOf = h => (h.match(/<button role="tab" data-tab="[^"]+"[^>]*>[^<]+/g) || []).map(x => x.replace(/^[\s\S]*>/, ''));
+  const tabOn = h => (h.match(/<button role="tab" data-tab="([^"]+)" aria-selected="true"/) || [])[1] || null;
+  const chips = h => (tb(h).match(/onclick="RP\.vbObj\('[^']+'\)">[^<]+/g) || []).map(x => x.replace(/^[\s\S]*>/, ''));
+  const groups = h => (side(h).match(/<details class="vb-g"[^>]*>/g) || [])
+    .map(x => ({ key: (x.match(/data-key="[^"|]*\|(?:поле\|)?([^"]+)"/) || [])[1], open: / open>$/.test(x) }));
+  const drOf = tid => RP.TPL(tid).editions.find(e => e.state === 'черновик') || null;
+  /* Что стоит под листом внутри центра: после закрытия листа — только закрытие центра. */
+  const underSheet = h => { const re = /<div\b|<\/div>/g; let d = 0, m; re.lastIndex = at(h, '<div class="vb-sheet"');
+    while ((m = re.exec(h))) { d += m[0] === '</div>' ? -1 : 1; if (!d) return h.slice(re.lastIndex, at(h, '<aside class="sp')); } return null; };
+  RP.seed();
+  const SEED = id => RP.TPL(id).editions.find(e => e.state === 'утверждена').layoutText;
+  const CONTRACT = SEED('t-contract'), NOTICE = SEED('t-notice'), CLAIM = SEED('t-claim'), SUM = '${Кредит.Сумма | число и прописью}';
+  const RATE = CONTRACT.replace(SUM, SUM + ' под ${Кредит.Ставка} годовых');
+  const RATE2 = CONTRACT.replace(SUM, SUM + ' под ${Кредит.Ставка} процентов годовых');
+  const BASIS = 'в договор добавлена ставка по замечанию юристов';
+
+  /* ВБ-1: рамка показа — полоса, шапка, строка над листом, лист, справа панель; под листом ничего. */
+  start('t-contract'); const h1 = scr();
+  const GONE = ['Загружаемый файл', 'Номер бумаги', 'Заказать выпуск', 'Ошибки проверки', 'Набор примеров', 'Проверка документом', 'Бумага «до и после»'];
+  const order1 = ['<div class="pv-bar">', '<div class="pv-head">', '<div class="pv-tb', '<div class="vb-sheet" id="vbSheet">',
+    '<aside class="sp pv-side vb-side" id="vbSide">'].map(x => at(h1, x));
+  ok(442, h1.startsWith('<div class="pv vb">') && order1.every((x, k) => x > 0 && (!k || x > order1[k - 1])) && underSheet(h1) === '</div>' &&
+        tabsOf(h1).join(' · ') === 'Палитра · Паспорт' && tabOn(h1) === 'палитра' && GONE.every(x => !has(h1, x)),
+    `ВБ-1: верстальщик — рамка показа: полоса, шапка, строка над листом, лист, справа панель «${tabsOf(h1).join(' · ')}»; ` +
+    `под листом ничего; карточек ${GONE.slice(0, 5).map(x => '«' + x + '»').join(', ')} на экране нет`);
+
+  /* ВБ-2, ВБ-Д4: список «Бланк» в полосе — группы бланков, PDF-форм и фрагментов; фрагмент открывается здесь же. */
+  const og = [...bar(h1).matchAll(/<optgroup label="([^"]+)"/g)].map(x => x[1]);
+  const visB = RP.visibleTemplates().filter(id => RP.TPL(id).kind === 'бланк');
+  const useS = RP.fragmentUse('Шапка');
+  RP.selBlank('frag:Шапка'); const hf = scr();
+  ok(443, og.join(' | ') === 'Бланки · ' + (visB.length - 1) + ' | PDF-формы · 1 | Фрагменты · 3' &&
+        has(bar(h1), '>Шапка · в 3 бланках</option>') && has(bar(h1), '>Реквизиты · не стоит нигде</option>') &&
+        useS.length === 3 && RP.fragmentUse('Реквизиты').length === 0 &&
+        RP.state.sel.blankFrag === 'Шапка' && has(bar(hf), '<option value="frag:Шапка" selected>') &&
+        tabsOf(hf).join() === 'Паспорт' && has(text(head(hf)), 'Шапка · фрагмент · ред. 1 — утверждена · в 3 бланках') &&
+        has(sheet(hf), 'ОАО «Государственный фонд кредитования»') && useS.every(id => has(side(hf), RP.TPL(id).name)),
+    `ВБ-2: в полосе список «${og.join(' · ')}»; у фрагмента — где стоит («Шапка · в 3 бланках», «Реквизиты · не стоит нигде»); ` +
+    `фрагмент открывается тем же экраном — текст на листе, панель только «Паспорт» с бланками, где он стоит`);
+
+  /* ВБ-3, ВБ-Д1: главная «Отправить на утверждение» — последней в полосе, на одном месте; недоступна с причиной. */
+  const noDraft = visB.map(id => { RP.selBlank(id); return mainBtn(scr()); });
+  start('t-notice'); const h3a = scr();
+  RP.uploadLayout('t-notice', NOTICE + '\n${Кредит.Неттакого}'); const h3b = scr();
+  RP.uploadLayout('t-notice', NOTICE + '\nДата выдачи: ${Кредит.ДатаВыдачи}'); const h3c = scr();
+  const lastIsMain = h => /<span class="pv-sep"><\/span><button class="btn btn-primary btn-sm" id="vbMain"[^>]*>Отправить на утверждение<\/button><\/div>$/.test(bar(h));
+  ok(444, noDraft.length === 12 && noDraft.every(b => / disabled title="черновика нет — загрузите (исправленный макет|новую версию формы)">/.test(b)) &&
+        has(mainBtn(h3a), 'disabled title="черновика нет — загрузите исправленный макет"') &&
+        has(mainBtn(h3b), 'disabled title="ошибок 1 — исправьте в Word и загрузите снова"') &&
+        has(mainBtn(h3c), `onclick="RP.vbDlgOpen('send')"`) && !has(mainBtn(h3c), 'disabled') && [h3a, h3b, h3c].every(lastIsMain),
+    `ВБ-3, ВБ-Д1: «Отправить на утверждение» — на одном месте в конце полосы; у ${noDraft.length} бланков без черновика недоступна ` +
+    `с причиной «черновика нет — загрузите…», с ошибкой — «ошибок 1 — исправьте в Word и загрузите снова», у чистого черновика ` +
+    `открывает окно отправки`);
+
+  /* ВБ-20: основание обязательно — окно с полем, пустое — отказ, окно остаётся. ВБ-4, ВБ-19: утверждающему по ссылке — сравнение. */
+  start('t-contract'); RP.uploadLayout('t-contract', RATE);
+  RP.vbDlgOpen('send'); const dS = RP.vbDialogs();
+  const sNo = RP.vbSendGo('  '), kept = !!RP.state.sel.vbDlg && RP.state.sel.vbDlg.kind === 'send';
+  const sYes = RP.vbSendGo(BASIS), closed = RP.state.sel.vbDlg === null, f4 = RP.blankFlow('t-contract'), hS = scr();
+  as('auth'); const pA = RP.blankEnter('t-contract'), hA = scr();
+  ok(445, has(dS, 'Отправить на утверждение · ред. 2') && has(dS, '<label class="pv-lbl" for="vbBasis">Основание</label>') &&
+        has(dS, 'placeholder="что и почему изменено"') && !sNo.ok && has(sNo.why, 'назовите основание') && kept &&
+        sYes.ok && closed && f4.flow === 'на утверждении' && f4.basis.text === BASIS && f4.basis.by === 'Абдырахманова С.' &&
+        has(text(head(hS)), 'ред. 2 — на утверждении, печатается ред. 1') &&
+        pA === 't-contract' && RP.state.sel.vbMode === 'cmp' && tabOn(hA) === 'паспорт' &&
+        has(bar(hA), `onclick="RP.vbDlgOpen('return')">Вернуть с замечанием</button>`) &&
+        has(mainBtn(hA), 'onclick="RP.vbApprove()">Утвердить ред. 2</button>') && !has(bar(hA), 'Отправить на утверждение') &&
+        has(sheet(hA), '<b>Основание автора:</b> ' + BASIS) && at(sheet(hA), 'Основание автора') < at(sheet(hA), 'class="vb-cmp2"'),
+    `ВБ-20: «Отправить на утверждение» — окном с полем «Основание»; пустое — «${sNo.why}», окно остаётся; с основанием — ` +
+    `«на утверждении». ВБ-4, ВБ-19: уполномоченный по ссылке — «Сравнение» и «Паспорт», в полосе «Вернуть с замечанием» и ` +
+    `главная «Утвердить ред. 2», основание автора — над сравнением`);
+
+  /* ВБ-4, ВБ-Д3: путь редакции — возврат с замечанием, повторная отправка после загрузки, утверждение. */
+  RP.vbDlgOpen('return'); const dR = RP.vbDialogs();
+  const rNo = RP.vbReturnGo(''), rYes = RP.vbReturnGo('ставку — прописью'), f5 = RP.blankFlow('t-contract'), hR = scr();
+  const pubR = RP.publish('t-contract');
+  as('clerk'); const sendR = RP.sendForApproval('t-contract', BASIS);
+  const upR = RP.uploadLayout('t-contract', RATE2), sendR2 = RP.sendForApproval('t-contract', 'ставка прописью');
+  as('auth'); RP.blankEnter('t-contract'); RP.vbApprove(); const hP = scr();
+  ok(446, has(dR, 'Вернуть с замечанием · ред. 2') && has(dR, 'основание автора: ' + BASIS) && has(dR, '<textarea id="vbNote"') &&
+        !rNo.ok && has(rNo.why, 'напишите замечание') && rYes.ok && f5.flow === 'возвращена' && f5.returned.note === 'ставку — прописью' &&
+        has(text(head(hR)), 'ред. 2 — возвращена с замечанием, печатается ред. 1') &&
+        has(text(msgs(hR)), 'Возвращена с замечанием: «ставку — прописью» — Тентимишев К.') && at(hR, '<div class="pv-msgs">') < at(hR, 'id="vbSheet"') &&
+        !pubR.ok && has(pubR.why, 'не отправлена на утверждение') && !sendR.ok && has(sendR.why, 'возвращена с замечанием') &&
+        upR.ok && upR.n === 2 && sendR2.ok && RP.blankFlow('t-contract') === null && RP.pubEd('t-contract').n === 2 &&
+        RP.state.sel.vbMode === 'doc' && has(text(head(hP)), 'ред. 2 — утверждена, печатается') &&
+        has((RP.blankPassport('t-contract').find(r => r[0] === 'редакции') || [])[1], 'ред. 1 — утверждена 01.07.2026'),
+    `ВБ-4, ВБ-Д3: «Вернуть с замечанием» — окном, без замечания отказ; возвращённая — в шапке «ред. 2 — возвращена с замечанием, ` +
+    `печатается ред. 1», замечание строкой над листом; утвердить и отправить её нельзя («${pubR.why}»); после загрузки — ` +
+    `снова в путь, «Утвердить ред. 2» — утверждена, ред. 1 в истории`);
+
+  /* ВБ-5, ВБ-Д9: шапка в две строки; «Редакции в работе» и баннера «Ред. 1 утверждена…» нет. */
+  start('t-contract'); const h5a = scr(); RP.uploadLayout('t-contract', RATE); const h5b = scr();
+  const l1 = text(cut(h5a, '<div class="l1">', '<div class="l2">')), l2 = text(cut(h5a, '<div class="l2">', '<div class="pv-tb'));
+  RP.vbPanel(false); const h5c = scr(), hid5 = !has(h5c, '<aside class="sp'); RP.vbTab('паспорт'); const h5d = scr();
+  ok(447, has(head(h5a), '<span class="nb">Образец — не выпуск</span>') &&
+        l1 === 'Образец — не выпуск · Кредитный договор · ФО-44 · ред. 1 — утверждена, печатается · кредит · сейчас' &&
+        /^получатель — .+ · номер — .+ · язык — русский · утверждает .+ · паспорт →$/.test(l2) &&
+        has(text(head(h5b)), 'ред. 2 — черновик, печатается ред. 1') && !has(h5a, 'Редакция в работе') && !has(h5a, 'Ред. 1 утверждена') &&
+        has(head(h5a), `onclick="RP.vbTab('паспорт');return false">паспорт →</a>`) && hid5 && tabOn(h5d) === 'паспорт',
+    `ВБ-5, ВБ-Д9: шапка — «${l1}» / «${l2}»; с черновиком — «ред. 2 — черновик, печатается ред. 1»; «паспорт →» открывает ` +
+    `«Паспорт» и из скрытой панели`);
+
+  /* ВБ-6: строка над листом — режим, «Значения | Имена полей», примеры чипами, «＋ Свой», «на дату», ошибки. */
+  start('t-contract'); const h6 = scr();
+  RP.blankEnter('t-zspr'); const h6z = scr();
+  RP.blankEnter('t-recon'); const h6r = scr();
+  RP.uploadLayout('t-notice', NOTICE + '\n${Кредит.Неттакого}\n${Заёмщик.Нет}'); RP.blankEnter('t-notice'); const h6e = scr();
+  start('t-recon', 'user'); const h6u = scr();
+  const asof = (tb(h6r).match(/<label class="pv-f vb-asof"><span>на<\/span><select[^>]*>([\s\S]*?)<\/select>/) || [])[1] || '';
+  ok(448, has(tb(h6), `onclick="RP.vbVals(true)">Значения</button>`) && has(tb(h6), `onclick="RP.vbVals(false)">Имена полей</button>`) &&
+        chips(h6).join(' | ') === 'поручитель есть | поручителя нет' && has(tb(h6), '＋ Свой') && !has(tb(h6), "RP.vbMode('cmp')") &&
+        has(tb(h6), '<span class="vb-ok">✓ ошибок нет</span>') && has(sheet(h6), '<div class="vb-objl">КД-2025/126 · ОсОО «Ош-Текстиль»</div>') &&
+        chips(h6z).length === 4 && has(tb(h6z), '＋ Свой') && !has(tb(h6), 'vb-asof') &&
+        chips(h6r).join(' | ') === 'длинный повтор · строк 4 | пустой повтор' && (asof.match(/<option /g) || []).length > 3 && has(asof, ' selected>') &&
+        has(tb(h6e), '<button class="lnk vb-bad" onclick="RP.vbToErr()" title="к первой ошибке">ошибок 2 ↓</button>') &&
+        !has(tb(h6u), '＋ Свой'),
+    `ВБ-6: над листом — «Значения | Имена полей», примеры чипами по случаю («${chips(h6).join('», «')}»; у справки ${chips(h6z).length}), ` +
+    `«＋ Свой» (только автору), у акта сверки — «на ДД.ММ.ГГГГ ▾»; справа «✓ ошибок нет» или «ошибок N ↓»; объект — строкой над документом`);
+
+  /* ВБ-7: свои примеры — закреплённый чип с ✕ живёт между загрузками; объект другого вида не закрепляется. */
+  start('t-contract');
+  const cand = RP.pinCandidates('t-contract', 'Тянь');
+  RP.vbPin('kr-4'); const h7a = scr(), sel7 = RP.state.sel.blankObj;
+  RP.uploadLayout('t-contract', RATE); const h7b = scr(), s7 = RP.samples('t-contract');
+  const wrong = RP.pinSample('t-contract', 'su-2'), dup = RP.pinSample('t-contract', 'kr-6');
+  RP.vbUnpin('kr-4'); const h7c = scr(), sel7c = RP.state.sel.blankObj;
+  as('user'); const usr7 = RP.pinSample('t-recon', 'kr-1');
+  ok(449, cand.length === 2 && cand.every(c => has(c.sub, 'Тянь-Шань Строй')) && sel7 === 'kr-4' &&
+        chips(h7a).join(' | ') === 'поручитель есть | поручителя нет | КД-2025/088' &&
+        has(tb(h7a), `onclick="event.stopPropagation();RP.vbUnpin('kr-4')">✕</span>`) &&
+        s7.some(x => x.obj === 'kr-4' && x.own) && chips(h7b).indexOf('КД-2025/088') !== -1 &&
+        !wrong.ok && has(wrong.why, 'того же вида, что объект бланка') && !dup.ok && has(dup.why, 'уже в наборе') &&
+        chips(h7c).join(' | ') === 'поручитель есть | поручителя нет' && sel7c === null && !usr7.ok,
+    `ВБ-7: «＋ Свой» ищет в области видимости (${cand.length} по «Тянь»), закреплённый — чип «КД-2025/088» с ✕, живёт после ` +
+    `загрузки макета; заёмщик к договору не закрепляется («${wrong.why}»); откреплённый уходит, пример — снова первый`);
+
+  /* ВБ-7, ВБ-Д2: случай «поле пусто» — поле макета вне повтора и условия пусто у объекта из области видимости. */
+  start('t-notice'); RP.uploadLayout('t-notice', NOTICE + '\nПоручитель: ${Поручитель.ФИО}');
+  const s8 = RP.samples('t-notice'), em = s8.find(x => /^поле пусто · /.test(x.label || '')), h8 = scr();
+  RP.vbObj((em || {}).obj); const h8b = scr();
+  ok(450, !!em && em.label === 'поле пусто · Поручитель' && chips(h8).indexOf('поле пусто · Поручитель') !== -1 && has(sheet(h8b), '<i>пусто</i>') &&
+        RP.samples('t-contract').every(x => !/^поле пусто/.test(x.label || '')),
+    `ВБ-7, ВБ-Д2: поле вне условия, пустое у объекта (${em ? em.obj : '—'}), — пример «${em ? em.label : '—'}»: на листе пустое место видно`);
+
+  /* ВБ-8, ВБ-Д7: ошибка — красной строкой под своей строкой, метка в причине один раз; карточки «Ошибки проверки» нет. */
+  start('t-notice'); RP.uploadLayout('t-notice', NOTICE + '\nИНН: ${Заёмщик.ИНН}'); const h9 = scr();
+  const e9 = sheet(h9).match(/<div class="ln err"[^>]*>[\s\S]*?<\/div>/g) || [], nLn = String(NOTICE.split('\n').length + 1);
+  const under = /<div class="ln" id="ln-(\d+)">(?:(?!<div).)*<\/div><div class="ln err" id="vbErr1" data-ln="(\d+)">/.exec(sheet(h9));
+  const why9 = (RP.checkLayout('t-notice').errors[0] || {}).why || '';
+  ok(451, e9.length === 1 && !!under && under[1] === nLn && under[2] === nLn &&
+        (text(e9[0]).match(/\$\{Заёмщик\.ИНН\}/g) || []).length === 1 && has(why9, 'в макете ${Заёмщик.ИНН}') && !has(e9[0], 'в макете') &&
+        has(tb(h9), 'ошибок 1 ↓') && !has(h9, 'Ошибки проверки'),
+    `ВБ-8, ВБ-Д7: причина — строкой под стр. ${nLn} («${text(e9[0] || '')}»), метка в ней один раз; сводка «ошибок 1 ↓» ведёт к ней`);
+
+  /* ВБ-9: «Сравнение с ред. N · M» — режим листа: чипы изменений, изменённые строки, бумага «до и после» двумя колонками. */
+  start('t-notice');
+  RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}\n${Если: есть Поручитель}\nПоручитель: ${Поручитель.ФИО}\n${Конец условия}');
+  const cm = RP.compareEditions('t-notice'); RP.vbMode('cmp'); const hC = scr(); RP.vbVals(false); const hCn = scr();
+  const colsV = cut(hC, '<div class="vb-cmp2">'), colsN = cut(hCn, '<div class="vb-cmp2">');
+  ok(452, has(tb(hC), `<button class="on" onclick="RP.vbMode('cmp')">Сравнение с ред. 1 · ${cm.changed}</button>`) &&
+        has(sheet(hC), '<b>Поля:</b>') && has(sheet(hC), '<b>Условия:</b>') && has(sheet(hC), '<div class="lcheck diff">') &&
+        (sheet(hC).match(/<div class="ln (add|del)">/g) || []).length === cm.lines.filter(x => x.op !== '=').length &&
+        (colsV.match(/<div class="lcheck sample">/g) || []).length === 2 && has(colsV, '<h4>ред. 1 — печатается · КД-') &&
+        has(colsV, '<h4>ред. 2 — черновик</h4>') && (colsN.match(/<div class="lcheck">/g) || []).length === 2 && !has(colsN, 'lcheck sample'),
+    `ВБ-9: «Сравнение с ред. 1 · ${cm.changed}» — режим листа: чипы полей и условий, изменённые строки, бумага «до и после» ` +
+    `двумя колонками на примере; «Имена полей» действует на обе колонки`);
+
+  /* ВБ-10, ВБ-Д6: одна палитра на поля и метки; пара копируется обеими метками; поиск по полю находит условие о нём. */
+  start('t-contract');
+  const pg = RP.paletteAll('t-contract', '', 'kr-6'), keys10 = pg.map(g => g.key);
+  const gOf = k => pg.find(g => g.key === k) || { items: [], title: '' };
+  const rep = gOf('rep'), cond = gOf('cond'), frag = gOf('frag'), view = gOf('view');
+  const cpR = RP.copyPal(rep.items[0].copy), cpC = RP.copyPal(cond.items[0].copy), cpX = RP.copyPal(frag.items[0].copy), cpV = RP.copyPal(view.items[0].copy);
+  const found = RP.paletteAll('t-contract', 'Поручител', 'kr-6').map(g => g.key);
+  const nF = keys10.filter(k => /^f:/.test(k)).length;
+  ok(453, nF >= 3 && keys10.slice(0, nF).every(k => /^f:/.test(k)) && keys10.slice(nF).join() === 'rep,cond,frag,view' &&
+        [rep, cond, frag, view].map(g => g.title).join(' | ') === 'Повтор · парой | Условие · парой | Фрагмент | Вид значения — после черты' &&
+        cpR.token === '${Повтор: каждый Платёж}\n\n${Конец повтора}' && has(cpR.note, 'скопировано парой') &&
+        cpC.token === '${Если: есть Поручитель}\n\n${Конец условия}' && has(cpC.note, '${Если: есть Поручитель} … ${Конец условия}') &&
+        cpX.token === '${Фрагмент: Шапка}' && cpV.token === ' | род.' && RP.state.sel.copied === ' | род.' &&
+        rep.items.concat(cond.items).every(x => !/^\$\{/.test(x.tok)) && has(frag.items.map(x => x.ex).join('|'), 'не стоит нигде') &&
+        found.indexOf('f:Поручитель') !== -1 && found.indexOf('cond') !== -1,
+    `ВБ-10, ВБ-Д6: одна палитра — ${nF} групп полей по ролям, затем «${[rep, cond, frag, view].map(g => g.title).join('», «')}»; ` +
+    `пара копируется обеими метками, фрагмент и вид значения копируются; в строке пары нет обёртки «\${Если: …}»; ` +
+    `поиск «Поручител» находит поле и условие о нём`);
+
+  /* ВБ-11: строка палитры — метка, пример серым, ⧉; щелчок копирует; раскрыта только первая; поиск раскрывает найденное. */
+  const h11 = scr(), gs = groups(h11);
+  const prs = side(h11).match(/<div class="vb-pr" role="button" tabindex="0" onclick="RP\.vbCopy\(\d+\)"[^>]*><span class="mono">[^<]*<\/span><span class="ex">[^<]*<\/span><span class="cp">⧉<\/span><\/div>/g) || [];
+  const nItems = pg.filter(g => g.key !== 'view').reduce((s, g) => s + g.items.length, 0);
+  const ci = (side(h11).match(/onclick="RP\.vbCopy\((\d+)\)"[^>]*><span class="mono">есть Поручитель<\/span>/) || [])[1];
+  RP.state.sel.copied = null; if (ci) ev('RP.vbCopy(' + ci + ')'); const copied11 = RP.state.sel.copied;
+  RP.vbPalQ('Поручител'); const gq = groups(scr()); RP.vbPalQ('Ставка'); const h11s = scr(), gq2 = groups(h11s);
+  RP.vbPalQ(''); RP.vbPalOpen('t-contract|rep', true); RP.selBlank('t-notice'); const gn = groups(scr()); RP.selBlank('t-contract'); const gm = groups(scr());
+  ok(454, prs.length === nItems && gs.length === pg.length && gs[0].open && gs.slice(1).every(g => !g.open) &&
+        has(side(h11), 'title="${Кредит.Номер} — Номер договора: КД-2025/126 — щелчок копирует"') &&
+        copied11 === '${Если: есть Поручитель}\n\n${Конец условия}' &&
+        gq.map(g => g.key).join() === 'f:Поручитель,cond' && gq.every(g => g.open) &&
+        gq2.length === 1 && gq2[0].key === 'f:Кредит' && gq2[0].open && has(side(h11s), '<span class="mono">${Кредит.Ставка}</span>') &&
+        (gm.find(g => g.key === 'rep') || {}).open === true && (gn.find(g => g.key === 'rep') || { open: true }).open === false &&
+        !has(side(h11), '<span class="mono">${Если: ') && !has(side(h11), '<span class="mono">${Повтор: '),
+    `ВБ-11: ${prs.length} строк палитры в одну линию (метка · пример · ⧉), полное — подсказкой; щелчок по строке пары кладёт обе ` +
+    `метки; раскрыта первая группа, поиск раскрывает найденное («Поручител» — поле и условие); раскрытое помнится у бланка`);
+
+  /* ВБ-12: паспорт — только то, чего нет в шапке; у PDF-формы — файл и «строк не хватает». */
+  start('t-contract'); RP.vbTab('паспорт'); const h12 = scr();
+  const pk12 = (side(h12).match(/<span class="k">([^<]+)<\/span>/g) || []).map(x => x.replace(/<[^>]+>/g, ''));
+  const pb12 = RP.blankPassport('t-bankform').map(r => r[0]);
+  ok(455, tabOn(h12) === 'паспорт' && pk12.join(' | ') === 'бумага | фрагменты | шрифты | почему этот утверждающий | круг печати | редакции' &&
+        ['получатель', 'номер', 'язык', 'утверждает', 'объект', 'режим'].every(k => pk12.indexOf(k) === -1) &&
+        has(side(h12), 'Шапка — ред. 1; Подпись председателя — ред. 1') && has(side(h12), 'Times New Roman') &&
+        pb12.indexOf('файл формы') !== -1 && pb12.indexOf('строк не хватает') !== -1,
+    `ВБ-12: паспорт бланка — «${pk12.join(' · ')}», без повторов шапки; у PDF-формы ещё «файл формы» и «строк не хватает»`);
+
+  /* ВБ-13: «⬆ Загрузить исправленный» — окном с текстом docx и строкой о черновике; поля на экране нет. */
+  start('t-contract'); const h13 = scr();
+  RP.vbDlgOpen('upload'); const dU = RP.vbDialogs();
+  RP.uploadLayout('t-contract', RATE); RP.vbDlgOpen('upload'); const dU2 = RP.vbDialogs();
+  ok(456, has(upBtn(h13), `onclick="RP.vbDlgOpen('upload')"`) && !has(h13, 'id="layoutText"') &&
+        has(dU, 'Загрузить исправленный · Кредитный договор') && has(dU, 'Заведёт черновик ред. 2 — ред. 1 печатается, пока новая не утверждена.') &&
+        has(dU, '<textarea id="layoutText"') && has(dU, `onclick="RP.uiUpload()">Загрузить</button>`) &&
+        has(dU2, 'Заменит черновик ред. 2.') && RP.draftEd('t-contract').n === 2,
+    `ВБ-13: загрузка — окном «Загрузить исправленный»: «Заведёт черновик ред. 2 — ред. 1 печатается, пока новая не утверждена»; ` +
+    `при черновике — «Заменит черновик ред. 2»; поля с текстом макета на экране нет`);
+
+  /* ВБ-14, ВБ-22: печати на экране верстальщика нет; окно «Печать» — из реестра («Выпустить») и из карточки объекта. */
+  start('t-contract'); const h14 = scr();
+  as('auth'); RP.state.view = 'registry'; RP.state.sel.regTab = 'бланк'; const reg14 = V.registry.fn();
+  const row14 = (() => { const i = at(reg14, '>t-contract<'); return i === -1 ? '' : reg14.slice(reg14.lastIndexOf('<tr', i), reg14.indexOf('</tr>', i)); })();
+  const bp14 = RP.blankPrint('t-contract'), view14 = RP.state.view, d14 = RP.vbDialogs();
+  RP.blankPrint('t-contract', 'kr-6'); const d14b = RP.vbDialogs();
+  const n14 = RP.state.issues.length; RP.doOrderBlank('t-contract'); const ord14 = RP.state.issues[RP.state.issues.length - 1] || {};
+  RP.openBlank('t-contract');
+  ok(457, ['Заказать выпуск', 'Выгрузить', 'RP.doOrderBlank', 'RP.doExportBlank', 'RP.blankPrint', '>Ступень<'].every(x => !has(h14, x)) &&
+        has(row14, `onclick="RP.blankPrint('t-contract')">Выпустить</button>`) && has(row14, `onclick="RP.openBlank('t-contract')">Открыть</button>`) &&
+        bp14.ok && view14 === 'registry' && has(d14, 'id="vbDlg" role="dialog"') && has(d14, 'Печать · Кредитный договор · ФО-44') &&
+        has(d14, '<span class="small muted">кредит</span><span class="ob">') && has(d14, 'другой ▾') &&
+        has(d14, `onchange="RP.blankPrint('t-contract', this.value)"`) && has(d14, '>Ступень<') && has(d14, '>предварительный</button>') &&
+        has(d14, '>окончательный</button>') && has(d14, 'Получатель — лицо в роли «заёмщик»') && has(d14, '>Номер<') &&
+        has(d14, 'Задания этого бланка') && has(d14, 'Выгрузить ▾') && has(d14, `onclick="RP.doOrderBlank('t-contract')">Заказать выпуск</button>`) &&
+        has(d14b, '<span class="ob">КД-2025/126 · ОсОО «Ош-Текстиль»</span>') && has(d14b, 'Асанова Т. К.') &&
+        RP.state.issues.length === n14 + 1 && ord14.tpl === 't-contract' && ord14.obj === 'kr-6' &&
+        RP.state.view === 'blank' && RP.state.sel.blank === 't-contract' && RP.state.sel.vbDlg === null,
+    `ВБ-14, ВБ-22: на экране верстальщика печати нет; «Выпустить» в реестре открывает окно «Печать» поверх реестра — объект ` +
+    `назван и выбирается («другой ▾»), образец, ступень, получатель, номер, задания, «Выгрузить ▾», «Заказать выпуск» ` +
+    `(заказ — на объект окна); «Открыть» ведёт на верстальщика`);
+
+  /* ВБ-15: молчание модуля — действие «Стенд ▾» на экране верстальщика; баннер «Все отвечают» не тронут. */
+  start('t-zspr'); const st15 = ev('pvStand()'), owners15 = RP.blankOwners('t-zspr');
+  RP.setDown('залог'); const st15b = ev('pvStand()'), ban15 = RP.downBanner(), h15 = scr(); RP.setDown(null);
+  RP.blankEnter('t-recon'); const st15r = ev('pvStand()');
+  RP.state.view = 'issue'; const st15i = ev('pvStand()');
+  RP.blankEnter('t-contract'); const demo15 = RP.vbDemoApproval(), f15 = RP.blankFlow('t-contract');
+  ok(458, has(st15, 'Стенд ▾') && has(st15, `onclick="RP.blankPrint('t-zspr')">Печать из карточки…</button>`) &&
+        has(st15, 'Если модуль не ответит') && owners15.length > 1 && owners15.every(o => has(st15, `onclick="RP.setDown('${o}')"`)) &&
+        has(st15, 'onclick="RP.vbCheckDemo()">Проверка многостраничного макета</button>') && has(st15, 'onclick="RP.vbDemoApproval()"') &&
+        has(st15b, '>✓ залог</button>') && has(ban15, 'не отвечает модуль «залог»') && has(ban15, '>Все отвечают</button>') &&
+        has(sheet(h15), 'каждый предмет залога · ответа нет') &&
+        !has(st15r, 'Если модуль не ответит') && has(st15r, 'Печать из карточки…') && !has(st15i, 'Печать из карточки…') &&
+        demo15.ok && f15 && f15.flow === 'на утверждении' && RP.state.role === R.clerk,
+    `ВБ-15: «Стенд ▾» верстальщика — «Печать из карточки…», «Если модуль не ответит» (${owners15.length} владельцев справки, ` +
+    `у бланка «на дату» нет), «Проверка многостраничного макета», «Ред. 2 договора на утверждении»; баннер «Все отвечают» — как был`);
+
+  /* ВБ-16, ВБ-23, ВБ-Д5: PDF-форма — та же рамка; щелчок по полю — палитра поля; щелчок по строке — сопоставление в черновик. */
+  start('t-bankform'); const h16 = scr();
+  RP.vbPick('chkGuarantee'); const h16c = scr(), g16c = groups(h16c);
+  RP.vbPick('BankNote'); const h16b = scr();
+  const pf16 = RP.paletteFor('t-bankform', 'BankNote').map(g => g.key), pfCol = RP.paletteFor('t-bankform', 'PayDate').map(g => g.key);
+  const ri16 = (side(h16b).match(/onclick="RP\.vbCopy\((\d+)\)"[^>]*><span class="mono">\$\{Кредит\.Номер\}<\/span>/) || [])[1];
+  if (ri16) ev('RP.vbCopy(' + ri16 + ')');
+  const f16 = RP.blankFlow('t-bankform'), bnDr = ((drOf('t-bankform') || { pdfForm: { fields: [] } }).pdfForm.fields.find(f => f.name === 'BankNote')) || {};
+  const bnPub = RP.TPL('t-bankform').editions.find(e => e.state === 'утверждена').pdfForm.fields.find(f => f.name === 'BankNote');
+  RP.sendForApproval('t-bankform', 'отметка банка — номер договора'); const m16 = RP.pdfMap('t-bankform', 'BankNote', { empty: true });
+  RP.vbMode('fill'); const h16f = scr();
+  start('t-bankform'); RP.uploadPdfForm('t-bankform', 'bank-agent-confirm-v2.pdf', ['BorrowerName', 'ContractNo', 'DebtSum', 'chkGuarantee', 'BankNote', 'PayRow1']);
+  const h16e = scr(), bad16 = sheet(h16e).match(/<div class="pf-f bad[^"]*"[^>]*>[\s\S]*?<span class="pf-why">[^<]+<\/span><\/div>/g) || [];
+  ok(459, has(tb(h16), `onclick="RP.vbMode('map')">Сопоставление</button>`) && has(tb(h16), `onclick="RP.vbMode('fill')">Заполнение</button>`) &&
+        has(sheet(h16), '<div class="pf-page">') && has(bar(h16), '⬆ Новая версия формы') && !has(h16, 'мимо движка') && !has(h16, 'Правила формы') &&
+        tabOn(h16c) === 'палитра' && (g16c[0] || {}).key === 'cond' && g16c[0].open && has(side(h16c), 'поле формы: <b>Обеспечено поручительством</b>') &&
+        has(sheet(h16c), '<div class="pf-f on"') && pf16.join() === 'f:Кредит,f:Заёмщик,f:Поручитель,empty' && pfCol.join() === 'f:Платёж,empty' &&
+        has(side(h16b), 'оставить пустым') && bnPub.empty === true && bnDr.map === 'Кредит.Номер' && !!f16 && f16.n === 2 && f16.flow === 'черновик' &&
+        !m16.ok && has(m16.why, 'на утверждении — отзовите') && chips(h16f).join(' | ') === 'обычный | таблица переполнена' &&
+        bad16.length === 2 && has(bad16[0], 'id="vbErr1"') && has(tb(h16e), 'ошибок 2 ↓') && has(mainBtn(h16e), 'ошибок 2 — сопоставьте поля формы'),
+    `ВБ-16, ВБ-23: PDF-форма — «Сопоставление | Заполнение», баннера «мимо движка» нет; щелчок по флажку — палитра поля с группой ` +
+    `«Условие», у колонки таблицы — поля повтора, внизу «оставить пустым»; щелчок по строке — сопоставление в черновик ред. ${f16 ? f16.n : '—'}, ` +
+    `на утверждении — отказ; ошибки — красными полями с причиной (${bad16.length}, и поле, которого в новой версии нет)`);
+
+  /* ВБ-17: много данных — номера строк, черта «стр. N», колонтитул «стр. 1 из M»; многостраничная проверка — в фоне. */
+  start('t-zspr'); RP.vbObj('su-6'); const h17 = scr();
+  const pg17 = sheet(h17).match(/<div class="pg"><span>стр\. \d+<\/span><\/div>/g) || [];
+  const nums17 = (sheet(h17).match(/<span class="no">\d+<\/span>/g) || []).length;
+  RP.vbCheckDemo(); const h17c = scr(), ck = RP.state.sel.vbCheck || {};
+  ok(460, pg17.length >= 1 && has(pg17[0], 'стр. 2') && nums17 > 30 && /стр\. 1 из [2-9]/.test(sheet(h17)) &&
+        ck.tid === 't-zspr' && ck.page === 1 && ck.of === 12 && has(msgs(h17c), '<b>Проверяется…</b> стр. 1 из 12') &&
+        (tb(h17c).match(/disabled title="проверяется…"/g) || []).length === chips(h17).length - 1,
+    `ВБ-17: справка на «всё сразу» — ${nums17} пронумерованных строк, черта «стр. 2», колонтитул «стр. 1 из N»; проверка ` +
+    `многостраничного макета — «Проверяется… стр. 1 из 12» над листом, остальные примеры ждут`);
+
+  /* ВБ-18, ВБ-Д8: пояснений и служебных имён нет — ни на экране, ни в окнах; у роли без бланков — одна строка. */
+  const SERV = /statRows|statSlice|objectRows|живое ядро|живой ответ|мимо движка|class="legend|щелчок по полю/;
+  const IDS = /(?:ИО|ОГ|ОД|ОЧ|ВТ|ГМ|ПВ|СПЗ|ДБ|РЯ|СС|ИС|КН|ВБ|ADR)-[ДDВ]?\d+|§\s?\d/;
+  const leaks = []; let seen = 0;
+  const look = (where, h) => { seen++; const a = h.match(SERV), b = text(h).match(IDS); if (a || b) leaks.push(where + ': ' + (a || b)[0]); };
+  RP.seed(); as('clerk');
+  RP.uploadLayout('t-notice', 'УВЕДОМЛЕНИЕ\nКому: ${Заёмщик.ФИО | дат.}\nДоговор ${Кредит.Номер}\n${Кредит.Неттакого}');
+  ['t-contract', 't-zspr', 't-bankform', 't-recon', 't-notice'].forEach(tid => {
+    RP.blankEnter(tid);
+    ['doc', 'cmp', 'map', 'fill'].forEach(m => [true, false].forEach(v => ['палитра', 'паспорт'].forEach(tab => {
+      Object.assign(RP.state.sel, { vbMode: m, blankVals: v, vbTab: tab }); look(tid + '/' + m + '/' + tab, scr()); })));
+    ['print', 'upload', 'send', 'return'].forEach(k => { RP.vbDlgOpen(k, tid); look(tid + '/окно ' + k, RP.vbDialogs()); RP.state.sel.vbDlg = null; });
+  });
+  RP.selBlank('frag:Шапка'); look('фрагмент', scr()); look('стенд', ev('pvStand()'));
+  start('t-recon', 'user'); const h18u = scr();
+  const visT = RP.visibleTemplates; RP.visibleTemplates = () => visT().filter(id => RP.TPL(id).kind !== 'бланк');
+  let h18n = ''; try { h18n = scr(); } finally { RP.visibleTemplates = visT; }
+  ok(461, leaks.length === 0 && seen === 102 && has(h18n, '<b>Бланки ведут делопроизводитель и уполномоченный.</b>') &&
+        has(mainBtn(h18u), 'disabled title="бланки ведут делопроизводитель и уполномоченный"') &&
+        has(upBtn(h18u), 'disabled title="бланки ведут делопроизводитель и уполномоченный"'),
+    `ВБ-18, ВБ-Д8: ${seen} отрисовок экрана, окон и стенда — служебных имён, «мимо движка», легенды и номеров решений нет ` +
+    `(${leaks.length}${leaks.length ? ': ' + leaks[0] : ''}); роли без бланков — «Бланки ведут делопроизводитель и уполномоченный», ` +
+    `у пользователя действия автора недоступны с той же причиной`);
+
+  /* ВБ-19: что при входе — по ссылке названный; иначе свой черновик в работе; иначе последний открытый. Сброс экрана. */
+  RP.seed(); as('clerk');
+  const e0 = RP.blankEnter();
+  RP.blankEnter('t-recon'); scr();
+  const e1 = RP.blankEnter();
+  RP.uploadLayout('t-claim', CLAIM + '\nтекст');
+  const e2 = RP.blankEnter(), e3 = RP.blankEnter('t-zspr');
+  RP.sendForApproval('t-claim', 'добавлен текст'); RP.blankEnter('t-recon'); scr();
+  const e4 = RP.blankEnter();
+  Object.assign(RP.state.sel, { vbMode: 'cmp', vbTab: 'паспорт', blankObj: 'kr-4', palQ: 'x', blankVals: false, vbPanel: false, vbDlg: { kind: 'upload', tid: 't-recon' } });
+  const e5 = RP.blankEnter('t-contract'), s19 = RP.state.sel;
+  ok(462, e0 === visB[0] && e1 === 't-recon' && e2 === 't-claim' && e3 === 't-zspr' && e4 === 't-recon' && e5 === 't-contract' &&
+        s19.vbMode === 'doc' && s19.vbTab === 'палитра' && s19.blankObj === null && s19.palQ === '' && s19.blankVals === true &&
+        s19.vbPanel === true && s19.vbDlg === null && RP.state.view === 'blank',
+    `ВБ-19: вход без ссылки — первый (${e0}), потом последний открытый (${e1}); свой черновик в работе выигрывает (${e2}), ` +
+    `отправленный на утверждение — нет (${e4}); по ссылке — названный; вход сбрасывает лист: «Документ · Значения», первый пример, «Палитра»`);
+
+  /* ВБ-21: редакция «на утверждении» не правится — отзыв; возвращённая после загрузки — черновик того же номера, замечание в истории. */
+  start('t-notice'); RP.uploadLayout('t-notice', NOTICE + '\nтекст'); RP.sendForApproval('t-notice', 'добавлен текст');
+  const u21 = RP.uploadLayout('t-notice', NOTICE), h21 = scr();
+  RP.vbDlgOpen('upload'); const d21 = RP.vbDialogs(); RP.vbDlgClose();
+  const wd21 = has(bar(h21), '<button class="mi" onclick="RP.vbWithdraw()">Отозвать с утверждения</button>');
+  RP.vbWithdraw(); const f21 = RP.blankFlow('t-notice'), h21w = scr();
+  RP.sendForApproval('t-notice', 'добавлен текст'); as('auth'); RP.returnEdition('t-notice', 'уберите лишнюю строку'); as('clerk');
+  const u21b = RP.uploadLayout('t-notice', NOTICE + '\nтекст исправлен'), f21b = RP.blankFlow('t-notice'), h21b = scr();
+  const hist21 = (RP.blankPassport('t-notice').find(r => r[0] === 'редакции') || [])[1] || '';
+  ok(463, !u21.ok && u21.why === 'ред. 2 на утверждении — отзовите её, чтобы загрузить исправленный' &&
+        has(upBtn(h21), 'disabled title="ред. 2 на утверждении — отзовите её, чтобы загрузить исправленный"') &&
+        has(d21, 'spellcheck="false" data-focus disabled>') && has(d21, 'Ред. 2 на утверждении — отзовите её') && wd21 &&
+        f21.flow === 'черновик' && !has(upBtn(h21w), 'disabled') &&
+        u21b.ok && u21b.n === 2 && f21b.flow === 'черновик' && RP.TPL('t-notice').editions.length === 2 && msgs(h21b) === '' &&
+        has(hist21, 'возвращена с замечанием «уберите лишнюю строку»') && has(hist21, 'отозвана с утверждения') &&
+        has(hist21, 'отправлена на утверждение с основанием «добавлен текст»'),
+    `ВБ-21: на утверждении загрузка закрыта («${u21.why}»), «⋯ → Отозвать с утверждения» возвращает черновик; возвращённая ` +
+    `после загрузки — черновик той же ред. 2, замечание и основание остаются в истории редакции (паспорт)`);
+
+  /* ВБ-Д10: затравка — утверждённые редакции бланков датированы не позже «сегодня» макета. */
+  RP.seed();
+  const late = RP.state.templates.filter(t => t.kind === 'бланк').reduce((a, t) => a.concat(t.editions
+    .filter(e => e.state === 'утверждена' && (e.at > RP.state.today || (e.since && e.since > RP.state.today))).map(e => t.id + ' ред. ' + e.n)), []);
+  const pc10 = RP.TPL('t-contract').editions.find(e => e.state === 'утверждена');
+  ok(464, late.length === 0 && pc10.at <= RP.state.today,
+    `ВБ-Д10: ред. ${pc10.n} кредитного договора утверждена ${pc10.at}, «сегодня» — ${RP.state.today}; позже сегодняшнего — ${late.length}`);
+
+  /* ВБ-Д11: у фрагмента загрузка недоступна с причиной — в макете редакции фрагмента не ведутся (так и закреплено). */
+  start('t-contract'); RP.selBlank('frag:Реквизиты'); const hD11 = scr();
+  ok(465, has(upBtn(hD11), 'disabled title="в макете редакции фрагмента не ведутся"') &&
+        has(bar(hD11), `onclick="RP.vbFragDownload('Реквизиты')">⬇ Скачать макет</button>`) && has(mainBtn(hD11), ' disabled ') &&
+        has(text(head(hD11)), 'Реквизиты · фрагмент · ред. 1 — утверждена · не стоит нигде') && has(side(hD11), '>нигде<'),
+    `ВБ-Д11 (открыт): у фрагмента «⬆ Загрузить исправленный» недоступна с причиной «в макете редакции фрагмента не ведутся»; ` +
+    `макет скачивается`);
+
+  /* Разметка экрана верстальщика и окон закрыта — как у конструктора (#343). */
+  const TAGS = ['div', 'span', 'details', 'summary', 'aside', 'button', 'label', 'select', 'textarea'];
+  const bal = h => TAGS.filter(t => (h.match(new RegExp('<' + t + '\\b', 'g')) || []).length !== (h.match(new RegExp('</' + t + '>', 'g')) || []).length);
+  const open = []; let nb = 0;
+  const chk = (where, h) => { nb++; const b = bal(h); if (b.length) open.push(where + ': ' + b.join(',')); };
+  RP.seed(); as('clerk');
+  ['t-contract', 't-zspr', 't-bankform', 't-recon'].forEach(tid => { RP.blankEnter(tid);
+    ['doc', 'map', 'fill'].forEach(m => ['палитра', 'паспорт'].forEach(tab => { Object.assign(RP.state.sel, { vbMode: m, vbTab: tab }); chk(tid + '/' + m + '/' + tab, scr()); }));
+    ['print', 'upload', 'send', 'return'].forEach(k => { RP.vbDlgOpen(k, tid); chk(tid + '/окно ' + k, RP.vbDialogs()); RP.state.sel.vbDlg = null; }); });
+  RP.selBlank('frag:Шапка'); chk('фрагмент', scr());
+  RP.uploadLayout('t-notice', NOTICE + '\n${Кредит.Неттакого}'); RP.blankEnter('t-notice'); chk('ошибка', scr());
+  RP.vbMode('cmp'); chk('сравнение', scr()); RP.vbPanel(false); chk('без панели', scr());
+  RP.blankEnter('t-bankform'); RP.vbPick('chkGuarantee'); chk('поле формы', scr());
+  ok(466, open.length === 0 && nb > 40,
+    `разметка верстальщика закрыта: ${nb} отрисовок экрана (договор, справка, PDF-форма, акт, фрагмент, ошибка, сравнение) ` +
+    `и окон печати, загрузки, отправки и возврата — незакрытых тегов ${open.length}${open.length ? ' (' + open[0] + ')' : ''}`);
+
+  /* Правка по ревью волны 62 (#467–#472). */
+  const deptOf = id => ev(`(OBJ(${JSON.stringify(id)}) || {}).dept`);
+  const lastIss = () => RP.state.issues[RP.state.issues.length - 1] || {};
+
+  /* Ревью, находка 2: окно «Печать» — объекты «другой ▾» только из области видимости, задания — только свои;
+     объектов в области нет — «Печатать не о ком», кнопки недоступны. */
+  start('t-notice'); RP.blankPrint('t-notice', 'kr-3'); RP.doOrderBlank('t-notice'); const jC = lastIss(); RP.state.sel.vbDlg = null;
+  as('user'); RP.state.view = 'registry'; const scU = RP.viewer().scope;
+  const bpU = RP.blankPrint('t-notice', 'kr-3'), dU7 = RP.vbDialogs();
+  const optU = [...cut(dU7, '<select aria-label="объект печати"', '</select>').matchAll(/<option value="([^"]+)"/g)].map(x => x[1]);
+  RP.doOrderBlank('t-notice'); const jU = lastIss(), dU7b = RP.vbDialogs();
+  const vw = RP.viewer; RP.viewer = () => Object.assign({}, vw(), { scope: ['нет-такого'] });
+  let d0 = '', bp0 = {}; try { bp0 = RP.blankPrint('t-notice'); d0 = RP.vbDialogs(); } finally { RP.viewer = vw; }
+  ok(467, jC.obj === 'kr-3' && jC.by === 'Абдырахманова С.' && scU.indexOf(deptOf('kr-3')) === -1 &&
+        bpU.obj !== 'kr-3' && scU.indexOf(deptOf(bpU.obj)) !== -1 && optU.length > 0 && optU.every(id => scU.indexOf(deptOf(id)) !== -1) &&
+        !has(dU7, jC.id) && jU.by === 'Осмонова Г.' && has(dU7b, '<b class="mono">' + jU.id + '</b>') && !has(dU7b, jC.id) &&
+        bp0.obj === null && has(d0, 'Печатать не о ком: объектов этого вида в вашей области видимости нет') && !has(d0, 'другой ▾') &&
+        has(d0, 'disabled title="печатать не о ком" onclick="RP.doOrderBlank(\'t-notice\')">Заказать выпуск</button>') &&
+        has(d0, '<button class="btn btn-secondary btn-sm" disabled title="печатать не о ком">Выгрузить ▾</button>'),
+    `ревью, находка 2: у пользователя «другой ▾» — ${optU.length} объекта его области видимости, чужой КД-2025/014 не предлагается; ` +
+    `в «Заданиях этого бланка» — только свои (${jU.id}), задание делопроизводителя (${jC.id}) не видно; объектов в области нет — ` +
+    `«Печатать не о ком: объектов этого вида в вашей области видимости нет», «Выгрузить ▾» и «Заказать выпуск» недоступны`);
+
+  /* Ревью, находка 3: редакция «на утверждении» не правится в обход загрузки — текст макета, метка, лист выгрузки. */
+  start('t-contract'); RP.uploadLayout('t-contract', RATE); RP.sendForApproval('t-contract', BASIS);
+  const txt3 = drOf('t-contract').layoutText, sh3 = JSON.stringify(drOf('t-contract').sheet || null);
+  const sl3 = RP.setLayout('t-contract', 'другой текст ${Кредит.Номер}'), it3 = RP.insertToken('t-contract', 'field', 'no');
+  as('auth'); const ss3 = RP.setSheet('t-contract', { orient: 'альбомная' }), sb3 = RP.setLevelTotals('t-contract', []);
+  const same3 = drOf('t-contract').layoutText === txt3 && JSON.stringify(drOf('t-contract').sheet || null) === sh3;
+  as('clerk'); RP.withdrawApproval('t-contract'); const sl3b = RP.setLayout('t-contract', txt3 + '\nстрока');
+  const W3 = 'ред. 2 на утверждении — отзовите её, чтобы править';
+  ok(468, !sl3.ok && sl3.why === W3 && !it3.ok && it3.why === W3 && !ss3.ok && ss3.why === W3 && !sb3.ok && sb3.why === W3 && same3 &&
+        sl3b.ok && drOf('t-contract').layoutText === txt3 + '\nстрока',
+    `ревью, находка 3: у редакции на утверждении текст макета, метка и лист выгрузки не правятся — «${sl3.why}»; ` +
+    `текст и лист те же, что ушли на утверждение; после отзыва правка снова идёт`);
+
+  /* Ревью, находка 4: на утверждение отправляет только тот, кто ведёт бланки. */
+  start('t-notice'); RP.uploadLayout('t-notice', NOTICE + '\nтекст');
+  as('user'); const s4u = RP.sendForApproval('t-notice', 'добавлен текст');
+  as('head'); const s4h = RP.sendForApproval('t-notice', 'добавлен текст'), f4n = RP.blankFlow('t-notice');
+  as('clerk'); const s4c = RP.sendForApproval('t-notice', 'добавлен текст');
+  ok(469, !s4u.ok && s4u.why === 'бланки ведут делопроизводитель и уполномоченный' && !s4h.ok && s4h.why === s4u.why &&
+        f4n.flow === 'черновик' && f4n.basis === null && s4c.ok && RP.blankFlow('t-notice').flow === 'на утверждении',
+    `ревью, находка 4: пользователь и руководитель на утверждение не отправляют — «${s4u.why}», редакция остаётся черновиком; ` +
+    `делопроизводитель отправляет`);
+
+  /* Ревью, находка 5: PDF-форма, возвращённая с замечанием, после сопоставления на листе — снова черновик того же номера. */
+  start('t-bankform'); RP.pdfMap('t-bankform', 'BankNote', { map: 'Кредит.Номер' }); RP.sendForApproval('t-bankform', 'отметка банка — номер договора');
+  as('auth'); RP.returnEdition('t-bankform', 'отметку оставьте пустой'); as('clerk');
+  const s5 = RP.sendForApproval('t-bankform', 'исправлено'), h5r = scr();
+  const m5 = RP.pdfMap('t-bankform', 'BankNote', { empty: true }), f5r = RP.blankFlow('t-bankform'), h5m = scr();
+  const s5b = RP.sendForApproval('t-bankform', 'отметка банка снова пустая');
+  const hist5 = (RP.blankPassport('t-bankform').find(r => r[0] === 'редакции') || [])[1] || '';
+  const W5 = 'ред. 2 возвращена с замечанием — исправьте сопоставление или загрузите новую версию формы';
+  ok(470, !s5.ok && s5.why === W5 && has(mainBtn(h5r), 'disabled title="' + W5 + '"') &&
+        m5.ok && m5.n === 2 && f5r.flow === 'черновик' && f5r.returned && f5r.returned.note === 'отметку оставьте пустой' &&
+        msgs(h5m) === '' && has(mainBtn(h5m), `onclick="RP.vbDlgOpen('send')"`) && s5b.ok && RP.TPL('t-bankform').editions.length === 2 &&
+        has(hist5, 'возвращена с замечанием «отметку оставьте пустой»') && has(hist5, 'сопоставлено поле «Отметка банка»'),
+    `ревью, находка 5: возвращённая PDF-форма — «${W5}»; сопоставление на листе делает её снова черновиком ред. 2, ` +
+    `замечание — в истории редакции, отправка открыта`);
+
+  /* Ревью, находка 1: поле, которого нет в новой версии формы, снимается на листе — «снять»; ошибка закрывается, отправка открыта;
+     на утверждении «снять» недоступна с причиной. */
+  const V2 = ['BorrowerName', 'ContractNo', 'DebtSum', 'chkGuarantee', 'BankNote', 'PayRow1'];
+  start('t-bankform'); RP.uploadPdfForm('t-bankform', 'bank-agent-confirm-v2.pdf', V2);
+  const h1a = scr(), gone1 = (sheet(h1a).match(/<div class="pf-f bad gone"[\s\S]*?<\/div>/) || [''])[0];
+  const di1 = (gone1.match(/<button class="lnk pf-drop" onclick="RP\.vbDrop\((\d+)\)">снять<\/button>/) || [])[1];
+  const wrong1 = RP.pdfDrop('t-bankform', 'DebtSum');
+  RP.pdfMap('t-bankform', 'DebtSum', { map: 'Кредит.ОстатокОсновногоДолга' });
+  const s1a = RP.sendForApproval('t-bankform', 'новая версия формы банка');
+  if (di1) ev('RP.vbDrop(' + di1 + ')');
+  const h1b = scr(), s1b = RP.sendForApproval('t-bankform', 'новая версия формы банка');
+  const hist1 = (RP.blankPassport('t-bankform').find(r => r[0] === 'редакции') || [])[1] || '';
+  start('t-bankform'); RP.uploadPdfForm('t-bankform', 'bank-agent-confirm-v2.pdf', V2); drOf('t-bankform').flow = 'на утверждении';
+  const h1c = scr(), d1c = RP.pdfDrop('t-bankform', 'DebtAmount');
+  ok(471, !!di1 && has(gone1, 'Остаток основного долга') && has(gone1, '>снять</button><span class="pf-n">') &&
+        !wrong1.ok && has(wrong1.why, 'в форме есть') && !s1a.ok && has(s1a.why, '«DebtAmount»') &&
+        !has(sheet(h1b), 'pf-f bad gone') && has(tb(h1b), '✓ ошибок нет') && s1b.ok &&
+        has(hist1, 'снято поле «Остаток основного долга» — его нет в новой версии формы') &&
+        has(sheet(h1c), '<button class="lnk pf-drop" disabled title="ред. 2 на утверждении — отзовите её, чтобы править сопоставление">снять</button>') &&
+        !d1c.ok && d1c.why === 'ред. 2 на утверждении — отзовите её, чтобы править сопоставление' &&
+        drOf('t-bankform').pdfForm.unmatched.join() === 'DebtAmount',
+    `ревью, находка 1: у поля, которого нет в новой версии формы, на листе — «снять»: сопоставление уходит из черновика, ` +
+    `ошибка закрывается, отправка открыта, в истории — «снято поле…»; на утверждении «снять» недоступна с причиной`);
+
+  /* Ревью, находки 8–10: причина без повтора метки; поле формы с кавычкой в имени выбирается по индексу;
+     окно «Печать» акта сверки — на одну дату: по умолчанию дата верстальщика, общий параметр показа не трогается. */
+  start('t-notice'); RP.uploadLayout('t-notice', NOTICE + '\n${Конец условия}'); const h8r = scr();
+  const e8r = text((sheet(h8r).match(/<div class="ln err"[^>]*>[\s\S]*?<\/div>/) || [''])[0]);
+  start('t-bankform'); RP.TPL('t-bankform').editions.find(e => e.state === 'утверждена').pdfForm.fields[0].name = 'Borrower\'s "Name"';
+  const h9r = scr(), pi9 = (sheet(h9r).match(/onclick="RP\.vbPickAt\((\d+)\)"/) || [])[1];
+  if (pi9) ev('RP.vbPickAt(' + pi9 + ')');
+  const pk9 = RP.state.sel.vbPick, h9rb = scr();
+  start('t-recon'); RP.state.view = 'registry'; const asOf0 = RP.state.sel.params.asOf;
+  RP.blankPrint('t-recon'); const dl10 = Object.assign({}, RP.state.sel.vbDlg), d10 = RP.vbDialogs();
+  RP.vbPrintAsOf('2026-08-01'); RP.blankPrint('t-recon', 'kr-6'); const d10b = RP.vbDialogs(), at10 = RP.state.sel.vbDlg.asOf;
+  RP.doOrderBlank('t-recon'); const o10 = lastIss();
+  ok(472, e8r === '↑ ${Конец условия} — без начала условия' &&
+        pk9 === 'Borrower\'s "Name"' && has(side(h9rb), 'поле формы: <b>') && !has(h9r, 'RP.vbPick(\'') &&
+        dl10.asOf === '2026-01-01' && has(d10, '<option value="2026-01-01" selected>') && has(text(d10), 'по состоянию на 1 января') &&
+        has(text(d10), 'на 01.01.2026') && at10 === '2026-08-01' && has(text(d10b), 'на 01.08.2026') &&
+        RP.state.sel.params.asOf === asOf0 && o10.tpl === 't-recon' && o10.obj === 'kr-6' && (o10.params || {}).asOf === '2026-08-01',
+    `ревью, находки 8–10: причина ошибки — «${e8r}», метка один раз; поле формы с кавычкой в имени выбирается по индексу; ` +
+    `окно «Печать» акта сверки — на ${dl10.asOf} (дата верстальщика по правилу «1 января»), шапка и повтор — на одну дату; ` +
+    `смена даты окна и «другой ▾» — бумага, заказ на ${at10}, общий параметр показа (${asOf0}) не тронут`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-10-21 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-10-22 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-10-21 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-10-22 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
