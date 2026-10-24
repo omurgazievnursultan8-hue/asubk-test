@@ -121,6 +121,11 @@ python3 scripts/check_tasks.py                       # all files that carry a JS
 python3 scripts/check_tasks.py docs/tasks/<file>.html
 # Format 3 files are checked together with their ТЗ (from meta.package) and trace file.
 
+# Format 3 pages: the JSON island is the source, the rest is a shared shell
+# (docs/tasks/f3/{tz,tasks}-template.html). Hand-edit only the island.
+python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html --island tz.json  # build from JSON
+python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html                   # re-shell, island untouched
+
 # Validate every «п. NN» citation against the Порядок redaction in force
 # (№41 of 06.07.2026, docs/normativ/). Fails on points that no longer exist.
 python3 scripts/check_points.py            # report + exit 1 on dead citations

@@ -540,7 +540,10 @@ def check_point(rep, pid, p):
         return
     if words(body) > POINT_MAX:
         rep.err(pid, f"point: {words(body)} words (max {POINT_MAX}) — one point, one rule")
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", text(body).strip()) if s.strip()]
+    # «гл. 9», «п. 16 пп. 2», «стр. N из M», «ред. N» — не конец предложения: новое
+    # начинается с заглавной и не после сокращения
+    flat = re.sub(r"\b(гл|пп|п|стр|ред|см|ст|т|г)\.\s", r"\1. ", text(body).strip())
+    sentences = [s for s in re.split(r"(?<=[.!?]) +(?=[«\"(]?[А-ЯЁA-Z])", flat) if s.strip()]
     if len(sentences) > POINT_SENTENCES_MAX:
         rep.warn(pid, f"point: {len(sentences)} sentences — is it one rule?")
     if "cases" in p:
