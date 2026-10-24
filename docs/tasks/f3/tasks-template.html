@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<!--
+  Задачи формата 3 (docs/tasks/FORMAT.md §11). Источник — JSON-остров #tasks-data ниже; всё
+  остальное — оболочка из docs/tasks/f3/tasks-template.html, её обновляет
+  python3 scripts/f3_page.py tasks <этот файл>. Что строить — в ТЗ; здесь порядок и приёмка.
+-->
+<style>
+:root{
+  --blue:#006AF5; --link:#005FDB; --green:#158443; --red:#E03A3A; --amber:#B8860B;
+  --ink:#192434; --ink-90:rgba(24,39,57,.94); --ink-65:rgba(24,39,57,.65); --ink-45:rgba(24,39,57,.45);
+  --white:#FFF; --g50:#F8F9FB; --g100:#F5F7FA; --g150:#EFF1F4; --g200:#E4E8EE;
+  --line:rgba(28,55,90,.16); --line-strong:rgba(28,55,90,.30);
+  --blue-tint:rgba(0,106,245,.08); --amber-tint:rgba(184,134,11,.12); --green-tint:rgba(21,132,67,.10);
+  --red-tint:rgba(224,58,58,.10);
+  --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:400 15px/1.55 var(--font);color:var(--ink-90);background:var(--g100)}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.9em}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
+nav.side{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;background:var(--white);
+  border-right:1px solid var(--line);padding:18px 14px 40px}
+nav.side .brand{font:600 13px/1.3 var(--font);color:var(--ink-65);margin:0 0 10px}
+nav.side input{width:100%;font:inherit;font-size:13.5px;padding:7px 10px;border:1px solid var(--line-strong);
+  border-radius:6px;margin:0 0 12px}
+nav.side ol{list-style:none;margin:0;padding:0}
+nav.side li a{display:flex;gap:8px;padding:5px 8px;border-radius:5px;font-size:13.5px;color:var(--ink-90)}
+nav.side li a:hover{background:var(--g150);text-decoration:none}
+nav.side li a .n{min-width:22px;color:var(--ink-45)}
+nav.side li a .c{margin-left:auto;color:var(--ink-45);font-size:12px}
+main{padding:0 40px 80px;max-width:1080px}
+header.hero{padding:28px 0 18px;border-bottom:1px solid var(--line);margin-bottom:8px}
+header.hero h1{font:600 26px/1.25 var(--font);color:var(--ink);margin:0 0 6px}
+header.hero .meta{color:var(--ink-65);font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 12px/1 var(--font);padding:5px 9px;border-radius:999px;background:var(--g150);color:var(--ink-65)}
+.chip.blue{background:var(--blue-tint);color:var(--link)}
+section.stage{padding-top:26px}
+section.stage>h2{font:600 20px/1.3 var(--font);color:var(--ink);margin:0 0 4px}
+section.stage>h2 .num{color:var(--ink-45);font-weight:500;margin-right:8px}
+.show{background:var(--green-tint);border-left:3px solid var(--green);padding:8px 12px;margin:6px 0 12px;font-size:14px}
+.show b{color:var(--green)}
+.card{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:12px 0}
+.card:target{box-shadow:0 0 0 2px var(--blue)}
+.card .hd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.card .hd .id{font:600 13px/1 var(--font);color:var(--ink-45)}
+.card .hd b{font:600 16px/1.3 var(--font);color:var(--ink)}
+.card .hd .prio{margin-left:auto;font-size:13px;color:var(--ink-65)}
+.row{display:grid;grid-template-columns:120px minmax(0,1fr);gap:4px 12px;margin-top:8px;font-size:14px}
+.row .k{color:var(--ink-45);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+.waits{list-style:none;margin:0;padding:0}
+.waits li{margin:0 0 2px}
+.ok{color:var(--green);font-weight:700}
+.no{color:var(--red);font-weight:700}
+.acc{width:100%;border-collapse:collapse;margin-top:6px;font-size:13.5px}
+.acc td{border-top:1px solid var(--g200);padding:6px 6px;vertical-align:top}
+.acc td.box{width:22px;color:var(--ink-45)}
+.acc td.pts{width:130px;color:var(--ink-65);text-align:right;white-space:nowrap}
+.arrow{color:var(--ink-45);margin:0 6px}
+.hide{display:none!important}
+@media (max-width:900px){.layout{grid-template-columns:1fr}nav.side{position:static;height:auto}main{padding:0 16px 60px}.row{grid-template-columns:1fr}}
+@media print{nav.side{display:none}.layout{display:block}main{max-width:none;padding:0}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="side" id="side"></nav>
+  <main id="main"></main>
+</div>
+{{ISLAND}}
+<script>
+(function(){
+  "use strict";
+  var D = JSON.parse(document.getElementById("tasks-data").textContent);
+  var M = D.meta || {}, cards = D.cards || [], stages = D.stages || [];
+  var tz = (M.package || []).filter(function(f){ return /^\d+-.*\.html$/.test(f); })[0] || "";
+  var byId = {}; cards.forEach(function(c){ byId[c.id] = c; });
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function el(tag, cls, html){ var e = document.createElement(tag); if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html; return e; }
+  function tzLink(id){ return tz ? '<a href="' + esc(tz) + "#" + esc(id) + '">' + esc(id) + "</a>" : esc(id); }
+
+  // 3.1, 3.2, 3.3, 3.7 → 3.1–3.3, 3.7 (подряд в одной главе — диапазоном)
+  function ranges(ids){
+    var key = function(x){ return x.split(".").map(Number); };
+    var s = ids.slice().sort(function(a, b){ var p = key(a), q = key(b); return p[0] - q[0] || p[1] - q[1]; });
+    var out = [], i = 0;
+    while (i < s.length){
+      var j = i; while (j + 1 < s.length && key(s[j + 1])[0] === key(s[i])[0] && key(s[j + 1])[1] === key(s[j])[1] + 1) j++;
+      out.push(j - i >= 2 ? tzLink(s[i]) + "–" + tzLink(s[j]) : s.slice(i, j + 1).map(tzLink).join(", "));
+      i = j + 1;
+    }
+    return out.join(", ");
+  }
+  // В тексте проверки: номер задачи и пункт ТЗ — ссылками.
+  function linkify(t){
+    var h = esc(t);
+    h = h.replace(/\b(P\d+-R\d+)\b/g, function(a, id){ return byId[id] ? '<a href="#' + id + '">' + id + "</a>" : a; });
+    return h;
+  }
+
+  var main = document.getElementById("main"), side = document.getElementById("side");
+  var hero = el("header", "hero");
+  hero.appendChild(el("h1", "", "Задачи · " + esc(M.title || "")));
+  hero.appendChild(el("div", "meta", "<span>на " + esc((M.date || "").split("-").reverse().join(".")) + "</span><span>пакет: " +
+    (M.package || []).map(function(f){ return '<a href="' + esc(f) + '">' + esc(f) + "</a>"; }).join(" · ") + "</span>"));
+  var prio = {"🔴": 0, "🟡": 0, "🟢": 0}; cards.forEach(function(c){ prio[c.prio] = (prio[c.prio] || 0) + 1; });
+  hero.appendChild(el("div", "chips", '<span class="chip blue">задач ' + cards.length + '</span><span class="chip blue">этапов ' + stages.length +
+    '</span><span class="chip">🔴 ' + prio["🔴"] + '</span><span class="chip">🟡 ' + prio["🟡"] + '</span><span class="chip">🟢 ' + prio["🟢"] + "</span>"));
+  hero.appendChild(el("p", "", '<span style="color:var(--ink-65);font-size:13.5px">Что строить — в ТЗ (' + tzLink("ch1").replace(">ch1<", ">" + esc(tz) + "<") +
+    "). Задача закрывает свои пункты целиком; «Готово, когда» проверяется на контрольном наборе данных ТЗ.</span>"));
+  main.appendChild(hero);
+
+  var nav = el("ol");
+  stages.forEach(function(st){
+    var mine = cards.filter(function(c){ return c.stage === st.n; });
+    var s = el("section", "stage"); s.id = "stage" + st.n;
+    s.appendChild(el("h2", "", '<span class="num">Этап ' + st.n + "</span>" + esc(st.title)));
+    s.appendChild(el("div", "show", "<b>Заказчик видит:</b> " + esc(st.show)));
+    mine.forEach(function(c){
+      var d = el("div", "card"); d.id = c.id; d.dataset.q = JSON.stringify(c).toLowerCase();
+      d.appendChild(el("div", "hd", '<span class="id">' + esc(c.id) + "</span><b>" + esc(c.title) + '</b><span class="prio">' + esc(c.prio) + "</span>"));
+      d.appendChild(el("div", "row", '<div class="k">Закрывает</div><div>' + ranges(c.covers || []) + "</div>"));
+      if ((c.deps || []).length) d.appendChild(el("div", "row", '<div class="k">Зависит от</div><div>' +
+        c.deps.map(function(x){ return '<a href="#' + esc(x) + '">' + esc(x) + "</a>" + (byId[x] ? " " + esc(byId[x].title) : ""); }).join("; ") + "</div>"));
+      if ((c.waits || []).length) d.appendChild(el("div", "row", '<div class="k">Ждёт</div><ul class="waits">' +
+        c.waits.map(function(w){ return "<li>" + (w.ready ? '<span class="ok">✓</span> ' : '<span class="no">✕</span> ') + esc(w.what) +
+          (w.iface ? " — " + tzLink(w.iface) : "") + "</li>"; }).join("") + "</ul>"));
+      var t = '<table class="acc">';
+      (c.accept || []).forEach(function(a){ t += '<tr><td class="box">☐</td><td>' + linkify(a.do) + '<span class="arrow">→</span>' + linkify(a.see) +
+        '</td><td class="pts">' + (a.pts || []).map(tzLink).join(", ") + "</td></tr>"; });
+      d.appendChild(el("div", "row", '<div class="k">Готово, когда</div><div>' + t + "</table></div>"));
+      s.appendChild(d);
+    });
+    main.appendChild(s);
+    var li = el("li"); var a = el("a", "", '<span class="n">' + st.n + "</span><span>" + esc(st.title) + '</span><span class="c">' + mine.length + "</span>");
+    a.href = "#stage" + st.n; li.appendChild(a); nav.appendChild(li);
+  });
+
+  side.appendChild(el("div", "brand", esc(M.title || "") + " · задачи"));
+  var inp = el("input"); inp.type = "search"; inp.placeholder = "Найти задачу или пункт…"; side.appendChild(inp);
+  side.appendChild(nav);
+  inp.addEventListener("input", function(){
+    var v = inp.value.trim().toLowerCase();
+    main.querySelectorAll(".card").forEach(function(n){ n.classList.toggle("hide", !!v && n.dataset.q.indexOf(v) < 0); });
+  });
+  document.title = "Задачи · " + (M.title || "") + " · АСУБК";
+  if (location.hash){ var t = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (t) t.scrollIntoView(); }
+})();
+</script>
+</body>
+</html>

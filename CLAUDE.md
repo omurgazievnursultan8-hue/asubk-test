@@ -74,6 +74,13 @@ Track state in `STATUS.md`; `README.md` maps which file holds what.
   `scripts/check_tasks.py`. The eight files handed over before that date are frozen
   legacy and are not converted; a module reworked in substance is reissued whole under
   the same filename.
+- **Format 3 since 23.10.2026 (`FORMAT.md` §11, reports first).** The **ТЗ** (JSON island
+  `tz-data`, numbered points) is the only specification; the task file is just the build
+  plan — each card lists the points it closes and the checks that prove them. No reasons,
+  traps, history, metaphors (шов, паспорт, провал…) or internal codes (ИО-, ПВ-, ADR-…) in
+  the package; where a point came from lives in the internal `<NN>-<module>-trace.md`.
+  Reissued modules continue their numbering (`P23-R54…`); old registry lines close as
+  `— заменена: P23-Rn` or `— снята: <причина>`.
 - **Locating an ID: run `scripts/find.py`, don't grep the tree.** `python3 scripts/find.py P15-R33`
   returns the definition line and every mention as `file:line` in ~0.5s. Read only those lines —
   `TODO.md` is 500 KB and the task HTMLs run to 4000+ lines, so opening one to find a single ID
@@ -112,6 +119,12 @@ python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fie
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html
+# Format 3 files are checked together with their ТЗ (from meta.package) and trace file.
+
+# Format 3 pages: the JSON island is the source, the rest is a shared shell
+# (docs/tasks/f3/{tz,tasks}-template.html). Hand-edit only the island.
+python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html --island tz.json  # build from JSON
+python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html                   # re-shell, island untouched
 
 # Validate every «п. NN» citation against the Порядок redaction in force
 # (№41 of 06.07.2026, docs/normativ/). Fails on points that no longer exist.
