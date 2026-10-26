@@ -30,12 +30,15 @@ plan — a card names the points it closes and the checks that prove it. The
 validator reads all three together: the task file, the ТЗ from meta.package and
 the internal trace file named by the ТЗ (requirement → point). Each point is
 closed by exactly one card, checked by at least one acceptance row and traced to
-at least one requirement; metaphors and internal codes fail the run.
+at least one requirement; metaphors and internal codes fail the run. A check is
+Дано · Шаги · Видно on the control data; the task page carries a snapshot of the
+ТЗ (#tz-snapshot) so a card shows its points, and a stale snapshot fails the run.
 
 Usage:
     python3 scripts/check_tasks.py
     python3 scripts/check_tasks.py docs/tasks/p14-collection-tasks.html
     python3 scripts/check_tasks.py --strict      # warnings fail the run too
+    python3 scripts/check_tasks.py --handover    # format 3: mockup disagreements fail too
 """
 import argparse
 import json
@@ -46,6 +49,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TASKS_DIR = ROOT / "docs" / "tasks"
 TODO = ROOT / "TODO.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from f3_page import SNAPSHOT_ID, read_island, snapshot  # noqa: E402
+
+HANDOVER = False            # --handover: расхождение макета роняет сборку, а не предупреждает
 
 # Budgets — FORMAT.md §7.
 BODY_MAX = 400
@@ -84,24 +91,46 @@ TZ_ISLAND = re.compile(
     re.S)
 META_KEYS_F3 = ["module", "title", "phase", "date", "registry", "package"]
 TZ_META_KEYS = ["module", "title", "date", "package", "trace"]
-TOP_KEYS_F3 = {"meta", "stages", "cards"}
-CARD_KEYS_F3 = {"id", "stage", "prio", "title", "covers", "deps", "waits", "accept"}
+TOP_KEYS_F3 = {"meta", "stages", "common", "cards"}
+CARD_KEYS_F3 = {"id", "stage", "prio", "title", "result", "covers", "deps", "waits", "given",
+                "accept"}
+CHECK_KEYS_F3 = {"given", "steps", "see", "pts"}
+WAIT_KEYS_F3 = {"what", "iface", "ready", "stub"}
 # Чего в ТЗ нет (§11.2): любой ключ сверх этих — причина, история или ловушка.
 TZ_TOP_KEYS = {"meta", "purpose", "glossary", "entities", "chapters", "interfaces", "access",
-               "questions", "dataset"}
-TZ_CHAPTER_KEYS = {"title", "points", "screens"}
+               "common", "questions", "dataset"}
+TZ_CHAPTER_KEYS = {"title", "lead", "groups", "points", "screens"}
+TZ_GROUP_KEYS = {"title", "from", "to"}
 TZ_POINT_KEYS = {"id", "text", "cases", "open"}
 TZ_SCREEN_KEYS = {"id", "n", "route", "mockNote", "cols", "acts", "msgs"}
+TZ_ACT_KEYS = {"a", "when", "pt", "zone"}
+TZ_TERM_KEYS = {"t", "d", "g"}
 TZ_IFACE_KEYS = {"id", "name", "from", "to", "send", "get", "refuse"}
 HISTORY_KEYS = ("changelog", "replaces", "idmap", "revision")
 PRIOS = ("🔴", "🟡", "🟢")
 FIELD_TYPES = {"текст", "число", "сумма", "дата", "дата и время", "признак", "список",
                "ссылка", "набор значений", "файл"}
 TITLE_MAX_F3 = 10
+RESULT_MAX = 25
+LEAD_MAX = 40
 POINT_MAX = 60
 POINT_SENTENCES_MAX = 2
 ACCEPT_MIN_F3 = 3
+STEPS_MAX_F3 = 3            # шагов в проверке
+SHOW_STEPS_MAX = 6          # шагов в сценарии показа этапа
+STEP_WORDS = 15             # слов в шаге, без текста в кавычках
+SEE_WORDS = 40              # слов в «Видно» на шаг, без текста в кавычках
+GROUPS_FROM = 20            # глава длиннее — с подзаголовками
+ZONES_FROM = 12             # опись экрана длиннее — по зонам
+FIELD_NOTE_TYPES = {"признак"}
 POINT_ID = re.compile(r"(\d+)\.\d+")
+POINT_REF = re.compile(r"(?<![\d.,])[1-9]\d?\.\d{1,3}(?![\d.,])")
+CHAPTER_REF = re.compile(r"\bгл\.\s?\d")
+# Заготовка вместо значения: <показатель>, <X>, «…». Сравнение «< 5» и «<=» не заготовка.
+PLACEHOLDER = re.compile(r"<[^<>\s=\d][^<>]{0,40}>|…|\.\.\.")
+LOOSE_NEG = re.compile(r"\b(?:нигде|никаких|никакие|никакого)\b", re.I)
+BACKREF = re.compile(r"^\s*(?:то же|та же|тот же|те же|там же|затем|после этого|снова)\b", re.I)
+QUOTED = re.compile(r"«[^«»]*»|\"[^\"]*\"")
 IFACE_NAME = re.compile(r"[a-z][A-Za-z0-9]*")
 TASK_ID = re.compile(r"\bP\d+-R\d+\b")
 # Внутренний код: ИО-21, ПВ-Д9, ADR-0280. Номер формы ФО-34 и ключи контрольного
@@ -134,6 +163,28 @@ def text(s):
 
 def words(*chunks):
     return sum(len(text(c).split()) for c in chunks if c)
+
+
+def unquoted_words(s):
+    """Слова без текста в кавычках: точный текст сообщения в счёт длины не идёт."""
+    s, prev = text(s), None
+    while prev != s:
+        prev, s = s, QUOTED.sub(" ", s)
+    return len(s.split())
+
+
+def stem_re(name):
+    """Имя поля или термин с любым окончанием: «полнота считается по» →
+    полнот\\w*\\W+считает\\w*\\W+по\\w*. Скобки и хвост после « — » не ищутся."""
+    base = re.sub(r"\(.*?\)", " ", name).split(" — ")[0]
+    parts = re.findall(r"[А-Яа-яЁёA-Za-z0-9-]+", base)
+    if not parts:
+        return None
+
+    def stem(w):
+        w = w.lower()
+        return w if len(w) <= 3 else w[:-1] if len(w) <= 5 else w[:-2]
+    return re.compile(r"(?<!\w)" + r"\W+".join(re.escape(stem(w)) + r"\w*" for w in parts), re.I)
 
 
 def walk_strings(value):
@@ -558,10 +609,19 @@ def check_tz_screen(rep, sid, s):
         rep.err(sid, "screen: needs 'route' — where it is in the mockup")
     if not (s.get("cols") or s.get("acts")):
         rep.err(sid, "screen: needs 'cols' or 'acts'")
-    for i, a in enumerate(s.get("acts") or []):
+    acts = s.get("acts") or []
+    for i, a in enumerate(acts):
         if not isinstance(a, dict) or not a.get("a") or not a.get("when"):
             rep.err(sid, f"acts[{i}]: needs 'a' — the action — and 'when' — when it is "
                          f"available («всегда», если без условий)")
+            continue
+        check_keys(rep, sid, a, TZ_ACT_KEYS, f"acts[{i}]")
+        if len(acts) > ZONES_FROM and not a.get("zone"):
+            rep.err(sid, f"acts[{i}] «{a['a'][:30]}»: {len(acts)} actions — every action needs "
+                         f"'zone', the part of the screen it sits in")
+    if s.get("mockNote"):
+        (rep.err if HANDOVER else rep.warn)(
+            sid, "mockNote: the mockup disagrees with the ТЗ — fix the mockup before handover")
 
 
 def check_tz_entity(rep, eid, e, names):
@@ -583,6 +643,8 @@ def check_tz_entity(rep, eid, e, names):
             rep.err(eid, f"{at}: 'req' must be true or false")
         if f.get("type") == "список" and not f.get("values"):
             rep.err(eid, f"{at}: a list field needs 'values'")
+        if f.get("type") in FIELD_NOTE_TYPES and not f.get("note"):
+            rep.err(eid, f"{at}: a {f['type']} needs 'note' — what it means and who sets it")
         if f.get("type") == "ссылка":
             ref = f.get("ref")
             if not ref:
@@ -592,8 +654,51 @@ def check_tz_entity(rep, eid, e, names):
                              f"name its module in 'ext'")
 
 
+def check_lead(rep, where, lead):
+    """«Коротко» главы: что функция даёт пользователю — без правил и ссылок."""
+    if not isinstance(lead, str) or not lead.strip():
+        rep.err(where, "chapter: 'lead' is required — one or two sentences on what the function "
+                       "gives the user")
+        return
+    if words(lead) > LEAD_MAX:
+        rep.err(where, f"lead: {words(lead)} words (max {LEAD_MAX}) — the rules go in the points")
+    if POINT_REF.search(text(lead)) or CHAPTER_REF.search(text(lead)):
+        rep.err(where, "lead: no references — it says what the chapter is about")
+
+
+def check_chapter_groups(rep, where, ch):
+    """Подзаголовки главы идут подряд и покрывают все её пункты; номера пунктов не меняются."""
+    pts = [str(p.get("id")) for p in ch.get("points") or [] if isinstance(p, dict)]
+    groups = ch.get("groups")
+    if groups is None:
+        if len(pts) > GROUPS_FROM:
+            rep.err(where, f"chapter has {len(pts)} points — split it with subheadings 'groups'")
+        return
+    if not isinstance(groups, list) or not groups:
+        rep.err(where, "groups: a non-empty list of {title, from, to}")
+        return
+    nxt = 0
+    for i, g in enumerate(groups):
+        if not isinstance(g, dict) or not g.get("title"):
+            rep.err(where, f"groups[{i}]: needs 'title', 'from', 'to'")
+            return
+        check_keys(rep, where, g, TZ_GROUP_KEYS, f"groups[{i}]")
+        a, b = str(g.get("from")), str(g.get("to"))
+        if a not in pts or b not in pts:
+            rep.err(where, f"groups[{i}] «{g['title']}»: {a}–{b} are not points of this chapter")
+            return
+        if pts.index(a) != nxt or pts.index(b) < pts.index(a):
+            rep.err(where, f"groups[{i}] «{g['title']}»: must start right after the previous group "
+                           f"({pts[nxt] if nxt < len(pts) else 'end'}) and end after it starts")
+            return
+        nxt = pts.index(b) + 1
+    if nxt != len(pts):
+        rep.err(where, f"groups: points from {pts[nxt]} on are in no group")
+
+
 def check_tz(rep, tz, package, index, anchors):
-    """ТЗ формата 3. Returns (closable ids → kind, dataset codes, interface ids, all ids)."""
+    """ТЗ формата 3. Returns (closable ids → kind, dataset codes, dataset keys, interface ids,
+    all ids, common-rule point ids)."""
     meta = tz.get("meta") or {}
     for key in TZ_META_KEYS:
         if not meta.get(key):
@@ -612,6 +717,11 @@ def check_tz(rep, tz, package, index, anchors):
     if "doesNot" not in purpose:
         rep.err("ТЗ 1", "purpose.doesNot: what it does not do — write [] explicitly if nothing")
     check_terms(rep, "ТЗ 1", "glossary", tz.get("glossary"))
+    for t in tz.get("glossary") or []:
+        if isinstance(t, dict) and t.get("t"):
+            check_keys(rep, "ТЗ 1", t, TZ_TERM_KEYS, f"term «{t['t']}»")
+            if not t.get("g"):
+                rep.err("ТЗ 1", f"term «{t['t']}»: needs 'g' — the glossary group it sits in")
 
     closable, every = {}, {}
 
@@ -647,6 +757,8 @@ def check_tz(rep, tz, package, index, anchors):
             rep.err(f"ТЗ {n}", "chapter needs a 'title'")
             continue
         check_keys(rep, f"ТЗ {n}", ch, TZ_CHAPTER_KEYS, "chapter")
+        check_lead(rep, f"ТЗ {n}", ch.get("lead"))
+        check_chapter_groups(rep, f"ТЗ {n}", ch)
         for p in ch.get("points") or []:
             if isinstance(p, dict) and claim(p.get("id"), "point", n):
                 closable[p["id"]] = "point"
@@ -676,15 +788,62 @@ def check_tz(rep, tz, package, index, anchors):
             if not f.get(key):
                 rep.err(fid, f"interface: '{key}' is required")
 
-    # K+2. Права и видимость
-    for p in tz.get("access") or []:
-        if isinstance(p, dict) and claim(p.get("id"), "point", n_iface + 1):
-            closable[p["id"]] = "point"
-            check_point(rep, f"ТЗ {p['id']}", p)
-            if p.get("open"):
-                open_points.add(p["id"])
+    # K+2. Права и видимость; K+3. Общие правила экранов — их закрывает блок задач common
+    common = set()
+    for block, n_block in (("access", n_iface + 1), ("common", n_iface + 2)):
+        for p in tz.get(block) or []:
+            if isinstance(p, dict) and claim(p.get("id"), "point", n_block):
+                closable[p["id"]] = "point"
+                check_point(rep, f"ТЗ {p['id']}", p)
+                if p.get("open"):
+                    open_points.add(p["id"])
+                if block == "common":
+                    common.add(p["id"])
 
-    # K+3. Вопросы заказчику — каждая ⚠ в тексте ровно одной строкой здесь
+    # Действие описи экрана правится пунктом: кнопку строит задача этого пункта
+    for ch in chapters:
+        for s in (ch.get("screens") or []) if isinstance(ch, dict) else []:
+            for i, a in enumerate((s.get("acts") or []) if isinstance(s, dict) else []):
+                if isinstance(a, dict) and a.get("pt") and every.get(str(a["pt"])) != "point":
+                    rep.err(f"ТЗ {s.get('id')}", f"acts[{i}]: pt {a['pt']} is not a point of the ТЗ")
+
+    # Пункт, ссылка в нём и границы модуля
+    rule_texts = []
+    for ch in chapters + [{"points": tz.get("access") or []}, {"points": tz.get("common") or []}]:
+        for p in (ch.get("points") or []) if isinstance(ch, dict) else []:
+            if isinstance(p, dict) and isinstance(p.get("text"), str):
+                rule_texts.append(p["text"])
+                rule_texts.extend(s for s in walk_strings(p.get("cases") or {}) if isinstance(s, str))
+    rules_blob = "\n".join(text(s) for s in rule_texts)
+    stem = str(meta.get("title", "")).lower()[:-1]
+    boundary = re.compile(rf"\bв {re.escape(stem)}\w*[^.;]{{0,40}}\bнет\b|\b{re.escape(stem)}\w* не\b",
+                          re.I) if len(stem) >= 4 else None
+    for ch in chapters + [{"points": tz.get("access") or []}, {"points": tz.get("common") or []}]:
+        for p in (ch.get("points") or []) if isinstance(ch, dict) else []:
+            if isinstance(p, dict) and boundary and boundary.search(text(str(p.get("text", "")))):
+                rep.warn(f"ТЗ {p.get('id')}", "what the module does not do belongs in "
+                                              "purpose.doesNot — the point keeps its own behaviour")
+
+    # Поле без пояснения должно быть названо хоть одним правилом — иначе смысл не записан
+    for e in entities:
+        for f in (e.get("fields") or []) if isinstance(e, dict) else []:
+            if not isinstance(f, dict) or not f.get("n") or f.get("note"):
+                continue
+            rx = stem_re(str(f["n"]))
+            if rx and not rx.search(rules_blob):
+                rep.err(f"ТЗ {e.get('id')}", f"field «{f['n']}»: no 'note' and no point names it — "
+                                             f"write what it means, or the rule uses another name")
+
+    # Термин словаря, которого нет нигде в ТЗ, — мёртвый
+    body_blob = "\n".join(text(s) for s in walk_strings(
+        {k: v for k, v in tz.items() if k not in ("meta", "glossary")}) if isinstance(s, str))
+    for t in tz.get("glossary") or []:
+        if isinstance(t, dict) and t.get("t"):
+            rx = stem_re(str(t["t"]).strip("«»"))
+            if rx and not rx.search(body_blob):
+                rep.warn("ТЗ 1", f"term «{t['t']}» is not used anywhere in the ТЗ")
+
+    # K+4. Вопросы заказчику — каждая ⚠ в тексте ровно одной строкой здесь
     asked = set()
     for i, q in enumerate(tz.get("questions") or []):
         qid = f"ТЗ вопрос {i + 1}"
@@ -729,7 +888,12 @@ def check_tz(rep, tz, package, index, anchors):
     for s in strings:
         for target in HREF.findall(s):
             check_link(rep, "ТЗ", target, package, index, anchors)
-    return closable, codes, keys, ifaces, every
+    # «гл. N» отсылает к десяткам пунктов — ссылка называет пункт. Вопросам заказчику можно.
+    bad = [m.group(0) for s in walk_strings({k: v for k, v in tz.items() if k not in ("meta", "questions")})
+           if isinstance(s, str) for m in CHAPTER_REF.finditer(text(s))]
+    if bad:
+        rep.err("ТЗ", f"{len(bad)} reference(s) «гл. N» — name the point (5.75), not the chapter")
+    return closable, codes, keys, ifaces, every, common
 
 
 def check_trace(rep, path, every):
@@ -793,10 +957,87 @@ def registry_rows(section):
     return rows if seen else None
 
 
+def names_key(s, keys):
+    """Назван ли в тексте ключ контрольного набора (КД-2025/088, Тентимишев К., 24.08.2026)."""
+    blob = text(s)
+    return any(re.search(rf"(?<!\w){re.escape(k)}(?![\w/])", blob) for k in keys)
+
+
+def check_scenario(rep, where, sc, keys, steps_max, given_default=None):
+    """Дано · Шаги · Видно — проверка карточки и сценарий показа этапа. Returns ok."""
+    if not isinstance(sc, dict):
+        rep.err(where, "must be an object {given, steps, see} — Дано · Шаги · Видно")
+        return False
+    own = sc.get("given")
+    given = own or given_default
+    steps, see = sc.get("steps"), sc.get("see")
+    if not isinstance(given, str) or not given.strip():
+        rep.err(where, "'given' is required here or on the card — who, which date, which record")
+    elif own:                               # «Дано» карточки проверяется один раз, у карточки
+        if keys and not names_key(given, keys):
+            rep.err(where, "given: no record of the control data set — the check must be repeatable")
+        if BACKREF.search(text(given)):
+            rep.err(where, f"given «{text(given)[:30]}…»: name the data — no reference to another check")
+    if (not isinstance(steps, list) or not 1 <= len(steps) <= steps_max
+            or not all(isinstance(x, str) and x.strip() for x in steps)):
+        rep.err(where, f"steps: 1–{steps_max} non-empty actions")
+        return False
+    if not isinstance(see, list) or len(see) != len(steps) or not all(isinstance(x, str) and x.strip()
+                                                                    for x in see):
+        rep.err(where, f"see: one result per step — {len(steps)} expected")
+        return False
+    for i, x in enumerate(steps):
+        if BACKREF.search(text(x)):
+            rep.err(where, f"steps[{i}]: «{text(x)[:30]}…» — each check runs alone, no «то же», «затем»")
+        if unquoted_words(x) > STEP_WORDS:
+            rep.warn(where, f"steps[{i}]: {unquoted_words(x)} words (max {STEP_WORDS} outside quotes)")
+    for i, x in enumerate(see):
+        m = PLACEHOLDER.search(text(x))
+        if m:
+            rep.err(where, f"see[{i}]: «{m.group(0)}» — write the exact value from the control data")
+        if LOOSE_NEG.search(text(x)):
+            rep.warn(where, f"see[{i}]: «{LOOSE_NEG.search(text(x)).group(0)}» — say where to look")
+        if unquoted_words(x) > SEE_WORDS:
+            rep.warn(where, f"see[{i}]: {unquoted_words(x)} words (max {SEE_WORDS} outside quotes) — "
+                            f"does the check prove several rules?")
+    return True
+
+
+def check_accept_f3(rep, where, accept, covers, card_given, keys, closable):
+    """Проверки карточки или блока common. Returns the ids they prove."""
+    if not isinstance(accept, list) or not ACCEPT_MIN_F3 <= len(accept) <= ACCEPT_MAX:
+        n = len(accept) if isinstance(accept, list) else "?"
+        rep.err(where, f"accept: {n} checks (allowed {ACCEPT_MIN_F3}–{ACCEPT_MAX}) — "
+                       f"split the card or fold it into its neighbour")
+        accept = accept if isinstance(accept, list) else []
+    checked = set()
+    for i, a in enumerate(accept):
+        at = f"{where} ☐{i + 1}"
+        if isinstance(a, dict) and ("do" in a or isinstance(a.get("see"), str)):
+            rep.err(at, "a check is Дано · Шаги · Видно — {given, steps, see, pts}, not {do, see}")
+            continue
+        if isinstance(a, dict):
+            check_keys(rep, at, a, CHECK_KEYS_F3, "check")
+        if not check_scenario(rep, at, a, keys, STEPS_MAX_F3, card_given):
+            continue
+        pts = a.get("pts") or []
+        if not isinstance(pts, list) or not pts:
+            rep.err(at, "'pts' — a list of the card's points it proves")
+            pts = []
+        for p in map(str, pts):
+            if p not in covers:
+                rep.err(at, f"checks {p}, which this card does not cover")
+            checked.add(p)
+    unproved = [p for p in covers if closable.get(p) != "entity" and p not in checked]
+    if unproved:
+        rep.err(where, f"no check proves {', '.join(unproved)}")
+    return checked
+
+
 def check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, phase,
-                  package, index, anchors):
+                  package, index, anchors, common):
     cid = card.get("id", f"#{pos}")
-    for key in ("id", "stage", "prio", "title", "covers", "deps", "accept"):
+    for key in ("id", "stage", "prio", "title", "result", "covers", "deps", "accept"):
         if key not in card:
             rep.err(cid, f"missing required field '{key}'")
     extra = set(card) - CARD_KEYS_F3
@@ -810,9 +1051,17 @@ def check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, ph
     title = card.get("title", "")
     if not isinstance(title, str) or not title.strip():
         rep.err(cid, "title: required — names the function")
-    elif words(title) > TITLE_MAX_F3:
-        rep.err(cid, f"title: {words(title)} words (max {TITLE_MAX_F3}) — name the function, "
-                     f"the rules are in the ТЗ")
+    else:
+        if words(title) > TITLE_MAX_F3:
+            rep.err(cid, f"title: {words(title)} words (max {TITLE_MAX_F3}) — name the function, "
+                         f"the rules are in the ТЗ")
+        if "," in title:
+            rep.warn(cid, "title: a list of things — one result per card; regroup the points")
+    result = card.get("result", "")
+    if "result" in card and (not isinstance(result, str) or not result.strip()):
+        rep.err(cid, "result: one sentence — what the user can do once the card is done")
+    elif isinstance(result, str) and words(result) > RESULT_MAX:
+        rep.err(cid, f"result: {words(result)} words (max {RESULT_MAX}) — the rules are in the points")
 
     covers = card.get("covers") or []
     if not isinstance(covers, list) or not covers:
@@ -825,6 +1074,8 @@ def check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, ph
     for p in covers:
         if p not in closable:
             rep.err(cid, f"covers: {p} is not a point, screen, entity or interface of the ТЗ")
+        elif p in common:
+            rep.err(cid, f"covers: {p} is a common screen rule — the 'common' block closes it")
 
     deps = card.get("deps") or []
     for d in map(str, deps if isinstance(deps, list) else []):
@@ -841,38 +1092,25 @@ def check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, ph
         if not isinstance(w, dict) or not w.get("what"):
             rep.err(cid, f"waits[{i}]: needs 'what' — which module, what it must give")
             continue
+        check_keys(rep, cid, w, WAIT_KEYS_F3, f"waits[{i}]")
         if not isinstance(w.get("ready"), bool):
             rep.err(cid, f"waits[{i}]: 'ready' must be true or false")
+        elif not w["ready"] and not str(w.get("stub") or "").strip():
+            rep.err(cid, f"waits[{i}]: not ready yet — 'stub' says what the stand-in returns "
+                         f"until the other module delivers")
         if w.get("iface") and str(w["iface"]) not in ifaces:
             rep.err(cid, f"waits[{i}]: iface {w['iface']} is not in the interfaces chapter")
 
-    accept = card.get("accept") or []
-    if not isinstance(accept, list) or not ACCEPT_MIN_F3 <= len(accept) <= ACCEPT_MAX:
-        n = len(accept) if isinstance(accept, list) else "?"
-        rep.err(cid, f"accept: {n} checks (allowed {ACCEPT_MIN_F3}–{ACCEPT_MAX}) — "
-                     f"split the card or fold it into its neighbour")
-        accept = accept if isinstance(accept, list) else []
-    checked = set()
-    for i, a in enumerate(accept):
-        if not isinstance(a, dict) or not a.get("do") or not a.get("see"):
-            rep.err(cid, f"accept[{i}]: needs 'do' (action on the control data) and 'see'")
-            continue
-        pts = a.get("pts") or []
-        if not isinstance(pts, list) or not pts:
-            rep.err(cid, f"accept[{i}]: 'pts' — a list of the card's points it proves")
-            pts = []
-        for p in map(str, pts):
-            if p not in covers:
-                rep.err(cid, f"accept[{i}]: checks {p}, which this card does not cover")
-            checked.add(p)
-    unproved = [p for p in covers if closable.get(p) != "entity" and p not in checked]
-    if unproved:
-        rep.err(cid, f"no check proves {', '.join(unproved)}")
-    blob = " ".join(text(s) for s in walk_strings(accept) if isinstance(s, str))
-    if keys and accept and not any(
-            re.search(rf"(?<!\w){re.escape(k)}(?![\w/])", blob) for k in keys):
-        rep.err(cid, "accept: no record of the control data set is named — "
-                     "the checks must be repeatable")
+    given = card.get("given")
+    if given is not None and (not isinstance(given, str) or not given.strip()):
+        rep.err(cid, "given: the data every check of the card starts from — or drop the field")
+        given = None
+    elif given:
+        if keys and not names_key(given, keys):
+            rep.err(cid, "given: no record of the control data set — the checks must be repeatable")
+        if BACKREF.search(text(given)):
+            rep.err(cid, "given: name the data — no reference to another card")
+    check_accept_f3(rep, cid, card.get("accept"), covers, given, keys, closable)
 
     strings = [s for s in walk_strings(card) if isinstance(s, str)]
     check_words(rep, cid, strings, codes)
@@ -880,6 +1118,31 @@ def check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, ph
         for target in HREF.findall(s):
             check_link(rep, cid, target, package, index, anchors)
     return covers
+
+
+def check_common_f3(rep, block, common, closable, keys, codes):
+    """Блок «Для всех задач»: закрывает главу общих правил экранов целиком и только её."""
+    if not common:
+        if block:
+            rep.err("common", "the ТЗ has no common screen rules — drop the block")
+        return []
+    if not isinstance(block, dict):
+        rep.err("common", f"the ТЗ has {len(common)} common screen rule(s) — a 'common' block "
+                          f"{{covers, given, accept}} must close them")
+        return []
+    covers = [str(p) for p in block.get("covers") or []]
+    missing, extra = sorted(common - set(covers)), [p for p in covers if p not in common]
+    if missing:
+        rep.err("common", f"covers: {', '.join(missing)} — the block closes every common rule")
+    if extra:
+        rep.err("common", f"covers: {', '.join(extra)} are not common screen rules")
+    given = block.get("given")
+    if isinstance(given, str) and given.strip() and keys and not names_key(given, keys):
+        rep.err("common", "given: no record of the control data set — the checks must be repeatable")
+    check_accept_f3(rep, "common", block.get("accept"), [p for p in covers if p in common],
+                    given if isinstance(given, str) and given.strip() else None, keys, closable)
+    check_words(rep, "common", [s for s in walk_strings(block) if isinstance(s, str)], codes)
+    return [p for p in covers if p in common]
 
 
 def check_file_f3(path, data, index):
@@ -933,7 +1196,15 @@ def _check_file_f3(rep, path, data, index):
     if not isinstance(tz, dict) or not isinstance(tz.get("meta") or {}, dict):
         rep.err("ТЗ", f"{tz_path.name}: the tz-data island must be an object with an object 'meta'")
         return rep
-    closable, codes, keys, ifaces, every = check_tz(rep, tz, package, index, anchors)
+    closable, codes, keys, ifaces, every, common = check_tz(rep, tz, package, index, anchors)
+
+    # Снимок ТЗ в странице задач — тот же, что даёт ТЗ сейчас
+    _, snap = read_island(path.read_text(encoding="utf-8"), SNAPSHOT_ID)
+    if snap is None:
+        rep.err("snapshot", f"no #{SNAPSHOT_ID} — run python3 scripts/f3_page.py tasks {path.name}")
+    elif snap != snapshot(tz, tz_path.name):
+        rep.err("snapshot", f"the ТЗ changed since the page was built — "
+                            f"run python3 scripts/f3_page.py tasks {path.name}")
 
     trace_name = (tz.get("meta") or {}).get("trace")      # пустое имя check_tz уже назвал
     trace = index.get(trace_name) if trace_name else None
@@ -953,6 +1224,8 @@ def _check_file_f3(rep, path, data, index):
         if not isinstance(s, dict) or not s.get("title") or not s.get("show"):
             rep.err("stages", f"stage {s.get('n') if isinstance(s, dict) else '?'}: needs "
                               f"'title' and 'show' — what the customer sees when it ends")
+            continue
+        check_scenario(rep, f"stage {s.get('n')}", s["show"], keys, SHOW_STEPS_MAX)
     stage_strings = [x for x in walk_strings(stages) if isinstance(x, str)]
     check_words(rep, "stages", stage_strings, codes)
     for s in stage_strings:
@@ -976,18 +1249,21 @@ def _check_file_f3(rep, path, data, index):
         rep.err("stages", f"stage {stage} is not declared in 'stages'")
     index_by_id = {cid: i for i, cid in enumerate(ids)}
 
-    # Каждый пункт закрывает ровно одна карточка; сущность — хотя бы одна
-    owners = {}
+    # Каждый пункт, экран, связь и сущность закрывает ровно одна карточка или блок common
+    owners = {p: ["common"] for p in check_common_f3(rep, data.get("common"), common, closable,
+                                                     keys, codes)}
     for pos, card in enumerate(cards):
         if not isinstance(card, dict):
             rep.err(f"#{pos}", "card must be an object")
             continue
         for p in check_card_f3(rep, card, pos, index_by_id, closable, ifaces, codes, keys, phase,
-                               package, index, anchors):
+                               package, index, anchors, common):
             owners.setdefault(p, []).append(str(card.get("id")))
     for p, who in owners.items():
-        if len(who) > 1 and closable.get(p) != "entity":
-            rep.err("covers", f"{p} is closed by {len(who)} cards ({', '.join(who)}) — exactly one")
+        if len(who) > 1:
+            what = "the entity is built whole by the first card that needs it" \
+                if closable.get(p) == "entity" else "exactly one"
+            rep.err("covers", f"{p} is closed by {len(who)} cards ({', '.join(who)}) — {what}")
     orphan = [p for p in closable if p not in owners]
     if orphan:
         rep.err("covers", f"{len(orphan)} ТЗ item(s) closed by no card: "
@@ -1180,7 +1456,11 @@ def main():
     ap = argparse.ArgumentParser(description="Validate task files against docs/tasks/FORMAT.md")
     ap.add_argument("files", nargs="*", help="task html files (default: docs/tasks/*-tasks.html)")
     ap.add_argument("--strict", action="store_true", help="warnings fail the run too")
+    ap.add_argument("--handover", action="store_true",
+                    help="format 3: the mockup must agree with the ТЗ (mockNote fails the run)")
     args = ap.parse_args()
+    global HANDOVER
+    HANDOVER = args.handover
 
     targets = [Path(f) for f in args.files] or sorted(TASKS_DIR.glob("*-tasks.html"))
     if not targets:

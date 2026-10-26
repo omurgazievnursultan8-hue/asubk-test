@@ -7,7 +7,8 @@
 <!--
   Задачи формата 3 (docs/tasks/FORMAT.md §11). Источник — JSON-остров #tasks-data ниже; всё
   остальное — оболочка из docs/tasks/f3/tasks-template.html, её обновляет
-  python3 scripts/f3_page.py tasks <этот файл>. Что строить — в ТЗ; здесь порядок и приёмка.
+  python3 scripts/f3_page.py tasks <этот файл>; она же кладёт снимок ТЗ (#tz-snapshot), из которого
+  карточка показывает тексты пунктов. Правила — в ТЗ; здесь порядок и приёмка.
 -->
 <style>
 :root{
@@ -66,6 +67,33 @@ section.stage>h2 .num{color:var(--ink-45);font-weight:500;margin-right:8px}
 .acc td.box{width:22px;color:var(--ink-45)}
 .acc td.pts{width:130px;color:var(--ink-65);text-align:right;white-space:nowrap}
 .arrow{color:var(--ink-45);margin:0 6px}
+.pt{display:grid;grid-template-columns:52px minmax(0,1fr);gap:2px 10px;padding:6px 0;border-bottom:1px solid var(--g200)}
+.pt:last-child{border-bottom:0}
+.pid{font:600 13px/1.6 var(--font);color:var(--ink-45);font-variant-numeric:tabular-nums}
+.open{font:600 11.5px/1 var(--font);padding:3px 7px;border-radius:999px;background:rgba(184,134,11,.12);color:#7a5a07}
+.sub{color:var(--ink-65);font-size:13px;margin-top:4px}
+.route{color:var(--ink-65);font-size:13px}
+.empty{color:var(--ink-45)}
+.miss{color:var(--red)}
+.note{margin-top:6px;padding:6px 10px;border-left:3px solid var(--amber);background:rgba(184,134,11,.12);font-size:13px}
+.stub{color:var(--ink-65);font-size:13px;margin:2px 0 4px 18px}
+.here{margin-top:8px;padding:6px 10px;background:var(--g50);border-radius:6px;font-size:13.5px}
+.ent{margin:4px 0 10px}
+table.mini,table.cases{border-collapse:collapse;margin-top:4px;font-size:13px;background:var(--white)}
+table.mini th,table.mini td,table.cases th,table.cases td{border:1px solid var(--line);padding:4px 7px;text-align:left;vertical-align:top}
+table.mini th,table.cases th{background:var(--g50);font-weight:600;color:var(--ink-65);font-size:12px}
+td.zone{background:var(--g50);font-weight:600;color:var(--ink-65);font-size:12px}
+.given{font-size:13.5px;margin:0 0 2px}
+.given b{color:var(--ink-45);font-size:12px;text-transform:uppercase;letter-spacing:.03em;margin-right:4px}
+table.steps{border-collapse:collapse;width:100%;table-layout:fixed}
+table.steps td{border:0;padding:1px 4px;vertical-align:top}
+table.steps td.st{width:40%}
+table.steps td.n{width:18px;color:var(--ink-45);font-variant-numeric:tabular-nums}
+table.steps td.arrow{width:16px;color:var(--ink-45)}
+.show .given,.show table.steps{font-size:13.5px;margin-top:4px}
+.term{border-bottom:1px dotted var(--ink-45);cursor:help}
+.key{background:var(--blue-tint);border-radius:3px;padding:0 2px;cursor:help}
+.card.common{border-color:var(--blue)}
 .hide{display:none!important}
 @media (max-width:900px){.layout{grid-template-columns:1fr}nav.side{position:static;height:auto}main{padding:0 16px 60px}.row{grid-template-columns:1fr}}
 @media print{nav.side{display:none}.layout{display:block}main{max-width:none;padding:0}body{background:#fff}}
@@ -77,37 +105,168 @@ section.stage>h2 .num{color:var(--ink-45);font-weight:500;margin-right:8px}
   <main id="main"></main>
 </div>
 {{ISLAND}}
+{{SNAPSHOT}}
 <script>
 (function(){
   "use strict";
   var D = JSON.parse(document.getElementById("tasks-data").textContent);
+  var S = JSON.parse((document.getElementById("tz-snapshot") || {}).textContent || "{}");
   var M = D.meta || {}, cards = D.cards || [], stages = D.stages || [];
-  var tz = (M.package || []).filter(function(f){ return /^\d+-.*\.html$/.test(f); })[0] || "";
+  var tz = S.src || "";
   var byId = {}; cards.forEach(function(c){ byId[c.id] = c; });
 
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function el(tag, cls, html){ var e = document.createElement(tag); if (cls) e.className = cls;
     if (html != null) e.innerHTML = html; return e; }
-  function tzLink(id){ return tz ? '<a href="' + esc(tz) + "#" + esc(id) + '">' + esc(id) + "</a>" : esc(id); }
+  function short(s, n){ s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
-  // 3.1, 3.2, 3.3, 3.7 → 3.1–3.3, 3.7 (подряд в одной главе — диапазоном)
-  function ranges(ids){
-    var key = function(x){ return x.split(".").map(Number); };
-    var s = ids.slice().sort(function(a, b){ var p = key(a), q = key(b); return p[0] - q[0] || p[1] - q[1]; });
-    var out = [], i = 0;
-    while (i < s.length){
-      var j = i; while (j + 1 < s.length && key(s[j + 1])[0] === key(s[i])[0] && key(s[j + 1])[1] === key(s[j])[1] + 1) j++;
-      out.push(j - i >= 2 ? tzLink(s[i]) + "–" + tzLink(s[j]) : s.slice(i, j + 1).map(tzLink).join(", "));
-      i = j + 1;
-    }
-    return out.join(", ");
+  // Снимок ТЗ: пункты, экраны, связи, сущности, набор, словарь.
+  var pts = {}, scr = {}, ifc = {}, ent = {}, entByName = {}, ifaceByName = {}, onScreen = {};
+  (S.chapters || []).forEach(function(ch){
+    (ch.points || []).forEach(function(p){ pts[p.id] = p; });
+    (ch.screens || []).forEach(function(s){ scr[s.id] = s;
+      (s.acts || []).forEach(function(a){ if (a.pt) (onScreen[a.pt] = onScreen[a.pt] || []).push({s: s, a: a}); }); });
+  });
+  (S.access || []).concat(S.common || []).forEach(function(p){ pts[p.id] = p; });
+  (S.interfaces || []).forEach(function(f){ ifc[f.id] = f; ifaceByName[f.name] = f.id; });
+  (S.entities || []).forEach(function(e){ ent[e.id] = e; entByName[e.n] = e.id; });
+  var dataset = (S.dataset || []).slice().sort(function(a, b){ return b.key.length - a.key.length; });
+
+  function tzHref(id){ return tz ? esc(tz) + "#" + esc(id) : "#"; }
+  function tzLink(id){ return '<a href="' + tzHref(id) + '"' + (pts[id] ? ' title="' + esc(short(pts[id].text, 300)) + '"' : "") + ">" + esc(id) + "</a>"; }
+
+  // Термины и ключи набора — то же правило поиска, что у валидатора.
+  var L = "[\\p{L}\\p{N}_]";
+  function stemRe(name){
+    var base = String(name).replace(/\(.*?\)/g, " ").split(" — ")[0];
+    var parts = base.match(/[А-Яа-яЁёA-Za-z0-9-]+/g);
+    if (!parts) return null;
+    return new RegExp("(?<!" + L + ")" + parts.map(function(w){ w = w.toLowerCase();
+      var st = w.length <= 3 ? w : w.length <= 5 ? w.slice(0, -1) : w.slice(0, -2);
+      return st + L + "*"; }).join("[^\\p{L}\\p{N}_]+"), "iu");
   }
-  // В тексте проверки: номер задачи и пункт ТЗ — ссылками.
-  function linkify(t){
-    var h = esc(t);
+  var terms = (S.glossary || []).map(function(t){ return {t: t.t, d: t.d, re: stemRe(String(t.t).replace(/[«»]/g, ""))}; })
+    .filter(function(t){ return t.re; }).sort(function(a, b){ return b.t.length - a.t.length; });
+  function keyRe(k){ return new RegExp("(?<!" + L + ")" + k.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&") + "(?![\\p{L}\\p{N}_/])", "u"); }
+  dataset.forEach(function(r){ r.re = keyRe(r.key); });
+
+  // Заменяет первое вхождение только в тексте вне тегов и вне уже размеченного.
+  function markFirst(html, re, wrap){
+    var parts = html.split(/(<[^>]+>)/), depth = 0, done = false;
+    for (var i = 0; i < parts.length && !done; i++){
+      var x = parts[i];
+      if (x.charAt(0) === "<"){ if (/^<(a|span|code)\b/.test(x)) depth++; else if (/^<\/(a|span|code)>/.test(x)) depth--; continue; }
+      if (depth) continue;
+      parts[i] = x.replace(re, function(w){ done = true; return wrap(w); });
+    }
+    return parts.join("");
+  }
+  function markAll(html, re, wrap){
+    var g = new RegExp(re.source, re.flags.indexOf("g") < 0 ? re.flags + "g" : re.flags);
+    var parts = html.split(/(<[^>]+>)/), depth = 0;
+    for (var i = 0; i < parts.length; i++){
+      var x = parts[i];
+      if (x.charAt(0) === "<"){ if (/^<(a|span|code)\b/.test(x)) depth++; else if (/^<\/(a|span|code)>/.test(x)) depth--; continue; }
+      if (!depth) parts[i] = x.replace(g, wrap);
+    }
+    return parts.join("");
+  }
+  function linkify(s){
+    var h = esc(s);
     h = h.replace(/\b(P\d+-R\d+)\b/g, function(a, id){ return byId[id] ? '<a href="#' + id + '">' + id + "</a>" : a; });
-    return h;
+    h = h.replace(/(^|[^\d.])([1-9]\d?\.\d{1,3})(?![\d]|\.\d)/g, function(all, pre, id){
+      return pts[id] || scr[id] || ifc[id] || ent[id] ? pre + '<a href="' + tzHref(id) + '" data-t="' + id + '">' + id + "</a>" : all; });
+    h = h.replace(/\b([a-z]+[A-Z][A-Za-z]+)\b/g, function(all, n){ return ifaceByName[n] ? "<code>" + n + "</code>" : all; });
+    // Текст пункта в подсказку — последним, чтобы замены выше не трогали атрибут.
+    return h.replace(/ data-t="([^"]+)"/g, function(all, id){
+      return pts[id] ? ' title="' + esc(short(pts[id].text, 300)) + '"' : ""; });
+  }
+  function withTerms(html){
+    terms.forEach(function(t){ html = markFirst(html, t.re, function(w){
+      return '<span class="term" title="' + esc(t.t + " — " + t.d) + '">' + w + "</span>"; }); });
+    return html;
+  }
+  function withKeys(html){
+    dataset.forEach(function(r){ html = markAll(html, r.re, function(w){
+      return '<span class="key" title="' + esc(r.key + " — " + (r.kind || "") + ": " + (r.desc || "")) + '">' + w + "</span>"; }); });
+    return html;
+  }
+  function keysIn(blob){ return dataset.filter(function(r){ return r.re.test(blob); }); }
+
+  function casesHtml(c){
+    var t = (c.given ? '<div class="given">' + linkify(c.given) + "</div>" : "") + '<table class="cases"><tr>' +
+      c.cols.map(function(x){ return "<th>" + esc(x) + "</th>"; }).join("") + "</tr>";
+    c.rows.forEach(function(r){ t += "<tr>" + r.map(function(x){ return "<td>" + linkify(x) + "</td>"; }).join("") + "</tr>"; });
+    return t + "</table>";
+  }
+  function pointHtml(id){
+    var p = pts[id];
+    if (!p) return '<div class="pt"><span class="pid">' + tzLink(id) + '</span><div class="miss">нет в снимке ТЗ — пересоберите страницу</div></div>';
+    return '<div class="pt"><span class="pid">' + tzLink(id) + "</span><div>" + withTerms(linkify(p.text)) +
+      (p.open ? ' <span class="open">⚠ вопрос заказчику</span>' : "") + (p.cases ? casesHtml(p.cases) : "") + "</div></div>";
+  }
+  function actsHtml(acts){
+    var t = '<table class="mini"><tr><th>действие</th><th>когда доступно</th></tr>', zone = null;
+    acts.forEach(function(a){
+      if (a.zone && a.zone !== zone){ zone = a.zone; t += '<tr><td class="zone" colspan="2">' + esc(zone) + "</td></tr>"; }
+      t += "<tr><td>" + linkify(a.a) + "</td><td>" + linkify(a.when) + "</td></tr>"; });
+    return t + "</table>";
+  }
+  // Экран в карточке владельца: каркас — колонки, сообщения и действия без своего пункта.
+  function screenHtml(id){
+    var s = scr[id];
+    if (!s) return "";
+    var frame = (s.acts || []).filter(function(a){ return !a.pt; }), rest = (s.acts || []).length - frame.length;
+    return '<div class="pt"><span class="pid">' + tzLink(id) + '</span><div><b>Экран «' + esc(s.n) + "»</b>" +
+      (s.route ? ' <span class="route">макет: ' + esc(s.route) + "</span>" : "") +
+      (s.cols && s.cols.length ? '<div class="sub">Колонки: ' + s.cols.map(esc).join(" · ") + "</div>" : "") +
+      (frame.length ? '<div class="sub">Действия каркаса:</div>' + actsHtml(frame) : "") +
+      (rest ? '<div class="sub empty">Ещё ' + rest + " действ. строят задачи их пунктов.</div>" : "") +
+      (s.msgs && s.msgs.length ? '<div class="sub">Сообщения: ' + s.msgs.map(function(m){ return linkify(m); }).join(" · ") + "</div>" : "") +
+      (s.mockNote ? '<div class="note"><b>Макет расходится:</b> ' + linkify(s.mockNote) + "</div>" : "") + "</div></div>";
+  }
+  function ifaceHtml(id){
+    var f = ifc[id];
+    if (!f) return "";
+    function li(x){ return [].concat(x || []).map(function(m){ return linkify(m); }).join(" · "); }
+    return '<div class="pt"><span class="pid">' + tzLink(id) + "</span><div><b><code>" + esc(f.name) + "</code></b> " +
+      '<span class="route">' + esc(f.from) + " → " + esc(f.to) + '</span><div class="sub">Передаём: ' + li(f.send) +
+      '</div><div class="sub">Получаем: ' + li(f.get) + '</div><div class="sub">При отказе: ' + linkify(f.refuse) + "</div></div></div>";
+  }
+  function entityHtml(id){
+    var e = ent[id];
+    if (!e) return "";
+    var t = '<div class="ent"><div><span class="pid">' + tzLink(id) + "</span> <b>" + esc(e.n) + "</b> — строится целиком" +
+      (e.note ? '<div class="sub">' + linkify(e.note) + "</div>" : "") + '</div><table class="mini"><tr><th>поле</th><th>тип</th><th>обяз.</th><th>значения, ссылка, пояснение</th></tr>';
+    (e.fields || []).forEach(function(f){
+      var v = f.values ? [].concat(f.values).map(esc).join(" · ") : "";
+      if (f.ref) v = esc(f.ref) + (f.ext ? ' <span class="empty">(' + esc(f.ext) + ")</span>" : "");
+      if (f.note) v += (v ? " — " : "") + linkify(f.note);
+      t += "<tr><td>" + esc(f.n) + "</td><td>" + esc(f.type) + "</td><td>" + (f.req ? '<span class="ok">да</span>' : "") + "</td><td>" + v + "</td></tr>"; });
+    return t + "</table></div>";
+  }
+  // Дано · Шаги · Видно — проверка и сценарий показа этапа.
+  function scenarioHtml(sc, own){
+    var steps = sc.steps || [], see = sc.see || [];
+    var h = own && sc.given ? '<div class="given"><b>Дано</b> ' + withKeys(linkify(sc.given)) + "</div>" : "";
+    h += '<table class="steps">';
+    steps.forEach(function(x, i){ h += '<tr><td class="n">' + (i + 1) + '</td><td class="st">' + withKeys(linkify(x)) +
+      '</td><td class="arrow">→</td><td>' + withKeys(linkify(see[i] || "")) + "</td></tr>"; });
+    return h + "</table>";
+  }
+  function checksHtml(accept){
+    var t = '<table class="acc">';
+    (accept || []).forEach(function(a){ t += '<tr><td class="box">☐</td><td>' + scenarioHtml(a, true) +
+      '</td><td class="pts">' + (a.pts || []).map(tzLink).join(", ") + "</td></tr>"; });
+    return t + "</table>";
+  }
+  function row(k, html){ return '<div class="row"><div class="k">' + k + "</div><div>" + html + "</div></div>"; }
+  function datasetHtml(blob){
+    var used = keysIn(blob);
+    if (!used.length) return "";
+    return '<table class="mini">' + used.map(function(r){ return "<tr><td><b>" + esc(r.key) + "</b></td><td>" + esc(r.kind || "") +
+      "</td><td>" + linkify(r.desc || "") + "</td></tr>"; }).join("") + "</table>";
   }
 
   var main = document.getElementById("main"), side = document.getElementById("side");
@@ -118,29 +277,56 @@ section.stage>h2 .num{color:var(--ink-45);font-weight:500;margin-right:8px}
   var prio = {"🔴": 0, "🟡": 0, "🟢": 0}; cards.forEach(function(c){ prio[c.prio] = (prio[c.prio] || 0) + 1; });
   hero.appendChild(el("div", "chips", '<span class="chip blue">задач ' + cards.length + '</span><span class="chip blue">этапов ' + stages.length +
     '</span><span class="chip">🔴 ' + prio["🔴"] + '</span><span class="chip">🟡 ' + prio["🟡"] + '</span><span class="chip">🟢 ' + prio["🟢"] + "</span>"));
-  hero.appendChild(el("p", "", '<span style="color:var(--ink-65);font-size:13.5px">Что строить — в ТЗ (' + tzLink("ch1").replace(">ch1<", ">" + esc(tz) + "<") +
-    "). Задача закрывает свои пункты целиком; «Готово, когда» проверяется на контрольном наборе данных ТЗ.</span>"));
+  hero.appendChild(el("p", "", '<span style="color:var(--ink-65);font-size:13.5px">Тексты пунктов — из ТЗ (<a href="' + esc(tz) + '">' + esc(tz) +
+    "</a> на " + esc((S.date || "").split("-").reverse().join(".")) + "). Задача закрывает свои пункты целиком; «Готово, когда» проверяется на контрольном наборе данных.</span>"));
   main.appendChild(hero);
 
   var nav = el("ol");
+  if (D.common){
+    var cm = el("section", "stage"); cm.id = "common";
+    cm.appendChild(el("h2", "", "Для всех задач"));
+    var c = el("div", "card common");
+    c.innerHTML = row("Что строим", (D.common.covers || []).map(pointHtml).join("")) +
+      (D.common.given ? row("Дано", withKeys(linkify(D.common.given))) : "") +
+      row("Готово, когда", '<div class="sub">на экранах каждой задачи</div>' + checksHtml(D.common.accept));
+    cm.appendChild(c); main.appendChild(cm);
+    var lc = el("li"); var ac = el("a", "", '<span class="n">∗</span><span>Для всех задач</span>'); ac.href = "#common"; lc.appendChild(ac); nav.appendChild(lc);
+  }
+
   stages.forEach(function(st){
     var mine = cards.filter(function(c){ return c.stage === st.n; });
     var s = el("section", "stage"); s.id = "stage" + st.n;
     s.appendChild(el("h2", "", '<span class="num">Этап ' + st.n + "</span>" + esc(st.title)));
-    s.appendChild(el("div", "show", "<b>Заказчик видит:</b> " + esc(st.show)));
+    var show = st.show && typeof st.show === "object" ? '<div class="given"><b>Дано</b> ' + withKeys(linkify(st.show.given || "")) + "</div>" + scenarioHtml(st.show, false)
+      : esc(st.show);
+    s.appendChild(el("div", "show", "<b>Заказчик видит</b>" + show));
     mine.forEach(function(c){
       var d = el("div", "card"); d.id = c.id; d.dataset.q = JSON.stringify(c).toLowerCase();
-      d.appendChild(el("div", "hd", '<span class="id">' + esc(c.id) + "</span><b>" + esc(c.title) + '</b><span class="prio">' + esc(c.prio) + "</span>"));
-      d.appendChild(el("div", "row", '<div class="k">Закрывает</div><div>' + ranges(c.covers || []) + "</div>"));
-      if ((c.deps || []).length) d.appendChild(el("div", "row", '<div class="k">Зависит от</div><div>' +
-        c.deps.map(function(x){ return '<a href="#' + esc(x) + '">' + esc(x) + "</a>" + (byId[x] ? " " + esc(byId[x].title) : ""); }).join("; ") + "</div>"));
-      if ((c.waits || []).length) d.appendChild(el("div", "row", '<div class="k">Ждёт</div><ul class="waits">' +
-        c.waits.map(function(w){ return "<li>" + (w.ready ? '<span class="ok">✓</span> ' : '<span class="no">✕</span> ') + esc(w.what) +
-          (w.iface ? " — " + tzLink(w.iface) : "") + "</li>"; }).join("") + "</ul>"));
-      var t = '<table class="acc">';
-      (c.accept || []).forEach(function(a){ t += '<tr><td class="box">☐</td><td>' + linkify(a.do) + '<span class="arrow">→</span>' + linkify(a.see) +
-        '</td><td class="pts">' + (a.pts || []).map(tzLink).join(", ") + "</td></tr>"; });
-      d.appendChild(el("div", "row", '<div class="k">Готово, когда</div><div>' + t + "</table></div>"));
+      var h = '<div class="hd"><span class="id">' + esc(c.id) + "</span><b>" + esc(c.title) + '</b><span class="prio">этап ' + c.stage + " · " + esc(c.prio) + "</span></div>";
+      if (c.result) h += row("Результат", withTerms(linkify(c.result)));
+      if ((c.deps || []).length) h += row("Зависит от", c.deps.map(function(x){
+        return '<a href="#' + esc(x) + '">' + esc(x) + "</a>" + (byId[x] ? " " + esc(byId[x].title) : ""); }).join("; "));
+      if ((c.waits || []).length) h += row("Ждёт", '<ul class="waits">' + c.waits.map(function(w){
+        return "<li>" + (w.ready ? '<span class="ok">✓</span> ' : '<span class="no">✕</span> ') + linkify(w.what) +
+          (w.iface ? " — " + tzLink(w.iface) : "") + (!w.ready && w.stub ? '<div class="stub">пока нет — заглушка: ' + linkify(w.stub) + "</div>" : "") + "</li>"; }).join("") + "</ul>");
+      var covers = c.covers || [];
+      var build = covers.filter(function(x){ return pts[x]; }).map(pointHtml).join("") +
+        covers.filter(function(x){ return scr[x]; }).map(screenHtml).join("") +
+        covers.filter(function(x){ return ifc[x]; }).map(ifaceHtml).join("");
+      var here = [];
+      covers.forEach(function(x){ (onScreen[x] || []).forEach(function(o){ here.push(o); }); });
+      if (here.length) build += '<div class="here"><div class="sub"><b>На экране</b></div>' + here.map(function(o){
+        return "<div>" + linkify(o.a.a) + " — экран «" + esc(o.s.n) + "»" + (o.a.zone ? ", " + esc(o.a.zone) : "") +
+          '; <span class="empty">когда:</span> ' + linkify(o.a.when) + ' <span class="empty">(' + tzLink(o.a.pt) + ")</span></div>"; }).join("") + "</div>";
+      h += row("Что строим", build);
+      var ents = covers.filter(function(x){ return ent[x]; });
+      if (ents.length) h += row("Сущность", ents.map(entityHtml).join(""));
+      if (c.given) h += row("Дано", withKeys(linkify(c.given)));
+      h += row("Готово, когда", checksHtml(c.accept));
+      var blob = [c.given || ""].concat((c.accept || []).map(function(a){ return [a.given || ""].concat(a.steps || [], a.see || []).join(" "); })).join(" ");
+      var ds = datasetHtml(blob);
+      if (ds) h += row("Данные набора", ds);
+      d.innerHTML = h;
       s.appendChild(d);
     });
     main.appendChild(s);
@@ -153,7 +339,7 @@ section.stage>h2 .num{color:var(--ink-45);font-weight:500;margin-right:8px}
   side.appendChild(nav);
   inp.addEventListener("input", function(){
     var v = inp.value.trim().toLowerCase();
-    main.querySelectorAll(".card").forEach(function(n){ n.classList.toggle("hide", !!v && n.dataset.q.indexOf(v) < 0); });
+    main.querySelectorAll(".card").forEach(function(n){ n.classList.toggle("hide", !!v && (n.dataset.q || "").indexOf(v) < 0); });
   });
   document.title = "Задачи · " + (M.title || "") + " · АСУБК";
   if (location.hash){ var t = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (t) t.scrollIntoView(); }
