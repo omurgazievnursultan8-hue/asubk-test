@@ -201,11 +201,18 @@ td.zone{background:var(--g50);font-weight:600;color:var(--ink-65);font-size:12.5
   }
   // Опись действий: по зонам экрана; у действия — пункт, который им правит.
   function actsTable(acts){
-    var t = "<table><tr><th>действие</th><th>когда доступно</th><th>пункт</th></tr>", zone = null;
+    var t = "<table><tr><th>действие</th><th>когда доступно</th><th>пункт</th></tr>", order = [], by = {};
     acts.forEach(function(a){
-      if (a.zone && a.zone !== zone){ zone = a.zone; t += '<tr><td class="zone" colspan="3">' + esc(zone) + "</td></tr>"; }
-      t += "<tr><td>" + linkify(a.a) + "</td><td>" + linkify(a.when) + "</td><td>" +
-        (a.pt ? linkify(a.pt) : '<span class="empty">каркас экрана</span>') + "</td></tr>";
+      var z = a.zone || "";
+      if (!(z in by)){ by[z] = []; order.push(z); }
+      by[z].push(a);
+    });
+    order.forEach(function(z){
+      if (z) t += '<tr><td class="zone" colspan="3">' + esc(z) + "</td></tr>";
+      by[z].forEach(function(a){
+        t += "<tr><td>" + linkify(a.a) + "</td><td>" + linkify(a.when) + "</td><td>" +
+          (a.pt ? linkify(a.pt) : '<span class="empty">каркас экрана</span>') + "</td></tr>";
+      });
     });
     return t + "</table>";
   }
