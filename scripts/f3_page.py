@@ -58,7 +58,7 @@ def find_tz(package):
         if not str(name).endswith(".html"):
             continue
         for path in [ROOT / "requirements" / "tz" / name, *ROOT.glob(f"**/{name}")]:
-            if ".claude" in path.parts or not path.is_file():
+            if ".claude" in path.relative_to(ROOT).parts or not path.is_file():
                 continue
             _, tz = read_island(path.read_text(encoding="utf-8"), "tz-data")
             if tz is not None:
