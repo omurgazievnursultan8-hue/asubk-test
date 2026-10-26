@@ -120,11 +120,15 @@ python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fie
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html
 # Format 3 files are checked together with their ТЗ (from meta.package) and trace file.
+python3 scripts/check_tasks.py --handover            # format 3 at handover: mockNote fails too
 
 # Format 3 pages: the JSON island is the source, the rest is a shared shell
 # (docs/tasks/f3/{tz,tasks}-template.html). Hand-edit only the island.
 python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html --island tz.json  # build from JSON
 python3 scripts/f3_page.py tz requirements/tz/20-otchetnost.html                   # re-shell, island untouched
+# The task page also embeds a ТЗ snapshot (#tz-snapshot) so cards show their points' text.
+# Rebuild it after every ТЗ edit — check_tasks.py fails a stale snapshot.
+python3 scripts/f3_page.py tasks docs/tasks/p23-otchetnost-tasks.html
 
 # Validate every «п. NN» citation against the Порядок redaction in force
 # (№41 of 06.07.2026, docs/normativ/). Fails on points that no longer exist.

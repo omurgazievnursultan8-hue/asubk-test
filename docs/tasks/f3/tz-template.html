@@ -82,6 +82,14 @@ th{background:var(--g50);font-weight:600;color:var(--ink-65);font-size:12.5px}
 table.links{margin:8px 0 6px}
 table.links .pid{font-size:12px}
 .empty{color:var(--ink-45)}
+.lead{background:var(--white);border-left:3px solid var(--blue);padding:8px 12px;margin:0 0 10px;font-size:14.5px}
+.lead b{color:var(--link)}
+h3.grp{font:600 15px/1.3 var(--font);color:var(--ink);margin:20px 0 4px;padding-top:6px;border-top:1px solid var(--line)}
+h3.grp .rng{color:var(--ink-45);font-weight:500;font-size:13px;margin-left:8px}
+nav.side li.sub a{padding:3px 8px 3px 38px;font-size:12.5px;color:var(--ink-65)}
+.term{border-bottom:1px dotted var(--ink-45);cursor:help}
+td.zone{background:var(--g50);font-weight:600;color:var(--ink-65);font-size:12.5px}
+.rules{color:var(--ink-65);font-size:12.5px}
 .hide{display:none!important}
 @media (max-width:900px){.layout{grid-template-columns:1fr}nav.side{position:static;height:auto}main{padding:0 16px 60px}.cols2{grid-template-columns:1fr}}
 @media print{nav.side{display:none}.layout{display:block}main{max-width:none;padding:0}body{background:#fff}}
@@ -99,8 +107,9 @@ table.links .pid{font-size:12px}
   var D = JSON.parse(document.getElementById("tz-data").textContent);
   var M = D.meta || {};
   var chapters = D.chapters || [];
-  var K = 3 + chapters.length;                    // глава связей; права — K+1; вопросы — K+2
+  var K = 3 + chapters.length;                    // связи; права — K+1; общие правила — K+2; вопросы — K+3
   var ids = {};                                   // id → вид
+  var ptText = {};                                // пункт → текст, для подсказки у ссылки
   var ifaceByName = {};
   var formPoint = {};                             // ФО-NN → пункт, который его описывает
 
@@ -108,30 +117,72 @@ table.links .pid{font-size:12px}
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function el(tag, cls, html){ var e = document.createElement(tag); if (cls) e.className = cls;
     if (html != null) e.innerHTML = html; return e; }
+  function short(s, n){ s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
+  function allPoints(){
+    var out = [];
+    chapters.forEach(function(ch){ (ch.points || []).forEach(function(p){ out.push(p); }); });
+    return out.concat(D.access || [], D.common || []);
+  }
   (D.entities || []).forEach(function(e){ ids[e.id] = "entity"; });
   chapters.forEach(function(ch){
-    (ch.points || []).forEach(function(p){ ids[p.id] = "point";
+    (ch.points || []).forEach(function(p){
       var m = /^\s*(ФО-\d+)/.exec(p.text || ""); if (m && !formPoint[m[1]]) formPoint[m[1]] = p.id; });
     (ch.screens || []).forEach(function(s){ ids[s.id] = "screen"; });
   });
+  allPoints().forEach(function(p){ ids[p.id] = "point"; ptText[p.id] = p.text; });
   (D.interfaces || []).forEach(function(f){ ids[f.id] = "interface"; ifaceByName[f.name] = f.id; });
-  (D.access || []).forEach(function(p){ ids[p.id] = "point"; });
   var entByName = {};
   (D.entities || []).forEach(function(e){ entByName[e.n] = e.id; });
 
-  // Ссылки внутри текста: пункт, «гл. N», имя запроса, ФО-NN.
+  // Имя поля или термин с любым окончанием — то же правило, что у валидатора (stem_re).
+  var L = "[\\p{L}\\p{N}_]";
+  function stemRe(name, flags){
+    var base = String(name).replace(/\(.*?\)/g, " ").split(" — ")[0];
+    var parts = base.match(/[А-Яа-яЁёA-Za-z0-9-]+/g);
+    if (!parts) return null;
+    var src = parts.map(function(w){ w = w.toLowerCase();
+      var st = w.length <= 3 ? w : w.length <= 5 ? w.slice(0, -1) : w.slice(0, -2);
+      return st + L + "*"; }).join("[^\\p{L}\\p{N}_]+");
+    return new RegExp("(?<!" + L + ")" + src, flags || "iu");
+  }
+
+  // Термин словаря: первое вхождение в тексте — пунктир и определение по наведению.
+  var terms = (D.glossary || []).map(function(t){ return {t: t.t, d: t.d, re: stemRe(String(t.t).replace(/[«»]/g, ""))}; })
+    .filter(function(t){ return t.re; }).sort(function(a, b){ return b.t.length - a.t.length; });
+  function markTerms(html){
+    terms.forEach(function(t){
+      var parts = html.split(/(<[^>]+>)/), depth = 0, done = false;
+      for (var i = 0; i < parts.length && !done; i++){
+        var x = parts[i];
+        if (x.charAt(0) === "<"){
+          if (/^<(a|span|code)\b/.test(x)) depth++; else if (/^<\/(a|span|code)>/.test(x)) depth--;
+          continue;
+        }
+        if (depth) continue;
+        parts[i] = x.replace(t.re, function(w){ done = true;
+          return '<span class="term" title="' + esc(t.t + " — " + t.d) + '">' + w + "</span>"; });
+      }
+      html = parts.join("");
+    });
+    return html;
+  }
+
+  // Ссылки внутри текста: пункт (с текстом по наведению), «гл. N», имя запроса, ФО-NN.
   function linkify(s){
     var h = esc(s);
     h = h.replace(/(^|[^\d.])([1-9]\d?\.\d{1,3})(?![\d]|\.\d)/g, function(all, pre, id){
-      return ids[id] ? pre + '<a href="#' + id + '">' + id + "</a>" : all; });
+      return ids[id] ? pre + '<a href="#' + id + '" data-t="' + id + '">' + id + "</a>" : all; });
     h = h.replace(/гл\.\s?(\d{1,2})/g, function(all, n){ return '<a href="#ch' + n + '">' + all + "</a>"; });
     h = h.replace(/\b([a-z]+[A-Z][A-Za-z]+)\b/g, function(all, n){
       return ifaceByName[n] ? '<a href="#' + ifaceByName[n] + '"><code>' + n + "</code></a>" : all; });
     h = h.replace(/(ФО-\d+)/g, function(all, f){
       return formPoint[f] ? '<a href="#' + formPoint[f] + '">' + f + "</a>" : all; });
-    return h;
+    // Текст пункта в подсказку — последним, чтобы замены выше не трогали атрибут.
+    return h.replace(/ data-t="([^"]+)"/g, function(all, id){
+      return ptText[id] ? ' title="' + esc(short(ptText[id], 300)) + '"' : ""; });
   }
+  function rich(s){ return markTerms(linkify(s)); }
 
   function cases(c){
     var w = el("div", "cases");
@@ -144,9 +195,19 @@ table.links .pid{font-size:12px}
   function point(p){
     var d = el("div", "pt"); d.id = p.id; d.dataset.q = (p.id + " " + p.text + " " + JSON.stringify(p.cases || "")).toLowerCase();
     d.appendChild(el("a", "pid", esc(p.id))).href = "#" + p.id;
-    d.appendChild(el("div", "ptext", linkify(p.text) + (p.open ? '<a class="open" href="#q-' + p.id + '">⚠ вопрос заказчику</a>' : "")));
+    d.appendChild(el("div", "ptext", rich(p.text) + (p.open ? '<a class="open" href="#q-' + p.id + '">⚠ вопрос заказчику</a>' : "")));
     if (p.cases) d.appendChild(cases(p.cases));
     return d;
+  }
+  // Опись действий: по зонам экрана; у действия — пункт, который им правит.
+  function actsTable(acts){
+    var t = "<table><tr><th>действие</th><th>когда доступно</th><th>пункт</th></tr>", zone = null;
+    acts.forEach(function(a){
+      if (a.zone && a.zone !== zone){ zone = a.zone; t += '<tr><td class="zone" colspan="3">' + esc(zone) + "</td></tr>"; }
+      t += "<tr><td>" + linkify(a.a) + "</td><td>" + linkify(a.when) + "</td><td>" +
+        (a.pt ? linkify(a.pt) : '<span class="empty">каркас экрана</span>') + "</td></tr>";
+    });
+    return t + "</table>";
   }
   function screen(s){
     var c = el("div", "card"); c.id = s.id; c.dataset.q = JSON.stringify(s).toLowerCase();
@@ -155,8 +216,7 @@ table.links .pid{font-size:12px}
     if (s.cols && s.cols.length){ c.appendChild(el("div", "lbl", "Колонки и поля"));
       c.appendChild(el("div", "chips", s.cols.map(function(x){ return '<span class="chip">' + esc(x) + "</span>"; }).join(""))); }
     if (s.acts && s.acts.length){ c.appendChild(el("div", "lbl", "Действия"));
-      c.insertAdjacentHTML("beforeend", "<table><tr><th>действие</th><th>когда доступно</th></tr>" +
-        s.acts.map(function(a){ return "<tr><td>" + linkify(a.a) + "</td><td>" + linkify(a.when) + "</td></tr>"; }).join("") + "</table>"); }
+      c.insertAdjacentHTML("beforeend", actsTable(s.acts)); }
     if (s.msgs && s.msgs.length){ c.appendChild(el("div", "lbl", "Сообщения"));
       c.appendChild(el("ul", "", s.msgs.map(function(m){ return "<li>" + linkify(m) + "</li>"; }).join(""))); }
     if (s.mockNote) c.appendChild(el("div", "note", "<b>Макет расходится:</b> " + linkify(s.mockNote)));
@@ -172,18 +232,28 @@ table.links .pid{font-size:12px}
     c.appendChild(el("div", "lbl", "При отказе")); c.appendChild(el("div", "", linkify(f.refuse)));
     return c;
   }
+
+  // Поле → пункты, где оно названо (выводится, не хранится).
+  var rulePoints = allPoints().map(function(p){
+    return {id: p.id, blob: p.text + " " + (p.cases ? JSON.stringify(p.cases) : "")}; });
+  function fieldRules(f){
+    var re = stemRe(f.n); if (!re) return [];
+    return rulePoints.filter(function(p){ return re.test(p.blob); }).map(function(p){ return p.id; });
+  }
   function entity(e){
     var w = el("div", "ent"); w.id = e.id; w.dataset.q = JSON.stringify(e).toLowerCase();
     w.appendChild(el("div", "hd", '<a class="pid" href="#' + e.id + '">' + esc(e.id) + "</a><b>" + esc(e.n) + "</b>"));
     if (e.note) w.appendChild(el("div", "sub", linkify(e.note)));
-    var t = "<table><tr><th>поле</th><th>тип</th><th>обяз.</th><th>значения или ссылка</th></tr>";
+    var t = "<table><tr><th>поле</th><th>тип</th><th>обяз.</th><th>значения или ссылка</th><th>пояснение</th><th>правила</th></tr>";
     (e.fields || []).forEach(function(f){
       var v = "";
       if (f.values) v = [].concat(f.values).map(esc).join(" · ");
       if (f.ref) v = entByName[f.ref] && !f.ext ? '<a href="#' + entByName[f.ref] + '">' + esc(f.ref) + "</a>"
                     : esc(f.ref) + (f.ext ? ' <span class="ext">(' + esc(f.ext) + ")</span>" : "");
-      if (f.note) v += (v ? " — " : "") + linkify(f.note);
-      t += "<tr><td>" + esc(f.n) + "</td><td>" + esc(f.type) + "</td><td>" + (f.req ? '<span class="req">да</span>' : "") + "</td><td>" + v + "</td></tr>";
+      var r = fieldRules(f);
+      t += "<tr><td>" + esc(f.n) + "</td><td>" + esc(f.type) + "</td><td>" + (f.req ? '<span class="req">да</span>' : "") +
+        "</td><td>" + v + "</td><td>" + (f.note ? linkify(f.note) : "") + '</td><td class="rules">' +
+        (r.length ? r.slice(0, 6).map(linkify).join(", ") + (r.length > 6 ? " …" : "") : "") + "</td></tr>";
     });
     w.insertAdjacentHTML("beforeend", t + "</table>");
     return w;
@@ -210,13 +280,11 @@ table.links .pid{font-size:12px}
   function chapter(n, title, count){
     var s = el("section", "ch"); s.id = "ch" + n;
     s.appendChild(el("h2", "", (n ? '<span class="num">' + n + "</span>" : "") + esc(title)));
-    main.appendChild(s); nav.push({n: n, t: title, c: count}); return s;
+    main.appendChild(s); nav.push({n: n, t: title, c: count, subs: []}); return s;
   }
 
-  var nPts = 0, nScr = 0, nOpen = 0;
-  chapters.forEach(function(ch){ nPts += (ch.points || []).length; nScr += (ch.screens || []).length;
-    nOpen += (ch.points || []).filter(function(p){ return p.open; }).length; });
-  nPts += (D.access || []).length; nOpen += (D.access || []).filter(function(p){ return p.open; }).length;
+  var nPts = allPoints().length, nScr = 0, nOpen = allPoints().filter(function(p){ return p.open; }).length;
+  chapters.forEach(function(ch){ nScr += (ch.screens || []).length; });
 
   var hero = el("header", "hero");
   hero.appendChild(el("h1", "", esc(M.title ? "ТЗ · " + M.title : "ТЗ")));
@@ -231,26 +299,47 @@ table.links .pid{font-size:12px}
   var pu = D.purpose || {};
   s1.appendChild(el("div", "cols2", '<div class="box"><h3>Модуль делает</h3><ul>' + (pu.does || []).map(function(x){ return "<li>" + linkify(x) + "</li>"; }).join("") +
     '</ul></div><div class="box"><h3>Модуль не делает</h3><ul>' + (pu.doesNot || []).map(function(x){ return "<li>" + linkify(x) + "</li>"; }).join("") + "</ul></div>"));
+  var groups = [], byG = {};
+  (D.glossary || []).forEach(function(t){ var g = t.g || "Прочее"; if (!byG[g]){ byG[g] = []; groups.push(g); } byG[g].push(t); });
   var g = '<h3 style="font:600 15px var(--font);margin:18px 0 8px">Словарь</h3><table><tr><th style="width:28%">слово</th><th>значение</th></tr>';
-  (D.glossary || []).forEach(function(t){ g += '<tr data-q="' + esc((t.t + " " + t.d).toLowerCase()) + '"><td><b>' + esc(t.t) + "</b></td><td>" + linkify(t.d) + "</td></tr>"; });
+  groups.forEach(function(name){
+    g += '<tr><td class="zone" colspan="2">' + esc(name) + "</td></tr>";
+    byG[name].forEach(function(t){ g += '<tr data-q="' + esc((t.t + " " + t.d).toLowerCase()) + '"><td><b>' + esc(t.t) + "</b></td><td>" + linkify(t.d) + "</td></tr>"; });
+  });
   s1.insertAdjacentHTML("beforeend", g + "</table>");
 
   var s2 = chapter(2, "Данные", (D.entities || []).length);
-  s2.appendChild(el("div", "sub", '<span class="empty">Связи — по полям-ссылкам; ссылки на сущности других модулей указаны в таблицах полей. Технические имена таблиц и полей выбирает разработчик.</span>'));
+  s2.appendChild(el("div", "sub", '<span class="empty">Связи — по полям-ссылкам; ссылки на сущности других модулей указаны в таблицах полей. «Правила» — пункты, где поле названо. Технические имена таблиц и полей выбирает разработчик.</span>'));
   s2.insertAdjacentHTML("beforeend", links(D.entities || []));
   (D.entities || []).forEach(function(e){ s2.appendChild(entity(e)); });
 
   chapters.forEach(function(ch, i){
-    var s = chapter(3 + i, ch.title, (ch.points || []).length + (ch.screens || []).length);
-    (ch.points || []).forEach(function(p){ s.appendChild(point(p)); });
+    var n = 3 + i, s = chapter(n, ch.title, (ch.points || []).length + (ch.screens || []).length);
+    if (ch.lead) s.appendChild(el("div", "lead", "<b>Коротко.</b> " + rich(ch.lead)));
+    var start = {};
+    (ch.groups || []).forEach(function(gr, j){ start[gr.from] = {g: gr, j: j}; });
+    (ch.points || []).forEach(function(p){
+      var gs = start[p.id];
+      if (gs){
+        var h = el("h3", "grp", esc(gs.g.title) + '<span class="rng">' + esc(gs.g.from) + "–" + esc(gs.g.to) + "</span>");
+        h.id = "ch" + n + "-" + (gs.j + 1); s.appendChild(h);
+        nav[nav.length - 1].subs.push({id: h.id, t: gs.g.title});
+      }
+      s.appendChild(point(p));
+    });
     (ch.screens || []).forEach(function(x){ s.appendChild(screen(x)); });
   });
   var sk = chapter(K, "Связи с другими модулями", (D.interfaces || []).length);
   (D.interfaces || []).forEach(function(f){ sk.appendChild(iface(f)); });
   var sa = chapter(K + 1, "Права и видимость", (D.access || []).length);
   (D.access || []).forEach(function(p){ sa.appendChild(point(p)); });
+  if ((D.common || []).length){
+    var sc = chapter(K + 2, "Общие правила экранов", D.common.length);
+    sc.appendChild(el("p", "sub", '<span class="empty">Действуют на всех экранах модуля; проверяются в каждой задаче.</span>'));
+    D.common.forEach(function(p){ sc.appendChild(point(p)); });
+  }
 
-  var sq = chapter(K + 2, "Вопросы заказчику", (D.questions || []).length);
+  var sq = chapter(K + ((D.common || []).length ? 3 : 2), "Вопросы заказчику", (D.questions || []).length);
   sq.appendChild(el("p", "sub", '<span class="empty">До ответа строим по умолчанию; пункт помечен ⚠.</span>'));
   var q = "<table><tr><th>пункт</th><th>вопрос</th><th>строим пока</th><th>что изменится от другого ответа</th></tr>";
   (D.questions || []).forEach(function(x){ q += '<tr id="q-' + esc(x.point) + '" data-q="' + esc(JSON.stringify(x).toLowerCase()) + '"><td><a href="#' + esc(x.point) + '">' + esc(x.point) + "</a></td><td>" +
@@ -264,23 +353,25 @@ table.links .pid{font-size:12px}
   (D.dataset || []).forEach(function(r){ dt += '<tr data-q="' + esc(JSON.stringify(r).toLowerCase()) + '"><td><b>' + esc(r.key) + "</b></td><td>" + esc(r.kind) + "</td><td>" + linkify(r.desc) + "</td></tr>"; });
   sd.insertAdjacentHTML("beforeend", dt + "</table>");
 
-  // Боковое меню и поиск
+  // Боковое меню с подзаголовками и поиск
   var side = document.getElementById("side");
   side.appendChild(el("div", "brand", esc(M.title || "") + " · ТЗ"));
   var inp = el("input"); inp.type = "search"; inp.placeholder = "Найти в ТЗ…"; side.appendChild(inp);
   var ol = el("ol");
   nav.forEach(function(x){ var li = el("li"); var a = el("a", "", '<span class="n">' + (x.n || "") + "</span><span>" + esc(x.t) + "</span>" +
-    (x.c ? '<span class="c">' + x.c + "</span>" : "")); a.href = "#" + (x.n ? "ch" + x.n : "dataset"); li.appendChild(a); ol.appendChild(li); });
+    (x.c ? '<span class="c">' + x.c + "</span>" : "")); a.href = "#" + (x.n ? "ch" + x.n : "dataset"); li.appendChild(a); ol.appendChild(li);
+    x.subs.forEach(function(sub){ var sl = el("li", "sub"); var sa2 = el("a", "", "<span>" + esc(sub.t) + "</span>"); sa2.href = "#" + sub.id;
+      sl.appendChild(sa2); ol.appendChild(sl); }); });
   side.appendChild(ol);
   inp.addEventListener("input", function(){
     var v = inp.value.trim().toLowerCase();
     main.querySelectorAll("[data-q]").forEach(function(n){ n.classList.toggle("hide", !!v && n.dataset.q.indexOf(v) < 0); });
   });
-  var links = side.querySelectorAll("li a");
+  var navLinks = side.querySelectorAll("li a");
   var obs = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){
-    links.forEach(function(a){ a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id); }); } }); },
+    navLinks.forEach(function(a){ a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id); }); } }); },
     {rootMargin: "0px 0px -80% 0px"});
-  main.querySelectorAll("section.ch").forEach(function(s){ obs.observe(s); });
+  main.querySelectorAll("section.ch, h3.grp").forEach(function(s){ obs.observe(s); });
   document.title = (M.title ? "ТЗ · " + M.title : "ТЗ") + " · АСУБК";
   if (location.hash){ var t = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (t) t.scrollIntoView(); }
 })();
