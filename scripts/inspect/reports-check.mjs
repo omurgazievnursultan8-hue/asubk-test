@@ -123,8 +123,18 @@ const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const has = (s, part) => String(s || '').includes(part);
 const R = { user:'Пользователь (Осмонова Г.)', auth:'Уполномоченный по отчётности (Тентимишев К.)',
             clerk:'Делопроизводитель (Абдырахманова С.)', head:'Руководитель подразделения (Асанов А.)',
-            buh:'Главный бухгалтер (Бекова Н.)' };
+            buh:'Главный бухгалтер (Бекова Н.)', admin:'Администратор системы (Исаков Б.)' };
 const as = r => { RP.state.role = R[r]; };
+/* Прежние проверки описывают мир стенда — с пробными записями каталога и проверочными кнопками: они идут при включённой
+   «Демонстрации» (DEMO_WORLD). Проверки переключателя и волны 64 берут чистое состояние с выключенной «Демонстрацией». */
+let DEMO_WORLD = true;
+const seedBase = RP.seed;
+RP.seed = (...a) => { const r = seedBase(...a); RP.state.demo = DEMO_WORLD; return r; };
+/* Журнал просмотров читает администратор системы (ТЗ 20, 15.20): проверки, которым нужны его строки, берут их от его имени. */
+const ADMIN = 'Администратор системы (Исаков Б.)';
+/* Журнал выпусков с «Демонстрацией»: действия соседних модулей (учёт, миграция, документооборот) видны только при ней. */
+const jrnlDemo = () => { const d = RP.state.demo; RP.state.demo = true; try { return win.VIEWS.journal.fn(); } finally { RP.state.demo = d; } };
+const viewLogAdm = () => { const was = RP.state.role; RP.state.role = ADMIN; const r = RP.viewLog(); RP.state.role = was; return r; };
 /* Витрина разложена по вкладкам «виды · отчёт · бланк»: проверка, которой нужна
    вся витрина, а не открытая вкладка, склеивает их сама.                     */
 const SC_TABS = ['мои', 'общие', 'отчёт', 'бланк'];
@@ -345,12 +355,15 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   as('buh');
   const before = RP.whatWentOut('июль 2026');
   const re = RP.reopenPeriod('июль 2026', 'сторно платежа');
+  const markedOpen = RP.state.issues.filter(i => i.diverged).length;
+  /* Волна 64 (ТЗ 20, 8.1): метку выпуск получает при ПОВТОРНОМ закрытии периода, а не при открытии заново. */
+  const early = RP.corrective('ВП-103'), rc7 = RP.reclosePeriod('июль 2026');
   const after = RP.whatWentOut('июль 2026');
   const marked = RP.state.issues.filter(i => i.diverged);
   const rc = RP.recompute(marked[0] ? marked[0].id : '—');
-  ok(30, re.ok && re.marked === 1 && before.length === 1 && after[0].diverged === true &&
+  ok(30, re.ok && re.marked === 0 && markedOpen === 0 && rc7.ok && rc7.marked === 1 && before.length === 1 && after[0].diverged === true &&
         rc && rc.changed && rc.diffs.length > 0,
-    `открытие периода правит снимок статистики — и расхождение ЗАРАБОТАНО пересчётом: ` +
+    `открытие периода правит снимок статистики, метка — при повторном закрытии, и расхождение ЗАРАБОТАНО пересчётом: ` +
     `${rc.diffs.map(d => d.name + ' ' + d.was + '→' + d.now).join('; ')}`);
 
   const prelimMarked = RP.state.issues.filter(i => i.diverged && !i.snapshot);
@@ -359,7 +372,6 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   const iss = marked[0].id;
   /* Корректирующий окончательный — после того как период закрыт снова (§6, §5 проверка 3). */
-  const early = RP.corrective(iss), rc7 = RP.reclosePeriod('июль 2026');
   const corr = RP.corrective(iss);
   const prev = RP.ISS(iss), next = RP.ISS(corr.id);
   ok(32, !early.ok && early.rule === 'ОГ-35' && early.check === 'fixed' && rc7.ok && RP.state.periods['июль 2026'].state === 'закрыт' &&
@@ -412,19 +424,19 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 
   /* Сдаёт разрез тот, за кем обязательство: уполномоченный его показывает, а
      окончательно выпускает Осмонова Г. — ИО-25, проверка 106.               */
-  /* Закрывает выпуск ОБЪЯВЛЕННОМУ получателю (ADR-0306): сданное Комитету —
-     выпуск, но срок перед Минфином он не закрывает.                         */
+  /* Закрывает выпуск ОБЪЯВЛЕННОМУ получателю (ADR-0306): сданное Минфину —
+     выпуск, но срок перед Комитетом он не закрывает (получатель ФО-01 — Комитет, ТЗ 20, набор данных). */
   as('user');
   const other = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
-    kind:'окончательный', recipient:'a-kab' });
+    kind:'окончательный', recipient:'a-mf' });
   const mid = RP.obligations().find(o => o.id === late[0].id);
   const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
-    kind:'окончательный', recipient:'a-mf' });
+    kind:'окончательный', recipient:'a-kab' });
   as('auth');
   const now = RP.obligations().find(o => o.id === late[0].id);
   ok(39, other.ok && mid.state === 'просрочено' && mid.stray.length === 1 &&
         fin.ok && now.state === 'сдано с опозданием' && now.issue === fin.id && now.toKind === 'адресат сдачи',
-    `выпуск Комитету срок не закрыл (${mid.state}, «выпущено другому получателю»), выпуск Минфину закрыл ` +
+    `выпуск Минфину срок не закрыл (${mid.state}, «выпущено другому получателю»), выпуск Комитету закрыл ` +
     `обязательство ${now.id.split('/').slice(2).join('/')} — ИО-12, ADR-0306`);
 })();
 
@@ -461,7 +473,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.seed();
   as('auth');
   const w = RP.withdrawStat('s-overdue-sum');
-  ok(43, w.ok && w.breaking.length === 4 && w.breaking.some(b => b.id === 't-pay04') && w.breaking.some(b => b.id === 't-overdue') &&
+  ok(43, w.ok && w.breaking.length === 5 && w.breaking.some(b => b.id === 't-pay04') && w.breaking.some(b => b.id === 't-overdue') &&
         w.breaking.some(b => b.id === 't-sh-plan'),
     `владельцу реестра показан список ломающихся шаблонов до вывода показателя: ${w.breaking.map(b => b.id).join(', ')} — ADR-0159`);
 })();
@@ -612,17 +624,17 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   let total = 0;
   Object.keys(R).forEach(role => { as(role); names.forEach(v => {
     try { const html = VIEWS[v].fn(); total += html.length;
-      if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
+      if (typeof html !== 'string' || html.length < 60) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(60, bad.length === 0 && names.length === 10,
-    `десять экранов × все роли = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(60, bad.length === 0 && names.length === 12,
+    `двенадцать экранов × все роли = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
-  as('auth');
+  as('auth'); RP.state.demo = true;   /* проверочные отказы — под «Демонстрацией» (волна 64) */
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
   const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn();
   /* Верстальщик (волна 62, ВБ-3): отказ — причиной у недоступной главной кнопки на её месте. */
   ok(61, has(reg, 'Не видно этой роли') && has(cal, 'Три кнопки, которых в модуле нет') &&
-        has(jr, 'что мы отдали наружу') &&
+        has(jr, 'Что отдано наружу за период') &&
         /id="vbMain" disabled title="черновика нет — загрузите исправленный макет">Отправить на утверждение</.test(bl) &&
         has(wl, 'Завести список правилом'),
     `отказы проговорены на самих экранах, а не спрятаны за отсутствием кнопки; у верстальщика — причиной у недоступной ` +
@@ -762,7 +774,7 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
   const j = V.journal.fn(), i2 = V.issue.fn();
   ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Заказы выпуска') && has(i, 'Состояния заказа: заказан → считается') &&
-        has(i, 'Итого по «') && has(i2, 'Шаг расчёта') && has(j, 'расчёт: заказан') &&
+        has(i, 'Итого по «') && has(i2, 'Шаг расчёта') && has(j, 'при заказе — предварительный') &&
         has(b, 'Сложить итоги уровней самим') && has(w, 'Завести список правилом'),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
     `состояния задания в выпуске и журнале, отказы легаси там, где их просят`);
@@ -1224,19 +1236,18 @@ const DEV = 'изменено — не утверждённый состав';
   const titles = groups.map(g => g.title);
 
   ok(124, groups.length === 3 &&
-        titles.join(' · ') === 'Смотреть и сдавать · Настраивать · След' &&
-        groups.every(g => g.hint.trim().length > 10),
-    `навигация разложена на три стола заказчика: ${titles.join(' · ')}; ` +
-    `у каждого подписано, чей это стол`);
+        titles.join(' · ') === 'Смотреть и сдавать · Настраивать · Журналы' &&
+        groups.every(g => g.hint === ''),
+    `меню модуля из трёх групп (ТЗ 20, 3.40): ${titles.join(' · ')}; подписей-пояснений под группами нет`);
 
   const flat = groups.flatMap(g => g.items);
   const uniq = [...new Set(flat)];
   const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
-  ok(125, flat.length === 9 && uniq.length === 9 && missing.join() === 'builder' &&
-        groups.map(g => g.items.length).join('/') === '5/3/1' && flat.indexOf('dash') === -1 &&
+  ok(125, flat.length === 11 && uniq.length === 11 && missing.join() === 'builder' &&
+        groups.map(g => g.items.length).join('/') === '5/3/3' && flat.indexOf('dash') === -1 &&
         groups[0].items.indexOf('subs') !== -1,
-    `перегруппировка ничего не потеряла и не задвоила: девять пунктов меню ровно по разу, ` +
-    `раскладка 5 / 3 / 1 — «Подписки и сигналы» на столе «Смотреть и сдавать»; карточка отчёта — не пункт ` +
+    `перегруппировка ничего не потеряла и не задвоила: одиннадцать пунктов меню ровно по разу, ` +
+    `раскладка 5 / 3 / 3 — «Подписки и сигналы» на столе «Смотреть и сдавать»; карточка отчёта — не пункт ` +
     `меню, а экран из строки реестра (ГМ-5); экрана «Дашборд» в модуле нет`);
 
   // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
@@ -1251,10 +1262,10 @@ const DEV = 'изменено — не утверждённый состав';
 
   as('auth');
   ok(127, groups[0].items[0] === 'showcase' && groups[0].items[1] === 'issue' &&
-        groups[2].items.join(',') === 'journal' &&
+        groups[2].items.join(',') === 'journal,jobs,viewlog' &&
         has(nav, '>Показ и выпуск<') && V.issue.title === 'Показ и выпуск отчёта',
-    `порядок столов говорит сам: витрина первым пунктом первого стола, за ней показ и выпуск; ` +
-    `журнал вынесен в «След» — он ни настройка, ни потребление, а то, что предъявлено`);
+    `порядок групп говорит сам: каталог первым пунктом первой группы, за ним показ и выпуск; ` +
+    `журналы вынесены в третью группу — «Журнал выпусков», «Фоновые расчёты», «Журнал просмотров»`);
 })();
 
 /* ---------- U. Расписание календарное; срок бланка чужой (ОЧ-56, ADR-0164) ---------- */
@@ -1655,7 +1666,7 @@ const DEV = 'изменено — не утверждённый состав';
   /* Волна 58: три стартовых общих отчёта по объектам соседей открыты всем подразделениям (ОЧ-82, ОЧ-83, ПВ-15);
      волна 60: четвёртый стартовый — «План и факт выдачи» по кредитам (ПВ-44). */
   const START = ',t-sh-claims,t-sh-pledges,t-sh-apps,t-sh-planfact';
-  ok(160, mineIds === 't-avg,t-npl,t-osh,ВД-1' && shIds === 't-sh-plan,t-sh-big' + START &&
+  ok(160, mineIds === 't-avg,t-bal-dep,t-big-bal,t-npl,t-od-cur,t-osh,ВД-1,ВД-2,ВД-3' && shIds === 't-sh-plan,t-sh-big' + START &&
         sh.shared[0].users >= sh.shared[1].users && has(first, 'Открыть кругу') &&
         has(first, 'class="on"') && has(first, '>личный'),
     `полки: «Мои» — ${sh.mine.length} (личные отчёты автора и его вид), «Общие» — ${sh.shared.length} ` +
@@ -2033,9 +2044,9 @@ const DEV = 'изменено — не утверждённый состав';
   const seam = RP.reportObligations(before[0].dept).find(x => x.key === before[0].id);
   ok(187, before.length === 2 && legal.ok && after.every(o => o.state === 'просрочено' && o.stray.length === 1 &&
         o.stray[0].kind === 'подразделение') &&
-        seam && /\/a-mf$/.test(seam.key) && seam.to === 'Министерство финансов Кыргызской Республики' &&
+        seam && /\/a-kab$/.test(seam.key) && seam.to === 'Комитет по администрированию бюджетных кредитов' &&
         seam.state === 'просрочено' && seam.stray.length === 1,
-    `сдача формы в ДПО (служебная записка) больше не закрывает обязательство перед Минфином: ` +
+    `сдача формы в ДПО (служебная записка) больше не закрывает обязательство перед Комитетом: ` +
     `${after.length} июльских остались «просрочено» с пометкой «выпущено другому получателю»; ключ шва — ${seam && seam.key} (ОГ-Д10)`);
 
   const no = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule, { recipients:[] }));
@@ -2053,18 +2064,18 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('auth');
   const n0 = RP.obligations().filter(o => o.tpl === 't-overdue').length;
   const two = RP.setSchedule('t-overdue', Object.assign({}, RP.TPL('t-overdue').schedule,
-    { recipients:[{ kind:'адресат сдачи', ref:'a-mf' }, { kind:'подразделение', ref:'dep-legal' }] }));
+    { recipients:[{ kind:'адресат сдачи', ref:'a-kab' }, { kind:'подразделение', ref:'dep-legal' }] }));
   const all = RP.obligations().filter(o => o.tpl === 't-overdue');
   const may = all.filter(o => o.period === 'май 2026');
   RP.issue('t-overdue', { params:{ asOf:'2026-06-01', dept:'' }, kind:'окончательный', recipient:'unit:dep-legal', at:'2026-06-20' });
   const may2 = RP.obligations().filter(o => o.tpl === 't-overdue' && o.period === 'май 2026');
   const byTo = to => may2.filter(o => o.to === to);
   ok(189, two.ok && all.length === 2 * n0 &&
-        may.filter(o => o.to === 'a-mf').every(o => o.state === 'сдано') &&
+        may.filter(o => o.to === 'a-kab').every(o => o.state === 'сдано') &&
         may.filter(o => o.to === 'unit:dep-legal').every(o => o.state === 'просрочено') &&
-        byTo('unit:dep-legal').every(o => o.state === 'сдано с опозданием') && byTo('a-mf').every(o => o.state === 'сдано') &&
-        byTo('a-mf').every(o => o.stray.length === 0),
-    `два получателя к одному сроку — два обязательства (${n0} → ${all.length}): майская сдача Минфину ` +
+        byTo('unit:dep-legal').every(o => o.state === 'сдано с опозданием') && byTo('a-kab').every(o => o.state === 'сдано') &&
+        byTo('a-kab').every(o => o.stray.length === 0),
+    `два получателя к одному сроку — два обязательства (${n0} → ${all.length}): майская сдача Комитету ` +
     `закрыла своё, перед ДПО срок висел, пока не ушла служебная записка 20.06 (ADR-0306 п. 4)`);
 })();
 
@@ -2427,7 +2438,7 @@ const DEV = 'изменено — не утверждённый состав';
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
   RP.state.sel.pvTab = 'паспорт';   /* источник колонок и пометки — во вкладке «Паспорт» (ПВ-43) */
-  const s1 = win.VIEWS.issue.fn(), jr = win.VIEWS.journal.fn(), sb = win.VIEWS.subs.fn();
+  const s1 = win.VIEWS.issue.fn(), jr = jrnlDemo(), sb = win.VIEWS.subs.fn();
   ok(218, has(s1, '<sup class="fn">1</sup>') && has(s1, '<sup class="fn">2</sup>') &&
         has(s1, '«На начало года»: из легаси — перенос, выпуск миграции М-1') && has(s1, 'в легаси не собиралось') &&
         has(s1, 'источник колонок') && has(s1, 'нет в легаси') &&
@@ -2556,7 +2567,7 @@ const DEV = 'изменено — не утверждённый состав';
     `причины у выпуска копятся`);
 
   const act = RP.periodActions('декабрь 2025'), re = RP.reopenPeriod('декабрь 2025', 'правка');
-  RP.state.view = 'journal'; const jr = win.VIEWS.journal.fn();
+  RP.state.view = 'journal'; const jr = jrnlDemo();
   as('auth');
   ok(226, act.actions.length === 0 && act.origin === 'легаси' && act.release === 'М-2' && !re.ok &&
         has(re.why, 'действия «открыть» у него нет') && RP.periods()['декабрь 2025'].state === 'закрыт' &&
@@ -2651,7 +2662,7 @@ const DEV = 'изменено — не утверждённый состав';
   const again = RP.migrationRevision({ period:'июль 2025', why:'повтор', totals: arch });
   const fix = RP.migrationRevision({ period:'июль 2025', why:'в архиве опечатка по КД-2025/014',
     totals:{ 'kr-3':{ debt_main:2750000 } } });
-  RP.state.view = 'journal'; const jr = win.VIEWS.journal.fn();
+  RP.state.view = 'journal'; const jr = jrnlDemo();
   RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
   RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
   const s1 = win.VIEWS.issue.fn();
@@ -2887,7 +2898,7 @@ const DEV = 'изменено — не утверждённый состав';
   as('user'); const userN = RP.notices().filter(n => n.kind === 'методика'); as('auth');
   ok(248, pend.length === 1 && pend[0].stat === 's-avg-late' && pend[0].n === 2 && pend[0].declared === '2026-08-22' &&
         RP.methodPending('t-port-ly').length === 0 && RP.methodPending('t-overdue').length === 0 &&
-        auth.length === 1 && has(auth[0].text, '«Погашения и портфель за период»: показатель формы изменился — «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
+        auth.length === 1 && has(auth[0].text, '«Погашения за период»: показатель формы изменился — «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
         has(auth[0].text, 'Подтвердите новую редакцию') && userN.length === 0,
     `версия «Средней просрочки», объявленная 22.08.2026 после утверждения формы (20.08), ставит форму в «ожидает ` +
     `решения»; уполномоченный получает уведомление, пользователь — нет; версия «Кредитов с просрочкой» с запуска ` +
@@ -3282,15 +3293,15 @@ const DEV = 'изменено — не утверждённый состав';
   RP.show('t-overdue', { asOf:'2026-08-01' }, { drill:false });
   const dr = RP.drill('t-overdue', { asOf:'2026-08-01' }, null, { path:[], stat:'s-overdue-sum' });
   const vlU = RP.viewLog(), rec = RP.recentReports();
-  as('auth'); const vlA = RP.viewLog();
+  const vlA = viewLogAdm();
   const today = vlA.ok ? vlA.rows.filter(r => r.at === RP.state.today) : [];
   const shows = today.filter(r => r.what === 'показ со строками' && r.who === 'Осмонова Г.');
   ok(279, dr.ok && !vlU.ok && has(vlU.why, 'Недавние') && rec[0].tpl === 't-overdue' && rec[0].at === RP.state.today &&
         rec.filter(r => r.tpl === 't-overdue').length === 1 &&
         vlA.ok && shows.length === 1 && shows[0].times === 2 && shows[0].rows === 3 && today.some(r => r.what === 'расшифровка' && r.rows === dr.items.length) &&
-        today.length === 2 && vlA.rows.length === 5 &&
-        vlA.rows.filter(r => r.at !== RP.state.today).map(r => r.tpl + '@' + r.at).join() ===
-          't-overdue@2026-08-23,t-pay04@2026-08-21,t-osh@2026-08-18',
+        today.length === 2 && vlA.rows.length === 10 &&
+        vlA.rows.filter(r => r.at !== RP.state.today && ['t-overdue', 't-pay04', 't-portfolio'].indexOf(r.tpl) !== -1).map(r => r.tpl + '@' + r.at).join() ===
+          't-overdue@2026-08-22,t-pay04@2026-08-19,t-portfolio@2026-08-18',
     `ОГ-33: журнал просмотров пишет показ со строками (3 строки, два показа подряд — одна запись «×2») и провал (${dr.items.length}); ` +
     `показ одних итогов не пишется; пользователю журнал закрыт — у него «Недавние отчёты»; уполномоченный читает`);
 
@@ -3524,17 +3535,18 @@ const DEV = 'изменено — не утверждённый состав';
   /* Пороги формы — во вкладке «Паспорт» (ПВ-43); план-факт — не вкладкой, а колонками отчёта (ПВ-44). */
   Object.assign(RP.state.sel, { tpl:'t-overdue', params:{ asOf:'2026-08-01', dept:'' }, wide:true, usd:true, pivot:true, rel:'dept', pvTab:'паспорт' });
   const s1 = win.VIEWS.issue.fn();
-  as('auth'); RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const s2 = win.VIEWS.subs.fn();
-  as('buh'); RP.doMigrationEvents(); as('auth'); const s3 = win.VIEWS.journal.fn();
+  as('auth'); RP.doHeavy('t-overdue'); RP.pvHeavyGo(); const s2 = win.VIEWS.jobs.fn();
+  as('buh'); RP.doMigrationEvents(); as('auth'); const s3 = jrnlDemo();
+  RP.state.role = ADMIN; const vlHtml = win.VIEWS.viewlog.fn(); as('auth');
   as('user'); RP.doNumbers(); const s4 = win.VIEWS.worklists.fn();
   as('head'); RP.state.sel.scTab = 'общие'; const s5 = win.VIEWS.showcase.fn();
   const from = (x, h) => x.indexOf(h) === -1 ? '' : x.slice(x.indexOf(h));
-  const mineOO = [from(s1, 'class="pv"'), from(s2, 'Фоновые расчёты'), from(s3, 'События месяцу без событий'),
+  const mineOO = [from(s1, 'class="pv"'), from(s2, '<table'), from(s3, 'События месяцу без событий'),
     from(s4, 'Список из внешнего перечня'), from(s5, '>Название<')];
   const cleanOO = mineOO.every(x => x.length > 100 && !/О[ГД]-\d|ADR-\d|ИО-\d/.test(x));
   ok(298, has(s1, 'Подставлено по вам') && has(s1, 'по валюте договора') && has(s1, 'Итоги шире зоны — только итоги') &&
         has(s1, 'скрыто: в группе меньше 3 объектов') && !has(s1, 'План-факт') && !has(s1, 'План выдачи и факт') && has(s1, 'подразделение × состояние кредита') &&
-        has(s2, 'Фоновые расчёты') && has(s2, 'МЗ-1') && has(s3, 'Журнал просмотров') && has(s3, 'нет (события не перенесены)') &&
+        has(s2, 'Все мои заказы') && has(s2, 'МЗ-1') && has(vlHtml, 'Дата состояния') && has(s3, 'нет (события не перенесены)') &&
         has(s4, 'внешнего перечня') && has(s5, 'предлагается в архив') && has(s1, 'Пороги формы — утверждены с редакцией') && cleanOO,
     `экраны: на показе — значения по смотрящему, валюта договора, сводная, итоги шире зоны, пороги формы в паспорте, вкладки ` +
     `«План-факт» нет (план — колонками отчёта); «Мои задания»; журнал ` +
@@ -3549,9 +3561,9 @@ const DEV = 'изменено — не утверждённый состав';
   const gone = ['Швы и соседи', 'Границы макета', 'data-v="seams"', 'data-v="bounds"'].filter(x => has(src, x));
   const seamFns = ['seamsIn', 'consumers', 'noSeamOut', 'callSeamOut', 'ownQuery', 'ownFormula']
     .filter(f => typeof RP[f] !== 'function');
-  const b = V.builder.fn(), w = V.worklists.fn(), j = V.journal.fn();
+  const b = V.builder.fn(), w = V.worklists.fn(), j = jrnlDemo();
   const ready = RP.state.issues.some(i => i.state === 'готов');
-  ok(299, keys.length === 10 && keys.indexOf('seams') === -1 && keys.indexOf('bounds') === -1 && gone.length === 0 &&
+  ok(299, keys.length === 12 && keys.indexOf('seams') === -1 && keys.indexOf('bounds') === -1 && gone.length === 0 &&
         seamFns.length === 0 && has(b, 'RP.doFold(') && has(b, 'RP.doBands(') && has(b, 'RP.doColDate(') &&
         has(w, 'RP.doRuleList()') && ready && has(j, 'RP.doSheetIssue('),
     `служебных экранов нет: меню и экраны — только приложения (${keys.length}); швы живут в коде модуля ` +
@@ -3703,14 +3715,14 @@ const DEV = 'изменено — не утверждённый состав';
   RP.show('t-portfolio', { asOf:'2026-08-01', dept:'' });
   const vRow = (h => { const i = h.indexOf('Портфель — мой отдел'); return h.slice(i, h.indexOf('</tr>', i)); })(showTab('мои'));
   const recent = mine.slice(mine.indexOf('Недавние'));
-  ok(309, groupsOf(mine).join(' | ') === 'Своё 4 | Избранное 2 | Недавние 1' &&
-        has(recent, 'Погашения и портфель за период') && !has(recent, 'Просроченная задолженность') &&
+  ok(309, groupsOf(mine).join(' | ') === 'Своё 9 | Недавние 5' &&
+        has(recent, 'Погашения за период') && has(recent, 'Просроченная задолженность') &&
         has(mine, 'личный <span class="bell"') && has(mine, 'вид поверх «Портфель — оперативный срез»') &&
         !favNo.ok && has(favNo.why, 'бланк') && !favOwn.ok && has(favOwn.why, 'разделе «Мои»') &&
-        favAdd.ok && groupsOf(mine2).join(' | ') === 'Своё 4 | Избранное 3 | Недавние 1' && favDel.ok && !favDel.on &&
-        RP.myFavs().length === 2 && has(vRow, 'сохранён 19.08.2026'),
-    `ВТ-3, ВТ-5: «Мои» Осмоновой — ${groupsOf(mine).join(' · ')}; недавняя «Просроченная задолженность» не повторена — она в ` +
-    `избранном; подписка — 🔔 у строки; ★ у бланка и своего отчёта — отказ; звезда ставится и снимается`);
+        favAdd.ok && groupsOf(mine2).join(' | ') === 'Своё 9 | Избранное 1 | Недавние 4' && favDel.ok && !favDel.on &&
+        RP.myFavs().length === 0 && has(vRow, 'сохранён 19.08.2026'),
+    `ВТ-3, ВТ-5: «Мои» Осмоновой — ${groupsOf(mine).join(' · ')}; отмеченный ★ отчёт уходит из «Недавних» в «Избранное» и не повторяется; ` +
+    `подписка — 🔔 у строки; ★ у бланка и своего отчёта — отказ; звезда ставится и снимается`);
 
   as('auth'); RP.state.sel.scTab = '';
   const authFirst = win.VIEWS.showcase.fn();
@@ -3746,7 +3758,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(312, fg.length >= 3 && fg[0].indexOf('Мои') === 0 && tabsOk && has(found, 'Сбросить') &&
         groupsOf(picked).length === 1 && groupsOf(picked)[0].indexOf('Общие') === 0 &&
         has(byBasis, 'Повторная претензия') && has(byBasis, 'Требование поручителю') &&
-        has(byOwner, 'Просрочка по подразделениям') && groupsOf(back)[0] === 'Своё 4',
+        has(byOwner, 'Просрочка по подразделениям') && groupsOf(back)[0] === 'Своё 9',
     `ВТ-7, ВТ-8: «просрочка» ищется на всех полках сразу — ${fg.join(' · ')}; корешки несут число найденного, щелчок ` +
     `по корешку оставляет одну группу; находит и по основанию («п. 16» — претензии и требование), и по владельцу; ` +
     `стёртый запрос возвращает полки`);
@@ -3767,11 +3779,11 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('user');
   const m1 = showTab('мои');
   const rowOf = (h, nm) => { const i = h.indexOf(nm); return i === -1 ? '' : h.slice(h.lastIndexOf('<tr', i), h.indexOf('</tr>', i)); };
-  const npl = rowOf(m1, 'Доля проблемных кредитов'), ovr = rowOf(m1, 'Просроченная задолженность');
+  const npl = rowOf(m1, 'Проблемные кредиты'), ovr = rowOf(m1, 'Просроченная задолженность');
   const mains = [...m1.matchAll(/<td class="act">(<button[^>]*>[^<]*<\/button>)/g)].length;
   const rows = (m1.match(/<td class="star">/g) || []).length;
   RP.uiSub('t-npl');
-  const subOn = RP.mySubs().some(x => x.tpl === 't-npl') && has(rowOf(showTab('мои'), 'Доля проблемных кредитов'), 'class="bell"');
+  const subOn = RP.mySubs().some(x => x.tpl === 't-npl') && has(rowOf(showTab('мои'), 'Проблемные кредиты'), 'class="bell"');
   RP.uiSub('t-npl'); const subOff = !RP.mySubs().some(x => x.tpl === 't-npl');
   /* «📌» из меню: «Доля проблемных кредитов» выведена — плитке нечего показать (ОД-47); свой рабочий отчёт ставится. */
   RP.uiPin('t-npl'); RP.uiPin('t-osh');
@@ -3782,17 +3794,17 @@ const DEV = 'изменено — не утверждённый состав';
     `ВТ-10: в каждой строке одна кнопка («Открыть» / «Где печатается»), остальное — в «⋯» по уровню: у личного — круг, ` +
     `каталог, подписка, дашборд, удалить; у официального — только подписка и дашборд; подписка из меню ставится и снимается`);
 
-  RP.seed(); as('user');
+  RP.seed(); as('user'); RP.toggleFav('t-sh-plan'); RP.toggleFav('t-overdue');
   const ub = showTab('бланк');
   const gone = ub.slice(ub.indexOf('Недоступно'));
   as('buh'); const ar = RP.toArchive('t-sh-plan'); as('user');
   const um = showTab('мои');
   as('buh'); RP.state.sel.scQ = 'просрочка'; const bs = win.VIEWS.showcase.fn(); RP.state.sel.scQ = '';
-  RP.seed(); as('buh'); const del = RP.deleteReport('t-sh-plan'); as('user');
+  RP.seed(); as('user'); RP.toggleFav('t-sh-plan'); RP.toggleFav('t-overdue'); as('buh'); const del = RP.deleteReport('t-sh-plan'); as('user');
   const ud = showTab('мои'), unFav = RP.toggleFav('t-sh-plan');
   ok(315, has(ub, '<tbody class="fold">') && has(gone, 'Первичная претензия') && has(gone, 'доступ у:') &&
         !has(ub.slice(0, ub.indexOf('Недоступно')), 'доступ у:') && /Недоступно <span class="n">· \d+ \(/.test(ub) &&
-        ar.ok && groupsOf(um).join(' | ') === 'Своё 4 | Избранное 1 | Недавние 1 | Недоступно 1' &&
+        ar.ok && groupsOf(um).join(' | ') === 'Своё 9 | Избранное 1 | Недавние 3 | Недоступно 1' &&
         has(um, 'в архиве у владельца (Бекова Н.)') && !has(bs, 'Вернуть') &&
         del.ok && has(ud, 'Просрочка по подразделениям — к планёрке') && has(ud, 'отчёт удалён владельцем') &&
         has(ud, "RP.uiFav('t-sh-plan')") && unFav.ok && RP.myFavs().length === 1,
@@ -3923,7 +3935,8 @@ const DEV = 'изменено — не утверждённый состав';
   const pOv = RP.pinToDashboard('t-overdue', null, { asOf:'2026-08-24' }, 'Главная');
   const pPay = RP.pinToDashboard('t-pay04', null, {}, 'Главная');
   const pAvg = RP.pinToDashboard('t-avg', null, {}, 'Главная');
-  const pNpl = RP.pinToDashboard('t-npl', null, {}, 'Главная');
+  /* «Проблемные кредиты» — личный отчёт, не отправленный на утверждение: видит его только автор (ТЗ 20, набор данных). */
+  as('user'); const pNpl = RP.pinToDashboard('t-npl', null, {}, 'Главная'); as('auth');
   const pBl = RP.pinToDashboard('t-notice', null, {}, 'Главная');
   as('head');
   const hid = RP.TPL('t-osh'), pHid = RP.pinToDashboard('t-osh', null, {}, 'Главная');
@@ -3976,7 +3989,7 @@ const DEV = 'изменено — не утверждённый состав';
   const r1 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-08-01'], stats:['s-portfolio'] });
   const r2 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2025-08-01'], stats:['s-portfolio'] });
   const r3 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['2026-08-24'], stats:['s-portfolio'] });
-  const r4 = RP.reportAnswer({ tpl:'t-npl', form:'ответ', params:{}, dates:['2026-08-01'], stats:['s-npl'] });
+  as('user'); const r4 = RP.reportAnswer({ tpl:'t-npl', form:'ответ', params:{}, dates:['2026-08-01'], stats:['s-npl'] }); as('auth');
   const r5 = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{}, dates:['@послезавтра'], stats:['s-portfolio'] });
   ok(327, r1.responds.yes && r1.responds.why === null && r2.responds.yes && has(r2.responds.why, 'в легаси не собиралось') &&
         !r3.responds.yes && has(r3.responds.why, 'снимка нет') && !r4.responds.yes && has(r4.responds.why, 'снят') &&
@@ -4517,11 +4530,11 @@ const DEV = 'изменено — не утверждённый состав';
 (() => {
   const ev = c => vm.runInContext(c, sandbox), P8 = { asOf:'2026-08-01', dept:'' };
   const jr = () => win.VIEWS.journal.fn();
-  RP.seed(); as('buh');
+  RP.seed(); as('buh'); RP.state.demo = true;   /* кнопки открытия и закрытия периода — имитация соседа: видны при «Демонстрации» */
   const j0 = jr(), a0 = RP.periodActions('июль 2026');
   const re = RP.reopenPeriod('июль 2026', 'сторно платежа'), twice = RP.reopenPeriod('июль 2026', 'ещё раз');
   const a1 = RP.periodActions('июль 2026'), j1 = jr();
-  const iss = RP.state.issues.filter(i => i.diverged)[0].id, early = RP.corrective(iss);
+  const iss = 'ВП-103', early = RP.corrective(iss);
   as('user'); const noRight = RP.reclosePeriod('июль 2026');
   as('buh'); RP.doReclose('июль 2026');
   const a2 = RP.periodActions('июль 2026'), j2 = jr(), corr = RP.corrective(iss);
@@ -4970,9 +4983,9 @@ const DEV = 'изменено — не утверждённый состав';
         (lv.match(/<tr class="obj/g) || []).length > 0 && !has(lv, 'Числа не запрошены') && !has(lv, 'расчёт сам не начинается'),
     `фоновый расчёт «сейчас» открывается таблицей: задание проверяется раньше ворот «сейчас»`);
 
-  start(); scr(); const L0 = RP.viewLog().rows.length; RP.pvFold(0); scr(); RP.pvFold(0); scr(); const L1 = RP.viewLog().rows.length;
-  RP.pvStandLimits(true); scr(); const L2 = RP.viewLog().rows.length; const gi = ev('G_NODES').findIndex(n => n.path.length === 1 && n.path[0].key === 'rep-osh');
-  RP.pvFold(gi); scr(); const last = RP.viewLog().rows[0]; RP.pvStandLimits(false);
+  start(); scr(); const L0 = viewLogAdm().rows.length; RP.pvFold(0); scr(); RP.pvFold(0); scr(); const L1 = viewLogAdm().rows.length;
+  RP.pvStandLimits(true); scr(); const L2 = viewLogAdm().rows.length; const gi = ev('G_NODES').findIndex(n => n.path.length === 1 && n.path[0].key === 'rep-osh');
+  RP.pvFold(gi); scr(); const last = viewLogAdm().rows[0]; RP.pvStandLimits(false);
   ok(397, L1 === L0 && L2 === L1 && last && last.rows === 2 && !('open' in last.params),
     `журнал просмотров: сворачивание ниже порога новых строк не пишет; выше порога сводка без строк не пишется, раскрытая группа — ` +
     `${last ? last.rows : '?'} строки; служебное «open» в параметры журнала не уходит`);
@@ -6302,14 +6315,262 @@ const DEV = 'изменено — не утверждённый состав';
     `осталось только за модулем «Задания»`);
 
   /* Волна 64: переключатель «Демонстрация» — проверочные кнопки макета видны только при нём. */
+  DEMO_WORLD = false;
   RP.seed(); const dm0 = RP.demoOnly('<button>x</button>'), dmState0 = RP.state.demo; RP.toggleDemo();
   const dm1 = RP.demoOnly('<button>x</button>'); RP.toggleDemo();
   ok(483, dmState0 === false && dm0 === '' && dm1 === '<button>x</button>' && RP.state.demo === false,
     'волна 64: переключатель «Демонстрация» выключен при запуске — проверочные кнопки пусты; включён — виден их разметочный текст; повторное нажатие выключает');
   /* @@W64-B@@ — блок агента «каталог, реестр, журналы, календарь» (#500–#539) */
-  /*
-   *
-   */
+  {
+    /* Группа B: меню, журналы, календарь, карточка отчёта, каталог, реестр (ТЗ 20, 3.40, 6.x, 7.x, 9.x, 15.20). */
+    const V = win.VIEWS, plain = role => { DEMO_WORLD = false; RP.seed(); as(role); };
+    const mny = v => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const txtOf = h => String(h).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+    /* --- меню и журнал просмотров --- */
+    plain('user');
+    const mn = RP.menu(), mItems = mn.reduce((a, g) => a.concat(g.items), []);
+    ok(500, mn.length === 3 && mn.map(g => g.title).join(' · ') === 'Смотреть и сдавать · Настраивать · Журналы' &&
+          mn.map(g => g.items.length).join('/') === '5/3/3' && mItems.length === 11 &&
+          mItems.map(i => i.title).join(' · ') === 'Каталог отчётов · Показ и выпуск · Календарь сдачи · Рабочие списки · Подписки и сигналы · Реестр отчётов и бланков · Конструктор · Верстальщик бланка · Журнал выпусков · Фоновые расчёты · Журнал просмотров' &&
+          !mItems.some(i => i.v === 'builder'),
+      'волна 64, ТЗ 20, 3.40: меню из трёх групп и одиннадцати пунктов — «Смотреть и сдавать» (5), «Настраивать» (3), «Журналы» (3); карточка отчёта пунктом меню не бывает');
+
+    const vlItem = mItems.find(i => i.v === 'viewlog'), v0 = RP.state.view;
+    RP.go('viewlog');
+    ok(501, !vlItem.ok && has(vlItem.why, 'служба безопасности или администратор') && RP.state.view === v0 &&
+          mItems.filter(i => i.v !== 'viewlog').every(i => i.ok),
+      `журнал просмотров — пункт на месте, но серый, с причиной («${vlItem.why}»); переход по нему закрыт; остальные десять пунктов открыты`);
+
+    as('admin'); const mnA = RP.menu().reduce((a, g) => a.concat(g.items), []), vlA2 = RP.viewLog();
+    RP.go('viewlog'); const vlHtml = V.viewlog.fn(); const viewOpened = RP.state.view === 'viewlog';
+    as('user'); const vlRefuse = txtOf(V.viewlog.fn());
+    ok(502, mnA.every(i => i.ok) && vlA2.ok && viewOpened && has(vlHtml, 'Дата состояния') && has(vlHtml, 'Что показано') &&
+          has(vlRefuse, 'Журнал просмотров читает служба безопасности или администратор') && has(vlRefuse, 'Недавние'),
+      'администратор системы (Исаков Б.) открывает журнал просмотров: колонки «Что показано», «Дата состояния»; у остальных экран — отказом «<что нельзя>: <почему>» с отсылкой к «Недавним»');
+
+    RP.state.down = ['Пользователи и роли']; as('admin'); const vlDown = RP.logAccess(), mnDown = RP.menu().reduce((a, g) => a.concat(g.items), []).find(i => i.v === 'viewlog');
+    RP.state.down = [];
+    ok(503, !vlDown.ok && has(vlDown.why, 'ответа модуля «Пользователи и роли» нет') && !mnDown.ok,
+      `модуль «Пользователи и роли» молчит — право не проверить, журнал закрыт: «${vlDown.why}»`);
+
+    /* --- фоновые расчёты отдельным видом --- */
+    plain('user');
+    RP.order('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
+    RP.doHeavy('t-overdue'); RP.pvHeavyGo();
+    const jb = V.jobs.fn(), sb2 = V.subs.fn(), jr2 = V.journal.fn();
+    ok(504, V.jobs.title === 'Фоновые расчёты' && has(jb, 'Все мои заказы') && has(jb, 'Хранится до') &&
+          !has(sb2, 'Фоновые расчёты') && !has(txtOf(jr2), 'Журнал просмотров'),
+      '«Фоновые расчёты» — отдельный пункт группы «Журналы»: показы в фоне и свои заказы выпусков; на «Подписки и сигналы» и в журнале выпусков карточек этого журнала больше нет');
+
+    RP.jobsAll();
+    ok(505, RP.state.view === 'journal' && RP.state.sel.jf.by === 'Осмонова Г.' &&
+          RP.journalRows().every(i => i.by === 'Осмонова Г.') && RP.journalRows().length > 0,
+      'ссылка «Все мои заказы» открывает журнал выпусков с отбором «заказавший — я»: в таблице только выпуски Осмоновой Г.');
+
+    /* --- журнал выпусков --- */
+    plain('auth'); RP.state.view = 'journal';
+    const rows0 = RP.journalRows(), j0 = V.journal.fn(), jt = txtOf(j0);
+    ok(506, ['Отчёт или бланк', 'Получатель', 'Период', 'Метка расхождения', 'Заказавший', 'Время заказа'].every(l => has(jt, l)) &&
+          rows0.every((r, k) => k === 0 || rows0[k - 1].at >= r.at),
+      'журнал выпусков: шесть отборов — отчёт, получатель, период, метка расхождения, заказавший, время заказа; свежие выпуски первыми');
+
+    RP.jfSet('by', 'Асанов А.'); const byA = RP.journalRows().map(i => i.id).join();
+    RP.jfClear(); RP.jfSet('mark', 'есть'); const mk0 = RP.journalRows().length; RP.jfClear();
+    RP.jfSet('to', 'Комитет по администрированию бюджетных кредитов'); const toK = RP.journalRows().length; RP.jfClear();
+    ok(507, byA === 'ВП-103' && mk0 === 0 && toK === 3 && Object.keys(RP.state.sel.jf).length === 0,
+      `отбор журнала: «заказавший — Асанов А.» оставляет ${byA}; «метка расхождения — есть» пока пусто; «получатель — Комитет» — ${toK} выпуска; «Сбросить» очищает отбор`);
+
+    const jtxt = jt, i103 = RP.ISS('ВП-103'), i104 = RP.ISS('ВП-104');
+    ok(508, has(jtxt, 'Тип выпуска') && has(jtxt, 'Сведения') && !has(jtxt, 'Паспорт') && has(jtxt, '10:15') && has(jtxt, '11:05') &&
+          has(jtxt, 'заморожен: pdf') && has(jtxt, 'погашен 09.07.2026, строка осталась') && !has(jtxt, 'живёт до 09.07') &&
+          i103.recipient.name.indexOf('Комитет') === 0,
+      'колонки журнала словами ТЗ: «Тип выпуска», «Сведения»; время заказа у выпуска; файл — «заморожен: pdf» у окончательного и «погашен 09.07.2026, строка осталась» у предварительного; получатель ФО-01 — Комитет');
+
+    const docs = ['ВП-101', 'ВП-102', 'ВП-103'].map(id => { const d = RP.DOC(RP.ISS(id).doc); return d ? d.number + ' от ' + d.registered : null; });
+    ok(509, docs.join('; ') === 'Исх-305 от 2026-06-12; Исх-351 от 2026-07-14; Исх-398 от 2026-08-18' &&
+          has(jtxt, 'Исх-305') && has(jtxt, 'Исх-398'),
+      `документы засеянных выпусков зарегистрированы документооборотом: ${docs.join('; ')} — в журнале печатаются номер и дата`);
+
+    /* «Сверить файл» */
+    RP.state.sel.issue = 'ВП-103'; RP.cfOpen('ВП-103'); const cfH = txtOf(V.journal.fn()), tot = RP.ISS('ВП-103').snapshot.totals[0];
+    RP.cfSet(tot.id, ''); const same = RP.cfRun(); const okTxt = txtOf(V.journal.fn());
+    RP.cfSet(tot.id, String(tot.value + 1000)); const diffR = RP.cfRun(); const diffTxt = txtOf(V.journal.fn());
+    ok(510, RP.checkFileOk(RP.ISS('ВП-103')) && !RP.checkFileOk(RP.ISS('ВП-104')) && has(cfH, 'Сверить файл с выпуском ВП-103') &&
+          same.ok && same.match && has(okTxt, 'Файл совпадает с выпуском') &&
+          diffR.ok && !diffR.match && has(diffTxt, 'Файл не совпадает с выпуском: ' + tot.name + ' ' + mny(tot.value)) && has(diffTxt, '→ ' + mny(tot.value + 1000)),
+      '«Сверить файл» у окончательного выпуска: совпадение — «Файл совпадает с выпуском»; расхождение названо по показателю — «Файл не совпадает с выпуском: <показатель> <сдано> → <в файле>»; у предварительного кнопки нет');
+    RP.cfClose();
+
+    /* «Заказать заново» */
+    const n0 = RP.state.issues.length, ro = RP.reorderOk(i104), before = JSON.stringify(RP.ISS('ВП-104'));
+    const re1 = RP.reorder('ВП-104');
+    ok(511, ro && re1.ok && RP.state.issues.length === n0 + 1 && JSON.stringify(RP.ISS('ВП-104')) === before && RP.ISS(re1.id).tpl === i104.tpl &&
+          !RP.reorderOk(RP.ISS('ВП-103')) && !RP.reorder('ВП-103').ok && has(RP.reorder('ВП-103').why, 'заказать заново можно'),
+      `«Заказать заново» — у предварительного выпуска с погашенным файлом: заказан ${re1.id} с теми же значениями, строка ВП-104 не изменилась; окончательному отказ — «${RP.reorder('ВП-103').why}»`);
+
+    /* Проверочные кнопки журнала */
+    plain('buh'); RP.state.view = 'journal'; const jP = V.journal.fn();
+    RP.state.demo = true; const jD = V.journal.fn(); RP.state.demo = false;
+    const demoPart = ['RP.doDelete(', 'RP.doSheetIssue(', 'Учётные периоды', 'Журнал перезаписи', 'Новая версия миграции', 'Открыть заново период'];
+    ok(512, demoPart.every(x => !has(jP, x)) && demoPart.filter(x => x !== 'Журнал перезаписи').every(x => has(jD, x)) &&
+          has(jP, 'RP.cfOpen(') && has(jP, 'RP.jlOpen(') && has(jP, 'Что отдано наружу за период'),
+      'журнал выпусков: «Удалить», «Поправить лист», учётные периоды и правки миграции — только при «Демонстрации» (в приложении их нет); «Сверить файл», «В рабочий список» и «Что отдано наружу» на месте всегда');
+
+    /* Что отдано наружу */
+    plain('buh'); const wB = RP.whatWentOut('июль 2026'), wJ = RP.whatWentOut('июнь 2026');
+    as('user'); const wU = RP.whatWentOut('июль 2026'); as('admin'); const wAdm = RP.whatWentOut('июль 2026');
+    RP.wwoSet('июнь 2026'); as('buh'); RP.state.view = 'journal'; const wwoH = txtOf(V.journal.fn());
+    ok(513, wB.length === 1 && wB[0].docText === 'Исх-398 от 18.08.2026' && wJ.length === 1 && wJ[0].docText === 'Исх-351 от 14.07.2026' &&
+          wB.concat(wJ).every(r => r.form === 'ФО-01') && wU.length === 1 && wAdm.length === 1 && has(wwoH, 'Исх-351 от 14.07.2026') && has(wwoH, 'Комитет'),
+      'что отдано наружу за период: у каждой строки — отчёт, получатель, документ и номер; главный бухгалтер видит всё, остальные — выпуски своего круга (15.7)');
+
+    /* Метка расхождения — при повторном закрытии периода */
+    plain('buh'); const ro1 = RP.reopenPeriod('июль 2026', 'сторно платежа'), nMark1 = RP.state.issues.filter(i => i.diverged).length;
+    const rc1 = RP.reclosePeriod('июль 2026'), mkd = RP.state.issues.filter(i => i.diverged);
+    RP.state.view = 'journal'; RP.jfSet('mark', 'есть'); const mkRows = RP.journalRows().map(i => i.id).join(); const mkH = txtOf(V.journal.fn()); RP.jfClear();
+    ok(514, ro1.ok && nMark1 === 0 && rc1.ok && mkd.length === 1 && mkd[0].tpl === 't-overdue' && mkRows === mkd[0].id && has(mkH, 'числа изменились после сдачи'),
+      `открытие периода меток не ставит; при повторном закрытии окончательный выпуск со снимком получает метку (${mkd.map(i => i.id).join()}), журнал отбирает его по «метка расхождения — есть» (8.1, 8.2)`);
+
+    /* Выпуски по заказу в рабочий список */
+    plain('auth'); RP.state.view = 'journal';
+    const nb = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный' });
+    const wlBlank = RP.makeWorklist(nb.id, 'бланк'), wlNoName = RP.makeWorklist('ВП-103', '');
+    RP.jlOpen('ВП-103'); const jlH = txtOf(V.journal.fn()); const wl0 = RP.state.worklists.length;
+    RP.jlName('Просрочка — июль'); RP.jlRun();
+    ok(515, !wlBlank.ok && has(wlBlank.why, 'бланк говорит об одном') && !wlNoName.ok && has(wlNoName.why, 'называется при создании') &&
+          has(jlH, 'В рабочий список: выпуск ВП-103') && RP.state.worklists.length === wl0 + 1 && RP.state.sel.jl === null,
+      'кнопка «В рабочий список» в журнале выпусков: у выпуска отчёта открывает окно названия и заводит список; у бланка и без названия — отказ (11.3)');
+
+    /* --- календарь --- */
+    plain('auth'); RP.state.view = 'calendar'; const cP = V.calendar.fn(), cPt = txtOf(cP);
+    RP.state.demo = true; const cD = V.calendar.fn(); RP.state.demo = false;
+    ok(516, !has(cP, 'RP.doMark(') && !has(cP, 'RP.doSigned(') && !has(cP, 'RP.doTask(') && !has(cP, 'RP.doBasisTask(') && !has(cPt, 'Три кнопки') &&
+          has(cD, 'RP.doMark(') && has(cD, 'RP.doTask(') && has(txtOf(cD), 'Три кнопки, которых в модуле нет') &&
+          has(cP, 'RP.openObl(') && ['Форма и период', 'Срок', 'Подразделение', 'Получатель', 'Исполнитель', 'Состояние', 'Охват', 'Закрыто выпуском'].every(c => has(cPt, c)),
+      'календарь сдачи: одна таблица по ТЗ 9.33 — форма и период, срок, подразделение, получатель, исполнитель, состояние, охват, закрыто выпуском; «Открыть отчёт» всегда; проверочные кнопки и карточка «Три кнопки, которых в модуле нет» — только при «Демонстрации»');
+
+    const all = RP.obligations().length;
+    RP.calfSet('state', 'просрочено'); const late1 = RP.calRows(); RP.calfClear();
+    RP.calfSet('dept', 'dep-prom'); const prom = RP.calRows(); RP.calfClear();
+    RP.calfSet('form', 'ФО-01'); const f01 = RP.calRows(); RP.calfClear();
+    ok(517, late1.length > 0 && late1.every(o => o.state === 'просрочено') && prom.length > 0 && prom.every(o => o.dept === 'dep-prom') &&
+          f01.length > 0 && f01.every(o => o.form === 'ФО-01' || o.tpl === 't-overdue') && all > late1.length &&
+          RP.calRows().length === all,
+      `отбор календаря: «просрочено» — ${late1.length} из ${all}, «подразделение» — ${prom.length}, «форма ФО-01» — ${f01.length}; «Сбросить» возвращает все ${all}`);
+
+    const oAdm = RP.obligations().find(o => o.tpl === 't-overdue' && o.dept === 'dep-admin' && o.asOf === '2026-08-01');
+    RP.openObl(oAdm.id);
+    ok(518, RP.state.view === 'issue' && RP.state.sel.tpl === 't-overdue' && RP.state.sel.params.asOf === '2026-08-01',
+      'в календаре «Открыть отчёт» ведёт на «Показ и выпуск» ФО-01 на дате состояния обязательства — 01.08.2026');
+
+    const exec = RP.obligations().filter(o => o.tpl === 't-overdue' && o.asOf === '2026-08-01').map(o => o.deptName.split(' ')[0] + ':' + o.who).sort().join();
+    ok(519, RP.scheduleRecipients('t-overdue').map(r => r.name).join() === 'Комитет по администрированию бюджетных кредитов' &&
+          RP.obligations().filter(o => o.tpl === 't-overdue').every(o => o.toName.indexOf('Комитет') === 0) &&
+          exec === 'Департамент:Асанов А.,Отраслевой:Осмонова Г.,Региональное:Мамытов Э.',
+      `расписание ФО-01 назвало получателем Комитет; исполнители по подразделениям — ${exec}`);
+
+    /* --- карточка отчёта --- */
+    plain('user'); RP.state.sel.draft = 't-npl'; RP.state.view = 'builder';
+    const cU = V.builder.fn(), cUt = txtOf(cU);
+    as('head'); RP.state.sel.draft = 't-overdue'; const cH = V.builder.fn();
+    as('auth'); RP.state.sel.draft = 't-overdue'; const cA = V.builder.fn();
+    ok(520, /disabled title="утверждает уполномоченный[^"]*: роль «Пользователь» собирает черновик, но официальным отчётом его не делает">Утвердить редакцию/.test(cU) &&
+          /disabled title="утверждает/.test(cH) && /<button class="btn btn-primary btn-sm" onclick="RP.doPublish\('t-overdue'\)">Утвердить редакцию/.test(cA) &&
+          has(cUt, 'Проверки утверждения'),
+      '«Утвердить редакцию» — только уполномоченному по отчётности; у остальных кнопка серая, а в подсказке — кто утверждает и почему роль не утверждает');
+
+    plain('user'); RP.state.sel.draft = 't-npl'; RP.state.view = 'builder';
+    const askBtn = /RP.doAsk\('t-npl'\)">Отправить на утверждение/.test(V.builder.fn());
+    RP.doAsk('t-npl');
+    const afterAsk = V.builder.fn(), asked1 = RP.TPL('t-npl').asked;
+    as('auth'); const retBtn = has(V.builder.fn(), 'Вернуть с замечанием');
+    const noNote = RP.returnDraft('t-npl', '   ');
+    const retOk = RP.returnDraft('t-npl', 'добавить разрез «Отрасль»');
+    as('user'); const afterRet = txtOf(V.builder.fn());
+    ok(521, askBtn && asked1 && !/RP.doAsk\('t-npl'\)">Отправить/.test(afterAsk) && has(txtOf(afterAsk), 'на утверждении') && retBtn &&
+          !noNote.ok && has(noNote.why, 'замечание') && retOk.ok && has(retOk.note, 'возвращено с замечанием: добавить разрез «Отрасль»') &&
+          !RP.TPL('t-npl').asked && has(afterRet, 'Возвращено с замечанием') && has(afterRet, 'добавить разрез «Отрасль»'),
+      'путь черновика: автор отправляет на утверждение (кнопка исчезает, стоит «на утверждении»); уполномоченный возвращает с замечанием — без текста отказ, с текстом автор видит замечание и снова может отправить');
+
+    plain('auth'); RP.state.sel.draft = 't-overdue'; RP.state.view = 'builder';
+    const bHtml = V.builder.fn();
+    RP.bfSet('basis', 'Порядок №41, п. 12'); RP.doBasis('t-overdue'); const bs1 = RP.TPL('t-overdue').basis;
+    RP.bfSet('basis', 'просто так'); const badB = (() => { try { RP.doBasis('t-overdue'); return RP.TPL('t-overdue').basis; } catch (e) { return null; } })();
+    ok(522, has(bHtml, 'placeholder="Порядок №41, п. 12"') && !has(bHtml, 'Сослаться на п. 12') && bs1.point === '12' && /^Порядок №41/.test(bs1.doc) && badB && badB.point === '12',
+      'основание — форма: уполномоченный вписывает «Порядок №41, п. 12» и называет его сам; непонятная запись основание не меняет (кнопки-примера «Сослаться на п. 12…» больше нет)');
+
+    plain('auth'); RP.state.sel.draft = 't-portfolio'; RP.state.view = 'builder';
+    const fH = V.builder.fn(), edN0 = RP.TPL('t-portfolio').editions.length;
+    RP.bfCircle('t-portfolio', 'dep-admin', false); RP.bfCircle('t-portfolio', 'dep-prom', false); RP.bfCircle('t-portfolio', 'rep-osh', false);
+    RP.doCircle('t-portfolio'); const emptyKept = RP.TPL('t-portfolio').circle.length === 3;
+    RP.bfCircle('t-portfolio', 'rep-osh', true); RP.doCircle('t-portfolio');
+    RP.bfFlag('forReview', true); RP.doFlags('t-portfolio');
+    ok(523, ['type="checkbox"', 'Сохранить круг', 'Сохранить расписание', 'Сохранить признаки', 'Задать порядок полос', 'Применить к листу'].every(x => has(fH, x)) &&
+          !has(fH, 'Сузить круг до департамента промышленности') && !has(fH, 'Назначить ежемесячную сдачу к 15-му') && !has(fH, 'Развернуть лист альбомно') &&
+          emptyKept && RP.TPL('t-portfolio').circle.join() === 'rep-osh' && RP.TPL('t-portfolio').forReview === true && RP.TPL('t-portfolio').editions.length === edN0,
+      'круг, расписание, признаки и лист правятся формами, а не кнопками-примерами; пустой круг отказ, круг из «Ош» и признак «пригоден для обзора» приняты без новой редакции');
+
+    plain('auth'); const bandsBad = RP.setBands('t-avg', ['заголовок', 'шапка', 'итог', 'уровни', 'подвал']);
+    const bandsNo = RP.setBands('t-avg', ['заголовок', 'шапка', 'уровни', 'подвал']);
+    const bandsOk = RP.setBands('t-avg', ['заголовок', 'шапка', 'уровни', 'итог', 'подвал']);
+    as('user'); const bandsUser = RP.setBands('t-avg', ['заголовок', 'шапка', 'уровни', 'итог', 'подвал']);
+    const noCircleEdit = RP.setCircle('t-portfolio', ['dep-prom']);
+    RP.state.sel.draft = 't-portfolio'; const cUsr = V.builder.fn();
+    ok(524, !bandsBad.ok && has(bandsBad.why, 'итог') && !bandsNo.ok && has(bandsNo.why, 'итог') && bandsOk.ok && !bandsUser.ok && has(bandsUser.why, 'уполномоченный по отчётности') && !noCircleEdit.ok && !has(cUsr, 'Сохранить круг') && has(txtOf(cUsr), 'показаны для чтения'),
+      'порядок полос с «итогом» перед уровнями или без «итога» — отказ с причиной; пользователю круг и признаки только для чтения');
+
+    plain('auth'); RP.state.sel.draft = 't-pay04'; RP.state.view = 'builder';
+    ok(525, !has(V.builder.fn(), 'налету не берётся') && has(V.builder.fn(), 'Средняя просрочка'),
+      'в составе редакции больше нет пометки «— налету не берётся»: её место — проверки утверждения');
+
+    plain('auth'); RP.state.sel.draft = 't-portfolio'; RP.state.view = 'builder';
+    const wdHtml = V.builder.fn(); as('user'); RP.state.sel.draft = 't-portfolio'; const wdUsr = V.builder.fn(); as('auth');
+    const wdNo = (() => { as('user'); const r = RP.withdrawFromCirculation('t-portfolio'); as('auth'); return r; })();
+    const issues0 = RP.state.issues.length, wd = RP.withdrawFromCirculation('t-portfolio');
+    const refused = RP.issue('t-portfolio', {params:{asOf:'2026-08-01', dept:''}, kind:'предварительный'});
+    ok(526, has(wdHtml, 'Вывести из обращения') && !has(wdUsr, 'Вывести из обращения') && !wdNo.ok && has(wdNo.why, 'уполномоченный по отчётности') &&
+          wd.ok && RP.tplState('t-portfolio').state === 'выведен из обращения' && !refused.ok && has(refused.why, 'выведен из обращения') &&
+          RP.state.issues.length === issues0 && RP.formTpl('ФО-26') === null && RP.linkForm('t-port-ly', 'ФО-26').ok,
+      `«Вывести из обращения» — только уполномоченному: ФО-26 получает состояние «выведен из обращения», новый выпуск отказан («${refused.why}»), форма ФО-26 освобождена и ложится на другой отчёт`);
+
+    /* --- каталог --- */
+    plain('user'); RP.state.sel.scTab = 'мои'; RP.state.sel.scQ = '';
+    const cm = txtOf(V.showcase.fn());
+    RP.state.sel.scTab = 'общие'; const cg = txtOf(V.showcase.fn());
+    RP.state.sel.scTab = 'отчёт'; const co = txtOf(V.showcase.fn());
+    RP.state.demo = true; RP.state.sel.scTab = 'мои'; const cmD = txtOf(V.showcase.fn()); RP.state.demo = false;
+    ok(527, ['Остаток по подразделениям', 'Крупные остатки', 'Просрочка по куратору и подразделению', 'Проблемные кредиты', 'С просрочкой', 'Свод по кураторам'].every(x => has(cm, x)) &&
+          !has(cm, 'Средняя просрочка по департаментам') && !has(cm, 'Портфель — мой отдел') && has(cmD, 'Средняя просрочка по департаментам') && has(cmD, 'Портфель — мой отдел') &&
+          has(cg, 'Просрочка по подразделениям — к планёрке') && has(cg, 'Крупные кредиты — для правления') && !has(cg, 'Взыскание') && !has(cg, 'Залоги') &&
+          !has(co, 'Портфель к прошлому году') && ['ФО-01', 'ФО-04', 'ФО-26'].every(x => has(co, x)),
+      'каталог по набору данных: у Осмоновой Г. в «Мои» её личные отчёты и два вида, в «Общих» — «Просрочка по подразделениям — к планёрке» и «Крупные кредиты — для правления», в «Официальных» — ФО-01, ФО-04, ФО-26; пробные записи стенда видны только при «Демонстрации»');
+
+    RP.scSearch('Контрольный свод'); const sd = txtOf(V.showcase.fn()); RP.scSearch('');
+    ok(528, has(sd, 'Остаток по подразделениям') && !has(sd, 'Ничего не найдено') && RP.TPL('t-bal-dep').descr === 'Контрольный свод остатков по подразделениям.',
+      'поиск в каталоге ищет и по краткому описанию отчёта: «Контрольный свод» находит «Остаток по подразделениям»');
+
+    const p04 = RP.TPL('t-pay04'), ed04 = p04.editions[0];
+    ok(529, p04.name === 'Погашения за период' && ['за период', 'нарастающий итог', 'аналогичный период'].every(k => ed04.timeCols.some(c => c.kind === k)) &&
+          RP.TPL('t-pay04').form === 'ФО-04' && !has(co, 'Погашения и портфель за период') && has(co, 'Погашения за период'),
+      'ФО-04 называется «Погашения за период» (13.21); в составе колонки «За отчётный месяц», «С начала года», «С начала года — прошлый год»');
+
+    /* --- реестр --- */
+    plain('auth'); RP.state.sel.regTab = 'отчёт'; RP.state.sel.regQ = '';
+    const rg = V.registry.fn(), rgt = txtOf(rg);
+    const regNames = [...rg.matchAll(/<td><b>([^<]+)<\/b><div class="small mono">/g)].map(m => m[1]);
+    ok(530, regNames.join(' | ') === 'Просроченная задолженность по состоянию на 1-е число | Погашения за период | Портфель — оперативный срез' &&
+          has(rgt, 'Порядок №41, п. 12') && has(rgt, 'получатель: Комитет по администрированию бюджетных кредитов') && has(rgt, 'ожидает решения по методике') &&
+          !has(rgt, 'Портфель к прошлому году') && !has(rgt, 'Средняя просрочка по департаментам'),
+      `реестр: вкладка «Отчёты» — три строки по коду формы (${regNames.length}): ФО-01, ФО-04, ФО-26; основание «Порядок №41, п. 12», расписание с получателем «Комитет», ФО-04 «ожидает решения по методике»`);
+
+    RP.scSet('regQ', 'ФО-99'); const rgNone = txtOf(V.registry.fn()); RP.scSet('regQ', 'ФО-04'); const rgOne = V.registry.fn(); RP.scSet('regQ', '');
+    ok(531, has(rgNone, 'Под этот отбор вам не видно ни одного отчёта или бланка.') && (rgOne.match(/<div class="small mono">/g) || []).length === 1,
+      'отбор реестра: «ФО-99» — «Под этот отбор вам не видно ни одного отчёта или бланка.»; «ФО-04» оставляет одну строку; «Сбросить» возвращает все');
+
+    ok(532, has(rgt, 'Проблемные кредиты — личный черновик Осмоновой Г., на утверждение не отправлен: не видит никто, кроме автора'),
+      'в группе «Не видно этой роли» уполномоченному названо: «Проблемные кредиты — личный черновик Осмоновой Г., на утверждение не отправлен: не видит никто, кроме автора»');
+  }
   /* @@W64-C@@ — блок агента «конструктор, показ» (#540–#579) */
   /*
    *
