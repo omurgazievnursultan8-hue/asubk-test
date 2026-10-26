@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-24 · 482/482 PASS
+  SMOKE 2026-10-24 · 483/483 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -491,6 +491,7 @@
      PASS  #480  ТЗ 20, 7.28, 7.29 (волна 63, ОЧ-Д2): к окончательному ВП-105 (pdf) добавлено представление xlsx из того же снимка — выпусков не прибавилось, номер прежний, контрольная сумма pdf та же; в сведениях — «pdf — создано 24.08.2026, вёрстка ред. 1; xlsx — создано 26.08.2026, вёрстка ред. 1»; повтор, чужой формат и предварительный выпуск — отказы словами
      PASS  #481  ТЗ 20, 11.3 (волна 63, КН-Д10): «В рабочий список» конструктора заводит строку «Рабочих списков» РС-1 (5 объектов, строки — текущие величины кредитов, «из конструктора»); по требованиям взыскания — отказ «рабочий список ведёт живые объекты, а строки объекта «требование взыскания» статистика держит только снимком на дату — выгрузите показанное»
      PASS  #482  волна 63: фоновая работа отчётности названа «расчётом» — «Шаг расчёта», «Расчёты этого бланка», вкладка «Расчёты»; «задание» осталось только за модулем «Задания»
+     PASS  #483  волна 64: переключатель «Демонстрация» выключен при запуске — проверочные кнопки пусты; включён — виден их разметочный текст; повторное нажатие выключает
 -->
 <style>
 :root{
@@ -1534,6 +1535,7 @@ tr.obj:hover .pv-rm > summary, .pv-rm[open] > summary{ visibility:visible; }
       <div class="crumb-title" id="title">Реестр отчётов и бланков</div>
       <div class="right">
         <span id="stand"></span>
+        <span title="Показывает проверочные кнопки макета; в приложении их нет"><label><input type="checkbox" id="demo" onchange="RP.toggleDemo()"> Демонстрация</label></span>
         <span><label>Роль</label><select id="role" onchange="RP.setRole(this.value)"></select></span>
       </div>
     </div>
@@ -3567,6 +3569,7 @@ function seed(){
     /* «Напоминать за N к.д. до срока» — одна настройка модуля (ОД-57); правки —
        журналом: кто, когда, с какой N на какую (ОД-58).                      */
     remind: 7, remindLog: [],
+    demo: false,                         /* переключатель «Демонстрация»: проверочные кнопки макета (волна 64) */
     subs: [], notices: [], notes: [], subSeq: 0, /* подписки и сигналы (§2.9), заметки (§2.10) */
     log: [],
     sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2', blank:'t-notice', wl:null,
@@ -13414,6 +13417,11 @@ RP.toggleSidebar = () => {
 RP.setRole = title => { RP.state.role = title;
   toast('роль: '+title+'; область видимости — '+ROLE(title).scope.map(deptName).join('; '),'ok');
   render(); };
+/* Проверочные кнопки макета — те, которых в приложении нет (имитация сигнала соседа,
+   «Шаг расчёта», проверочные отказы), — показываются только при включённой «Демонстрации».
+   Любой экран оборачивает такую кнопку в RP.demoOnly(...): выключено — пусто.        */
+RP.demoOnly = html => RP.state.demo ? html : '';
+RP.toggleDemo = () => { RP.state.demo = !RP.state.demo; render(); };
 /* Молчание соседа включается на экране верстальщика, а действует на всех
    экранах — поэтому оно видно на каждом, пока его не выключат.              */
 const downBanner = () => (RP.state.down || []).length ? '<div class="banner warn">Демонстрация: не отвечает '+
@@ -13431,6 +13439,7 @@ function render(){
   if(sel.options.length !== ROLE_TITLES.length){
     sel.innerHTML = ROLE_TITLES.map(t => '<option>'+esc(t)+'</option>').join(''); }
   sel.value = st.role;
+  const dm = document.getElementById('demo'); if(dm) dm.checked = !!st.demo;
   const sd = document.getElementById('stand'); if(sd) sd.innerHTML = (view === 'issue' || view === 'blank') ? pvStand() : '';
   const v = RP.viewer(), obl = RP.obligations();
   document.getElementById('foot').innerHTML =
