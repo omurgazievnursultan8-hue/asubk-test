@@ -760,8 +760,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   RP.state.sel.tpl = 't-overdue'; RP.state.sel.pvTab = 'задания';
   const b = V.builder.fn(), i = V.issue.fn(), w = V.worklists.fn();
   RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
-  const j = V.journal.fn(), i2 = V.issue.fn();
-  ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Заказы выпуска') && has(i, 'Состояния заказа: заказан → считается') &&
+  const j = V.journal.fn(); RP.state.demo = true; const i2 = V.issue.fn(); RP.state.demo = false;   /* «Шаг расчёта» — проверочная кнопка: только при «Демонстрации» (волна 64) */
+  ok(76, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Заказы выпуска') && !has(i, 'Состояния заказа:') &&
         has(i, 'Итого по «') && has(i2, 'Шаг расчёта') && has(j, 'расчёт: заказан') &&
         has(b, 'Сложить итоги уровней самим') && has(w, 'Завести список правилом'),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
@@ -1252,7 +1252,7 @@ const DEV = 'изменено — не утверждённый состав';
   as('auth');
   ok(127, groups[0].items[0] === 'showcase' && groups[0].items[1] === 'issue' &&
         groups[2].items.join(',') === 'journal' &&
-        has(nav, '>Показ и выпуск<') && V.issue.title === 'Показ и выпуск отчёта',
+        has(nav, '>Показ и выпуск<') && V.issue.title === 'Показ и выпуск',
     `порядок столов говорит сам: витрина первым пунктом первого стола, за ней показ и выпуск; ` +
     `журнал вынесен в «След» — он ни настройка, ни потребление, а то, что предъявлено`);
 })();
@@ -3929,8 +3929,8 @@ const DEV = 'изменено — не утверждённый состав';
   const pView = RP.pinToDashboard('t-portfolio', 'ВД-1', {}, 'Главная');
   ok(324, pOv.ok && pOv.tile.main === 's-overdue-sum' && pOv.tile.second === 's-overdue-cnt' &&
         pPay.ok && pPay.tile.main === 's-portfolio' && pPay.tile.second === 's-overdue-sum' &&
-        pAvg.ok && pAvg.tile.second === null && !pNpl.ok && has(pNpl.why, 'плитке нечего показать') &&
-        !pBl.ok && has(pBl.why, 'бланк') && hid && !pHid.ok && has(pHid.why, 'не видно') &&
+        pAvg.ok && pAvg.tile.second === null && !pNpl.ok && has(pNpl.why, 'Плитке нечего показать') &&
+        !pBl.ok && has(pBl.why, 'Бланк') && hid && !pHid.ok && has(pHid.why, 'не видно') &&
         pView.ok && pView.tile.label === 'Портфель — мой отдел',
     `ОД-47: «📌» проверяет бланк, видимость и числовую колонку — ответ не проверяет (плитка на 24.08 без снимка стоит); ` +
     `главное число — первая колонка, второе — следующая того же сорта, иначе нет; подпись — имя отчёта или вида`);
@@ -4832,7 +4832,7 @@ const DEV = 'изменено — не утверждённый состав';
         has(pass, '<b>Источник не ответил.</b>') && has(src, 'setTimeout(() => el.remove(), 6000)') && !has(ha, 'class="banner warn"><b>Источник'),
     `«показано не так» — строкой над таблицей и той же строкой в паспорте; «сделано» — тостом на 6 с`);
 
-  start(); const st = ev('pvStand()'); RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const hj = scr();
+  start(); const st = ev('pvStand()'); RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); RP.state.demo = true; const hj = scr(); RP.state.demo = false;
   ok(381, has(st, 'Стенд ▾') && has(st, 'Вписать получателя строкой «Минфин КР»') && has(st, 'Пороги стенда') && has(st, 'проверяет:') &&
         !has(h0, 'Стенд ▾') && has(hj, 'class="btn btn-sm pv-stand"') && has(hj, 'Шаг расчёта <span class="tag">стенд</span>') &&
         has(src, '<span id="stand"></span>'),
@@ -5055,16 +5055,16 @@ const DEV = 'изменено — не утверждённый состав';
   const w1 = srcOf('ВП-103'), w2 = srcOf('ВП-104'), lab = pRows(RP.ISS('ВП-103').passport, false).map(r => r[0]);
   const w3 = pSrc({ seams: ['statSlice (дерево)', 'statSlice'], issuedAt: '2026-08-24' });
   const w4 = pSrc({ seams: ['statRows', 'statSlice ×2', 'statRows (платёж)'], asOf: '2026-08-01', dates: ['на 01.06 · на 01.08'] });
-  const w5 = pSrc({ seams: [], ordered: true }), w6 = pSrc({ seams: ['статистика, снимок 31.08.2026'] }), w7 = pSrc({ seams: ['objectRows'], issuedAt: '2026-08-24' });
+  const w5 = pSrc({ seams: [], ordered: true }), w6 = pSrc({ seams: ['снимок на 31.08.2026'] }), w7 = pSrc({ seams: ['objectRows'], issuedAt: '2026-08-24' });
   RP.state.view = 'journal'; RP.selIssue('ВП-103'); const jp = V.journal.fn(), leaks = []; let seen = 0;
   Object.keys(R).forEach(role => { RP.seed(); as(role); RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
     const sa = ev('shownArgs()'); RP.exportShown(sa.tid, sa.params, sa.twist, 'xlsx'); RP.order('t-portfolio', { params: { dept: '' }, kind: 'предварительный' });
     RP.state.view = 'journal';
     RP.state.issues.forEach(i => { RP.selIssue(i.id); const t = text(V.journal.fn()); seen++; if (SERVICE.test(t) || /спрошенные/.test(t)) leaks.push(role + '/' + i.id); }); });
-  ok(441, w1 === 'статистика, снимок 01.08.2026' && w2 === 'расчёт по кредитам, текущее состояние на 10.04.2026 · статистика, текущее состояние на 10.04.2026' &&
-        w3 === 'статистика, текущее состояние на 24.08.2026' && w4 === 'статистика, снимки на даты колонок' && w5 === 'ещё нет — заказ принят, числа ещё не запрашивались' &&
-        w6 === 'статистика, снимок 31.08.2026' && w7 === 'расчёт по кредитам, текущее состояние на 24.08.2026' && lab.indexOf('источник') !== -1 && lab.indexOf('спрошенные швы') === -1 &&
-        has(jp, '<span class="k">источник</span>статистика, снимок 01.08.2026') && leaks.length === 0 && seen > 20,
+  ok(441, w1 === 'снимок на 01.08.2026' && w2 === 'текущее состояние на 10.04.2026' &&
+        w3 === 'текущее состояние на 24.08.2026' && w4 === 'снимки на даты колонок' && w5 === 'ещё нет — заказ принят, числа ещё не запрашивались' &&
+        w6 === 'снимок на 31.08.2026' && w7 === 'текущее состояние на 24.08.2026' && lab.indexOf('источник') !== -1 && lab.indexOf('спрошенные швы') === -1 &&
+        has(jp, '<span class="k">источник</span>снимок на 01.08.2026') && leaks.length === 0 && seen > 20,
     `ПВ-Д19: строка паспорта «источник» — словами («${w1}»; «${w2}»; заказ без чисел — «${w5}»; готовая фраза конструктора идёт как есть); ` +
     `на «Журнале выпусков» ни имён запросов, ни слов «швы» и «спрошенные» — ${seen} паспортов в ${Object.keys(R).length} ролях, утечек ${leaks.length}`);
   }
@@ -5123,9 +5123,9 @@ const DEV = 'изменено — не утверждённый состав';
     `отчёту и чужой заказ не видны и не считаются; «Все мои заказы — Журнал выпусков →» ведёт в журнал`);
 
   /* ПВ-49: «Шаг задания · стенд» — на карточке; готовый заказ уходит из вкладки и из счётчика. */
-  start(); const so = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const s0 = scr();
+  start(); RP.state.demo = true; const so = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const s0 = scr();
   const stepRe = new RegExp('<div class="sp-card"><div class="hd"><b>Заказ ' + so.id + '</b>[\\s\\S]*?onclick="(RP\\.doStep\\(\'' + so.id + '\'\\))">Шаг расчёта <span class="tag">стенд</span>');
-  const st1 = click(s0, stepRe), s1 = scr(), st2 = click(s1, stepRe), s2 = scr();
+  const st1 = click(s0, stepRe), s1 = scr(), st2 = click(s1, stepRe), s2 = scr(); RP.state.demo = false;
   ok(410, st1 && st2 && cnt(s0, 'задания') === 1 && has(pane(s1), '>считается</span>') && cnt(s2, 'задания') === 0 && cards(s2) === 0 &&
         RP.ISS(so.id).state === 'готов' && has(pane(s2), 'Незакрытых заказов по этому отчёту нет.'),
     `ПВ-49: «Шаг задания · стенд» — на карточке заказа: заказан → считается → готов; готовый уходит из вкладки и счётчика`);
@@ -6290,7 +6290,7 @@ const DEV = 'изменено — не утверждённый состав';
 
   /* Подписи: фоновая работа отчётности — «расчёт», не «задание». */
   RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
-  const od = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); const hq = V.issue.fn();
+  const od = RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания'); RP.state.demo = true; const hq = V.issue.fn(); RP.state.demo = false;
   as('clerk'); RP.state.view = 'blank'; RP.blankEnter('t-recon'); RP.blankPrint('t-recon', 'kr-1'); const hb = RP.vbDialogs();
   const vis = txt(hq) + ' ' + txt(hb);
   ok(482, od.ok && has(vis, 'Шаг расчёта') && has(vis, 'Расчёты этого бланка') && has(txt(hq), 'Расчёты') &&
@@ -6308,9 +6308,150 @@ const DEV = 'изменено — не утверждённый состав';
    *
    */
   /* @@W64-C@@ — блок агента «конструктор, показ» (#540–#579) */
-  /*
-   *
-   */
+  {
+    const evC = c => vm.runInContext(c, sandbox);
+    const KB = win.KB, S = win.S, V = win.VIEWS;
+    const drf = () => { RP.state.view = 'draft'; return V.draft.fn(); };
+    const fresh = r => { RP.seed(); as(r || 'user'); KB.seed(); S().started = true; };
+    const fresh0 = r => { RP.seed(); as(r || 'user'); KB.seed(); };
+    const sideTab = t => { KB.ui.tab(t); return txt(drf()); };
+
+    /* Показ: проверочные кнопки — только при «Демонстрации»; название экрана. */
+    RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8);
+    const st0 = RP.demoOnly(evC('pvStand()')); RP.state.demo = true; const st1 = RP.demoOnly(evC('pvStand()')); RP.state.demo = false;
+    RP.order('t-overdue', { params: Object.assign({}, P8), kind:'предварительный' }); RP.pvTab('задания');
+    const jb0 = txt(V.issue.fn()); RP.state.demo = true; const jb1 = txt(V.issue.fn()); RP.state.demo = false;
+    ok(540, st0 === '' && has(st1, 'Стенд ▾') && has(st1, 'Статистика отказывает на заказ выгрузки') && !has(jb0, 'Шаг расчёта') && has(jb1, 'Шаг расчёта') &&
+          has(jb0, 'Расчёты') && !has(jb0, 'Состояния заказа:') && !has(jb0, 'меню строки «⋯»'),
+      'ТЗ 20, 5.94: меню «Стенд ▾» и «Шаг расчёта» на показе стоят только при включённой «Демонстрации»; вкладка «Расчёты» без пояснений «как пользоваться»');
+    ok(541, V.issue.title === 'Показ и выпуск' && V.draft.title === 'Конструктор',
+      `названия экранов — «${V.issue.title}» и «${V.draft.title}»`);
+
+    /* Режим «сейчас» — причина словами гл. 4. */
+    fresh(); KB.startBlank('collateral'); const rn = KB.setMode('сейчас');
+    ok(542, !rn.ok && has(rn.why, 'нет строк статистики на сегодня: режим «сейчас» недоступен — выберите «на дату»') && !/objectRows|statRows|в v1|шов/i.test(rn.why),
+      `«сейчас» у предмета залога — отказ «${rn.why}»`);
+
+    /* Операторы отбора — единая таблица 4.18. */
+    fresh(); const ops = ['число', 'дата', 'текст', 'словарь'].map(t => KB.opsOf(t).length);
+    const a1 = KB.addFilter('days', '>', 90), op1 = S().filters[0].op, bad = KB.setFilter(0, { op: 'содержит' }), good = KB.setFilter(0, { op: 'между', value: '30', value2: '90' });
+    const hd = txt(drf());
+    ok(543, ops.join() === '9,10,8,6' && a1.ok && op1 === 'больше' && !bad.ok && has(bad.why, 'оператор «содержит» типу «число» не положен') && good.ok &&
+          has(hd, 'Дней просрочки между 30 и 90') && !/[≥≤≠]/.test(hd.slice(hd.indexOf('Дней просрочки'), hd.indexOf('Дней просрочки') + 40)),
+      `операторы по таблице 4.18: число ${ops[0]}, дата ${ops[1]}, текст ${ops[2]}, словарь ${ops[3]}; знак «>» стал словом, чужой оператор — отказ «${bad.why}», в шапке «Дней просрочки между 30 и 90»`);
+
+    /* Отбор конструктора на показе — целиком (4.58). */
+    fresh(); KB.addFilter('days', 'больше', '90'); KB.addFilter('days', 'между', '30'); KB.setFilter(1, { op: 'между', value: '30', value2: '90' });
+    KB.setActive(true); KB.setTop(3, 'debt_main', 'первые'); const sv1 = KB.saveDraft('Отбор на показе'), fx1 = RP.flexOf(sv1.tid, null), ff = fx1.filter ? fx1.filter.f : {};
+    ok(544, sv1.ok && !sv1.lost.some(x => /^отбор/.test(x)) && ff.active === true && ff.top && ff.top.n === 3 && ff.top.by === 'debt_main' &&
+          ff.groups[0].length === 2 && ff.groups[0][1].op === 'между' && ff.groups[0][1].value.join() === '30,90' && has(fx1.filter.text, 'действующие') && has(fx1.filter.text, 'топ 3'),
+      `отбор, «действующие» и «топ N» сохранённого отчёта открываются на показе: «${fx1.filter ? fx1.filter.text : ''}»`);
+
+    /* Просьба об утверждении — на отчёт. */
+    fresh(); const sv2 = KB.saveDraft('На утверждение'); const ak1 = KB.askPublish(), ak2 = KB.askPublish(), t2 = RP.TPL(sv2.tid), hk = txt(drf());
+    ok(545, ak1.ok && !ak2.ok && ak2.why === 'Уже ждёт утверждения.' && t2.asked === true && t2.askedAt === RP.state.today &&
+          has(hk, 'на утверждении с 24.08.2026'),
+      `просьба принадлежит отчёту ${sv2.tid}: «${ak2.why}» при повторе, в шапке «на утверждении с 24.08.2026»; пункт «Отправить на утверждение…» серый`);
+
+    /* Вопрос о несохранённом при «Править» и «С готового отчёта». */
+    fresh(); const own = KB.saveDraft('Свой'); KB.startBlank('credit'); KB.toggleStat('s-overdue-sum'); KB.setName('Черновик 2');
+    let went = 0; const g1 = KB.guard(() => { went++; }), hg = txt(drf());
+    const sw = KB.ui.switchDrop();
+    KB.setName('Черновик 3'); KB.toggleStat('s-overdue-cnt'); const g3 = KB.guard(() => { went++; }), swS = KB.ui.switchSave(), svd = RP.state.templates.some(t => t.name === 'Черновик 3');
+    ok(546, g1.asked === true && g1.name === 'Черновик 2' && has(hg, 'Не сохранён «Черновик 2»') && has(hg, 'Отбросить') && has(hg, 'Отмена') && went === 1 + 0 + 1 && sw.ok && g3.asked && swS.ok && svd,
+      'при уходе от несохранённого состава — вопрос «Не сохранён «имя»: сохранить · отбросить · отмена»: «Отбросить» уходит, «Сохранить» кладёт отчёт и уходит, у сохранённого вопроса нет');
+    fresh(); const o2 = KB.saveDraft('Из каталога'), o2id = o2.tid; KB.startBlank('credit'); KB.toggleStat('s-overdue-sum'); KB.setName('Не сохранённый');
+    RP.state.view = 'x'; RP.uiOpenPersonal(o2id); const keep = { saved: S().saved, name: S().name };
+    const hp = txt(V.draft.fn()); KB.ui.dlgClose();
+    ok(547, RP.state.view === 'draft' && keep.saved === null && keep.name === 'Не сохранённый' && has(hp, 'Не сохранён «Не сохранённый»'),
+      '«Править» в каталоге при несохранённом составе не заменяет его молча: открыт конструктор с вопросом, состав на месте');
+
+    /* Окно «Сохранить»: название и краткое описание. */
+    fresh(); KB.setName(''); KB.ui.save(); const hs = txt(drf()); KB.ui.saveDo(); const hs2 = txt(drf());
+    const sv3 = KB.saveDraft('С описанием', 'Остаток по подразделениям на конец месяца'); const rec3 = RP.TPL(sv3.tid);
+    ok(548, has(hs, 'Название') && has(hs, 'Краткое описание') && has(hs2, 'Назовите отчёт') && sv3.ok && rec3.desc === 'Остаток по подразделениям на конец месяца' && rec3.kb.desc === rec3.desc,
+      '«Сохранить» открывает окно с полями «Название» и «Краткое описание»; без названия — «Назовите отчёт»; описание хранится в записи отчёта');
+    fresh(); KB.setName('Окно'); KB.ui.save(); const dlgOpen = has(txt(drf()), 'Краткое описание');
+    KB.ui.dlgClose(); const dlgShut = !has(txt(drf()), 'Краткое описание');
+    ok(549, dlgOpen && dlgShut, 'окно закрывается «Отмена» и крестиком, состав не меняется');
+
+    /* Печатный лист. */
+    fresh(); const sh0 = KB.sheetOf(), r1 = KB.setSheet({ bands: ['заголовок', 'шапка', 'итог', 'уровни', 'подвал'] }), r2 = KB.setSheet({ bands: ['заголовок', 'шапка', 'уровни', 'подвал'] }),
+      r3 = KB.setSheet({ pagesWide: 0 }), r4 = KB.setSheet({ bands: ['заголовок', 'шапка', 'уровни', 'итог', 'подвал'], orient: 'книжная' });
+    ok(550, sh0.bands.join(' · ') === 'заголовок · шапка · уровни · итог · подвал' && sh0.pagesWide === 1 && !r1.ok && r1.why === 'итог печатается после уровней' && !r2.ok && r2.why === 'в листе нет итога' &&
+          !r3.ok && has(r3.why, 'не меньше 1') && r4.ok && r4.sheet.orient === 'книжная',
+      `полосы — списком; «${r1.why}», «${r2.why}»; «страниц в ширину» по умолчанию 1, меньше 1 — отказ`);
+    const pg0 = KB.pdfPages(1), pg1 = KB.pdfPages(100); KB.setSheet({ pagesWide: 2 }); const pg2 = KB.pdfPages(100);
+    ok(551, pg1.footers[0] === 'стр. 1 из ' + pg1.total && pg1.footers[pg1.total - 1] === 'стр. ' + pg1.total + ' из ' + pg1.total && pg2.total === pg1.total * 2 && pg2.keyOnEach === true && pg1.keyOnEach === false &&
+          pg0.footers.join() === 'стр. 1 из 1',
+      `колонтитул pdf — «${pg1.footers[0]}» … «${pg1.footers[pg1.total - 1]}»; две страницы в ширину удваивают число страниц (${pg1.total} → ${pg2.total}), ключевая колонка на каждой`);
+    fresh(); KB.setSheet({ orient: 'книжная', margins: 'узкие' }); const sv4 = KB.saveDraft('С листом'), ed4 = RP.TPL(sv4.tid).editions[0];
+    KB.startBlank('credit'); const blank = KB.sheetOf().orient; KB.startFromReport(sv4.tid); const back = KB.sheetOf();
+    ok(552, ed4.sheet && ed4.sheet.orient === 'книжная' && blank === 'альбомная' && back.orient === 'книжная' && back.margins === 'узкие',
+      'лист хранится с отчётом и возвращается при открытии; новый отчёт — лист по умолчанию');
+    fresh(); KB.setSheet({ formats: ['xlsx', 'pdf'] }); const e1 = KB.exportIssue('csv'), e2 = KB.exportIssue('pdf'); const jr = e2.rp ? RP.state.issues.find(i => i.id === e2.rp) : null;
+    KB.setSheet({ formats: ['xlsx', 'csv', 'pdf'] }); const e3 = KB.exportIssue('csv');
+    ok(553, !e1.ok && has(e1.why, 'не положен') && e2.ok && jr && jr.passport.sheet.orient === 'альбомная' && jr.passport.sheet.pages >= 1 && e3.ok && has(txt(drf()), 'Печатный лист…'),
+      `форматы выгрузки — из листа: csv при листе «xlsx · pdf» — «${e1.why}»; сведения о выпуске несут лист и число страниц; пункт «Печатный лист…» в «⋯»`);
+    ok(554, has(drf(), "KB.ui.export('xlsx')") && has(drf(), "KB.ui.export('csv')") && has(drf(), "KB.ui.export('pdf')"), '«Выгрузить ▾» — xlsx, csv, pdf');
+    KB.ui.dlg('sheet'); const hsh = txt(drf()); KB.ui.dlgClose();
+    ok(555, ['Ориентация', 'Поля', 'Ширины колонок', 'Страниц в ширину', 'Колонтитул', 'Порядок полос', 'Форматы выгрузки'].every(x => has(hsh, x)) && !/Шрифт/i.test(hsh.replace('шрифты листа', '')),
+      'окно «Печатный лист»: ориентация, поля, шапка на каждой странице, колонтитул, ширины колонок, страниц в ширину, порядок полос, форматы; шрифта в окне нет');
+
+    /* Шапка охвата и роли; «Сведения» — источник; дата. */
+    fresh('user'); const hu = txt(drf()); fresh('head'); const hh = txt(drf()); fresh('auth'); const ha = txt(drf());
+    ok(556, has(hu, 'охват: видно 47, 3 скрыто') && has(hu, 'смотрит Осмонова Г.') && !has(hu, 'Осмонова Г. · Пользователь') && has(hh, 'смотрит Асанов А. · Руководитель подразделения') &&
+          has(ha, 'охват: видно 50, 0 скрыто') && has(ha, 'смотрит Тентимишев К. · Уполномоченный по отчётности'),
+      'охват в шапке — «видно 47, 3 скрыто»; роль через « · » (у пользователя её нет)');
+    fresh(); const p1 = sideTab('паспорт'); KB.setMode('сейчас'); const p2 = sideTab('паспорт'); KB.compute(); const p3 = sideTab('паспорт');
+    ok(557, has(p1, 'снимок на 01.09.2026') && !has(p1, 'расчёт по кредитам') && has(p2, 'текущее состояние — по кнопке «Посчитать»') && has(p3, 'текущее состояние на 05.09.2026 14:32 · день не закрыт') && !/statRows|objectRows/.test(p3),
+      'источник в «Сведениях» словами: «снимок на 01.09.2026»; «сейчас» — «текущее состояние на 05.09.2026 14:32 · день не закрыт»');
+    fresh(); const d1 = KB.setDate('2026-09-01'), as1 = S().asOf, d2 = KB.setDate('2026-09-06'), as2 = S().asOf, d3 = KB.setDate('2025-12-31'), as3 = S().asOf;
+    ok(558, d1.ok && as1 === '2026-08-31' && !d2.ok && d2.why === 'дата 06.09.2026 ещё не наступила' && as2 === '2026-08-31' && !d3.ok &&
+          d3.why === 'первый снимок статистики — 31.12.2025: самая ранняя дата — 01.01.2026' && as3 === '2026-08-31',
+      'дата вопроса Д отвечает строкой за Д − 1: 01.09.2026 → строка 31.08.2026; «дата 06.09.2026 ещё не наступила» и «первый снимок статистики — 31.12.2025…» — прежняя дата остаётся');
+
+    /* Общий отчёт: та же запись, версии, соавтор. */
+    fresh(); const c0 = KB.saveDraft('Число кредитов по кураторам'), hc0 = txt(drf()); KB.ui.circle(true); const hc1 = txt(drf()), lv1 = RP.levelOf(c0.tid), v1 = RP.versionOf(c0.tid);
+    KB.toggleStat('s-overdue-cnt'); const hc2 = txt(drf()); const c1 = KB.saveDraft(), hc3 = txt(drf());
+    ok(559, has(hc0, 'личный, сохранён') && lv1 === 'общий' && v1 === 1 && has(hc1, 'общий, версия 1') && !has(hc1, 'не сохранён') && has(hc2, 'общий, версия 1, не сохранён') &&
+          c1.tid === c0.tid && RP.versionOf(c0.tid) === 2 && has(hc3, 'общий, версия 2') && RP.state.templates.filter(t => t.name === 'Число кредитов по кураторам').length === 1,
+      'после «Открыть кругу» запись та же, шапка «общий, версия 1»; следующее «Сохранить» — версия 2 той же записи, копии нет');
+    fresh0('head'); RP.uiOpenPersonal('t-sh-plan'); const hv0 = { saved: S().saved, stats: S().stats.join() }; KB.toggleStat('s-count'); const sv5 = KB.saveDraft();
+    ok(560, hv0.saved === 't-sh-plan' && hv0.stats === 's-overdue-sum,s-portfolio' && sv5.ok && sv5.tid === 't-sh-plan' && RP.versionOf('t-sh-plan') === 4 && has(txt(drf()), 'общий, версия 4') && sv5.lost.length === 0,
+      'соавтор общего отчёта правит его тем же конструктором: версия 3 → 4, запись та же, показ знает «Число кредитов»');
+    fresh('head'); RP.state.view = 'showcase'; const shHead = showAll(); fresh('user'); RP.state.view = 'showcase'; const shUser = showAll();
+    ok(561, has(shHead, "RP.uiOpenPersonal('t-sh-plan')") && !has(shUser, "RP.uiOpenPersonal('t-sh-plan')"),
+      'в каталоге у общего отчёта «Править» есть у владельца и соавторов, у остальных нет');
+
+    /* Отказы плитки — словами карточки. */
+    RP.seed(); as('auth'); const pb = RP.pinToDashboard('t-recon', null, {}, 'Главная');
+    ok(562, !pb.ok && pb.why === 'Бланк говорит об одном объекте: на дашборд ставят отчёт или вид' && RP.state.sel.pinNote == null,
+      `«📌» на бланк — «${pb.why}»; плитка не поставлена`);
+
+    /* Показ: «сейчас», выгрузка статистикой, методика, источник. */
+    RP.seed(); as('auth'); RP.selTpl('t-portfolio'); RP.pvDept('dep-prom'); const gt = txt(V.issue.fn());
+    ok(563, has(gt.replace(/ \./g, '.'), 'Числа не запрошены. Режим — сейчас.') && has(gt, 'Посчитать на сейчас') && !has(gt, 'величины берутся'),
+      '«сейчас» до расчёта — «Числа не запрошены. Режим — сейчас.» и кнопка «Посчитать на сейчас» без пояснений');
+    RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = Object.assign({}, P8); evC('ROWS_MAX.statRows = 5');
+    const jo = RP.statExportJob('t-overdue', P8, null, null); RP.state.statJobDown = 'хранилище файлов выгрузки не отвечает'; const jd = RP.statExportJob('t-overdue', P8, null, null); RP.state.statJobDown = null;
+    evC('ROWS_MAX.statRows = 5000'); const jf = RP.statExportJob('t-overdue', P8, null, null);
+    ok(564, jo.ok && jo.note === 'Выгрузку 8 строк готовит статистика, о готовности придёт уведомление' && !jd.ok && jd.why === 'Статистика не приняла задание на выгрузку: хранилище файлов выгрузки не отвечает' &&
+          !jf.ok && jf.why === 'Строк в пределах порога — выгружается сразу',
+      `заказ выгрузки у статистики: «${jo.note}»; отказ «${jd.why}»; в пределах порога — «${jf.why}»`);
+    RP.seed(); as('auth'); RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf: '2026-08-01', dept: '' }; RP.state.sel.view = null; RP.state.sel.twist = null;
+    const hm = txt(V.issue.fn());
+    ok(565, has(hm, 'Показатель изменён 22.08.2026.') && has(hm, '«Средняя просрочка»: версия 2 действует с 01.09.2026') && has(hm, 'Ожидает решения по методике.'),
+      'шапка показа: «Показатель изменён 22.08.2026.» и «версия 2 действует с 01.09.2026»');
+    fresh(); KB.saveDraft('Выгрузка'); const ex = KB.exportIssue('xlsx'); RP.state.view = 'journal'; RP.state.sel.issue = ex.rp; const hjr = txt(V.journal.fn());
+    ok(566, ex.ok && has(hjr, 'источник') && has(hjr, 'снимок на 01.09.2026') && !/статистика, снимок|расчёт по кредитам/.test(hjr),
+      'выгрузка конструктора: сведения о выпуске называют источник словами — «снимок на 01.09.2026»');
+
+    /* На экранах конструктора и его окнах нет внутренних кодов. */
+    fresh(); KB.ui.dlg('sheet'); const t1 = txt(drf()); KB.ui.dlgClose(); KB.ui.save(); const t2s = txt(drf()); KB.ui.dlgClose();
+    ok(567, !/(ПВ|КН|ОЧ|ВБ|ИО|ADR|ОД|РЯ|СС)-\d/.test(t1 + t2s + hd + hu) && !/[A-Za-z]{4,}/.test((t1 + t2s).replace(/xlsx|csv|pdf|Ctrl|nbsp/g, '')),
+      'в окнах «Печатный лист» и «Сохранить» нет внутренних кодов и английских слов (кроме форматов xlsx · csv · pdf)');
+  }
   /* @@W64-D@@ — блок агента «верстальщик, печать» (#580–#619) */
   /*
    *
