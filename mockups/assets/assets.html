@@ -96,7 +96,7 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .asof{ display:flex; align-items:center; }
 .asof.shifted input{ border-color:var(--asubk-amber); color:var(--asubk-amber); font-weight:var(--weight-semibold); }
 .content{ flex:1; overflow:auto; }
-.panel-wrap{ padding:18px 24px 60px; max-width:1280px; }
+.panel-wrap{ padding:18px 24px 60px; }
 .section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 8px; }
 .section-h:first-child{ margin-top:0; }
 .banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:10px; font:var(--font-label); }
@@ -140,6 +140,9 @@ table.cgrid tbody tr.pend td:first-child{ box-shadow:inset 3px 0 0 var(--asubk-a
 table.cgrid tbody tr.gone td{ color:var(--text-muted); }
 table.cgrid td.num{ text-align:right; white-space:nowrap; } table.cgrid th.num{ text-align:right; }
 table.cgrid td.nw, table.cgrid th.nw{ white-space:nowrap; }
+table.cgrid.sticky thead th{ position:sticky; top:0; z-index:3; }
+.tbl-wrap.st{ overflow:visible; }
+.shown{ font:var(--font-label); color:var(--text-muted); margin:0 0 6px; }
 .num, .mono{ font-variant-numeric:tabular-nums; }
 .muted{ color:var(--text-muted); }
 .small{ font:var(--weight-regular) var(--text-cap)/1.45 var(--asubk-font); color:var(--text-muted); }
@@ -229,6 +232,9 @@ table.cgrid select.quiet:hover, table.cgrid select.quiet:focus{ border-color:var
 .attn .a{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:var(--radius-md); font:var(--font-label); background:var(--status-warning-bg); color:#6e4f05; }
 .attn .a .ico{ width:13px; height:13px; }
 .attn .a span{ color:inherit; opacity:.85; }
+.attn .a.danger{ background:var(--status-error-bg); color:#b02626; }
+.qline{ margin:0 0 10px; font:var(--font-label); color:var(--text-muted); }
+.nw1{ white-space:nowrap; }
 .menu{ position:relative; display:inline-block; }
 .menu-pop{ display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:30; width:min(480px,92vw); max-height:min(72vh,680px); overflow:auto;
   background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:0 12px 32px rgba(16,28,46,0.22); padding:4px 0 6px; text-align:left; }
@@ -254,7 +260,11 @@ table.cgrid select.quiet:hover, table.cgrid select.quiet:focus{ border-color:var
 .mform{ display:grid; grid-template-columns:1fr 1fr; gap:12px 22px; padding-top:6px; }
 .mform .fld.wide{ grid-column:1/-1; }
 .mform .fld select,.mform .fld input,.mform .fld textarea{ width:100%; min-width:0; }
-.req::after{ content:" •"; color:var(--action-danger); }
+.req::after{ content:" *"; color:var(--action-danger); }
+.mform .why:empty{ display:none; }
+.ferr{ font:var(--text-cap)/1.3 var(--asubk-font); color:#b02626; }
+.fld.bad select,.fld.bad input,.fld.bad textarea{ border-color:var(--action-danger); }
+.fld input[type=file]{ height:auto; padding:5px 9px; }
 #toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:70; }
 .toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md); font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
 .toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
@@ -293,7 +303,9 @@ table.cgrid select.quiet:hover, table.cgrid select.quiet:focus{ border-color:var
       <button class="nav-item" data-v="offers" data-testid="nav-offers" onclick="IM.go('offers')">Предложения<span class="cnt" id="cntOffers"></span></button>
       <button class="nav-item" data-v="objects" data-testid="nav-objects" onclick="IM.go('objects')">Объекты имущества<span class="cnt" id="cntObjects"></span></button>
       <button class="nav-item" data-v="contracts" data-testid="nav-contracts" onclick="IM.go('contracts')">Договоры купли-продажи<span class="cnt" id="cntContracts"></span></button>
-      <button class="nav-item" data-v="settings" data-testid="nav-settings" onclick="IM.go('settings')">Настройки<span class="cnt" id="cntTrig"></span></button>
+      <button class="nav-item" data-v="queue" data-testid="nav-queue" onclick="IM.go('queue')">Ждут второго ключа<span class="cnt" id="cntQueue"></span></button>
+      <button class="nav-item" data-v="migration" data-testid="nav-migration" id="navMig" onclick="IM.go('migration')">Миграция из легаси<span class="cnt" id="cntMig"></span></button>
+      <button class="nav-item" data-v="settings" data-testid="nav-settings" onclick="IM.go('settings')">Настройки</button>
     </nav>
     <div class="sidebar-foot"><div class="who" id="who"></div><div class="scaffold-note" id="standNote"></div></div>
   </aside>
@@ -306,6 +318,7 @@ table.cgrid select.quiet:hover, table.cgrid select.quiet:focus{ border-color:var
         <div class="demo-scaffold" title="Контролы демонстрационного стенда. В рабочей системе роль берётся из входа, быстрых дат нет.">
           <span class="demo-tag">Демо-стенд</span>
           <span id="asOfQuick"></span>
+          <button class="btn btn-secondary btn-sm" data-testid="demo-triggers" id="demoTrig" onclick="IM.go('triggers')"></button>
           <span><label for="role">Роль</label><select id="role" data-testid="role" onchange="IM.setRole(this.value)"></select></span>
         </div>
       </div>
@@ -837,7 +850,7 @@ function posOutcome(ofId, n, asOf = S.asOf) {
     if (o) { const st = objState(o.id, asOf);
       if (st.code === 'failed') return { code: 'failed', label: 'принятие не состоялось', date: st.date, reason: st.reason, obj: o.id };
       if (st.code !== 'none') return { code: 'accepted', label: 'принята', date: dec.date, obj: o.id, act: true }; }
-    const pend = of.facts.find(f => f.t === 'act' && f.pos === n && !f.pub);
+    const pend = of.facts.find(f => f.t === 'act' && f.pos === n && !f.pub && !f.draft);
     return { code: 'accepted', label: 'принята', sub: pend ? 'акт ждёт второго ключа' : 'ждёт акта', date: dec.date, pendingAct: !!pend };
   }
   return { code: 'review', label: F.some(f => f.t === 'concl' && f.pos === n) ? 'на рассмотрении' : 'предложена' };
@@ -903,7 +916,7 @@ function canRole(t, role = S.role) { return (ROLE_OF[t] || []).includes(role); }
 function gate(id, t, asOf = S.asOf) {
   const o = obj(id); if (!o) return no('нет объекта ' + id);
   const k = kindOf(o.kind), st = objState(id, asOf), fl = flags(id, asOf);
-  if (o.facts.some(f => !f.pub && f.t === t)) return no('такой факт уже ждёт второго ключа');
+  if (o.facts.some(f => !f.pub && !f.draft && f.t === t)) return no('такой факт уже ждёт второго ключа');
   const closed = CLOSED_WHY[st.code];
   switch (t) {
     case 'reg': case 'regRefusal': case 'terminate':
@@ -1019,7 +1032,7 @@ function objCheck(id, t, d, date) {
 }
 function offerCheck(id, t, d, date) {
   const of = offer(id); const out = d.pos != null ? posOutcome(id, d.pos, date) : null;
-  const actOf = n => of.facts.find(f => f.t === 'act' && f.pos === n);
+  const actOf = n => of.facts.find(f => f.t === 'act' && f.pos === n && !f.draft);
   switch (t) {
     case 'letter': return d.doc ? '' : 'укажите номер и дату письма';
     case 'concl': return d.pos && d.text ? '' : 'нужны позиция и текст заключения';
@@ -1060,6 +1073,7 @@ function addFact(target, t, data = {}, role = S.role) {
   if (isOffer ? !offer(target) : !obj(target)) return no('нет такой записи: ' + target);
   const date = data.date || S.asOf;
   const d = Object.assign({}, data);
+  if (d.doc && typeof d.doc === 'object') { const x = d.doc; d.doc = x.no || x.number || ''; if (x.date && !d.docDate) d.docDate = x.date; if (x.file && !d.file) d.file = x.file; }   // doc — строка-номер; объект принимается для совместимости
   if (t === 'decision') { const of = offer(target); d.late = !!(of.deadline && date > of.deadline && !offerAnswer(of, of.deadline)); }
   if (t === 'cterm') { const ci = contractInfo(target, date); if (ci) { d.contract = ci.c.id; d.paid = ci.paid; d.penaltyAmt = Math.min(ci.paid, ci.penalty); d.refund = ci.paid - Math.min(ci.paid, ci.penalty); } }
   if ((t === 'payment' || t === 'claim') && !d.contract) { const ci = contractInfo(target, date); if (ci) d.contract = ci.c.id; }
@@ -1113,21 +1127,66 @@ function allFacts() {
   OBJECTS.forEach(o => o.facts.forEach(f => { if (!(f.t === 'act' && o.actFact === f.id)) out.push({ f, owner: o.id }); }));
   return out;
 }
-const pending = () => allFacts().filter(x => !x.f.pub);
+const pending = () => allFacts().filter(x => !x.f.pub && !x.f.draft);
+const drafts = () => allFacts().filter(x => !x.f.pub && x.f.draft);
 /* Второй ключ: публикует начальник Управления по работе с активами. */
 function publish(factId, role = S.role) {
   if (role !== 'head') return no('публикует вторым ключом начальник Управления по работе с активами');
   const x = allFacts().find(y => y.f.id === factId); if (!x) return no('нет такого факта');
   if (x.f.pub) return no('факт уже опубликован');
-  if (x.f.by === role) return no('второй ключ не ставит тот, кто готовил факт');
+  if (x.f.draft) return no('факт у автора черновиком — публиковать можно после того, как автор отправит его снова');
+  if (x.f.by === role) return no('второй ключ не ставит тот, кто ввёл факт');
   x.f.pub = true; x.f.pubBy = role; x.f.pubAt = TODAY;
   afterPublish(x.f, x.owner);
   return { ok: true, why: '', fact: x.f };
 }
-function rejectPending(factId, role = S.role) {
+/* Возврат второго ключа: с причиной; факт не удаляется, а уходит автору черновиком (§8.2). */
+function findOwn(factId) { const x = allFacts().find(y => y.f.id === factId); return x ? x : null; }
+function rejectPending(factId, role = S.role, reason = '') {
   if (role !== 'head') return no('вернуть может только начальник Управления');
-  for (const c of [...OFFERS, ...OBJECTS]) { const i = c.facts.findIndex(f => f.id === factId && !f.pub); if (i >= 0) { c.facts.splice(i, 1); return yes; } }
-  return no('нет такого неопубликованного факта');
+  const x = findOwn(factId); if (!x || x.f.pub) return no('нет такого неопубликованного факта');
+  if (x.f.draft) return no('факт уже у автора черновиком');
+  if (!String(reason || '').trim()) return no('укажите причину возврата');
+  x.f.draft = true; x.f.returned = { reason: String(reason).trim(), by: role, date: TODAY };
+  return { ok: true, why: '', fact: x.f };
+}
+/* Автор правит и отзывает свой неопубликованный факт. */
+function ownFact(factId, role, draftOk) {
+  const x = findOwn(factId); if (!x || x.f.pub) return no('нет такого неопубликованного факта');
+  if (x.f.by !== role) return no('правит и отзывает тот, кто ввёл факт');
+  if (x.f.draft && !draftOk) return no('факт уже черновик');
+  return { ok: true, why: '', x };
+}
+function withdrawFact(factId, role = S.role) {
+  const g = ownFact(factId, role, false); if (!g.ok) return g;
+  g.x.f.draft = true; g.x.f.returned = null; g.x.f.withdrawn = true;
+  return { ok: true, why: '', fact: g.x.f };
+}
+function resubmitFact(factId, role = S.role) {
+  const g = ownFact(factId, role, true); if (!g.ok) return g;
+  if (!g.x.f.draft) return no('факт и так ждёт второго ключа');
+  const { id, t, by, pub, pubBy, at, draft, withdrawn, returned, ...data } = g.x.f;
+  const r = revisePending(factId, data, role);   // те же проверки, что при вводе: за время черновика картина могла измениться
+  if (!r.ok) return r;
+  r.fact.draft = false; r.fact.withdrawn = false; r.fact.returned = null;
+  return { ok: true, why: '', fact: r.fact };
+}
+function discardFact(factId, role = S.role) {
+  const g = ownFact(factId, role, true); if (!g.ok) return g;
+  if (!g.x.f.draft) return no('сначала отзовите факт — он станет черновиком');
+  const c = [...OFFERS, ...OBJECTS].find(z => z.facts.includes(g.x.f)); c.facts.splice(c.facts.indexOf(g.x.f), 1);
+  return yes;
+}
+/* Правка неопубликованного факта: те же проверки, что при вводе; при отказе факт остаётся как был. */
+function revisePending(factId, data, role = S.role) {
+  const g = ownFact(factId, role, true); if (!g.ok) return g;
+  const old = g.x.f, c = [...OFFERS, ...OBJECTS].find(z => z.facts.includes(old)), i = c.facts.indexOf(old);
+  c.facts.splice(i, 1);
+  const r = addFact(g.x.owner, old.t, data, role);
+  if (!r.ok) { c.facts.splice(i, 0, old); return r; }
+  c.facts.pop(); c.facts.splice(i, 0, r.fact);
+  r.fact.id = old.id; r.fact.draft = old.draft; r.fact.withdrawn = old.withdrawn; r.fact.returned = old.returned;
+  return { ok: true, why: '', fact: r.fact, msg: 'Факт сохранён' };
 }
 function registerOffer(d, role = S.role) {
   if (!canRole('offerNew', role)) return no('регистрирует специалист по имуществу');
@@ -1139,7 +1198,7 @@ function registerOffer(d, role = S.role) {
   const id = 'П-' + (Math.max(...OFFERS.map(o => +o.id.slice(2))) + 1);
   const o = obl(d.obligor);
   OFFERS.push({ id, source: d.source, obligor: d.obligor, alien: d.alien || o.name, alienKind: d.alien ? SOURCES[d.source].alien : (o.role === 'поручитель' ? 'поручитель' : 'должник'),
-    doc: { no: d.docNo, date: d.docDate }, reg: d.docDate, deadline, deadlineSrc: d.deadline ? 'документ' : `настройка (${set.v} ${set.unit}, ${set.src})`,
+    doc: { no: d.docNo, date: d.docDate, file: d.file || '' }, reg: d.docDate, deadline, deadlineSrc: d.deadline ? 'документ' : `настройка (${set.v} ${set.unit}, ${set.src})`,
     positions: withPos ? [{ n: 1, kind: d.kind || 'flat', name: d.name, value: +d.value, ccy: d.ccy || 'KGS', region: d.region || 'г. Бишкек', district: '—', char: {} }] : [], facts: [] });
   return { ok: true, why: '', id };
 }
@@ -1236,7 +1295,7 @@ function result(id, asOf = S.asOf) {
   let price = null, basis = '', priceCcy = o.ccy;
   if (ci && ci.active) { price = ci.price; priceCcy = ci.ccy || 'KGS'; basis = ci.complete ? 'цена продажи' : 'цена по договору (оплата не завершена)'; }
   else if (F.find(f => f.t === 'gift')) { price = 0; basis = 'безвозмездная передача'; }
-  else if (loss) { price = loss.insurance || 0; basis = loss.insurance ? 'страховое возмещение' : 'выбытие без возмещения'; }
+  else if (loss) { price = loss.insurance || 0; priceCcy = loss.ccy || o.ccy; basis = loss.insurance ? 'страховое возмещение' : 'выбытие без возмещения'; }
   const io = F.find(f => f.t === 'introOut');
   if (io) { price = io.path === 'once' ? io.price || 0 : 0; basis = io.path === 'once' ? 'цена продажи (до запуска)' : PATH[io.path]; }
   const cl = claimOf(id, asOf); const claimLoss = cl ? cl.loss : 0;
@@ -1307,7 +1366,7 @@ function addIntro(d, role = S.role) {
   const id = 'ИО-' + (S.objSeq++);
   OBJECTS.push({ id, offer: null, pos: null, kind: d.kind || 'nonres', name: d.name, value: +d.value, ccy: 'KGS', obligor: d.obligor, source: d.source || 'debtor',
     alien: obl(d.obligor).name, region: d.region || 'г. Бишкек', district: '—', char: {}, pledge: null,
-    facts: [mkFact('intro', d.transfer, { transfer: d.transfer, doc: d.doc, by: role })] });
+    facts: [mkFact('intro', d.transfer, Object.assign({ transfer: d.transfer, doc: d.doc, by: role }, d.docDate ? { docDate: d.docDate } : {}, d.file ? { file: d.file } : {}))] });
   return { ok: true, why: '', id };
 }
 
@@ -1325,7 +1384,7 @@ function fillDraft(id, d, role = S.role) {
   if (!d.name || !d.kind || !d.region || !d.now || !d.doc) return no('не заполнено обязательное поле: вещь, вид, местоположение, что с вещью сейчас, документы');
   if (d.now !== 'onbook' && !d.outDate) return no('для проданной, переданной или выбывшей вещи нужна дата выбытия');
   if (d.now !== 'onbook' && d.outDate < dr.date) return no('выбытие не раньше даты принятия');
-  dr.fill = { name: d.name, kind: d.kind, region: d.region, now: d.now, outDate: d.outDate || null, outPrice: +d.outPrice || 0, doc: d.doc }; dr.by = role; dr.pendingKey = true;
+  dr.fill = { name: d.name, kind: d.kind, region: d.region, now: d.now, outDate: d.outDate || null, outPrice: +d.outPrice || 0, doc: d.doc, docDate: d.docDate || null, file: d.file || (dr.fill && dr.fill.file) || null }; dr.by = role; dr.pendingKey = true;
   return { ok: true, why: '', pending: true };
 }
 /* Второй ключ: вводный объект из черновика; проданная до запуска вещь мигрирует вместе с фактом выбытия. */
@@ -1334,11 +1393,11 @@ function publishDraft(id, role = S.role) {
   const dr = DRAFTS.find(x => x.id === id); if (!dr) return no('нет черновика ' + id);
   if (dr.objId) return no('вводный объект уже заведён');
   if (!dr.fill) return no('черновик не подтверждён документами — публиковать нечего');
-  if (dr.by === role) return no('второй ключ не ставит тот, кто готовил факт');
+  if (dr.by === role) return no('второй ключ не ставит тот, кто ввёл факт');
   const f = dr.fill; const oid = 'ИО-' + (S.objSeq++);
   const o = { id: oid, offer: null, pos: null, kind: f.kind, name: f.name, value: dr.value, ccy: 'KGS', obligor: dr.obligor, source: 'debtor', alien: obl(dr.obligor).name,
     region: f.region, district: '—', char: {}, pledge: null, draft: dr.id,
-    facts: [Object.assign(mkFact('intro', dr.date, { transfer: dr.date, doc: dr.pay + '; ' + f.doc, by: dr.by }), { pub: true, pubBy: role })] };
+    facts: [Object.assign(mkFact('intro', dr.date, Object.assign({ transfer: dr.date, doc: dr.pay + '; ' + f.doc, by: dr.by }, f.docDate ? { docDate: f.docDate } : {}, f.file ? { file: f.file } : {})), { pub: true, pubBy: role })] };
   if (f.now !== 'onbook') o.facts.push(Object.assign(mkFact('introOut', f.outDate, { path: f.now, price: f.outPrice, doc: f.doc, by: dr.by }), { pub: true, pubBy: role }));
   OBJECTS.push(o); dr.objId = oid; dr.pendingKey = false;
   return { ok: true, why: '', id: oid };
@@ -1352,7 +1411,7 @@ function migrationReport() {
 
 /* ============================ ЭКРАНЫ =============================== */
 const $ = s => document.querySelector(s);
-const TITLES = { offers: 'Предложения имущества', offer: 'Карточка предложения', objects: 'Объекты имущества', object: 'Карточка объекта', contracts: 'Договоры купли-продажи', settings: 'Настройки' };
+const TITLES = { offers: 'Предложения имущества', offer: 'Карточка предложения', objects: 'Объекты имущества', object: 'Карточка объекта', contracts: 'Договоры купли-продажи', settings: 'Настройки', queue: 'Ждут второго ключа', migration: 'Миграция из легаси', triggers: 'Поводы для Заданий · демо-стенд' };
 const STATE_PILL = { none: 'neutral', wait: 'warn', failed: 'err', onbook: 'ok', listed: 'info', sold_once: 'info', sold_inst: 'info', removed: 'neutral', split: 'neutral',
   registered: 'neutral', review: 'info', decided: 'warn', closed: 'ok', accepted: 'ok', rejected: 'err', withdrawn: 'neutral' };
 const pill = (st, tid) => `<span class="pill ${STATE_PILL[st.code] || 'neutral'}"${tid ? ` data-testid="${tid}"` : ''} data-code="${st.code}">${esc(st.label)}${st.path ? ' · ' + esc(st.path) : ''}</span>`;
@@ -1360,6 +1419,8 @@ const ico = n => `<svg class="ico" aria-hidden="true"><use href="#i-${n}"/></svg
 const flagHtml = id => { const f = flags(id); return (f.incomplete ? `<span class="flag" data-testid="flag-incomplete" title="доплата ${money(f.incomplete.amount)} не исполнена">${ico('flag')}принятие не завершено</span>` : '')
   + (f.encumbered ? `<span class="flag enc" data-testid="flag-encumbered" title="${esc(f.encumbered.kind)} по ${fmt(f.encumbered.to)}">${ico('flag')}обременён</span>` : ''); };
 const roleMark = r => `<span class="small">${esc(roleName(r))}</span>`;
+/* Поступления вводятся не здесь: автор оплаты по договору и исполненной доплаты — Платежи. */
+const byMark = f => f.t === 'payment' || f.t === 'topup' ? '<span class="small">Платежи</span>' : roleMark(f.by);
 
 function render() {
   if (typeof document === 'undefined') return;
@@ -1372,10 +1433,15 @@ function render() {
   const trig = triggers(); const pend = pending();
   $('#cntOffers').textContent = OFFERS.length; $('#cntObjects').textContent = OBJECTS.length;
   $('#cntContracts').textContent = OBJECTS.filter(o => contractInfo(o.id)).length;
-  $('#cntTrig').textContent = trig.length ? 'поводов ' + trig.length : ''; $('#cntTrig').className = 'cnt' + (trig.length ? ' hot' : '');
+  const mig = migrationReport(); const migClosed = migrationClosed(); const qn = queueCount();
+  $('#cntQueue').textContent = qn || ''; $('#cntQueue').className = 'cnt' + (qn ? ' hot' : '');
+  $('#navMig').style.display = migClosed ? 'none' : ''; $('#cntMig').textContent = mig.why.length || ''; $('#cntMig').className = 'cnt' + (mig.why.length ? ' hot' : '');
+  if (migClosed && S.view === 'migration') S.view = 'objects';
+  $('#demoTrig').textContent = 'Поводы для Заданий · ' + trig.length;
+  $('#asOfBox').style.display = ['settings', 'migration', 'queue', 'triggers'].includes(S.view) ? 'none' : '';
   const me = ROLES.find(r => r.id === S.role);
   $('#who').innerHTML = `${esc(me.who)}<small>${esc(me.name)}</small>`;
-  $('#standNote').innerHTML = `<span class="demo-tag">Демо-стенд</span>Сегодня ${fmt(TODAY)}<br>Ждут второго ключа: <b data-testid="pending-count">${pend.length}</b> · поводов для Заданий: <b>${trig.length}</b>`;
+  $('#standNote').innerHTML = `<span class="demo-tag">Демо-стенд</span>Сегодня ${fmt(TODAY)}<br>Ждут второго ключа: <b data-testid="pending-count">${qn}</b> · поводов для Заданий: <b>${trig.length}</b>`;
   let html = '', title = TITLES[S.view];
   if (S.view === 'offers') html = viewOffers();
   else if (S.view === 'offer') { html = viewOffer(S.id); title = `<span class="back" onclick="IM.go('offers')">Предложения</span> / ${esc(S.id)}`; }
@@ -1383,6 +1449,9 @@ function render() {
   else if (S.view === 'object') { html = viewObject(S.id); title = `<span class="back" onclick="IM.go('objects')">Объекты имущества</span> / ${esc(S.id)}`; }
   else if (S.view === 'contracts') html = viewContracts();
   else if (S.view === 'settings') html = viewSettings();
+  else if (S.view === 'queue') html = viewQueue();
+  else if (S.view === 'migration') html = viewMigration();
+  else if (S.view === 'triggers') html = viewTriggers();
   /* Дата среза — она же дата вводимого факта (addFact: data.date || S.asOf): сдвиг должен быть заметен. */
   if (S.asOf !== TODAY && ['offers', 'offer', 'objects', 'object', 'contracts'].includes(S.view))
     html = `<div class="banner warn shifted" data-testid="asof-banner"><span><b>Состояние на ${fmt(S.asOf)}</b>, а не на сегодня (${fmt(TODAY)}). Новый факт получит дату ${fmt(S.asOf)}.</span>
@@ -1390,23 +1459,56 @@ function render() {
   $('#title').innerHTML = title; $('#panel').innerHTML = html;
 }
 
-function pendingCard(filter) {
-  const list = pending().filter(x => !filter || filter(x));
-  if (!list.length) return '';
-  return `<div class="card" data-testid="pending-card"><div class="card-head"><h3>Ждут второго ключа · ${list.length}</h3>
-    <span class="small">Факт не опубликован: другие модули его не видят, состояние от него не меняется.</span></div>
-    <table class="cgrid"><thead><tr><th>Дата</th><th>Факт</th><th>Где</th><th>Документ</th><th>Готовил</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
+/* Очередь второго ключа: неопубликованные факты + дополненные черновики миграции — одним списком. */
+const draftsWaiting = () => DRAFTS.filter(dr => draftState(dr).code === 'pending');
+const queueCount = () => pending().length + draftsWaiting().length;
+function migrationClosed() { const r = migrationReport(); return !r.blocked && r.rows.every(x => x.st.code === 'done'); }
+function pendingHere(filter) {
+  const n = pending().filter(x => !filter || filter(x)).length;
+  return n ? `<div class="qline" data-testid="pending-here">Ждут здесь второго ключа: <b>${n}</b> · <button class="linky" data-testid="pending-here-link" onclick="IM.go('queue')">открыть очередь</button></div>` : '';
+}
+function queueTable() {
+  const list = pending(); const dl = draftsWaiting();
+  const head = S.role === 'head';
+  return `<table class="cgrid" data-testid="queue-table"><thead><tr><th>Дата</th><th>Что</th><th>Где</th><th>Документ</th><th>Ввёл</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
     <tr class="pend" data-testid="pending-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}</td>
-      <td><button class="linky" onclick="IM.open('${jsq(owner)}')">${esc(owner)}</button></td><td>${esc(f.doc || '')}</td><td>${roleMark(f.by)}</td>
-      <td>${S.role === 'head' ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-testid="publish-${f.id}" onclick="IM.uiPublish('${f.id}')">Опубликовать вторым ключом</button>
+      <td><button class="linky" onclick="IM.open('${jsq(owner)}')">${esc(owner)}</button></td><td>${esc(f.doc || '')}</td><td>${byMark(f)}</td>
+      <td>${head ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-testid="publish-${f.id}" onclick="IM.uiPublish('${f.id}')">Опубликовать вторым ключом</button>
         <button class="btn btn-secondary btn-sm" onclick="IM.uiReject('${f.id}')">Вернуть</button></div>` : '<span class="small">ждёт начальника Управления</span>'}</td></tr>`).join('')}
-    </tbody></table></div>`;
+    ${dl.map(dr => `<tr class="pend" data-testid="queue-draft-${dr.id}"><td class="mono">${fmt(dr.date)}</td><td>Миграция: вводный объект «${esc(dr.fill.name)}» · ${money(dr.value)}</td>
+      <td>${esc(obl(dr.obligor).name)}</td><td>${esc(dr.fill.doc)}</td><td>${roleMark(dr.by)}</td>
+      <td>${head ? `<button class="btn btn-primary btn-sm" data-testid="queue-draft-publish-${dr.id}" onclick="IM.uiPublishDraft('${dr.id}')">Опубликовать вторым ключом</button>` : '<span class="small">ждёт начальника Управления</span>'}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+function viewQueue() {
+  const n = queueCount();
+  return `<div class="card" data-testid="pending-card"><div class="card-head"><h3>Ждут второго ключа · <span data-testid="queue-count">${n}</span></h3>
+    <span class="small">Не опубликовано: другие модули это не видят, состояние от этого не меняется.</span></div>
+    ${n ? queueTable() : '<div class="muted" data-testid="queue-empty">Очередь пуста.</div>'}</div>`;
+}
+function viewTriggers() {
+  const tr = triggers();
+  return `<div class="banner info">Демо-стенд: в рабочей системе поводы получают Задания и ставят поручение куратору из Кураторства. Один повод — одно поручение на вид, объект и период.</div>
+  <div class="section-h">Поводы на ${fmt(S.asOf)} · ${tr.length}</div>
+  <table class="cgrid" data-testid="triggers"><thead><tr><th>Повод для Заданий</th><th>Где</th><th>Что</th><th>Вид · объект · период</th><th>Кому поручение</th></tr></thead><tbody>${tr.map(t => `
+    <tr data-testid="trig-${t.kind}"><td>${esc(t.name)}</td><td><button class="linky" onclick="IM.open('${jsq(t.id.split(' ')[0])}')">${esc(t.id)}</button></td><td>${esc(t.text)}</td><td class="small">${esc(t.keyLabel)}</td><td>${esc(t.to)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">поводов нет</td></tr>'}</tbody></table>`;
+}
+function viewMigration() {
+  const mc = migrationControl(); const nd = draftsWaiting().length;
+  return `${nd ? `<div class="qline" data-testid="pending-here">Ждут здесь второго ключа: <b>${nd}</b> · <button class="linky" data-testid="pending-here-link" onclick="IM.go('queue')">открыть очередь</button></div>` : ''}
+  ${canRole('intro') ? `<div class="filters"><div class="grow"><button class="btn btn-secondary" data-testid="intro-new" onclick="IM.uiIntro()">Ввести вводный остаток</button></div></div>` : ''}
+  <div class="card" data-testid="migration-control"><h3>Контроль миграции вводного остатка</h3>
+    <table class="cgrid"><thead><tr><th>Обязанное лицо</th><th class="num">Мигрировано погашений «имущество в счёт погашения»</th><th class="num">Стоимость вводных объектов</th><th>Итог</th></tr></thead>
+    <tbody>${mc.map(m => `<tr><td>${esc(m.name)}</td><td class="num">${money(m.migrated)}</td><td class="num">${money(m.objects)}</td><td>${m.ok ? '<span class="pill ok">сходится</span>' : '<span class="pill err">расхождение — блокирует миграцию</span>' + (m.demo ? `<div class="why">${esc(m.demo)}</div>` : '')}</td></tr>`).join('')}</tbody></table>
+    <div class="why">Вводный остаток погашения не порождает: оно уже прошло и переносится вместе с платежами. Предложений и решений органа у него нет.</div></div>
+  ${migrationCard()}`;
 }
 function curatorCell(id) {
   const c = curatorOf(id);
   if (!c.fallback) return esc(c.emp);
-  return `${esc(c.emp)}<div>${c.over ? `<span class="pill err" data-testid="curator-over-${esc(id)}" title="${esc(c.why)}">куратора нет дольше порога</span>`
-    : '<span class="pill warn" title="' + esc(c.why) + '">куратора нет</span>'}</div>${c.since ? `<div class="why">с ${fmt(c.since)}, порог ${c.limit} р.д. — до ${fmt(c.deadline)}</div>` : ''}`;
+  const hint = esc(c.why + (c.since ? `; с ${fmt(c.since)}, порог ${c.limit} р.д. — до ${fmt(c.deadline)}` : ''));
+  return `<span class="nw1">${esc(c.emp)} ${c.over ? `<span class="pill err" data-testid="curator-over-${esc(id)}" title="${hint}">нет дольше порога</span>`
+    : `<span class="pill warn" title="${hint}">куратора нет</span>`}</span>`;
 }
 function factLabel(f) {
   const n = FACT_NAME[f.t] || f.t;
@@ -1453,7 +1555,7 @@ function viewOffers() {
   const seg = c => { const n = c.accepted + c.rejected + c.withdrawn + c.failed + c.review; if (!n) return '';
     return `<div class="seg" aria-hidden="true">${[['a', c.accepted], ['r', c.rejected], ['w', c.withdrawn], ['f', c.failed], ['v', c.review]].filter(x => x[1]).map(([k, x]) => `<i class="${k}" style="width:${(x / n * 100).toFixed(1)}%"></i>`).join('')}</div>`; };
   const cnt = c => [['принято', c.accepted], ['отказано', c.rejected], ['отозвано', c.withdrawn], ['не состоялось', c.failed], ['на рассмотрении', c.review]].filter(x => x[1]).map(([l, x]) => `${x} ${l}`).join(' · ');
-  return `${pendingCard(x => x.owner.startsWith('П-'))}
+  return `${pendingHere(x => x.owner.startsWith('П-'))}
   <div class="filters">
     <div class="fld w2"><label>Источник</label>${sel('oSrc', Object.entries(SOURCES).map(([k, s]) => [k, s.name]))}</div>
     <div class="fld"><label>Состояние</label>${sel('oState', [['registered', 'зарегистрировано'], ['review', 'на рассмотрении'], ['decided', 'решение вынесено'], ['closed', 'закрыто']])}</div>
@@ -1470,7 +1572,8 @@ function viewOffers() {
     ${chip('failed', tot.failed, 'принятие не состоялось', 'tot-failed')}
     ${chip('review', tot.review, 'на рассмотрении')}
   </div>
-  <table class="cgrid"><thead><tr><th>№</th><th>Источник и документ</th><th>Обязанное лицо</th><th>Срок ответа</th><th>Позиции</th><th>Состояние</th><th>Куратор на дату</th></tr></thead>
+  <div class="shown" data-testid="shown-offers">Показано <b>${rows.length}</b> из <b>${OFFERS.filter(o => o.reg <= S.asOf).length}</b></div>
+  <table class="cgrid sticky"><thead><tr><th>№</th><th>Источник и документ</th><th>Обязанное лицо</th><th>Срок ответа</th><th>Позиции</th><th>Состояние</th><th>Куратор на дату</th></tr></thead>
   <tbody>${rows.map(({ o, st, c }) => `<tr class="click${st.overdue ? ' over' : ''}" data-testid="offer-row-${o.id}" onclick="IM.openOffer('${o.id}')">
     <td><b>${o.id}</b></td><td>${esc(SOURCES[o.source].name)}<div class="why">${esc(o.doc.no)} от ${fmt(o.doc.date)}</div></td>
     <td>${esc(obl(o.obligor).name)}<div class="why">${esc(obl(o.obligor).role)}${o.alien !== obl(o.obligor).name ? ' · отчуждатель: ' + esc(o.alien) : ''}</div></td>
@@ -1493,7 +1596,7 @@ function viewOffer(id) {
     const hasDec = of.facts.some(f => f.t === 'decision');
     it('edit', 'Изменить', `IM.uiEditPos('${id}',${p.n})`, !hasDec && canRole('posEdit'), hasDec ? 'после решения органа — только исправлением' : roleWhy('posEdit'));
     if (out.code === 'review') it('concl', 'Заключение', `IM.uiFact('${id}','concl',${p.n})`, canRole('concl'), roleWhy('concl'));
-    const actExists = of.facts.some(f => f.t === 'act' && f.pos === p.n);
+    const actExists = of.facts.some(f => f.t === 'act' && f.pos === p.n && !f.draft);
     const wdWhy = actExists || out.act ? WITHDRAW_AFTER_ACT : (out.code !== 'review' && out.code !== 'accepted') ? 'у позиции уже есть итог' : roleWhy('withdraw');
     if (out.code === 'review' || out.code === 'accepted') it('withdraw', 'Отзыв источником', `IM.uiFact('${id}','withdraw',${p.n})`, !wdWhy, wdWhy);
     if (out.code === 'accepted' && !out.act) {
@@ -1515,13 +1618,12 @@ function viewOffer(id) {
       <td>${pill(out, 'pos-out-' + p.n)}${out.sub ? `<div class="why">${esc(out.sub)}</div>` : ''}${out.reason ? `<div class="why">${esc(out.reason)}</div>` : ''}${out.date ? `<div class="why">${fmt(out.date)}</div>` : ''}</td>
       <td>${out.obj ? `<button class="linky" onclick="IM.openObject('${out.obj}')">${out.obj}</button>` : '—'}</td>
       <td>${posMenu(p)}</td></tr>`; }).join('');
-  return `${pendingCard(x => x.owner === id)}
+  return `${pendingHere(x => x.owner === id)}
   ${OBJECTS.filter(x => x.offer === id && reallocNeeded(x.id)).map(x => `<div class="banner warn">Отменено более раннее принятие того же обязанного лица — деление ${x.id} нужно исправить. <button class="linky" onclick="IM.openObject('${x.id}')">Открыть ${x.id}</button></div>`).join('')}
-  ${st.overdue ? `<div class="banner danger" data-testid="offer-overdue"><b>${ico('flag')} Срок ответа ${fmt(of.deadline)} истёк, ответа нет.</b> <span title="pk-im-offer-overdue">Повод для Заданий «${TRIG_NAME['pk-im-offer-overdue']}»</span> — поручение получит куратор предложения. Решение после срока не блокируется — оно вносится с пометкой.</div>` : ''}
-  ${triggers().filter(t => t.kind === 'pk-im-act-pending' && t.id.startsWith(id + ' ')).map(t => `<div class="banner warn" data-testid="act-pending"><b title="pk-im-act-pending">Повод для Заданий «${esc(t.name)}» · ${esc(t.id)}:</b> ${esc(t.text)}. Адресат — куратор предложения ${esc(t.to)}. Выходы: акт, отзыв источником, прекращение принятия.</div>`).join('')}
   <div class="card ohead">
     <div class="ohead-top"><div class="ttl"><h2 class="otitle">${of.id} · ${esc(SOURCES[of.source].name)}</h2><div class="ostate">${pill(st, 'offer-state')}<span class="small">на ${fmt(S.asOf)}</span></div></div>
       <div class="btn-row">
+        ${printMenu('offer', id)}
         ${canRole('letter') ? `<button class="btn btn-secondary btn-sm" onclick="IM.uiFact('${id}','letter')">Промежуточное письмо</button>` : ''}
         ${canRole('posAdd') && !of.facts.some(f => f.t === 'decision') ? `<button class="btn btn-secondary btn-sm" onclick="IM.uiAddPos('${id}')">Добавить позицию</button>` : ''}
         <button class="btn btn-primary btn-sm" data-testid="decision-btn" ${!dec && canRole('decision') && st.code !== 'closed' ? '' : 'disabled'} title="${dec ? 'решение одно на предложение' : canRole('decision') ? '' : 'вносит секретарь органа'}" onclick="IM.uiDecision('${id}')">Решение органа</button>
@@ -1537,6 +1639,8 @@ function viewOffer(id) {
       <div><div class="k">Остаток долга после принятий</div><div class="v" data-testid="offer-debt-rest">${money(allocation(of.obligor).rest)} <span class="small">· ответ Взыскания; долг до принятий ${money(o.debt)}</span></div></div>
       <div><div class="k">Куратор на ${fmt(S.asOf)}</div><div class="v" data-testid="offer-curator">${curatorCell(id)} <span class="small">· из Кураторства, ${esc(curatorOf(id).why)}</span></div></div>
     </div>
+    ${(() => { const ap = triggers().filter(t => t.kind === 'pk-im-act-pending' && t.id.startsWith(id + ' ')); if (!st.overdue && !ap.length) return '';
+      return `<div class="attn" data-testid="offer-attn">${st.overdue ? `<span class="a danger" data-testid="offer-overdue">${ico('flag')}<b>Срок ответа истёк</b><span>${fmt(of.deadline)}, ответа нет; решение после срока вносится с пометкой</span></span>` : ''}${ap.map(t => `<span class="a" data-testid="act-pending">${ico('flag')}<b>${esc(t.name)}</b><span>${esc(t.id)}: ${esc(t.text)}; выходы: акт, отзыв источником, прекращение принятия</span></span>`).join('')}</div>`; })()}
     ${st.code !== 'closed' ? `<div class="banner info" style="margin:14px 0 0">Пока предложение рассматривается, пени начисляются до перехода права и меры взыскания продолжаются.</div>` : ''}
   </div>
   <div class="card"><h3>Позиции</h3>
@@ -1549,6 +1653,7 @@ function viewOffer(id) {
     ${Object.entries(dec.items).map(([n, it]) => `<div class="k">Позиция ${n}</div><div>${it.v === 'accept' ? 'принять' : 'отказать — ' + esc(it.reason)}${posOutcome(id, +n).code === 'withdrawn' ? ' <span class="small">(не исполнено: позиция отозвана)</span>' : ''}</div>`).join('')}
   </div></div>` : ''}
   <div class="card"><h3>Журнал фактов</h3>${factTable(of.facts)}</div>
+  <div class="card" data-testid="offer-docs"><h3>Документы</h3>${docTable(offerDocRows(of), 'offer-docs-table')}</div>
   <details class="fold" data-testid="case-journal"><summary>Журнал дела во Взыскании<span class="small">· только чтение</span></summary><div class="fold-b">
     <table class="cgrid"><tbody>${caseJournal(of.obligor).map(r => `<tr><td class="mono nw">${fmt(r.date)}</td><td>${r.own ? ico('arrow') + ' ' : ''}${esc(r.text)}<div class="why">${r.own ? 'видно во Взыскании' : 'мера взыскания'}</div></td></tr>`).join('')}</tbody></table>
     <div class="why">Проекции не правятся и не заводятся во Взыскании. Продажа объекта Фондом в дело должника не попадает.</div></div></details>
@@ -1556,10 +1661,10 @@ function viewOffer(id) {
 }
 function factTable(facts) {
   const corrected = new Set(facts.filter(f => f.t === 'corr' && f.pub).map(f => f.target));
-  const list = [...facts].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const list = [...facts].reverse().sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);   /* новые сверху */
   return `<table class="cgrid" data-testid="fact-journal"><thead><tr><th>Дата</th><th>Факт</th><th>Документ</th><th>Ввёл</th><th>Опубликовал</th></tr></thead><tbody>${list.map(f => `
     <tr class="${!f.pub ? 'pend' : ''}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}${corrected.has(f.id) ? ' <span class="pill warn">исправлен</span>' : ''}${f.date > S.asOf ? ' <span class="small">(после выбранной даты)</span>' : ''}</td>
-    <td>${esc(f.doc || '')}</td><td>${roleMark(f.by)}</td><td>${!f.pub ? '<span class="pill warn">ждёт второго ключа</span>' : f.pubBy ? roleMark(f.pubBy) : '<span class="small">без второго ключа</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">фактов нет</td></tr>'}</tbody></table>`;
+    <td>${docCell(f)}</td><td>${byMark(f)}</td><td>${!f.pub ? (f.draft ? `<span class="pill warn" data-testid="fact-draft">${f.withdrawn ? 'отозван, черновик' : 'возвращён, черновик'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт второго ключа</span>') : f.pubBy ? roleMark(f.pubBy) : '<span class="small">ключ не нужен</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">фактов нет</td></tr>'}</tbody></table>`;
 }
 
 /* ---------------------- ЭКРАН: реестр объектов ---------------------- */
@@ -1572,15 +1677,13 @@ function viewObjects() {
       && (!f.bDays || (r.st.transfer && days(r.st.transfer, ['removed', 'split'].includes(r.st.code) ? r.st.date : S.asOf) > +f.bDays))
       && (!f.bCur || curatorOf(r.o.id).emp === f.bCur));
   const sel = (key, opts) => `<select onchange="IM.setF('${key}',this.value)" data-testid="f-${key}"><option value="">все</option>${opts.map(([v, l]) => `<option value="${v}"${f[key] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-  const mc = migrationControl();
   const nMore = [f.bCls, f.bSrc, f.bDays, f.bInc, f.bEnc, f.bClaim].filter(Boolean).length;
-  return `${pendingCard(x => x.owner.startsWith('ИО-'))}
+  return `${pendingHere(x => x.owner.startsWith('ИО-'))}
   <div class="filters">
     <div class="fld w2"><label>Состояние</label>${sel('bState', [['wait', 'принят, ждёт регистрации'], ['onbook', 'на учёте'], ['listed', 'выставлен на продажу'], ['sold_once', 'продан разово'], ['sold_inst', 'продан в рассрочку'], ['removed', 'снят с учёта'], ['split', 'разделён'], ['failed', 'принятие не состоялось'], ['none', 'ещё не возник']])}</div>
     <div class="fld"><label>Вид</label>${sel('bKind', KINDS.map(k => [k.id, k.name]))}</div>
     <div class="fld"><label>Область</label>${sel('bRegion', regions.map(r => [r, r]))}</div>
     <div class="fld w2"><label>Куратор на дату</label>${sel('bCur', [...new Set(OBJECTS.map(o => curatorOf(o.id).emp))].sort().map(x => [x, x]))}</div>
-    <div class="grow">${canRole('intro') ? `<button class="btn btn-secondary" data-testid="intro-new" onclick="IM.uiIntro()">Ввести вводный остаток</button>` : ''}</div>
   </div>
   <details class="more"${S.fMore || nMore ? ' open' : ''} ontoggle="IM.fMore(this.open)"><summary>Ещё фильтры${nMore ? ` · включено ${nMore}` : ''}</summary>
     <div class="filters">
@@ -1591,19 +1694,15 @@ function viewObjects() {
       <label class="chk"><input type="checkbox" ${f.bEnc ? 'checked' : ''} onchange="IM.setF('bEnc',this.checked)"> обременён</label>
       <label class="chk"><input type="checkbox" data-testid="f-bClaim" ${f.bClaim ? 'checked' : ''} onchange="IM.setF('bClaim',this.checked)"> требование к отчуждателю открыто</label>
     </div></details>
-  <div class="tbl-wrap"><table class="cgrid"><thead><tr><th>№</th><th class="w-name">Вещь</th><th>Местоположение</th><th>Источник</th><th class="num">Учётная стоимость</th><th>Состояние</th><th class="num">Дней на учёте</th><th class="num">Попыток</th><th>Куратор</th></tr></thead>
+  <div class="shown" data-testid="shown-objects">Показано <b>${rows.length}</b> из <b>${f.bState === 'none' ? OBJECTS.length : OBJECTS.filter(o => objState(o.id).code !== 'none').length}</b></div>
+  <div class="tbl-wrap st"><table class="cgrid sticky"><thead><tr><th>№</th><th class="w-name">Вещь</th><th>Местоположение</th><th>Источник</th><th class="num">Учётная стоимость</th><th>Состояние</th><th class="num">Дней на учёте</th><th class="num">Попыток</th><th>Куратор</th></tr></thead>
   <tbody>${rows.map(({ o, st }) => { const k = kindOf(o.kind); const at = attempts(o.id).length;
     const dOn = st.transfer ? days(st.transfer, st.code === 'removed' || st.code === 'split' ? st.date : S.asOf) : null;
     return `<tr class="click${['removed', 'split', 'failed'].includes(st.code) ? ' gone' : ''}" data-testid="object-row-${o.id}" onclick="IM.openObject('${jsq(o.id)}')">
     <td><b>${esc(o.id)}</b></td><td>${esc(o.name)}<div class="why">${esc(k.name)} · ${esc(k.cls)}${isIntro(o) ? ' · вводный остаток' : o.parent ? ' · часть ' + esc(o.parent) : ''}</div>${reallocNeeded(o.id) ? '<div class="why err">нужно пересчитать деление</div>' : ''}</td>
     <td>${esc(o.region)}<div class="why">${esc(o.district)}</div></td>
     <td>${esc(SOURCES[o.source].name)}</td><td class="num">${money(objValue(o.id), o.ccy)}</td>
-    <td>${pill(st)}${flagHtml(o.id)}${(claimOf(o.id) || {}).open ? `<span class="flag" data-testid="flag-claim-${esc(o.id)}">требование ${money(claimOf(o.id).rest)}</span>` : ''}</td><td class="num">${dOn != null && dOn >= 0 ? dOn : '—'}</td><td class="num">${at}</td><td>${curatorCell(o.id)}</td></tr>`; }).join('') || '<tr><td colspan="9" class="muted">нет объектов по условиям</td></tr>'}</tbody></table></div>
-  <div class="card" style="margin-top:14px" data-testid="migration-control"><h3>Контроль миграции вводного остатка</h3>
-    <table class="cgrid"><thead><tr><th>Обязанное лицо</th><th class="num">Мигрировано погашений «имущество в счёт погашения»</th><th class="num">Стоимость вводных объектов</th><th>Итог</th></tr></thead>
-    <tbody>${mc.map(m => `<tr><td>${esc(m.name)}</td><td class="num">${money(m.migrated)}</td><td class="num">${money(m.objects)}</td><td>${m.ok ? '<span class="pill ok">сходится</span>' : '<span class="pill err">расхождение — блокирует миграцию</span>' + (m.demo ? `<div class="why">${esc(m.demo)}</div>` : '')}</td></tr>`).join('')}</tbody></table>
-    <div class="why">Вводный остаток погашения не порождает: оно уже прошло и переносится вместе с платежами. Предложений и решений органа у него нет.</div></div>
-  ${migrationCard()}`;
+    <td>${pill(st)}${flagHtml(o.id)}${(claimOf(o.id) || {}).open ? `<span class="flag" data-testid="flag-claim-${esc(o.id)}">требование ${money(claimOf(o.id).rest)}</span>` : ''}</td><td class="num">${dOn != null && dOn >= 0 ? dOn : '—'}</td><td class="num">${at}</td><td>${curatorCell(o.id)}</td></tr>`; }).join('') || '<tr><td colspan="9" class="muted">нет объектов по условиям</td></tr>'}</tbody></table></div>`;
 }
 /* Отчёт миграции из легаси (ИМ-59): один платёж «принятие имущества» — один черновик. */
 function migrationCard() {
@@ -1626,7 +1725,6 @@ const OBJ_ACTIONS = [
   ['Наблюдение', ['inspection', 'appraisal', 'expense', 'encumbrance']],
   ['Продажа', ['priceDecision', 'attempt', 'attemptResult']],
   ['Договор КП', ['contract', 'claim', 'cterm']],
-  ['Из Платежей', ['payment', 'topup']],
   ['Разделение', ['split']],
   ['Выбытие', ['gift', 'loss', 'ret']],
   ['Исправление', ['corr', 'realloc']],
@@ -1714,7 +1812,7 @@ function viewObject(id) {
   const cnt = tt => F.filter(f => tt.includes(f.t)).length;
   const TABS = [['char', 'Характеристики'], ['transfer', 'Переход права'], ['insp', 'Осмотры', cnt(['inspection'])], ['appr', 'Оценки', cnt(['appraisal'])],
     ['exp', 'Расходы', cnt(['expense'])], ['enc', 'Обременения', cnt(['encumbrance'])], ['att', 'Попытки продажи', at.length],
-    ['ctr', 'Договор КП и оплаты', ci ? 1 : 0], ['out', 'Выбытие'], ['log', 'Журнал фактов', o.facts.length], ['links', 'Связи с модулями']];
+    ['ctr', 'Договор КП и оплаты', ci ? 1 : 0], ['out', 'Выбытие'], ['log', 'Журнал фактов', o.facts.length], ['docs', 'Документы', docRows(F).length], ['links', 'Связи с модулями']];
   const tab = S.tab;
   let body = '';
   if (tab === 'char') body = `<div class="kv">${Object.entries(o.char).map(([a, b]) => `<div class="k">${esc(a)}</div><div>${esc(b)}</div>`).join('') || '<div class="k">—</div><div class="muted">характеристик нет</div>'}</div>
@@ -1743,10 +1841,11 @@ function viewObject(id) {
   else if (tab === 'ctr') body = ci ? contractBlock(id, ci) : '<div class="muted">Договора нет.</div>';
   else if (tab === 'out') body = `<div class="kv">
       <div class="k">Путь выбытия</div><div data-testid="disposal-path">${st.code === 'removed' ? esc(st.path) + ' · снят с учёта ' + fmt(st.date) : st.code === 'split' ? 'разделён ' + fmt(st.date) + ' — не путь выбытия' : 'нет'}</div>
-      ${F.filter(f => ['gift', 'loss', 'ret', 'introOut'].includes(f.t)).map(f => `<div class="k">${FACT_NAME[f.t]}</div><div>${esc(f.doc)}${f.cause ? ' · ' + esc(f.cause) : ''}${f.insurance ? ' · страховое возмещение ' + money(f.insurance) : ''}</div>`).join('')}
+      ${F.filter(f => ['gift', 'loss', 'ret', 'introOut'].includes(f.t)).map(f => `<div class="k">${FACT_NAME[f.t]}</div><div>${esc(f.doc)}${f.cause ? ' · ' + esc(f.cause) : ''}${f.insurance ? ' · страховое возмещение ' + money(f.insurance, f.ccy) : ''}</div>`).join('')}
       ${F.filter(f => f.t === 'split').map(f => `<div class="k">Части</div><div>${(f.children || []).map(c => `<button class="linky" onclick="IM.openObject('${jsq(c)}')">${esc(c)}</button> ${money(objValue(c))}`).join(' · ')}</div>`).join('')}
     </div><div class="why">Пять путей: продажа разовая, продажа в рассрочку, безвозмездная передача, выбытие, возврат. Снятие с учёта — только следствие завершённого пути.</div>`;
   else if (tab === 'log') body = factTable(o.facts);
+  else if (tab === 'docs') body = docTable(docRows(F), 'docs-table');
   else if (tab === 'links') body = `<div data-testid="neighbours"><div class="section-h">Что видят Платежи, Взыскание, Залог <span class="small">· только чтение</span></div>
       ${[['Платежи', nb.payments], ['Взыскание', nb.collection], ['Залог', nb.pledge]].filter(x => x[1].length).map(([n, l]) => `<div class="small" style="margin-top:8px"><b>${n}</b></div>${l.map(x => `<div style="margin:3px 0">${esc(x)}</div>`).join('')}`).join('') || '<div class="muted">Ничего не опубликовано.</div>'}</div>
     ${o.obligor && !isIntro(o) ? `<div class="section-h">Журнал дела во Взыскании <span class="small">· только чтение</span></div><table class="cgrid"><tbody>${caseJournal(o.obligor).map(x => `<tr><td class="mono nw">${fmt(x.date)}</td><td>${x.own ? ico('arrow') + ' ' : ''}${esc(x.text)}</td></tr>`).join('')}</tbody></table>
@@ -1754,7 +1853,7 @@ function viewObject(id) {
 
   const attn = triggers().filter(x => x.id === id);
   const born = birthOf(id, FAR);
-  return `${pendingCard(x => x.owner === id)}
+  return `${pendingHere(x => x.owner === id)}
   ${st.code === 'none' ? `<div class="banner info" data-testid="not-yet">На ${fmt(S.asOf)} объекта ещё нет${born ? ` — он возникает ${fmt(born)}` : ''}. Сдвиньте дату состояния, чтобы увидеть его историю.</div>` : ''}
   ${st.code === 'wait' ? `<div class="banner warn">Принят, ждёт регистрации с ${fmt(st.since)}: Фонду ещё не принадлежит, погашения ещё не было, продавать нельзя.</div>` : ''}
   ${(() => { const n = reallocNeeded(id); return n ? `<div class="banner warn" data-testid="realloc-needed"><b>Нужно пересчитать деление.</b> ${fmt(n.causeDate)} суд отменил более раннее принятие ${esc(n.cause.join(', '))} того же обязанного лица, а деление этой вещи на ${fmt(n.transfer)} считалось по долгу, уменьшенному отменённой вещью.
@@ -1763,9 +1862,9 @@ function viewObject(id) {
     return `<div class="banner ${c.open ? 'danger' : 'info'}" data-testid="claim-block" data-open="${c.open}"><b>Требование к отчуждателю · ${money(c.open ? c.rest : c.amount, c.ccy)} · ${c.open ? 'не погашено' : c.stopped ? 'прекращено ' + fmt(c.closedAt) : 'погашено ' + fmt(c.closedAt)}</b>
       <div class="why">Должник по требованию — ${esc(c.debtor)}; возникло ${fmt(c.date)}, основание — ${esc(c.basis)}. Сумма ${money(c.amount, c.ccy)}, погашено ${money(c.paid, c.ccy)}, остаток ${money(c.rest, c.ccy)}${c.loss ? ' — потеря в результате по объекту' : ''}.
       Взыскание — вне системы (претензия, иск); погашение вводится со ссылкой на поступление в Платежах.</div></div>`; })()}
-  ${fl.incomplete ? `<div class="banner danger"><b>${ico('flag')} Принятие не завершено.</b> Доплата ${money(fl.incomplete.amount)} → ${esc(fl.incomplete.to)} не исполнена (Возврат в Платежах). Пока не исполнена — продавать нельзя.</div>` : ''}
+  ${fl.incomplete ? `<div class="banner danger"><b>${ico('flag')} Принятие не завершено.</b> Доплата ${money(fl.incomplete.amount)} → ${esc(fl.incomplete.to)} не исполнена (Возврат в Платежах). Пока не исполнена — продавать нельзя. <button class="linky" data-testid="demo-topup" onclick="IM.demoTopup('${jsq(id)}')">как придёт из Платежей: доплата исполнена</button></div>` : ''}
   <div class="card ohead">
-    <div class="ohead-top"><div class="ttl"><h2 class="otitle">${esc(o.id)} · ${esc(o.name)}</h2><div class="ostate">${pill(st, 'obj-state')}${flagHtml(id)}<span class="small">на ${fmt(S.asOf)}</span></div></div>${actionMenu(id)}</div>
+    <div class="ohead-top"><div class="ttl"><h2 class="otitle">${esc(o.id)} · ${esc(o.name)}</h2><div class="ostate">${pill(st, 'obj-state')}${flagHtml(id)}<span class="small">на ${fmt(S.asOf)}</span></div></div><div class="btn-row">${printMenu('object', id)}${actionMenu(id)}</div></div>
     <div class="oprops">
       <div><div class="k">Происхождение</div><div class="v">${o.draft ? 'черновик миграции ' + esc(o.draft) + ' · ' : ''}${o.offer ? `<button class="linky" onclick="IM.openOffer('${o.offer}')">${o.offer}</button>, позиция ${o.pos}` : ''}${isIntro(o) ? 'вводный остаток' : ''}${o.parent ? ` · часть <button class="linky" onclick="IM.openObject('${jsq(o.parent)}')">${esc(o.parent)}</button>` : ''}${o.pledge ? ' · из предмета залога ' + o.pledge : ''}</div></div>
       <div><div class="k">Источник</div><div class="v">${esc(SOURCES[o.source].name)}</div></div>
@@ -1775,7 +1874,7 @@ function viewObject(id) {
       <div><div class="k">Куратор на ${fmt(S.asOf)}</div><div class="v" data-testid="curator">${esc(cur.emp)} <span class="small">· из Кураторства: ${esc(cur.why)}</span></div></div>
     </div>
     ${lifeStrip(id)}
-    ${attn.length ? `<div class="attn" data-testid="attn">${attn.map(x => `<span class="a" title="${esc(x.key)}">${ico('flag')}<b>${esc(x.name)}</b><span>${esc(x.text)}</span></span>`).join('')}</div>` : ''}
+    ${attn.length ? `<div class="attn" data-testid="attn">${attn.map(x => `<span class="a">${ico('flag')}<b>${esc(x.name)}</b><span>${esc(x.text)}</span></span>`).join('')}</div>` : ''}
   </div>
   <div class="grid2"><div>
   <div class="card"><div class="tabs">${TABS.map(([v, l, c]) => `<button class="tab${tab === v ? ' on' : ''}" data-testid="tab-${v}" onclick="IM.setTab('${v}')">${l}${c ? `<span class="c">${c}</span>` : ''}</button>`).join('')}</div>${body}</div>
@@ -1790,6 +1889,54 @@ function viewObject(id) {
   </div></div>
   </div></div>`;
 }
+/* Документ факта: номер · дата · файл. Старый вид — doc строкой (только номер, без даты и файла). */
+function docOf(f) {
+  const d = f.doc; const o = d && typeof d === 'object';
+  return { no: (o ? d.no : d) || '', date: f.docDate || (o && d.date) || '', file: f.file || (o && d.file) || '' };
+}
+const docCell = f => { const d = docOf(f); if (!d.no) return '';
+  return d.file ? `<button class="linky" data-testid="doc-link" title="Открыть файл: ${esc(d.file)}" onclick="IM.openDocFile('${jsq(d.file)}')">${esc(d.no)}</button>` : esc(d.no); };
+const docFileCell = d => d.file ? `<button class="linky" data-testid="doc-file" onclick="IM.openDocFile('${jsq(d.file)}')">${esc(d.file)}</button>` : '<span class="muted" data-testid="doc-nofile">файл не приложен</span>';
+/* Список документов собирается из опубликованных фактов; своего хранилища у вкладки нет. */
+function docRows(facts) {
+  return facts.filter(f => docOf(f).no).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).map(f => Object.assign({ kind: FACT_NAME[f.t] || f.t, fact: f }, docOf(f)));
+}
+function docTable(rows, tid) {
+  return `<table class="cgrid" data-testid="${tid}"><thead><tr><th>Документ</th><th>Номер</th><th>Дата документа</th><th>Файл</th><th>Факт от</th></tr></thead><tbody>${rows.map(r => `<tr data-testid="doc-row">
+    <td>${esc(r.kind)}${r.tag ? ` <span class="pill info">${esc(r.tag)}</span>` : ''}</td><td>${esc(r.no)}</td><td class="mono nw">${r.date ? fmt(r.date) : '—'}</td><td>${docFileCell(r)}</td><td class="mono nw">${r.fact ? fmt(r.fact.date) : '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">документов нет</td></tr>'}</tbody></table>
+    <div class="why">Файлы хранятся в документообороте; здесь — ссылки на них. Список собирается из опубликованных фактов.</div>`;
+}
+function offerDocRows(of) {
+  const F = live(of.facts, S.asOf); const ans = offerAnswer(of);
+  const rows = [{ kind: 'Письмо источника', no: of.doc.no, date: of.doc.date, file: of.file || of.doc.file || '', fact: null }];
+  docRows(F.filter(f => f.t === 'decision' || f.t === 'letter')).forEach(r => { if (ans && ans.t === r.fact.t && ans.date === r.fact.date) r.tag = 'ответ источнику'; rows.push(r); });
+  return rows;
+}
+/* «Печать»: четыре бланка. Недоступный бланк остаётся в списке с причиной. */
+function printItems(kind, id) {
+  const items = []; const it = (t, label, ok, why) => items.push({ t, label, ok: !!ok, why: ok ? '' : why });
+  if (kind === 'offer') {
+    const of = offer(id); const st = offerState(id); const dec = of.facts.some(f => f.t === 'decision' && f.pub && f.date <= S.asOf); const exp = expectedTopups(id);
+    it('ans', 'Ответ источнику', dec, 'решение органа ещё не вынесено');
+    it('letter', 'Бланк промежуточного письма', !dec && st.code !== 'closed', dec ? 'решение органа уже вынесено — ответ источнику даёт решение' : 'предложение закрыто');
+    it('topup', 'Уведомление о доплате', Object.values(exp.rows).some(r => r && r.topup > 0), dec ? 'у принятых позиций ожидаемой доплаты нет' : 'решение органа ещё не вынесено');
+    it('claim', 'Претензия покупателю', false, 'претензия выписывается по договору купли-продажи — в карточке объекта');
+  } else {
+    const o = obj(id); const ci = contractInfo(id); const t = topupOf(id);
+    const noOffer = o.offer ? 'ответ источнику готовится в карточке предложения ' + o.offer : 'у объекта нет предложения источника';
+    it('ans', 'Ответ источнику', false, noOffer);
+    it('letter', 'Бланк промежуточного письма', false, noOffer);
+    it('topup', 'Уведомление о доплате', t && t.amount > 0 && !t.done, !t || !(t.amount > 0) ? 'доплаты по объекту нет' : 'доплата уже исполнена');
+    it('claim', 'Претензия покупателю', ci && ci.active && ci.overdue, !ci ? 'договора купли-продажи нет' : ci.terminated ? 'договор расторгнут' : ci.complete ? 'договор оплачен' : 'просрочки нет');
+  }
+  return items;
+}
+function printMenu(kind, id) {
+  const items = printItems(kind, id); const on = items.filter(i => i.ok), off = items.filter(i => !i.ok);
+  const mi = i => `<button class="mi" role="menuitem" data-testid="print-${i.t}" data-why="${esc(i.why)}"${i.ok ? '' : ' disabled'} onclick="IM.closeMenus();IM.uiPrint('${jsq(i.label)}','${jsq(id)}')">${i.label}</button>${i.why ? `<div class="mi-why" data-testid="why-print-${i.t}">${esc(i.why)}</div>` : ''}`;
+  return `<div class="menu" data-testid="print-actions"><button class="btn btn-secondary" data-testid="print-menu" aria-haspopup="menu" aria-expanded="false" onclick="IM.toggleMenu(event)">Печать${on.length ? ' · ' + on.length : ''}${ico('down')}</button>
+    <div class="menu-pop" role="menu" style="width:min(380px,92vw)">${on.map(mi).join('') || '<div class="mi-why" style="padding:10px 16px">Сейчас ни один бланк недоступен — причины ниже.</div>'}${off.length ? `<details class="mi-off"${on.length ? '' : ' open'}><summary>Недоступно сейчас · ${off.length}</summary>${off.map(mi).join('')}</details>` : ''}</div></div>`;
+}
 function simpleTable(list, heads, row) {
   return `<table class="cgrid"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${list.map(f => `<tr>${row(f).map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${heads.length}" class="muted">записей нет</td></tr>`}</tbody></table>`;
 }
@@ -1800,7 +1947,7 @@ function contractBlock(id, ci) {
     <div class="k">Покупатель</div><div>${esc(c.buyer)}</div><div class="k">Цена</div><div>${money(c.price, c.ccy)}</div>
     <div class="k">Право</div><div>переходит покупателю после полной оплаты; до неё объект на учёте Фонда</div>
     <div class="k">Неустойка</div><div>${c.penalty} % от просроченной суммы за день</div>
-    <div class="k">Оплачено / остаток</div><div data-testid="contract-paid">${money(ci.paid, ci.ccy)} / ${money(ci.rest, ci.ccy)}</div>
+    <div class="k">Оплачено / остаток</div><div data-testid="contract-paid">${money(ci.paid, ci.ccy)} / ${money(ci.rest, ci.ccy)}${!ci.complete && !ci.terminated && ci.rest > 0 ? ` <button class="linky small" data-testid="demo-pay" onclick="IM.demoPay('${jsq(id)}')">как придёт из Платежей: следующий платёж</button>` : ''}</div>
     <div class="k">Просрочено</div><div data-testid="contract-overdue">${ci.overdue ? `<span class="pill err">${money(ci.overdue, ci.ccy)} · ${ci.odDays} дн.</span> неустойка ${money(ci.penalty, ci.ccy)}` : 'нет'}</div>
     <div class="k">Состояние</div><div>${ci.terminated ? 'расторгнут ' + fmt(ci.terminated.date) : ci.complete ? 'оплачен ' + fmt(ci.completeDate) : 'действует'}</div>
     ${ci.claims.map(x => `<div class="k">Претензия</div><div>${esc(x.doc)} от ${fmt(x.date)}</div>`).join('')}
@@ -1813,8 +1960,23 @@ function contractBlock(id, ci) {
 
 /* --------------------- ЭКРАН: договоры купли-продажи --------------- */
 function viewContracts() {
-  const rows = OBJECTS.map(o => ({ o, ci: contractInfo(o.id) })).filter(r => r.ci);
-  return `<table class="cgrid"><thead><tr><th>Договор</th><th>Объект</th><th>Покупатель</th><th>Вид</th><th class="num">Цена</th><th class="num">Оплачено</th><th class="num">Остаток</th><th>Просрочено</th><th>Претензии</th><th>Состояние</th></tr></thead>
+  const f = S.f; const all = OBJECTS.map(o => ({ o, ci: contractInfo(o.id) })).filter(r => r.ci);
+  const stOf = ci => ci.terminated ? 'term' : ci.complete ? 'paid' : 'active';
+  const base = all.filter(r => (!f.cKind || r.ci.kind === f.cKind) && (!f.cState || stOf(r.ci) === f.cState) && (!f.cBuyer || r.ci.c.buyer === f.cBuyer));
+  const isOver = r => r.ci.overdue && r.ci.active;
+  const rows = base.filter(r => !f.cTile || (f.cTile === 'over' ? isOver(r) : r.ci.claims.length > 0));
+  const sel = (key, opts) => `<select onchange="IM.setF('${key}',this.value)" data-testid="f-${key}"><option value="">все</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${f[key] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const tile = (k, n, l, tid) => `<button class="tile${(f.cTile || '') === k ? ' on' : ''}" aria-pressed="${(f.cTile || '') === k}" onclick="IM.setF('cTile','${(f.cTile || '') === k ? '' : k}')"><span class="n" data-testid="${tid}">${n}</span><span class="l">${l}</span></button>`;
+  return `<div class="filters">
+    <div class="fld"><label>Вид</label>${sel('cKind', [['once', 'разовый'], ['inst', 'рассрочка']])}</div>
+    <div class="fld"><label>Состояние</label>${sel('cState', [['active', 'действует'], ['paid', 'оплачен'], ['term', 'расторгнут']])}</div>
+    <div class="fld w2"><label>Покупатель</label>${sel('cBuyer', [...new Set(all.map(r => r.ci.c.buyer))].sort().map(b => [b, b]))}</div>
+  </div>
+  <div class="sum" data-testid="contract-totals">
+    ${tile('', base.length, 'договоров', 'ctot-all')}${tile('over', base.filter(isOver).length, 'с просрочкой', 'ctot-over')}${tile('claim', base.filter(r => r.ci.claims.length > 0).length, 'с претензией', 'ctot-claim')}
+  </div>
+  <div class="shown" data-testid="shown-contracts">Показано <b>${rows.length}</b> из <b>${all.length}</b></div>
+  <table class="cgrid sticky"><thead><tr><th>Договор</th><th>Объект</th><th>Покупатель</th><th>Вид</th><th class="num">Цена</th><th class="num">Оплачено</th><th class="num">Остаток</th><th>Просрочено</th><th>Претензии</th><th>Состояние</th></tr></thead>
   <tbody>${rows.map(({ o, ci }) => `<tr class="click${ci.overdue && ci.active ? ' over' : ''}" data-testid="contract-row-${o.id}" onclick="IM.openObject('${jsq(o.id)}','ctr')">
     <td>${esc(ci.c.doc)}<div class="why">от ${fmt(ci.c.date)}</div></td><td><b>${esc(o.id)}</b><div class="why">${esc(o.name)}</div></td><td>${esc(ci.c.buyer)}</td>
     <td>${ci.kind === 'inst' ? 'рассрочка, ' + ci.schedule.length + ' пл.' : 'разовый'}</td><td class="num">${money(ci.price, ci.ccy)}</td><td class="num">${money(ci.paid, ci.ccy)}</td><td class="num">${money(ci.rest, ci.ccy)}</td>
@@ -1825,11 +1987,11 @@ function viewContracts() {
 
 /* ------------------------- ЭКРАН: настройки ------------------------ */
 function viewSettings() {
-  const tr = triggers(); const SRC = ['норма', 'Инструкция', 'внутренний акт'];
+  const SRC = ['норма', 'Инструкция', 'внутренний акт'];
   const exc = KINDS.filter(k => k.cls === 'вещь' && SETTINGS.inspByKind[k.id]);
   return `<div class="section-h">Пороги поводов</div>
   <table class="cgrid"><thead><tr><th>Повод для Заданий</th><th>Объект</th><th>Условие</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>${SETTINGS.thr.map((t, i) => `
-    <tr><td title="${t.id}">${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>
+    <tr><td>${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>
     <td>${t.id === 'pk-im-offer-overdue' ? esc(t.unit) : `<input type="number" style="width:70px;height:28px" value="${t.v}" onchange="IM.setThr(${i},this.value)"> ${esc(t.unit)}`}</td>
     <td><select class="quiet" onchange="IM.setThrSrc(${i},this.value)">${SRC.map(s => `<option${s === t.src ? ' selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
   <details class="fold" style="margin-top:22px"${S.fInsp ? ' open' : ''} ontoggle="IM.fInsp(this.open)"><summary>Порог осмотра по виду<span class="small">· ${exc.length ? 'исключения: ' + exc.map(k => esc(k.name) + ' — ' + SETTINGS.inspByKind[k.id].v + ' мес.').join(', ') : 'исключений нет, везде умолчание'}</span></summary><div class="fold-b">
@@ -1843,35 +2005,61 @@ function viewSettings() {
   <div class="why">Если правило кураторства не называет работника, закрепление держит заведующий отделом. Дольше порога — реестры подсвечивают «куратора нет дольше порога». Значения правятся в справочнике Кураторства.</div>
   <div class="section-h">Сроки ответа по источнику — если в документе источника срока нет</div>
   <table class="cgrid"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.deadline).map(([k, d]) => `
-    <tr><td>${esc(SOURCES[k].name)}</td><td>${d.v} ${d.unit}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
-  <div class="section-h">Поводы на ${fmt(S.asOf)} · ${tr.length}</div>
-  <div class="why" style="margin-bottom:6px">Модуль показывает поводы для Заданий; по каждому Задания ставят поручение куратору из Кураторства. Один повод — одно поручение на вид, объект и период.</div>
-  <table class="cgrid" data-testid="triggers"><thead><tr><th>Повод для Заданий</th><th>Где</th><th>Что</th><th>Вид · объект · период</th><th>Кому поручение</th></tr></thead><tbody>${tr.map(t => `
-    <tr data-testid="trig-${t.kind}"><td title="${t.kind}">${esc(t.name)}</td><td><button class="linky" onclick="IM.open('${jsq(t.id.split(' ')[0])}')">${esc(t.id)}</button></td><td>${esc(t.text)}</td><td class="small" title="${esc(t.key)}">${esc(t.keyLabel)}</td><td>${esc(t.to)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">поводов нет</td></tr>'}</tbody></table>`;
+    <tr><td>${esc(SOURCES[k].name)}</td><td>${d.v} ${d.unit}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 /* ---------------------------- формы -------------------------------- */
-function openForm(title, fields, onSubmit, note) { S.form = { title, fields, onSubmit, note, err: '' }; renderModal(); }
+/* Документ в форме — номер · дата · файл (у осмотра ещё «Фото и видео»). Файл в макете выбирается без загрузки, в факте хранится имя. */
+function expandDocs(fields) {
+  return fields.flatMap(f => f && f.docGroup ? [Object.assign({ ph: 'номер' }, f, { docGroup: false }),
+    { id: 'docDate', label: 'Дата документа', type: 'date', value: f.docDate != null ? f.docDate : S.asOf },
+    { id: 'file', label: 'Файл документа', type: 'file', value: '' },
+    ...(f.media ? [{ id: 'media', label: 'Фото и видео', type: 'file', multiple: true, accept: 'image/*,video/*', value: '' }] : [])] : [f]);
+}
+function openForm(title, fields, onSubmit, note) { S.form = { title, fields: expandDocs(fields), onSubmit, note, err: '', errField: null }; renderModal(); }
+/* Ошибка показывается у поля, к которому относится; остальное — общей строкой. */
+const FIELD_ERR = [[/ниже основания/, 'start'], [/основани(е|ем) (стартовой цены|решение)|основание не найдено/, 'basis'], [/обременени/, 'encMark'], [/нужны даты/, 'from'],
+  [/для причины «иное»|пояснение/, 'note'], [/причина прекращения/, 'reason'], [/сумма оценки|сумма расхода|сумма поступления|сумма погашения|сумма больше остатка|новую стартовую цену|сумма должна/, 'amount'],
+  [/частей|части/, 'parts'], [/исправленную стоимость/, 'newValue'], [/нужны покупатель/, 'buyer'], [/не меньше двух платежей/, 'n'], [/номер|документ|основание: решение суда/, 'doc']];
+function errField(why, fields) {
+  const hit = FIELD_ERR.find(([re, id]) => re.test(why) && fields.some(f => f.id === id)); return hit ? hit[1] : null;
+}
+function pickFile(id) {
+  const el = document.getElementById('ff_' + id), f = S.form && S.form.fields.find(x => x.id === id); if (!el || !f) return;
+  const names = Array.from(el.files || []).map(x => x.name); f.value = f.multiple ? names : (names[0] || '');
+  const h = document.getElementById('fn_' + id); if (h) h.textContent = names.length ? 'Выбрано: ' + names.join(', ') : '';
+}
+function syncShow() {
+  if (!S.form) return;
+  S.form.fields.filter(f => f.showWhen).forEach(f => {
+    const el = document.getElementById('ff_' + f.showWhen[0]), box = document.getElementById('fb_' + f.id); if (el && box) box.style.display = el.value === f.showWhen[1] ? '' : 'none'; });
+}
 function renderModal() {
   if (typeof document === 'undefined') return;
   const ov = $('#overlay'); const fm = S.form;
   if (!fm) { ov.classList.remove('open'); $('#modal').innerHTML = ''; return; }
+  const shown = f => { if (!f.showWhen) return true; const c = fm.fields.find(x => x.id === f.showWhen[0]); const cv = c.value != null ? c.value : (Array.isArray(c.options[0]) ? c.options[0][0] : c.options[0]); return String(cv) === f.showWhen[1]; };
   const ctl = f => {
     const v = f.value == null ? '' : f.value; const id = 'ff_' + f.id;
-    if (f.type === 'select') return `<select id="${id}">${(f.empty ? `<option value="">${esc(f.emptyLabel || '—')}</option>` : '') + f.options.map(o => { const [ov_, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov_)}"${String(ov_) === String(v) ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
+    if (f.type === 'select') return `<select id="${id}" onchange="IM.syncShow()">${(f.empty ? `<option value="">${esc(f.emptyLabel || '—')}</option>` : '') + f.options.map(o => { const [ov_, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov_)}"${String(ov_) === String(v) ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
     if (f.type === 'textarea') return `<textarea id="${id}">${esc(v)}</textarea>`;
     if (f.type === 'date') return `<input id="${id}" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(v) ? fmt(v) : v)}">`;
     if (f.type === 'check') return `<label class="chk"><input type="checkbox" id="${id}"${v ? ' checked' : ''}> ${esc(f.text || '')}</label>`;
+    if (f.type === 'file') { const nm = [].concat(f.value || []).filter(Boolean).join(', ');
+      return `<input id="${id}" type="file"${f.multiple ? ' multiple' : ''}${f.accept ? ` accept="${f.accept}"` : ''} onchange="IM.pickFile('${f.id}')"><div class="why" id="fn_${f.id}" data-testid="file-name-${f.id}">${nm ? 'Выбрано: ' + esc(nm) : ''}</div>`; }
     return `<input id="${id}" type="${f.type || 'text'}" value="${esc(v)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}>`;
   };
   $('#modal').innerHTML = `<div class="modal-h"><div class="mt">${esc(fm.title)}</div><button class="modal-x" onclick="IM.closeForm()">×</button></div>
-    <div class="modal-b">${fm.note ? `<div class="banner info">${fm.note}</div>` : ''}${fm.err ? `<div class="banner danger" data-testid="form-err">${esc(fm.err)}</div>` : ''}
-    <div class="mform">${fm.fields.map(f => `<div class="fld${f.wide ? ' wide' : ''}"><label class="${f.req ? 'req' : ''}">${esc(f.label)}</label>${ctl(f)}${f.hint ? `<div class="why">${esc(f.hint)}</div>` : ''}</div>`).join('')}</div></div>
+    <div class="modal-b">${fm.note ? `<div class="banner info">${fm.note}</div>` : ''}${fm.err && !fm.errField ? `<div class="banner danger" data-testid="form-err">${esc(fm.err)}</div>` : ''}
+    <div class="mform">${fm.fields.map(f => `<div class="fld${f.wide ? ' wide' : ''}${fm.errField === f.id ? ' bad' : ''}" id="fb_${f.id}"${shown(f) ? '' : ' style="display:none"'}><label class="${f.req ? 'req' : ''}">${esc(f.label)}</label>${ctl(f)}${f.hint ? `<div class="why">${esc(f.hint)}</div>` : ''}${fm.errField === f.id ? `<div class="ferr" data-testid="form-err" data-field="${f.id}">${esc(fm.err)}</div>` : ''}</div>`).join('')}</div></div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="IM.closeForm()">Отмена</button><button class="btn btn-primary" data-testid="form-submit" onclick="IM.submitForm()">${esc(fm.submit || 'Ввести факт')}</button></div>`;
   ov.classList.add('open');
 }
 function readForm() {
-  const v = {}; S.form.fields.forEach(f => { const el = document.getElementById('ff_' + f.id); if (!el) return; v[f.id] = f.type === 'check' ? el.checked : el.value; f.value = v[f.id]; });
+  const v = {}; S.form.fields.forEach(f => { const el = document.getElementById('ff_' + f.id); if (!el) return;
+    if (f.type === 'file') { const names = Array.from(el.files || []).map(x => x.name); v[f.id] = f.multiple ? (names.length ? names : [].concat(f.value || [])) : (names[0] || f.value || ''); }
+    else v[f.id] = f.type === 'check' ? el.checked : el.value;
+    f.value = v[f.id]; });
   return v;
 }
 function submitForm(vals) {
@@ -1882,7 +2070,7 @@ function submitForm(vals) {
   const badDate = miss ? null : S.form.fields.find(f => f.type === 'date' && toIso(v[f.id]) === null);
   if (!miss && !badDate) S.form.fields.filter(f => f.type === 'date').forEach(f => { v[f.id] = toIso(v[f.id]); });
   const r = miss ? no('не заполнено обязательное поле: ' + miss.label) : badDate ? no(`«${badDate.label}»: дата в формате ДД.ММ.ГГГГ, например 15.03.2028`) : S.form.onSubmit(v);
-  if (r && r.ok === false) { S.form.err = r.why; renderModal(); return r; }
+  if (r && r.ok === false) { S.form.err = r.why; S.form.errField = miss ? miss.id : badDate ? badDate.id : errField(r.why, S.form.fields); renderModal(); return r; }
   S.form = null; renderModal(); toast(r && r.msg || (r && r.pending ? 'Факт подготовлен — ждёт второго ключа начальника Управления' : 'Факт введён'), 'ok'); render(); return r;
 }
 function toast(msg, kind) {
@@ -1891,16 +2079,24 @@ function toast(msg, kind) {
   $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), 3800);
 }
 const dateF = (label = 'Дата') => ({ id: 'date', label, type: 'date', value: S.asOf, req: true });
-const docF = (label = 'Документ (номер, дата)') => ({ id: 'doc', label, req: true, wide: true });
+const docF = (label = 'Документ, номер', x = {}) => Object.assign({ id: 'doc', label, req: true, docGroup: true }, x);
 
 /* Формы ввода фактов. Поля → addFact; отказ движка показывается в форме. */
-function uiFact(target, t, pos) {
+/* Документ факта хранится единообразно: doc (номер), docDate, file (имя файла), у осмотра ещё media (имена файлов). Пустое не записывается. */
+function cleanDoc(d) {
+  const o = Object.assign({}, d);
+  ['docDate', 'file'].forEach(k => { if (o[k] == null || o[k] === '') delete o[k]; });
+  if (o.media != null) { o.media = [].concat(o.media).filter(Boolean); if (!o.media.length) delete o.media; }
+  return o;
+}
+function uiFact(target, t, pos, editId) {
   const isOffer = target.startsWith('П-');
-  const done = d => addFact(target, t, Object.assign(pos != null ? { pos } : {}, d));
+  const done = d => { const data = cleanDoc(Object.assign(pos != null ? { pos } : {}, d));
+    return editId ? revisePending(editId, data, S.role) : addFact(target, t, data); };
   const o = !isOffer ? obj(target) : null; const name = FACT_NAME[t] + ' · ' + target + (pos ? ', позиция ' + pos : '');
   const keyNote = KEY.has(t) ? 'Факт двигает деньги или стоимость: после ввода он ждёт второго ключа начальника Управления по работе с активами и до публикации соседям не виден.' : '';
   const F = {
-    letter: [[dateF(), docF('Письмо (номер, дата) — «рассматриваем», «просим продлить»')]],
+    letter: [[dateF(), docF('Письмо — «рассматриваем», «просим продлить»')]],
     concl: [[dateF(), { id: 'kind', label: 'Вид заключения', type: 'select', options: CONCL }, { id: 'text', label: 'Заключение', type: 'textarea', req: true, wide: true }]],
     withdraw: [[dateF(), docF('Документ источника об отзыве')], 'До акта приёма-передачи источник вправе отозвать позицию. Решение «принять», если оно было, остаётся в истории неисполненным.'],
     act: [[dateF('Дата акта'), docF('Акт приёма-передачи (номер)')]],
@@ -1908,19 +2104,19 @@ function uiFact(target, t, pos) {
       'Право не перейдёт: итог — «принятие не состоялось». Денег не движет: погашения не было, сторно нет. Это не отзыв, не возврат и не выбытие.'],
     reg: [[dateF('Дата регистрации'), docF('Выписка из реестра прав')], 'Дата регистрации станет датой перехода права и погашения долга.'],
     regRefusal: [[dateF(), { id: 'final', label: 'Характер отказа', type: 'check', text: 'окончательный (право не перейдёт)' }, docF('Уведомление об отказе')], 'Устранимый отказ — просто факт: объект ждёт регистрации дальше. Окончательный — «принятие не состоялось».'],
-    inspection: [[dateF(), { id: 'who', label: 'Участники', req: true }, { id: 'cond', label: 'Состояние', req: true }, docF('Акт осмотра')]],
+    inspection: [[dateF(), { id: 'who', label: 'Участники', req: true }, { id: 'cond', label: 'Состояние', req: true }, docF('Акт осмотра', { media: true })]],
     appraisal: [[dateF(), { id: 'appraiser', label: 'Оценщик', req: true }, { id: 'amount', label: 'Сумма', type: 'number', req: true }, ccyF(o ? o.ccy : 'KGS'), docF('Отчёт оценщика')], 'Оценка справочна: на учётную стоимость не влияет.'],
     expense: [[dateF(), { id: 'item', label: 'Статья', type: 'select', options: EXP_ITEMS }, { id: 'amount', label: 'Сумма', type: 'number', req: true }, ccyF(), docF('Платёжный или первичный документ')]],
     encumbrance: [[{ id: 'kind', label: 'Вид', type: 'select', options: ENC_KINDS }, { id: 'from', label: 'С', type: 'date', value: S.asOf, req: true }, { id: 'to', label: 'По', type: 'date', req: true }, docF('Договор, постановление об аресте')]],
     priceDecision: [[dateF(), { id: 'amount', label: 'Стартовая цена', type: 'number', req: true }, { id: 'buyer', label: 'Покупатель (для прямой продажи)', type: 'select', empty: true, options: SUBJECTS, wide: true }, docF('Решение органа (снижение цены или прямая продажа)')],
       'Решение органа — основание снижения стартовой цены или прямой продажи (называет покупателя и цену). Снижение по новой оценке решения не требует.'],
     vehReg: [[dateF('Дата постановки на учёт'), docF('Свидетельство о регистрации ТС / техпаспорт')], 'Учётная запись, а не переход права: право перешло актом, дата погашения не меняется.'],
-    claimPaid: o && (() => { const c = claimOf(target); return [[dateF('Дата поступления'), { id: 'amount', label: 'Сумма', type: 'number', value: c ? c.rest : '', req: true }, docF('Поступление в Платежах (номер, дата)')],
+    claimPaid: o && (() => { const c = claimOf(target); return [[dateF('Дата поступления'), { id: 'amount', label: 'Сумма', type: 'number', value: c ? c.rest : '', req: true }, docF('Поступление в Платежах')],
       c ? `Требование к ${c.debtor}: ${money(c.amount)}, остаток ${money(c.rest)}. Частичная оплата — тот же факт на часть суммы.` : '']; })(),
     claimStop: [[dateF(), docF('Решение органа о прекращении требования (основание)')], 'Остаток требования уйдёт в результат по объекту как потеря.'],
     attempt: o && [[dateF('Дата объявления'), { id: 'hold', label: 'Дата проведения', type: 'date' }, { id: 'method', label: 'Способ', type: 'select', options: METHODS },
       { id: 'start', label: 'Стартовая цена', type: 'number', req: true },
-      { id: 'basis', label: 'Основание стартовой цены', type: 'select', empty: true, wide: true, options: o.facts.filter(f => f.pub && (f.t === 'appraisal' || f.t === 'priceDecision')).map(f => [f.id, f.doc + (f.t === 'appraisal' ? ' (' + f.appraiser + ')' : '') + ' от ' + fmt(f.date) + ' — ' + money(f.amount, f.ccy || o.ccy)]) },
+      { id: 'basis', label: 'Основание стартовой цены', type: 'select', empty: true, req: true, wide: true, options: o.facts.filter(f => f.pub && (f.t === 'appraisal' || f.t === 'priceDecision')).map(f => [f.id, f.doc + (f.t === 'appraisal' ? ' (' + f.appraiser + ')' : '') + ' от ' + fmt(f.date) + ' — ' + money(f.amount, f.ccy || o.ccy)]) },
       { id: 'platform', label: 'Площадка', value: 'Электронная площадка', req: true }, { id: 'lot', label: 'Номер лота на площадке' },
       { id: 'encMark', label: 'Отметка об обременении', type: 'select', empty: true, options: ['продаётся с обременением', 'после снятия обременения'], wide: true, hint: 'обязательна, если на дату попытки действует обременение' }],
       'Попытка невозможна до перехода права, при флаге «принятие не завершено» и при действующем договоре КП. Ход торгов ведёт площадка.'],
@@ -1940,11 +2136,11 @@ function uiFact(target, t, pos) {
     split: o && [[dateF('Дата разделения'), { id: 'parts', label: `Части, ${kindOf(o.kind).unit || 'ед.'} через запятую (всего ${o.qty})`, req: true, ph: '50, 65, 5' }, docF('Решение органа или распоряжение')],
       'Учётная стоимость частей — пропорционально количеству; сумма частей равна целому до копейки, остаток округления — последней части.'],
     gift: [[dateF('Дата акта передачи'), { id: 'to', label: 'Кому (например, госорган)', req: true }, docF('Решение органа + акт передачи')]],
-    loss: [[dateF('Дата акта'), { id: 'cause', label: 'Причина', type: 'select', options: LOSS_CAUSE }, { id: 'insurance', label: 'Страховое возмещение, сом (если было)', type: 'number' }, docF('Акт о гибели / утрате / сносе')]],
+    loss: [[dateF('Дата акта'), { id: 'cause', label: 'Причина', type: 'select', options: LOSS_CAUSE }, { id: 'insurance', label: 'Страховое возмещение (если было)', type: 'number' }, { id: 'ccy', label: 'Валюта возмещения', type: 'select', options: CCY_OPTS, value: 'KGS' }, docF('Акт о гибели / утрате / сносе')]],
     ret: [[dateF('Дата судебного акта'), docF('Судебный акт о недействительности принятия')], 'Платежи сделают сторно поступления задним числом; пеня за разрыв станет спорной и уйдёт на Комиссию по спорным начислениям.'],
     realloc: o && (() => { const n = reallocNeeded(target); if (!n) return [[], ''];
       const src = obj(n.cause[0]); const rd = src && src.facts.find(f => f.t === 'ret');
-      return [[{ id: 'doc', label: 'Основание', req: true, wide: true, value: 'Отмена более раннего принятия ' + n.cause.join(', ') + (rd ? ': ' + rd.doc + ' от ' + fmt(rd.date) : '') }],
+      return [[docF('Основание', { wide: true, value: 'Отмена более раннего принятия ' + n.cause.join(', ') + (rd ? ': ' + rd.doc + ' от ' + fmt(rd.date) : '') })],
         `Исправление вводится с датой перехода права этой вещи — ${fmt(n.transfer)}. Распределено ${money(n.oldDistributed)} → ${money(n.distributed)}, не вошло ${money(n.oldNotIncluded)} → ${money(n.notIncluded)}.`
         + (n.claim ? ` Излишек исполненной доплаты ${money(n.claim)} станет требованием к отчуждателю.` : '') + ' Платежи сделают корректировку суммы поступления, не сторно; исходное деление остаётся видимым.']; })(),
     corr: o && [[dateF(), { id: 'newValue', label: 'Исправленная стоимость принятия', type: 'number', value: objValue(target), req: true }, { id: 'basis', label: 'Основание: исправленный документ или решение органа', req: true, wide: true }],
@@ -1953,6 +2149,7 @@ function uiFact(target, t, pos) {
   const def = F[t]; if (!def) return;
   const [fields, note] = def;
   const pre = {};
+  const ef = editId ? allFacts().map(x => x.f).find(f => f.id === editId) : null;
   openForm(name, fields, v => {
     const d = Object.assign({}, v);
     if (t === 'split') d.parts = String(v.parts).split(/[,;\s]+/).filter(Boolean).map(Number);
@@ -1961,6 +2158,7 @@ function uiFact(target, t, pos) {
     if (t === 'loss' && d.insurance) d.insurance = +d.insurance; else if (t === 'loss') delete d.insurance;
     return done(d);
   }, [note, keyNote].filter(Boolean).join(' '));
+  if (ef) { S.form.fields.forEach(f => { const val = f.id === 'parts' ? (ef.parts || []).join(', ') : ef[f.id]; if (val != null) f.value = val; }); S.form.submit = 'Сохранить'; renderModal(); }
   return pre;
 }
 function uiDraft(id) {
@@ -1968,7 +2166,7 @@ function uiDraft(id) {
   openForm(`Черновик ${id} · ${obl(dr.obligor).name} · ${money(dr.value)}`, [{ id: 'name', label: 'Вещь', value: f.name, req: true, wide: true },
     { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]), value: f.kind }, { id: 'region', label: 'Область', type: 'select', options: Object.keys(REGION_RULE), value: f.region },
     { id: 'now', label: 'Что с вещью сейчас', type: 'select', options: Object.entries(DRAFT_NOW), value: f.now }, { id: 'outDate', label: 'Дата выбытия (если не на учёте)', type: 'date', value: f.outDate || '' },
-    { id: 'outPrice', label: 'Цена продажи (если продан)', type: 'number', value: f.outPrice || '' }, { id: 'doc', label: 'Документы', value: f.doc, req: true, wide: true }],
+    { id: 'outPrice', label: 'Цена продажи (если продан)', type: 'number', value: f.outPrice || '' }, docF('Документы', { value: f.doc, docDate: f.docDate })],
   v => { const r = fillDraft(id, v); if (r.ok) r.msg = 'Черновик ' + id + ' дополнен — ждёт второго ключа'; return r; },
   `Сумма ${money(dr.value)}, дата ${fmt(dr.date)} и обязанное лицо — из платежа легаси, не правятся.`); S.form.submit = 'Сохранить';
 }
@@ -1978,11 +2176,11 @@ function uiDecision(id) {
   const exp = expectedTopups(id);
   openForm('Решение органа · ' + id, [
     dateF('Дата решения'), { id: 'organ', label: 'Орган', type: 'select', options: ORGANS },
-    { id: 'doc', label: 'Номер решения', req: true, wide: true },
+    docF('Решение органа, номер'),
     ...open.flatMap(p => [{ id: 'v' + p.n, label: `Позиция ${p.n}: ${p.name} · ${money(p.value)}`, type: 'select', options: [['accept', 'принять'], ['reject', 'отказать']], wide: false,
-      hint: 'ожидаемая доплата, если принять все: ' + money((exp.rows[p.n] || {}).topup) }, { id: 'r' + p.n, label: 'Основание отказа', ph: 'обязательно при отказе' }]),
+      hint: 'ожидаемая доплата, если принять все: ' + money((exp.rows[p.n] || {}).topup) }, { id: 'r' + p.n, label: 'Основание отказа', ph: 'обязательно при отказе', showWhen: ['v' + p.n, 'reject'] }]),
   ], v => { const items = {}; open.forEach(p => { items[p.n] = { v: v['v' + p.n] }; if (v['v' + p.n] === 'reject') items[p.n].reason = v['r' + p.n]; });
-    return addFact(id, 'decision', { date: v.date, organ: v.organ, doc: v.doc, items }); },
+    return addFact(id, 'decision', cleanDoc({ date: v.date, organ: v.organ, doc: v.doc, docDate: v.docDate, file: v.file, items })); },
   'Решение одно на предложение, итог — по каждой позиции. Стоимость принятия — из документа-основания.' + (late ? ' <b>Срок ответа истёк: решение будет помечено «вынесено после истечения срока ответа».</b>' : ''));
 }
 function uiEditPos(id, n) {
@@ -2000,7 +2198,7 @@ function uiNewOffer() {
     { id: 'source', label: 'Источник', type: 'select', options: Object.entries(SOURCES).map(([k, s]) => [k, s.name]) },
     { id: 'obligor', label: 'Обязанное лицо (из Взыскания)', type: 'select', options: OBL.map(o => [o.id, o.name + ' — ' + o.role]) },
     { id: 'alien', label: 'Отчуждатель', type: 'select', empty: true, options: SUBJECTS, wide: true, emptyLabel: '— то же лицо, что обязанное —', hint: 'для третьего лица и залогодателя — обязательно другой субъект' },
-    { id: 'docNo', label: 'Документ-основание, номер', req: true }, { id: 'docDate', label: 'Дата документа', type: 'date', value: S.asOf, req: true },
+    { id: 'docNo', label: 'Документ-основание, номер', req: true }, { id: 'docDate', label: 'Дата документа', type: 'date', value: S.asOf, req: true }, { id: 'file', label: 'Файл документа', type: 'file', value: '' },
     { id: 'deadline', label: 'Срок ответа из документа', type: 'date', hint: 'пусто — умолчание из настроек по источнику' },
     { id: 'name', label: 'Позиция 1: вещь', wide: true, hint: 'можно оставить пустым и добавить позиции позже — до тех пор куратора назначит заведующий отделом' }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]) },
     { id: 'value', label: 'Стоимость принятия', type: 'number' }, ccyF(),
@@ -2009,9 +2207,23 @@ function uiNewOffer() {
 function uiIntro() {
   openForm('Вводный остаток', [{ id: 'name', label: 'Вещь', req: true, wide: true }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]) },
     { id: 'value', label: 'Стоимость принятия', type: 'number', req: true }, { id: 'transfer', label: 'Дата перехода права (из документов)', type: 'date', req: true },
-    { id: 'obligor', label: 'Обязанное лицо', type: 'select', options: OBL.map(o => [o.id, o.name]) }, { id: 'doc', label: 'Документ бухгалтерии', req: true, wide: true }],
+    { id: 'obligor', label: 'Обязанное лицо', type: 'select', options: OBL.map(o => [o.id, o.name]) }, docF('Документ бухгалтерии')],
   v => { const r = addIntro(v); if (r.ok) r.msg = 'Объект ' + r.id + ' заведён вводным остатком'; return r; }, 'Погашения не порождает: оно уже прошло и переносится вместе с платежами.'); S.form.submit = 'Завести';
 }
+
+/* Свои неопубликованные факты автора: ждущие второго ключа и черновики (возвращённые и отозванные). Автор правит и отзывает. */
+function myFactsCard() {
+  const list = allFacts().filter(x => !x.f.pub && x.f.by === S.role);
+  if (!list.length) return '';
+  return `<div class="card" data-testid="my-facts"><div class="card-head"><h3>Мои неопубликованные факты · ${list.length}</h3></div>
+    <table class="cgrid"><thead><tr><th>Дата</th><th>Факт</th><th>Где</th><th>Состояние</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
+    <tr data-testid="my-fact-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}</td><td>${esc(owner)}</td>
+      <td>${f.draft ? `<span class="pill warn">${f.withdrawn ? 'отозван' : 'возвращён'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт второго ключа</span>'}</td>
+      <td><div class="btn-row"><button class="btn btn-secondary btn-sm" data-testid="my-edit-${f.id}" onclick="IM.uiEditFact('${f.id}')">Править</button>
+        ${f.draft ? `<button class="btn btn-primary btn-sm" data-testid="my-resubmit-${f.id}" onclick="IM.uiResubmit('${f.id}')">Отправить снова</button><button class="btn btn-secondary btn-sm" onclick="IM.uiDiscard('${f.id}')">Удалить</button>`
+          : `<button class="btn btn-secondary btn-sm" data-testid="my-withdraw-${f.id}" onclick="IM.uiWithdraw('${f.id}')">Отозвать</button>`}</div></td></tr>`).join('')}</tbody></table></div>`;
+}
+{ const baseQueue = viewQueue; viewQueue = () => baseQueue() + myFactsCard(); }
 
 /* ------------------------- навигация / шов ------------------------- */
 Object.assign(IM, {
@@ -2019,8 +2231,8 @@ Object.assign(IM, {
   offer, obj, objState, objValue, flags, posOutcome, offerState, offerCounts, offerAnswer, expectedTopups, planDate, allocation, topupOf,
   contractInfo, attempts, reallocNeeded, birthOf, gate, canRole, addFact, publish, rejectPending, pending, registerOffer, editPosition, addPosition, addIntro,
   splitValues, triggers, curatorOf, neighbours, caseJournal, result, migrationControl,
-  claimOf, inspThr, DRAFTS, draftState, fillDraft, publishDraft, migrationReport, uiDraft,
-  money, fmt, render, openForm, submitForm, uiFact, uiDecision, uiNewOffer, uiIntro, uiEditPos, uiAddPos, lifeStrip, actionMenu, closeMenus, toggleMenu,
+  MIGRATED, queueCount, migrationClosed, claimOf, inspThr, DRAFTS, draftState, fillDraft, publishDraft, migrationReport, uiDraft,
+  money, fmt, render, openForm, submitForm, docOf, docRows, offerDocRows, printItems, uiFact, uiDecision, uiNewOffer, uiIntro, uiEditPos, uiAddPos, lifeStrip, actionMenu, closeMenus, toggleMenu,
   go(v) { S.view = v; S.id = null; render(); },
   open(id) { id.startsWith('П-') ? IM.openOffer(id) : IM.openObject(id); },
   openOffer(id) { S.view = 'offer'; S.id = id; render(); },
@@ -2031,14 +2243,27 @@ Object.assign(IM, {
   setRole(r) { S.role = r; render(); },
   setAsOf(d) { const iso = toIso(d); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ, например 15.03.2028', 'err'); render(); return no('неверная дата'); } if (iso) S.asOf = iso; render(); return yes; },
   setF(k, v) { S.f[k] = v; render(); },
+  openDocFile(name) { toast('Файл «' + name + '» открывается из документооборота', ''); },
+  uiPrint(label, id) { toast('Бланк «' + label + '» подготовлен к печати: ' + id, 'ok'); },
   setThr(i, v) { SETTINGS.thr[i].v = +v; render(); },
   setFb(k, v) { SETTINGS.fallback[k].v = +v; render(); },
   setThrSrc(i, v) { SETTINGS.thr[i].src = v; render(); },
   setInspThr(k, v) { if (v === '' || !(+v > 0)) delete SETTINGS.inspByKind[k]; else SETTINGS.inspByKind[k] = { v: +v, src: (SETTINGS.inspByKind[k] || {}).src || 'внутренний акт' }; render(); },
   uiPublishDraft(id) { const r = publishDraft(id); toast(r.ok ? 'Вводный объект ' + r.id + ' заведён' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
   closeForm() { S.form = null; renderModal(); },
+  pickFile, syncShow, withdrawFact, resubmitFact, discardFact, revisePending, drafts,
+  demoPay(id) { const ci = contractInfo(id); const next = ci && ci.schedule.find((s, i) => ci.schedule.slice(0, i + 1).reduce((a, b) => a + b.amount, 0) > ci.paid + 0.005);
+    const r = next ? addFact(id, 'payment', { amount: next.amount, doc: 'Платежи: поступление' }, 'acc') : no('платежей к поступлению нет'); toast(r.ok ? 'Поступление пришло из Платежей' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
+  demoTopup(id) { const t = flags(id).incomplete; const r = t ? addFact(id, 'topup', { amount: t.amount, doc: 'Платежи: Возврат' }, 'acc') : no('доплаты к исполнению нет'); toast(r.ok ? 'Доплата исполнена — пришло из Платежей' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
+  uiEditFact(id) { const x = findOwn(id); if (!x) return no('нет такого факта'); const r = ownFact(id, S.role, true); if (!r.ok) { toast(r.why, 'err'); return r; }
+    const n = x.f.pos != null ? x.f.pos : undefined; return uiFact(x.owner, x.f.t, n, id); },
+  uiWithdraw(id) { const r = withdrawFact(id); toast(r.ok ? 'Факт отозван — лежит у вас черновиком' : r.why, r.ok ? '' : 'err'); render(); return r; },
+  uiResubmit(id) { const r = resubmitFact(id); toast(r.ok ? 'Отправлен на второй ключ' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
+  uiDiscard(id) { const r = discardFact(id); toast(r.ok ? 'Черновик удалён' : r.why, r.ok ? '' : 'err'); render(); return r; },
   uiPublish(id) { const r = publish(id); toast(r.ok ? 'Опубликовано вторым ключом' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
-  uiReject(id) { const r = rejectPending(id); toast(r.ok ? 'Возвращено на доработку' : r.why, r.ok ? '' : 'err'); render(); return r; },
+  uiReject(id) { const x = findOwn(id); if (!x) return no('нет такого факта');
+    openForm('Вернуть автору · ' + factLabel(x.f), [{ id: 'reason', label: 'Причина возврата', type: 'textarea', req: true, wide: true }],
+      v => { const r = rejectPending(id, S.role, v.reason); if (r.ok) r.msg = 'Факт возвращён автору черновиком'; return r; }, 'Факт не удаляется: он уйдёт автору черновиком, причина будет видна ему в черновике.'); S.form.submit = 'Вернуть'; },
 });
 
 seed();

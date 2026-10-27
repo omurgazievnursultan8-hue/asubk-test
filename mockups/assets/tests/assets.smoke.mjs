@@ -241,7 +241,7 @@ group('С-20: стоимость в KGS, кредит в USD', ({ IM }) => {
   ck('ИИ-18: учётная стоимость объекта в KGS', IM.obj('ИО-4').ccy === 'KGS');
   const p = IM.neighbours('ИО-4').payments[0];
   ck('в Платежи уходит KGS (сумма в сомах)', has(p, 'сом') && digits(p).includes(String(IM.objValue('ИО-4'))), p);
-  ck('модуль курса не спрашивает: нет курса/конвертера в API и в тексте', !Object.keys(IM).some(k => /rate|kurs|convert/i.test(k)) && !has(p, 'курс по'), p);
+  ck('модуль курса не спрашивает: нет курса/конвертера в API и в тексте', !Object.keys(IM).filter(k => k !== 'MIGRATED').some(k => /rate|kurs|convert/i.test(k)) && !has(p, 'курс по'), p);
 });
 
 group('С-21: продажа объекта ниже стоимости принятия', ({ IM }) => {
@@ -278,8 +278,8 @@ group('С-23: акт без второго ключа', ({ IM, doc }) => {
   ck('не-начальник не публикует', ['spec', 'sec', 'lawyer', 'acc'].every(role => !IM.publish(pf.f.id, role).ok));
   IM.setRole('spec'); IM.go('offers');
   ck('UI (spec): кнопки публикации нет', !doc.querySelector(`[data-testid=publish-${pf.f.id}]`));
-  IM.setRole('head'); IM.go('offers');
-  ck('UI (head): кнопка публикации есть', !!doc.querySelector(`[data-testid=publish-${pf.f.id}]`));
+  IM.setRole('head'); IM.go('queue');
+  ck('UI (head): кнопка публикации есть (в очереди)', !!doc.querySelector(`[data-testid=publish-${pf.f.id}]`));
   IM.publish(pf.f.id, 'head');
   ck('после публикации объект ИО-6 возникает', IM.objState('ИО-6').code === 'wait');
 });
@@ -451,7 +451,7 @@ group('ИИ-15: ключевые факты публикуются вторым 
     const data = { doc: 'д', parts: [60, 60], newValue: 510000, basis: 'б' };
     const r = IM.addFact(target, t, data, 'spec');
     ck(`${t}: готовится специалистом → не опубликован`, r.ok && r.pending && !r.fact.pub, r.why);
-    if (r.ok) IM.rejectPending(r.fact.id, 'head');
+    if (r.ok) { IM.rejectPending(r.fact.id, 'head', 'проверка'); IM.discardFact(r.fact.id, 'spec'); }
   });
   const c = IM.addFact('ИО-2', 'corr', { newValue: 510000, basis: 'б' }, 'head');
   ck('сам подготовивший не ставит второй ключ', c.ok && !IM.publish(c.fact.id, 'head').ok, c.why);
@@ -482,10 +482,9 @@ group('UI: гейтинг кнопок и ошибки форм', ({ IM, doc }) 
   ck('act-ret отключена, data-why = «Объект продан…»', ret && ret.disabled && ret.dataset.why === IM.RETURN_SOLD, ret && ret.dataset.why);
   const att = doc.querySelector('[data-testid=act-attempt]');
   ck('act-attempt отключена с причиной', att && att.disabled && !!att.dataset.why);
-  const pay = doc.querySelector('[data-testid=act-payment]');
-  ck('act-payment для специалиста отключена: «роль: …»', pay && pay.disabled && has(pay.dataset.why, 'роль'), pay && pay.dataset.why);
+  ck('оплата по договору и доплата не вводятся в модуле: пунктов act-payment / act-topup в меню нет', !doc.querySelector('[data-testid=act-payment]') && !doc.querySelector('[data-testid=act-topup]'));
   IM.setRole('acc'); IM.openObject('ИО-1', 'char');
-  ck('роль бухгалтер: act-payment активна', !doc.querySelector('[data-testid=act-payment]').disabled);
+  ck('роль бухгалтер: пункта act-payment в меню тоже нет', !doc.querySelector('[data-testid=act-payment]'));
   IM.setRole('spec'); IM.openObject('ИО-2', 'char');
   ck('ИО-2 на учёте: act-attempt активна', !doc.querySelector('[data-testid=act-attempt]').disabled);
   IM.setRole('sec'); IM.uiDecision('П-3');
@@ -496,8 +495,8 @@ group('UI: гейтинг кнопок и ошибки форм', ({ IM, doc }) 
   ck('UI: флаг flag-incomplete на ИО-1 на 10.04.2027', !!doc.querySelector('[data-testid=flag-incomplete]'));
   IM.openObject('ИО-7', 'char'); IM.setAsOf('2028-03-15');
   ck('UI: флаг flag-encumbered на ИО-7 (аренда)', !!doc.querySelector('[data-testid=flag-encumbered]'));
-  IM.go('settings');
-  ck('UI: настройки показывают повод trig-pk-im-offer-overdue', !!doc.querySelector('[data-testid=trig-pk-im-offer-overdue]'));
+  IM.go('triggers');
+  ck('UI: демо-вид стенда показывает повод trig-pk-im-offer-overdue', !!doc.querySelector('[data-testid=trig-pk-im-offer-overdue]'));
 });
 
 group('Прогон без ошибок скрипта: все экраны и формы', ({ IM, errs }) => {
@@ -593,6 +592,7 @@ group('Даты ДД.ММ.ГГГГ, субъекты из списка, валю
   ck('фильтр по куратору на дату (Ошская обл.: ИО-410 и ИО-12)', [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid).sort().join() === ['object-row-ИО-12', 'object-row-ИО-410'].sort().join(),
     [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid));
   IM.setF('bCur', '');
+  IM.go('migration');
   ck('контроль миграции: расхождение подписано как учебный пример', has(doc.querySelector('[data-testid=migration-control]').textContent, 'учебный пример'));
   IM.go('offers');
   ck('фильтры реестра предложений: обязанное лицо, орган', !!doc.querySelector('[data-testid=f-oObl]') && !!doc.querySelector('[data-testid=f-oOrgan]'));
@@ -871,7 +871,7 @@ group('С-41: миграция — черновики из легаси-плат
   ck('Х и Н дополнены и ждут второго ключа, М — «не подтверждён»', ['pending', 'pending', 'unconfirmed'].join() === IM.DRAFTS.map(d => IM.draftState(d).code).join());
   const m0 = IM.migrationReport();
   ck('миграция заблокирована черновиком Ч-3', m0.blocked && m0.why.some(w => has(w, 'Ч-3 не подтверждён')), m0.why);
-  IM.go('objects');
+  IM.go('migration');
   ck('UI: отчёт миграции с блокировкой и строкой «не подтверждён»', has(doc.querySelector('[data-testid=migration-blocked]').textContent, 'Ч-3') && doc.querySelector('[data-testid="draft-Ч-3"]').dataset.code === 'unconfirmed');
   ck('второй ключ не ставит специалист', !IM.publishDraft('Ч-1', 'spec').ok);
   const x = IM.publishDraft('Ч-1', 'head'), n = IM.publishDraft('Ч-2', 'head');
@@ -896,6 +896,246 @@ group('Формы ИМ-47…59: рендер без ошибок', ({ IM, errs }
   IM.setRole('head'); IM.go('objects'); IM.go('settings');
   key(IM, 'ИО-12', 'realloc', { doc: 'Решение суда' }, 'spec'); IM.openObject('ИО-12', 'char'); IM.uiFact('ИО-12', 'claimPaid'); IM.closeForm();
   ck('без ошибок скрипта', errs.length === 0, errs);
+});
+
+group('ИМ-70/71/65/66: документы, печать, реестр договоров, «Показано N из M»', ({ IM, doc }) => {
+  IM.setRole('head'); IM.setAsOf(IM.TODAY);
+  /* ИМ-70 · вкладка «Документы» объекта */
+  const withDoc = IM.OBJECTS.find(o => o.id === 'ИО-2');
+  IM.openObject(withDoc.id, 'docs');
+  const live = withDoc.facts.filter(f => f.pub && f.date <= IM.S.asOf && IM.docOf(f).no);
+  const rowsN = doc.querySelectorAll('[data-testid=docs-table] [data-testid=doc-row]').length;
+  ck('ИМ-70: вкладка «Документы» перечисляет документы из опубликованных фактов', rowsN > 0 && rowsN === live.length, [rowsN, live.length]);
+  ck('ИМ-70: счётчик на вкладке = число документов', has(doc.querySelector('[data-testid=tab-docs]').textContent, String(live.length)));
+  ck('ИМ-70: вкладок 12', doc.querySelectorAll('.tabs .tab').length === 12);
+  ck('ИМ-70: документ без файла помечен «файл не приложен»', has(doc.querySelector('[data-testid=docs-table]').textContent, 'файл не приложен') || doc.querySelectorAll('[data-testid=doc-file]').length > 0);
+  const f0 = withDoc.facts.find(f => f.pub && IM.docOf(f).no);
+  ck('ИМ-70: старый вид (doc строкой) читается как номер без файла', IM.docOf({ doc: 'Акт № 1' }).no === 'Акт № 1' && IM.docOf({ doc: 'Акт № 1' }).file === '' && IM.docOf({ doc: 'Акт № 1' }).date === '');
+  ck('ИМ-70: поля doc/docDate/file читаются', (d => d.no === '№ 5' && d.date === '2027-01-02' && d.file === 'a.pdf')(IM.docOf({ doc: '№ 5', docDate: '2027-01-02', file: 'a.pdf' })));
+  /* файл у факта → ссылка в журнале и в списке */
+  f0.docDate = '2027-01-02'; f0.file = 'akt.pdf';
+  IM.openObject(withDoc.id, 'log');
+  ck('ИМ-70: в журнале номер документа с файлом — ссылка', doc.querySelectorAll('[data-testid=fact-journal] [data-testid=doc-link]').length === 1);
+  IM.openObject(withDoc.id, 'docs');
+  ck('ИМ-70: в списке документов у факта виден файл', doc.querySelectorAll('[data-testid=docs-table] [data-testid=doc-file]').length === 1);
+  delete f0.docDate; delete f0.file;
+  /* у предложения */
+  IM.openOffer('П-1');
+  const of = IM.offer('П-1'); const need = 1 + of.facts.filter(f => f.pub && (f.t === 'decision' || f.t === 'letter') && f.date <= IM.S.asOf).length;
+  const od = doc.querySelectorAll('[data-testid=offer-docs-table] [data-testid=doc-row]');
+  ck('ИМ-70: у предложения блок «Документы»: письмо источника, решение, промежуточное письмо', od.length === need && has(od[0].textContent, 'Письмо источника') && has(doc.querySelector('[data-testid=offer-docs]').textContent, 'Решение органа') && has(doc.querySelector('[data-testid=offer-docs]').textContent, 'Промежуточное письмо'), [od.length, need]);
+  ck('ИМ-70: блок после журнала фактов', doc.querySelector('[data-testid=offer-docs]').compareDocumentPosition(doc.querySelector('[data-testid=fact-journal]')) & 2);
+  ck('ИМ-70: ответ источнику помечен', has(doc.querySelector('[data-testid=offer-docs]').textContent, 'ответ источнику'));
+  /* ИМ-71 · печать */
+  ck('ИМ-71: у предложения «Печать» даёт 4 бланка, пункт письма — «Бланк промежуточного письма»', doc.querySelectorAll('[data-testid=print-actions] .mi').length === 4 && has(doc.querySelector('[data-testid=print-letter]').textContent, 'Бланк промежуточного письма'));
+  ck('ИМ-71: «Претензия покупателю» у предложения недоступна с причиной', doc.querySelector('[data-testid=print-claim]').disabled && has(doc.querySelector('[data-testid=why-print-claim]').textContent, 'карточке объекта'));
+  ck('ИМ-71: после решения письмо недоступно с причиной', IM.printItems('offer', 'П-1').find(i => i.t === 'letter').ok === false && has(IM.printItems('offer', 'П-1').find(i => i.t === 'letter').why, 'решение органа'));
+  const ctrObj = IM.OBJECTS.find(o => { const c = IM.contractInfo(o.id); return c && c.active && c.overdue; });
+  IM.openObject(ctrObj.id, 'char');
+  ck('ИМ-71: у объекта «Печать» — 4 пункта, претензия доступна при просрочке договора', doc.querySelectorAll('[data-testid=print-actions] .mi').length === 4 && !doc.querySelector('[data-testid=print-claim]').disabled);
+  ck('ИМ-71: «Ответ источнику» у объекта недоступен с причиной', doc.querySelector('[data-testid=print-ans]').disabled && !!doc.querySelector('[data-testid=why-print-ans]').textContent);
+  const noCtr = IM.OBJECTS.find(o => !IM.contractInfo(o.id));
+  ck('ИМ-71: без договора претензия недоступна — «договора купли-продажи нет»', IM.printItems('object', noCtr.id).find(i => i.t === 'claim').why === 'договора купли-продажи нет');
+  /* ИМ-65 · реестр договоров */
+  IM.setF('cKind', ''); IM.setF('cState', ''); IM.setF('cBuyer', ''); IM.setF('cTile', ''); IM.go('contracts');
+  const all = IM.OBJECTS.filter(o => IM.contractInfo(o.id));
+  const rn = () => doc.querySelectorAll('[data-testid^=contract-row-]').length;
+  const tv = t => +doc.querySelector(`[data-testid=${t}]`).textContent;
+  ck('ИМ-65: плитки: договоров = строк', tv('ctot-all') === all.length && rn() === all.length);
+  const nOver = all.filter(o => { const c = IM.contractInfo(o.id); return c.overdue && c.active; }).length, nClaim = all.filter(o => IM.contractInfo(o.id).claims.length).length;
+  ck('ИМ-65: плитки «с просрочкой» и «с претензией» сходятся с данными', tv('ctot-over') === nOver && tv('ctot-claim') === nClaim, [tv('ctot-over'), nOver, tv('ctot-claim'), nClaim]);
+  IM.setF('cTile', 'over');
+  ck('ИМ-65: нажатие плитки «с просрочкой» оставляет эти строки', rn() === nOver && nOver > 0);
+  IM.setF('cTile', 'claim');
+  ck('ИМ-65: нажатие плитки «с претензией» оставляет эти строки', rn() === nClaim);
+  IM.setF('cTile', '');
+  const nInst = all.filter(o => IM.contractInfo(o.id).kind === 'once').length;
+  IM.setF('cKind', 'once');
+  ck('ИМ-65: фильтр «Вид» режет строки и плитки', rn() === nInst && tv('ctot-all') === nInst && nInst < all.length, [rn(), nInst]);
+  ck('ИМ-66: «Показано N из M» на реестре договоров', has(doc.querySelector('[data-testid=shown-contracts]').textContent, `Показано ${nInst} из ${all.length}`));
+  IM.setF('cKind', '');
+  const b = IM.contractInfo(all[0].id).c.buyer; IM.setF('cBuyer', b);
+  const nB = all.filter(o => IM.contractInfo(o.id).c.buyer === b).length;
+  ck('ИМ-65: фильтр «Покупатель» режет строки', rn() === nB, [rn(), nB]);
+  IM.setF('cBuyer', ''); IM.setF('cState', 'term');
+  const nT = all.filter(o => IM.contractInfo(o.id).terminated).length;
+  ck('ИМ-65: фильтр «Состояние» (расторгнут) режет строки', rn() === nT, [rn(), nT]);
+  IM.setF('cState', '');
+  /* ИМ-66 */
+  ck('ИМ-66: шапка таблицы реестра договоров закреплена', doc.querySelector('table.cgrid.sticky') !== null);
+  IM.go('offers');
+  ck('ИМ-66: «Показано N из M» на реестре предложений', has(doc.querySelector('[data-testid=shown-offers]').textContent, `Показано ${doc.querySelectorAll('[data-testid^=offer-row-]').length} из `));
+  IM.setF('oSrc', 'pssi');
+  const sh = doc.querySelector('[data-testid=shown-offers]').textContent.match(/(\d+) из (\d+)/);
+  ck('ИМ-66: при фильтре N < M и N = строк', +sh[1] === doc.querySelectorAll('[data-testid^=offer-row-]').length && +sh[1] < +sh[2], sh);
+  IM.setF('oSrc', '');
+  IM.go('objects');
+  const so = doc.querySelector('[data-testid=shown-objects]').textContent.match(/(\d+) из (\d+)/);
+  ck('ИМ-66: «Показано N из M» на реестре объектов', +so[1] === doc.querySelectorAll('[data-testid^=object-row-]').length && +so[1] === +so[2], so);
+  IM.setF('bKind', IM.OBJECTS[0].kind);
+  const so2 = doc.querySelector('[data-testid=shown-objects]').textContent.match(/(\d+) из (\d+)/);
+  ck('ИМ-66: фильтр уменьшает N, M прежнее', +so2[1] < +so2[2] && +so2[2] === +so[2], so2);
+  IM.setF('bKind', '');
+});
+
+group('Волна 3, линия A: каркас, меню, слова (ИМ-60…63, 72, 74, 75, 77, Д-8)', ({ IM, doc }) => {
+  const panel = () => doc.getElementById('panel');
+  const stripTid = h => h.replace(/data-testid="[^"]*"/g, '');
+  const navVisible = tid => { const b = doc.querySelector(`[data-testid=${tid}]`); return !!b && b.style.display !== 'none'; };
+  const asOfShown = () => doc.getElementById('asOfBox').style.display !== 'none';
+  IM.setRole('head');
+  ck('ИМ-60: рабочая область не ограничена 1280 px', !/\.panel-wrap\{[^}]*max-width/.test([...doc.querySelectorAll('style')].map(x => x.textContent).join('')));
+  /* ИМ-61 */
+  const rep0 = IM.migrationReport();
+  IM.go('objects');
+  const regOk = !doc.querySelector('[data-testid=migration-control]') && !doc.querySelector('[data-testid=migration-drafts]') && !doc.querySelector('[data-testid=intro-new]');
+  IM.setRole('spec'); IM.go('migration');
+  const migOk = !!doc.querySelector('[data-testid=migration-control]') && !!doc.querySelector('[data-testid=migration-drafts]') && !!doc.querySelector('[data-testid=intro-new]');
+  ck('ИМ-61: миграция и «Ввести вводный остаток» — на своём экране, с реестра объектов ушли; счётчик пункта = число блокировок',
+    regOk && migOk && navVisible('nav-migration') && doc.getElementById('cntMig').textContent === String(rep0.why.length) && rep0.why.length > 0, [regOk, migOk, rep0.why.length]);
+  /* ИМ-72 (до закрытия миграции) */
+  IM.setRole('head'); IM.go('queue');
+  const nFacts = IM.pending().length, nDr = IM.DRAFTS.filter(d => IM.draftState(d).code === 'pending').length;
+  const rowsQ = doc.querySelectorAll('[data-testid=queue-table] tbody tr').length;
+  const foot = +doc.querySelector('[data-testid=pending-count]').textContent;
+  ck('ИМ-72: очередь = факты + черновики миграции; счётчик в подвале, в меню и в заголовке сходятся со списком',
+    nDr === 2 && rowsQ === nFacts + nDr && foot === rowsQ && doc.getElementById('cntQueue').textContent === String(rowsQ) && doc.querySelector('[data-testid=queue-count]').textContent === String(rowsQ)
+    && !!doc.querySelector('[data-testid=queue-draft-Ч-1]'), [nFacts, nDr, rowsQ, foot]);
+  IM.openOffer('П-7');
+  const here = doc.querySelector('[data-testid=pending-here]');
+  ck('ИМ-72: на экране строка «ждут здесь: N» со ссылкой в очередь, таблицы второго ключа на экране нет',
+    !!here && has(here.textContent, 'ждут здесь') && !!doc.querySelector('[data-testid=pending-here-link]') && !doc.querySelector('[data-testid=pending-card]'));
+  IM.go('queue'); doc.querySelector('[data-testid=queue-draft-publish-Ч-1]').click();
+  ck('ИМ-72: черновик публикуется из очереди, список и счётчик уменьшаются вместе', doc.querySelectorAll('[data-testid=queue-table] tbody tr').length === rowsQ - 1 && IM.queueCount() === rowsQ - 1 && !!IM.draftState(IM.DRAFTS[0]).code.match(/done/));
+  /* ИМ-62 */
+  IM.go('settings');
+  ck('ИМ-62: в «Настройках» только пороги, списка поводов нет', !doc.querySelector('[data-testid=triggers]') && !doc.querySelector('[data-testid^=trig-]') && !!doc.querySelector('[data-testid=insp-by-kind]') && !has(panel().textContent, 'Поводы на'));
+  IM.go('triggers');
+  ck('ИМ-62: список поводов — в демо-виде стенда', !!doc.querySelector('[data-testid=triggers]') && !!doc.querySelector('[data-testid=demo-triggers]') && has(doc.querySelector('[data-testid=demo-triggers]').textContent, String(IM.triggers().length)));
+  /* ИМ-63 */
+  IM.openOffer('П-3');
+  const ov = doc.querySelector('[data-testid=offer-overdue]');
+  ck('ИМ-63: повод предложения — полосой в шапке, не плашкой над ней', !!ov && !!ov.closest('.ohead') && !ov.classList.contains('banner'));
+  /* ИМ-75 */
+  IM.setRole('head'); IM.openOffer('П-1');
+  const dts = [...doc.querySelectorAll('[data-testid=fact-journal] tbody tr td:first-child')].map(td => td.textContent.split('.').reverse().join('-'));
+  ck('ИМ-75: журнал фактов — новые сверху', dts.length > 3 && dts.every((d, i) => i === 0 || dts[i - 1] >= d), dts);
+  /* ИМ-77 */
+  const jt = doc.querySelector('[data-testid=fact-journal]').textContent;
+  IM.go('queue');
+  ck('ИМ-77: «Ввёл» вместо «Готовил», «ключ не нужен» вместо «без второго ключа»', has(jt, 'Ввёл') && has(jt, 'ключ не нужен') && !has(jt, 'без второго ключа') && !has(panel().textContent, 'Готовил') && has(panel().textContent, 'Ввёл'));
+  /* Состояние на */
+  const hid = ['settings', 'migration', 'queue'].every(v => { IM.go(v); return !asOfShown(); });
+  IM.go('offers');
+  ck('«Состояние на» скрыто на «Настройках», «Миграции» и в очереди, на реестрах видно', hid && asOfShown());
+  /* ИМ-Д-8 */
+  IM.setAsOf('2028-03-17'); IM.go('objects');
+  const cc = doc.querySelector('[data-testid="curator-over-ИО-13"]');
+  ck('ИМ-Д-8: ячейка куратора без назначенного — одна строка', !!cc && !cc.closest('td').querySelector('div') && cc.closest('td').querySelectorAll('.pill').length === 1);
+  IM.setAsOf(IM.TODAY);
+  /* ИМ-74 */
+  const seen = [];
+  ['offers', 'objects', 'contracts', 'settings', 'queue', 'migration', 'triggers'].forEach(v => { IM.go(v); seen.push(stripTid(panel().innerHTML)); });
+  ['П-3', 'П-5', 'П-7'].forEach(id => { IM.openOffer(id); seen.push(stripTid(panel().innerHTML)); });
+  ['ИО-1', 'ИО-7', 'ИО-13'].forEach(id => { IM.openObject(id, 'char'); seen.push(stripTid(panel().innerHTML)); });
+  const all = seen.join(' ');
+  ck('ИМ-74: в интерфейсе и подсказках нет служебных кодов pk-im-* и «2028-03»', !/pk-im/.test(all) && !/2028-03/.test(all) && !/ИМ-\d|ADR/.test(all), (all.match(/.{20}(pk-im|2028-03).{10}/) || [])[0]);
+  /* ИМ-61: закрытие миграции убирает пункт */
+  IM.setRole('head');
+  IM.publishDraft('Ч-2', 'head'); IM.fillDraft('Ч-3', { name: 'Склад, г. Ош', kind: 'store', region: 'г. Ош', now: 'onbook', doc: 'Акт № 2/20' }, 'spec'); IM.publishDraft('Ч-3', 'head');
+  IM.MIGRATED.forEach(m => { m.sum = IM.migrationControl().find(c => c.obl === m.obl).objects; });
+  IM.go('migration');
+  ck('ИМ-61: после закрытия миграции пункт меню убран, экран возвращает к реестру объектов', IM.migrationClosed() && !navVisible('nav-migration') && IM.S.view === 'objects');
+});
+
+group('Волна 3, линия B: формы и движок фактов (ИМ-69, ИМ-73, ИМ-76, ИМ-78, Д-5, Д-7)', ({ IM, doc }) => {
+  const fl = () => (IM.S.form ? IM.S.form.fields.map(f => f.id) : []);
+  /* ИМ-69: документ = номер · дата · файл во всех формах, где он есть */
+  IM.setRole('spec');
+  const objT = ['reg', 'regRefusal', 'terminate', 'vehReg', 'inspection', 'appraisal', 'expense', 'encumbrance', 'priceDecision', 'attemptResult', 'contract', 'claim', 'cterm', 'split', 'gift', 'loss', 'ret', 'claimPaid', 'claimStop', 'topup', 'realloc'];
+  const bad = [];
+  objT.forEach(t => { IM.uiFact('ИО-2', t); const f = fl(); if (f.includes('doc') && !(f.includes('docDate') && f.includes('file'))) bad.push(t); IM.closeForm(); });
+  ['letter', 'withdraw', 'act', 'terminate'].forEach(t => { IM.uiFact('П-3', t, 1); const f = fl(); if (f.includes('doc') && !(f.includes('docDate') && f.includes('file'))) bad.push('П:' + t); IM.closeForm(); });
+  IM.setRole('sec'); IM.uiDecision('П-3'); { const f = fl(); if (!(f.includes('doc') && f.includes('docDate') && f.includes('file'))) bad.push('decision'); } IM.closeForm();
+  IM.setRole('spec'); IM.uiIntro(); { const f = fl(); if (!(f.includes('doc') && f.includes('file'))) bad.push('intro'); } IM.closeForm();
+  IM.uiDraft('Ч-3'); { const f = fl(); if (!(f.includes('doc') && f.includes('file'))) bad.push('draft'); } IM.closeForm();
+  IM.uiNewOffer(); { const f = fl(); if (!(f.includes('docNo') && f.includes('file'))) bad.push('offer'); } IM.closeForm();
+  ck('ИМ-69: во всех формах с документом есть дата документа и файл', !bad.length, bad);
+  IM.uiFact('ИО-2', 'inspection');
+  ck('ИМ-69: у осмотра ещё «Фото и видео», у остальных форм его нет', fl().includes('media') && !!doc.querySelector('#ff_media[multiple]'));
+  const r = IM.submitForm({ date: '10.03.2028', who: 'А', cond: 'хорошее', doc: 'ОС-77', docDate: '10.03.2028', file: 'akt.pdf', media: ['a.jpg', 'b.mp4'] });
+  ck('ИМ-69: в факте хранятся doc (номер), docDate, file и media', r.ok && r.fact.doc === 'ОС-77' && r.fact.docDate === '2028-03-10' && r.fact.file === 'akt.pdf' && r.fact.media.length === 2, r.fact || r.why);
+  IM.uiFact('ИО-2', 'appraisal');
+  ck('ИМ-69: фото и видео только у осмотра', !fl().includes('media')); IM.closeForm();
+  ck('ИМ-69: doc строкой остаётся номером (обратная совместимость)', IM.addFact('ИО-2', 'expense', { item: 'Охрана', amount: 1, doc: 'Счёт 5' }).fact.doc === 'Счёт 5');
+  /* ИМ-73: поступления не вводятся в модуле */
+  IM.openObject('ИО-8', 'char');
+  const items = [...doc.querySelectorAll('#panel .menu-pop button.mi')].map(b => b.dataset.testid).filter(t => /^act-/.test(t));
+  ck('ИМ-73: в меню «Ввести факт» 22 пункта, оплаты и доплаты среди них нет', items.length === 22 && !items.includes('act-payment') && !items.includes('act-topup'), items);
+  IM.openObject('ИО-8', 'ctr');
+  ck('ИМ-73: у суммы договора — демо-ссылка «как придёт из Платежей»', !!doc.querySelector('[data-testid=demo-pay]'));
+  const dp = IM.demoPay('ИО-8');
+  ck('ИМ-73: демо-поступление проходит, автор в журнале — Платежи', dp.ok && dp.fact.by === 'acc', dp.why);
+  IM.openObject('ИО-8', 'log');
+  ck('ИМ-73: в журнале автор оплаты — «Платежи»', doc.querySelector('[data-testid=fact-journal]').textContent.includes('Платежи'));
+  const pa = dp, ta = IM.addFact('ИО-3', 'topup', { doc: 'В-1' }, 'acc');
+  ck('ИМ-73: движок по-прежнему принимает оплату и доплату от бухгалтера', pa.ok && ta.ok, [pa.why, ta.why]);
+  /* ИМ-76: ошибка у поля, звёздочка у обязательного по правилу поля */
+  IM.setRole('spec'); IM.uiFact('ИО-2', 'appraisal');
+  const e1 = IM.submitForm({ date: '10.03.2028', appraiser: 'О', amount: '0', doc: 'Отчёт' });
+  const fe = doc.querySelector('[data-testid=form-err]');
+  ck('ИМ-76: ошибка движка стоит у поля «Сумма», а не общей строкой', !e1.ok && fe && fe.dataset.field === 'amount' && !doc.querySelector('.banner.danger[data-testid=form-err]'), fe && fe.outerHTML);
+  IM.closeForm(); IM.uiFact('ИО-2', 'inspection');
+  IM.submitForm({ date: '10.03.2028', cond: 'х', doc: 'д' });
+  ck('ИМ-76: пропущенное обязательное поле подсвечено у самого поля', doc.querySelector('[data-testid=form-err]').dataset.field === 'who' && !!doc.querySelector('#fb_who.bad'));
+  IM.closeForm(); IM.uiFact('ИО-2', 'attempt');
+  ck('ИМ-76: «Основание стартовой цены» помечено звёздочкой', !!doc.querySelector('#fb_basis label.req'));
+  IM.closeForm();
+  /* ИМ-78: возврат с причиной, факт остаётся автору черновиком */
+  const g = IM.addFact('ИО-2', 'gift', { to: 'Госорган', doc: 'Акт 1' }, 'spec');
+  const n0 = IM.OBJECTS.find(o => o.id === 'ИО-2').facts.length;
+  ck('ИМ-78: «Вернуть» без причины отказывает', !IM.rejectPending(g.fact.id, 'head').ok && !IM.rejectPending(g.fact.id, 'head', '  ').ok && g.fact.draft !== true);
+  ck('ИМ-78: вернуть может только начальник Управления', !IM.rejectPending(g.fact.id, 'spec', 'причина').ok);
+  const rr = IM.rejectPending(g.fact.id, 'head', 'Нет подписи в акте');
+  ck('ИМ-78: возврат с причиной — факт не удалён, он у автора черновиком', rr.ok && IM.OBJECTS.find(o => o.id === 'ИО-2').facts.length === n0 && g.fact.draft === true && g.fact.returned.reason === 'Нет подписи в акте' && !g.fact.pub);
+  ck('ИМ-78: черновик не в очереди второго ключа и не публикуется', !IM.pending().some(x => x.f.id === g.fact.id) && !IM.publish(g.fact.id, 'head').ok);
+  IM.setRole('spec'); IM.go('queue');
+  ck('ИМ-78: автор видит черновик с причиной и кнопкой «Править»', !!doc.querySelector(`[data-testid=my-edit-${g.fact.id}]`) && doc.querySelector(`[data-testid=my-fact-${g.fact.id}]`).textContent.includes('Нет подписи'));
+  const ed = IM.revisePending(g.fact.id, { to: 'Минфин', doc: 'Акт 1-в' }, 'spec');
+  ck('ИМ-78: автор правит свой факт; чужой править не может', ed.ok && ed.fact.to === 'Минфин' && ed.fact.id === g.fact.id && ed.fact.draft === true && !IM.revisePending(g.fact.id, { to: 'х', doc: 'д' }, 'head').ok, ed.why);
+  const cur = () => IM.OBJECTS.find(o => o.id === 'ИО-2').facts.find(f => f.id === g.fact.id);
+  ck('ИМ-78: автор отправляет снова — факт опять в очереди', IM.resubmitFact(g.fact.id, 'spec').ok && IM.pending().some(x => x.f.id === g.fact.id));
+  ck('ИМ-78: автор отзывает ждущий факт — он становится черновиком, не удаляется', IM.withdrawFact(g.fact.id, 'spec').ok && cur().draft && cur().withdrawn && !IM.withdrawFact(g.fact.id, 'head').ok);
+  ck('ИМ-78: черновик автор может удалить', IM.discardFact(g.fact.id, 'spec').ok && !cur());
+  /* ИМ-Д-5 */
+  IM.setRole('sec'); IM.uiDecision('П-3');
+  const rf = IM.S.form.fields.find(f => /^r\d/.test(f.id)), vf = IM.S.form.fields.find(f => /^v\d/.test(f.id));
+  const box = () => doc.getElementById('fb_' + rf.id);
+  ck('ИМ-Д-5: при «принять» «Основание отказа» скрыто', box().style.display === 'none');
+  doc.getElementById('ff_' + vf.id).value = 'reject'; IM.syncShow();
+  ck('ИМ-Д-5: при «отказать» «Основание отказа» показано', box().style.display !== 'none');
+  IM.closeForm();
+  /* ИМ-Д-7 */
+  IM.setRole('spec'); IM.uiFact('ИО-2', 'loss');
+  ck('ИМ-Д-7: у страхового возмещения выбор валюты, в подписи нет «сом»', !!doc.querySelector('#ff_ccy option[value=USD]') && !IM.S.form.fields.find(f => f.id === 'insurance').label.includes('сом'));
+  IM.closeForm();
+  const ls = IM.addFact('ИО-4', 'loss', { cause: 'гибель', insurance: 1000, ccy: 'USD', doc: 'Акт' }, 'spec');
+  ck('ИМ-Д-7: валюта возмещения хранится в факте', ls.ok && ls.fact.ccy === 'USD', ls.why);
+});
+
+group('Волна 3, правки после ревью: файл при регистрации, повторная проверка при «Отправить снова»', ({ IM }) => {
+  const r = IM.registerOffer({ source: 'debtor', obligor: 'o_m', docNo: 'ОТ-77', docDate: '2027-03-01', file: 'otvet.pdf', name: 'Дом', value: 100000, kind: 'flat', region: 'г. Бишкек' }, 'spec');
+  ck('ИМ-70: файл письма при регистрации предложения попадает в блок «Документы»',
+    r.ok && IM.offerDocRows(IM.OFFERS.find(o => o.id === r.id)).some(x => x.file === 'otvet.pdf'), r.why);
+  // отозванный факт больше не живёт в очереди; при «Отправить снова» проверки идут заново
+  const a = IM.addFact('ИО-1', 'reg', { date: '2027-04-05', doc: 'Св-1' }, 'spec');
+  if (a.ok && a.pending) {
+    const w = IM.withdrawFact(a.fact.id, 'spec');
+    ck('ИМ-78: отозванный факт — черновик', w.ok && a.fact.draft === true, w.why);
+    const b = IM.addFact('ИО-1', 'reg', { date: '2027-04-05', doc: 'Св-2' }, 'spec');
+    const again = IM.resubmitFact(a.fact.id, 'spec');
+    ck('ИМ-78: «Отправить снова» не создаёт второй ждущий факт того же вида', !(b.ok && b.pending && again.ok), again.why);
+  } else ck('ИМ-78: регистрация права ИО-1 введена как ждущая', true, a.why);
 });
 
 report();
