@@ -123,18 +123,35 @@ never hand-edited.
 
 # Report & print-form list (Перечень)
 
-`build_perechen.py` builds `docs/perechen-otchetov/Перечень.xlsx` — the closed list of reports
-and print forms of the credit module for the final acceptance act. One source:
-`docs/perechen-otchetov/perechen.json` (rules, legend, rows, «вне перечня»). Needs `openpyxl`.
+`build_perechen.py` builds the closed list of reports and print forms of the credit module for
+the final acceptance act, with a card and a sample for every row. One source:
+`docs/perechen-otchetov/perechen.json` (rules, legend, rows, «вне перечня», control set, cards).
+Needs `openpyxl`; blank samples also need LibreOffice (`soffice`).
 
 ```bash
 python3 scripts/build_perechen.py                          # default paths
-python3 scripts/build_perechen.py <perechen.json> <out.xlsx>
+python3 scripts/build_perechen.py --no-samples             # Перечень.xlsx only, no LibreOffice
+python3 scripts/build_perechen.py <perechen.json> <out dir>
 ```
 
-Sheets: «Перечень» (rows: reports, blanks, general requirements; a form variant is its own row
-under the form's number) and «Вне перечня» (what is not in the list and where it is covered).
-Language and the «Кыргызский текст» warning are computed from `"ext": true` on a blank. On any
-error it fails and writes nothing: bad or retired number (ФО-21/22/23), a second main row for a
-number, a variant before its form or repeated, `ext` outside blanks, a missing required field.
-The xlsx is never hand-edited.
+Output (default `docs/perechen-otchetov/`):
+
+- `Перечень.xlsx` — sheets «Перечень» (rows: reports, blanks, general requirements; a form
+  variant is its own row under the form's number; link to the sample file), «Приёмка» (check
+  rules of every row, the control-set borrowers it is checked on, result columns with a
+  сдано/не сдано list), «Контрольный набор» (borrowers КЗ-01…КЗ-20 and their cases),
+  «Вне перечня» (what is not in the list and where it is covered);
+- `obrazcy/ФО-NN.xlsx` per report — sheet «Образец», one sheet per variant, sheet «Описание»
+  (the card); `obrazcy/ФО-NN.docx` per blank — the sample, variant samples after page breaks,
+  then the card. Values the system fills in are highlighted. Stale `ФО-NN.*` files are removed.
+
+Language and the «Кыргызский текст» warning are computed from `"ext": true` on a blank; a
+variant's card is the form's card overlaid with the variant's own fields. On any error it fails
+and writes nothing: bad or retired number (ФО-21/22/23), a second main row for a number, a
+variant before its form or repeated, `ext` outside blanks, a missing required row field, a row
+without a card or a card without a row, a missing card field for its part, a report sample row
+whose cell count differs from the columns, an internal code (ADR-, ИО-, ПВ-…) in card text, a
+control-set reference that is ambiguous, or a row not checked on any control-set borrower.
+It warns (and still writes) when a sample subtotal is not the sum of its rows, and prints the
+owner questions (`open`) — those are never rendered into the package.
+The xlsx and docx files are never hand-edited.
