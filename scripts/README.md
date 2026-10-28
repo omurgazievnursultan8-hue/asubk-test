@@ -124,13 +124,13 @@ never hand-edited.
 # Report & print-form list (Перечень)
 
 `build_perechen.py` builds the closed list of reports and print forms of the credit module for
-the final acceptance act, with a card and a sample for every row. One source:
-`docs/perechen-otchetov/perechen.json` (rules, legend, rows, «вне перечня», control set, cards).
-Needs `openpyxl`; blank samples also need LibreOffice (`soffice`).
+the final acceptance act, with a card for every row and a sample file for every report (blanks
+have no sample file). One source: `docs/perechen-otchetov/perechen.json` (rules, legend, rows,
+«вне перечня», control set, cards). Needs `openpyxl`.
 
 ```bash
 python3 scripts/build_perechen.py                          # default paths
-python3 scripts/build_perechen.py --no-samples             # Перечень.xlsx only, no LibreOffice
+python3 scripts/build_perechen.py --no-samples             # Перечень.xlsx only
 python3 scripts/build_perechen.py <perechen.json> <out dir>
 ```
 
@@ -142,8 +142,8 @@ Output (default `docs/perechen-otchetov/`):
   сдано/не сдано list), «Контрольный набор» (borrowers КЗ-01…КЗ-20 and their cases),
   «Вне перечня» (what is not in the list and where it is covered);
 - `obrazcy/ФО-NN.xlsx` per report — sheet «Образец», one sheet per variant, sheet «Описание»
-  (the card); `obrazcy/ФО-NN.docx` per blank — the sample, variant samples after page breaks,
-  then the card. Values the system fills in are highlighted. Stale `ФО-NN.*` files are removed.
+  (the card). Blanks, external-form stubs and general requirements get no file. Stale
+  `ФО-NN.*` files (including old `.docx`) are removed.
 
 Language and the «Кыргызский текст» warning are computed from `"ext": true` on a blank; a
 variant's card is the form's card overlaid with the variant's own fields. On any error it fails
@@ -154,4 +154,4 @@ whose cell count differs from the columns, an internal code (ADR-, ИО-, ПВ-�
 control-set reference that is ambiguous, or a row not checked on any control-set borrower.
 It warns (and still writes) when a sample subtotal is not the sum of its rows, and prints the
 owner questions (`open`) — those are never rendered into the package.
-The xlsx and docx files are never hand-edited.
+The xlsx files are never hand-edited.

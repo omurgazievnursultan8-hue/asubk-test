@@ -117,10 +117,11 @@ python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.ht
 python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
 
 # Rebuild the list of reports and print forms for the final act (Перечень.xlsx with the
-# acceptance sheet, plus a sample file per form in obrazcy/) from its one source
-# docs/perechen-otchetov/perechen.json. Fails and writes nothing on a bad row or card.
+# acceptance sheet, plus a sample xlsx per report in obrazcy/ — blanks have no sample file)
+# from its one source docs/perechen-otchetov/perechen.json. Fails and writes nothing on a bad
+# row or card.
 python3 scripts/build_perechen.py         # -> docs/perechen-otchetov/Перечень.xlsx + obrazcy/
-python3 scripts/build_perechen.py --no-samples   # xlsx only (samples need LibreOffice)
+python3 scripts/build_perechen.py --no-samples   # xlsx only
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
