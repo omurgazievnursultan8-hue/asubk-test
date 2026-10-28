@@ -17,9 +17,8 @@
   состояния, случай и формы, которые на нём проверяются; по этому листу набор заводится на стенде;
   «Вне перечня» — что в перечень не входит и где оно учтено;
 - obrazcy/ФО-NN.xlsx на отчёт: лист «Образец», по листу на каждый вид, лист «Описание»
-  (карточка); obrazcy/ФО-NN.docx на бланк: образец, образцы видов, описание бланка.
-  docx собирается из HTML через LibreOffice (soffice). Файлы ФО-NN.* в obrazcy/, которых
-  нет в перечне, удаляются.
+  (карточка). Образцы только у отчётов: у бланков, заготовок и требований файла нет.
+  Файлы ФО-NN.* в obrazcy/, не принадлежащие отчёту перечня, удаляются.
 
 Вычисляется, а не пишется в JSON:
 - язык: отчёт — язык интерфейса; бланк с "ext": true (получатель вне ОАО) — русский и
@@ -43,13 +42,9 @@
 Предупреждения (файлы пишутся): подытог в образце отчёта не равен сумме строк под ним;
 вопросы владельцу ("open") в карточках.
 """
-import html
 import json
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -300,13 +295,13 @@ def expand(data):
                 warn.append('Кыргызский текст')
             card = dict(cards[rid]) if vid else {}
             card.update(cards[key(r)])
-            has_file = p != 'требование' and not is_stub(main)
+            has_file = p == 'отчёт' and not is_stub(main)
             out.append(dict(
                 id=rid, vid=vid, key=key(r), part=p, stub=is_stub(main),
                 name=f'вид «{vid}»' if vid else r['name'], title=main['name'],
                 module=r['module'], to=r['to'], lang=lang, basis=r['basis'],
                 sample=r['sample'], warn='; '.join(warn), note=r.get('note', ''),
-                card=card, file=f'{rid}.{"xlsx" if p == "отчёт" else "docx"}' if has_file else '',
+                card=card, file=f'{rid}.xlsx' if has_file else '',
                 control=control_for(data, key(r)),
             ))
     return out
@@ -466,8 +461,8 @@ def sheet_acceptance(wb, data, rows):
     text_row(ws, 1, 'Лист приёмки отчётов и бланков', nc, Font(bold=True, size=14), 22)
     text_row(ws, 2, 'Перечень на дату заморозки: ____________. Проверка — на контрольном наборе '
                     '(лист «Контрольный набор»). Строка сдана, если готовая форма совпадает с '
-                    'карточкой (файл образца, лист «Описание» или последняя страница) и выполнены '
-                    'все правила проверки. Числа образцов — для иллюстрации.', nc, height=44)
+                    'карточкой (у отчёта — файл образца, лист «Описание») и выполнены все правила '
+                    'проверки. Числа образцов — для иллюстрации.', nc, height=44)
     header(ws, 4, ACC_COLS)
     dv = DataValidation(type='list', formula1=RESULTS, allow_blank=True)
     ws.add_data_validation(dv)
@@ -626,19 +621,11 @@ def describe_rows(row):
     yield 'Язык', row['lang']
     yield 'Основание', row['basis']
     yield 'Образец-основа', row['sample']
-    if row['part'] == 'отчёт':
-        yield 'Кому и зачем', c.get('purpose', '')
-        yield 'Когда', c.get('when', '')
-        yield 'Параметры', '\n'.join('• ' + p for p in c.get('params', []))
-        yield 'Строки', c.get('layout', '')
-        yield 'Выгрузка', c.get('export', 'xlsx, pdf')
-    else:
-        yield 'Зачем', c.get('purpose', '')
-        yield 'Когда', c.get('when', '')
-        yield 'Получатель и адрес', c.get('recipient_rule', '')
-        yield 'Текст', c.get('text_source', '')
-        yield 'Регистрационный номер', c.get('regnum', '')
-        yield 'Формат', c.get('format', '')
+    yield 'Кому и зачем', c.get('purpose', '')
+    yield 'Когда', c.get('when', '')
+    yield 'Параметры', '\n'.join('• ' + p for p in c.get('params', []))
+    yield 'Строки', c.get('layout', '')
+    yield 'Выгрузка', c.get('export', 'xlsx, pdf')
     if row['note']:
         yield 'Примечание', row['note']
     if row['warn']:
@@ -647,9 +634,7 @@ def describe_rows(row):
 
 def vid_rows(row, vrow):
     """Поля вида, отличные от формы."""
-    names = {'purpose': 'Кому и зачем' if row['part'] == 'отчёт' else 'Зачем', 'when': 'Когда',
-             'params': 'Параметры', 'layout': 'Строки', 'recipient_rule': 'Получатель и адрес',
-             'text_source': 'Текст', 'regnum': 'Регистрационный номер', 'format': 'Формат'}
+    names = {'purpose': 'Кому и зачем', 'when': 'Когда', 'params': 'Параметры', 'layout': 'Строки'}
     for f, label in names.items():
         v = vrow['card'].get(f)
         if v and v != row['card'].get(f):
@@ -724,126 +709,6 @@ def build_report(row, vids, path):
     wb.save(path)
 
 
-# --- Образцы бланков (docx через HTML) -----------------------------------------------------
-
-CSS = """
-@page { size: 21cm 29.7cm; margin: 2cm 1.5cm 2cm 2.5cm }
-body { font-family: 'Times New Roman'; font-size: 12pt }
-p { margin: 0 0 6pt 0; text-align: justify }
-p.l { text-indent: 0; text-align: left }
-h1 { text-align: center; font-size: 13pt; margin: 12pt 0 }
-h2 { font-size: 13pt; margin: 0 0 8pt 0 }
-h3 { font-size: 12pt; margin: 12pt 0 4pt 0 }
-li { text-indent: 0; text-align: left }
-.v { background: #FFF2A8 }
-.cap { color: #555555; font-style: italic; text-indent: 0 }
-table.t { border-collapse: collapse; width: 100%; margin: 6pt 0 }
-table.t td, table.t th { border: 1px solid #000000; padding: 2pt 4pt; font-size: 10pt; vertical-align: top }
-table.t th { background: #DCE6F2 }
-table.s { width: 100%; margin-top: 24pt }
-table.s td { font-size: 12pt }
-"""
-TABLE = '<table class="t" border="1" cellspacing="0" cellpadding="3" width="100%">'
-
-
-def hx(s):
-    """Текст бланка в HTML: {{значение}} — подставляет система, подсвечивается."""
-    parts = re.split(r'\{\{(.*?)\}\}', str(s))
-    nb = lambda t: re.sub(r'(?<=\d) (?=\d)', '\u00a0', t)
-    return ''.join(f'<span class="v">{html.escape(nb(p))}</span>' if i % 2 else html.escape(nb(p))
-                   for i, p in enumerate(parts))
-
-
-def blank_html(s):
-    out = [f'<p class="l" style="text-indent: 0">{hx(x)}</p>' for x in s.get('head', [])]
-    if s.get('head'):
-        out.append('<p class="l" style="text-indent: 0">&nbsp;</p>')
-    if s.get('to'):
-        out.append('<table class="s"><tr><td width="50%">&nbsp;</td><td>'
-                   + '<br/>'.join(hx(x) for x in s['to']) + '</td></tr></table>')
-    out.append(f'<h1>{hx(s["title"])}</h1>')
-    def table(t):
-        out.append(TABLE + '<tr>' + ''.join(f'<th>{hx(h)}</th>' for h in t['head']) + '</tr>')
-        out.extend('<tr>' + ''.join(f'<td>{hx(c)}</td>' for c in row) + '</tr>' for row in t['rows'])
-        out.append('</table>')
-
-    for x in s['body']:
-        if isinstance(x, dict):
-            table(x['table'])
-        else:
-            out.append(f'<p style="text-indent: 1.25cm">{hx(x)}</p>')
-    if s.get('table'):
-        table(s['table'])
-    for x in s.get('after', []):
-        out.append(f'<p style="text-indent: 1.25cm">{hx(x)}</p>')
-    sign = s.get('sign')
-    if sign:
-        # ["должность", "Ф. И. О."] — одна подпись; [["должность", "Ф. И. О."], …] — несколько
-        pairs = sign if isinstance(sign[0], list) else [[sign[0], ' '.join(sign[1:])]]
-        out.append('<table class="s">' + ''.join(
-            f'<tr><td width="55%">{hx(p[0])}</td><td align="right">______________ '
-            f'{hx(" ".join(p[1:]))}</td></tr>' for p in pairs) + '</table>')
-    return '\n'.join(out)
-
-
-def kv_table(pairs):
-    out = [TABLE]
-    for k, v in pairs:
-        cell = '<br/>'.join(hx(x) for x in str(v).split('\n'))
-        out.append(f'<tr><td width="28%"><b>{html.escape(k)}</b></td><td>{cell}</td></tr>')
-    out.append('</table>')
-    return '\n'.join(out)
-
-
-def blank_doc(row, vids):
-    page = '<p class="l" style="text-indent: 0; page-break-before: always">&nbsp;</p>'
-    out = [blank_html(row['card']['sample'])]
-    for n, v in enumerate(vids, 1):
-        out.append(page)
-        out.append(f'<p class="cap" style="text-indent: 0">{html.escape(row["id"])}, вид {n} «{html.escape(v["vid"])}»</p>')
-        out.append(blank_html(v['card']['sample']))
-    out.append(page)
-    out.append(f'<h2>{html.escape(row["id"])} «{html.escape(row["title"])}» — описание бланка</h2>')
-    out.append(kv_table(describe_rows(row)))
-    c = row['card']
-    out.append('<h3>Что подставляется</h3>' + TABLE + '<tr><th>Значение</th><th>Откуда</th></tr>')
-    out += [f'<tr><td>{hx(f["name"])}</td><td>{hx(f.get("def", ""))}</td></tr>' for f in c['fields']]
-    out.append('</table><h3>Правила проверки</h3><ol>')
-    out += [f'<li>{hx(t)}</li>' for t in c['checks']]
-    out.append('</ol>')
-    for n, v in enumerate(vids, 1):
-        out.append(f'<h3>Вид {n}: «{html.escape(v["vid"])}»</h3>')
-        out.append(kv_table(vid_rows(row, v)))
-        vf = v['card'].get('fields')
-        if vf and vf != c['fields']:
-            out.append(TABLE + '<tr><th>Значение</th><th>Откуда</th></tr>')
-            out += [f'<tr><td>{hx(f["name"])}</td><td>{hx(f.get("def", ""))}</td></tr>' for f in vf]
-            out.append('</table>')
-        out.append('<ol>' + ''.join(f'<li>{hx(t)}</li>' for t in v['card']['checks']) + '</ol>')
-    return (f'<html><head><meta charset="utf-8"><title>{html.escape(row["id"])}</title>'
-            f'<style>{CSS}</style></head><body>' + '\n'.join(out) + '</body></html>')
-
-
-def build_blanks(items, out):
-    soffice = shutil.which('soffice') or shutil.which('libreoffice')
-    if not soffice:
-        fail(['для образцов бланков нужен LibreOffice (soffice); соберите с --no-samples'])
-    with tempfile.TemporaryDirectory() as tmp:
-        files = []
-        for row, vids in items:
-            p = Path(tmp) / f'{row["id"]}.html'
-            p.write_text(blank_doc(row, vids), encoding='utf-8')
-            files.append(str(p))
-        cmd = [soffice, f'-env:UserInstallation=file://{tmp}/lo', '--headless',
-               '--infilter=HTML (StarWriter)', '--convert-to', 'docx:MS Word 2007 XML',
-               '--outdir', str(out)] + files
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        missing = [f for f in files if not (out / (Path(f).stem + '.docx')).exists()]
-        if res.returncode or missing:
-            fail([f'LibreOffice не собрал: {", ".join(Path(f).stem for f in missing) or "—"}',
-                  res.stderr.strip()[-500:]])
-
-
 def build_samples(rows, out):
     out.mkdir(exist_ok=True)
     groups = {}
@@ -851,16 +716,10 @@ def build_samples(rows, out):
         if r['file']:
             groups.setdefault(r['id'], []).append(r)
     made = set()
-    blanks = []
     for rid, rs in groups.items():
         main, vids = rs[0], rs[1:]
         made.add(main['file'])
-        if main['part'] == 'отчёт':
-            build_report(main, vids, out / main['file'])
-        else:
-            blanks.append((main, vids))
-    if blanks:
-        build_blanks(blanks, out)
+        build_report(main, vids, out / main['file'])
     for f in out.iterdir():
         if SAMPLE_RE.match(f.name) and f.name not in made:
             f.unlink()
