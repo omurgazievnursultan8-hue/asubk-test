@@ -118,3 +118,23 @@ Rerun it after every edit to either file. On any mismatch it fails and writes no
 
 So a new schema column needs a dictionary line before the page builds. The page itself is
 never hand-edited.
+
+---
+
+# Report & print-form list (Перечень)
+
+`build_perechen.py` builds `docs/perechen-otchetov/Перечень.xlsx` — the closed list of reports
+and print forms of the credit module for the final acceptance act. One source:
+`docs/perechen-otchetov/perechen.json` (rules, legend, rows, «вне перечня»). Needs `openpyxl`.
+
+```bash
+python3 scripts/build_perechen.py                          # default paths
+python3 scripts/build_perechen.py <perechen.json> <out.xlsx>
+```
+
+Sheets: «Перечень» (rows: reports, blanks, general requirements; a form variant is its own row
+under the form's number) and «Вне перечня» (what is not in the list and where it is covered).
+Language and the «Кыргызский текст» warning are computed from `"ext": true` on a blank. On any
+error it fails and writes nothing: bad or retired number (ФО-21/22/23), a second main row for a
+number, a variant before its form or repeated, `ext` outside blanks, a missing required field.
+The xlsx is never hand-edited.
