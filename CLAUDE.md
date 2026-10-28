@@ -116,6 +116,10 @@ python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.ht
 # twice. Rerun after every edit to either file; a new schema column needs a dictionary line.
 python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
 
+# Rebuild the list of reports and print forms for the final act (Перечень.xlsx) from its one
+# source docs/perechen-otchetov/perechen.json. Fails and writes nothing on a bad row.
+python3 scripts/build_perechen.py         # -> docs/perechen-otchetov/Перечень.xlsx
+
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html
