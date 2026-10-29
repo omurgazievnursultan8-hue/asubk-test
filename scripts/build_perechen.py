@@ -136,8 +136,8 @@ RAZREZ_FILLS = {
 # тип колонки: ширина, формат числа, выравнивание, перенос
 COL_TYPES = {
     'name': (40, None, 'left', True),
-    'money': (14, '#,##0.00', 'right', False),
-    'count': (8, '#,##0', 'right', False),
+    'money': (13, '#,##0.00', 'right', False),
+    'count': (6, '#,##0', 'right', False),
     'days': (8, '#,##0', 'right', False),
     'code': (7, None, 'left', False),
     'rate': (7, '0.00', 'right', False),
@@ -705,7 +705,9 @@ def std_sheet(ws, row, card):
     cols, s = card['columns'], card['sample']
     nc = len(cols)
     types = [COL_TYPES[c.get('type', 'text')] for c in cols]
-    widths = [t[0] for t in types]
+    # ширина по типу, но не уже самого длинного слова заголовка: слово не рвётся посередине (Arial 8)
+    widths = [max(t[0], round(max(len(w) for w in c['name'].split()) * 0.8 + 0.6, 1))
+              for t, c in zip(types, cols)]
     ni = next(i for i, c in enumerate(cols) if c.get('type') == 'name')
     grey = Font(name=STD_FONT, size=8, color='808080')
     ws.cell(row=1, column=1, value=ORG).font = grey
@@ -787,7 +789,8 @@ def std_sheet(ws, row, card):
     ws.freeze_panes = f'{get_column_letter(ni + 2)}{nums + 1}'
     ws.print_title_rows = f'{top}:{nums}'
     table_mm = sum(w * 7 + 5 for w in widths) * 25.4 / 96
-    paper = 'A4' if PRINT_MM['A4'] / table_mm >= 0.7 else 'A3'
+    # A3 — только если на A4 масштаб меньше 50 % (старая система печатала свод в 17 колонок на A4 ≈ 60 %)
+    paper = 'A4' if PRINT_MM['A4'] / table_mm >= 0.5 else 'A3'
     ws.page_setup.paperSize = ws.PAPERSIZE_A4 if paper == 'A4' else ws.PAPERSIZE_A3
     ws.page_setup.orientation = 'landscape'
     ws.page_setup.fitToWidth = 1
