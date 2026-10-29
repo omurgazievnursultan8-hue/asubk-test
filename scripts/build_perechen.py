@@ -5,6 +5,8 @@
 
     python3 scripts/build_perechen.py                      # пути по умолчанию
     python3 scripts/build_perechen.py --no-samples         # только Перечень.xlsx
+    python3 scripts/build_perechen.py --reports            # только Перечень-отчётов.xlsx
+    python3 scripts/build_perechen.py --only=ФО-01,ФО-02   # Перечень.xlsx и образцы только этих отчётов
     python3 scripts/build_perechen.py <perechen.json> <папка вывода>
 
 Что собирается (в папке вывода, по умолчанию docs/perechen-otchetov/):
@@ -18,7 +20,13 @@
   «Вне перечня» — что в перечень не входит и где оно учтено;
 - obrazcy/ФО-NN.xlsx на отчёт: лист «Образец», по листу на каждый вид, лист «Описание»
   (карточка). Образцы только у отчётов: у бланков, заготовок и требований файла нет.
-  Файлы ФО-NN.* в obrazcy/, не принадлежащие отчёту перечня, удаляются.
+  Файлы ФО-NN.* в obrazcy/, не принадлежащие отчёту перечня, удаляются (кроме сборки с --only).
+  Карточка с "style": "стандарт" собирается по стандарту оформления: лист «ФО-NN» (шапка формы,
+  таблица с номерами граф, строки групп с итогом над их кредитами, ширина по типу колонки "type",
+  печать в одну страницу по ширине, колонтитул) и лист «Параметры» из "sheet_params".
+- с --reports вместо всего этого — Перечень-отчётов.xlsx: один лист, только отчёты и их виды
+  (без бланков, требований, приёмки и контрольного набора); обозначения — только те, что
+  встречаются в строках.
 
 Вычисляется, а не пишется в JSON:
 - язык: отчёт — язык интерфейса; бланк с "ext": true (получатель вне ОАО) — русский и
@@ -45,6 +53,7 @@
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -80,6 +89,13 @@ COLS = [
     ('Получатель', 24), ('Язык', 16), ('Основание', 58), ('Образец-основа', 40),
     ('Файл образца', 18), ('⚠ Нужно от заказчика', 28), ('Примечание', 44),
 ]
+# Колонки «Перечня отчётов»: часть и язык у всех строк одни, файла образца нет.
+REPORT_COLS = [
+    ('№', 5), ('Номер', 8), ('Название', 50), ('Модуль', 18), ('Получатель', 24),
+    ('Основание', 58), ('Образец-основа', 40), ('⚠ Нужно от заказчика', 28), ('Примечание', 44),
+]
+REPORTS_TITLE = 'Перечень отчётов кредитного модуля АСУБК'
+REPORTS_FILE = 'Перечень-отчётов.xlsx'
 ACC_COLS = [
     ('№', 5), ('Номер', 8), ('Название', 44), ('Правила проверки', 80), ('Контрольный набор', 26),
     ('Результат', 14), ('Дата', 11), ('Сдал (разработчик)', 18), ('Принял (заказчик)', 18),
@@ -104,6 +120,36 @@ BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 SAMPLE_BORDER = Border(left=BLACK, right=BLACK, top=BLACK, bottom=BLACK)
 WRAP = Alignment(wrap_text=True, vertical='top')
 CENTER = Alignment(wrap_text=True, horizontal='center', vertical='center')
+
+# Стандарт оформления отчёта — у карточек с "style": "стандарт".
+ORG = 'ОАО «Государственный финансовый холдинг»'
+STD_FONT = 'Arial'
+STD_HEAD_FILL = PatternFill('solid', fgColor='C0C0C0')
+# заливка строки разреза — по смыслу разреза: оргструктура синяя, география зелёная, классификаторы
+# сиреневые; ИТОГО тёмный с белым шрифтом; заёмщик и строки кредитов без заливки (заёмщик — жирным)
+ITOGO_FILL, ITOGO_FONT = '44546A', 'FFFFFF'
+RAZREZ_FILLS = {
+    'Блок': '6FA8DC', 'Департамент': '9BC2E6', 'Отдел': 'DDEBF7', 'Куратор': 'EAF2FA',
+    'Область': 'A9D08E', 'Район': 'E2EFDA',
+    'Категория риска': 'E4DFEC', 'Группа платёжеспособности': 'E4DFEC', 'Тип проекта': 'E4DFEC',
+}
+# тип колонки: ширина, формат числа, выравнивание, перенос
+COL_TYPES = {
+    'name': (40, None, 'left', True),
+    'money': (13, '#,##0.00', 'right', False),
+    'count': (6, '#,##0', 'right', False),
+    'days': (8, '#,##0', 'right', False),
+    'code': (7, None, 'left', False),
+    'rate': (7, '0.00', 'right', False),
+    'pct': (8, '0.0', 'right', False),
+    'fx': (10, '0.00000', 'right', False),
+    'date': (11, 'DD.MM.YYYY', 'center', False),
+    'class': (14, None, 'left', True),
+    'text': (28, None, 'left', True),
+    'note': (30, None, 'left', True),
+}
+DATE_RE = re.compile(r'^(\d\d)\.(\d\d)\.(\d{4})$')
+PRINT_MM = {'A4': 277, 'A3': 400}  # ширина альбомного листа минус поля по 1 см
 
 
 def fail(errors):
@@ -322,7 +368,8 @@ def sum_warnings(row):
     for i, r in enumerate(rows):
         kids, j = [], i + 1
         while j < len(rows) and rows[j]['level'] > r['level']:
-            if rows[j]['level'] == r['level'] + 1:
+            # строка «в <валюта> (курс …)» — те же суммы в валюте договора, в итоги не входит
+            if rows[j]['level'] == r['level'] + 1 and not rows[j].get('fx'):
                 kids.append(rows[j])
             j += 1
         if not kids or (len(kids) > 1 and all(kd['cells'][:ni] + kd['cells'][ni + 1:]
@@ -449,6 +496,41 @@ def sheet_list(wb, data, rows, n):
             c.font = Font(color=BLUE, underline='single')
         if row['warn']:
             ws.cell(row=r, column=11).fill = WARN_FILL
+    ws.freeze_panes = ws.cell(row=head + 1, column=4)
+    ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
+    page_setup(ws, head)
+
+
+def sheet_reports(wb, data, rows, n):
+    """Перечень отчётов: только отчёты и их виды; rows — уже отобранные строки отчётов."""
+    ws = wb.active
+    ws.title = 'Перечень отчётов'
+    nc = len(REPORT_COLS)
+    set_widths(ws, REPORT_COLS)
+    used = ' '.join(f'{x["basis"]} {x["sample"]} {x["note"]}' for x in rows)
+    legend = [l for l in data['legend'] if re.sub(r' (¶N|NN)$', '', l.split(' — ')[0]) in used]
+    scope = next(x for x in data['rules'] if x.startswith('Охват'))
+    r = 1
+    text_row(ws, r, REPORTS_TITLE, nc, Font(bold=True, size=14), 22)
+    r += 1
+    text_row(ws, r, data['date'], nc, Font(italic=True, color='555555'))
+    r += 1
+    total = (f'Отчётов: {n["reports"]} (из них заготовок внешних форм: {n["stub"]}), видов отчётов: '
+             f'{n["report_vids"]}. Строк с ⚠: {n["warn"]}.')
+    text_row(ws, r, total, nc, Font(bold=True))
+    r += 2
+    text_row(ws, r, scope, nc, height=30)
+    r += 2
+    text_row(ws, r, 'Обозначения: ' + '; '.join(legend) + '.', nc, Font(color='555555', size=9), 42)
+    r += 2
+    header(ws, r, REPORT_COLS)
+    head = r
+    for k, row in enumerate(rows, 1):
+        r += 1
+        table_row(ws, r, [k, row['id'], row['name'], row['module'], row['to'], row['basis'],
+                          row['sample'], row['warn'], row['note']], bool(row['vid']))
+        if row['warn']:
+            ws.cell(row=r, column=8).fill = WARN_FILL
     ws.freeze_panes = ws.cell(row=head + 1, column=4)
     ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
     page_setup(ws, head)
@@ -611,6 +693,135 @@ def sample_sheet(ws, card, caption=None):
     page_setup(ws)
 
 
+def text_lines(text, width):
+    """Число строк текста с переносами по словам и явными переводами строки."""
+    return sum(wrapped(part, width) for part in str(text).split('\n'))
+
+
+def std_sheet(ws, row, card):
+    """Лист отчёта по стандарту: шапка формы, двухъярусная шапка таблицы с номерами граф;
+    строки групп с их итогом ("kind": "total"; уровень 0 — ИТОГО) над строками кредитов;
+    печать в одну страницу по ширине."""
+    cols, s = card['columns'], card['sample']
+    nc = len(cols)
+    types = [COL_TYPES[c.get('type', 'text')] for c in cols]
+    # ширина по типу, но не уже самого длинного слова заголовка: слово не рвётся посередине (Arial 8)
+    widths = [max(t[0], round(max(len(w) for w in c['name'].split()) * 0.8 + 0.6, 1))
+              for t, c in zip(types, cols)]
+    ni = next(i for i, c in enumerate(cols) if c.get('type') == 'name')
+    grey = Font(name=STD_FONT, size=8, color='808080')
+    ws.cell(row=1, column=1, value=ORG).font = grey
+    c = ws.cell(row=1, column=nc, value=row['id'])
+    c.font = grey
+    c.alignment = Alignment(horizontal='right')
+    lines = [(s['title'][0], Font(name=STD_FONT, size=12, bold=True))]
+    lines += [(t, Font(name=STD_FONT, size=10)) for t in s['title'][1:]]
+    lines += [(t, Font(name=STD_FONT, size=9, italic=True)) for t in s.get('notes', [])]
+    r = 2
+    for text, font in lines:
+        ws.cell(row=r, column=1, value=text).font = font
+        ws.cell(row=r, column=1).alignment = Alignment(horizontal='center')
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=nc)
+        r += 1
+    top = r + 1
+    i = 0
+    while i < nc:
+        g = cols[i].get('group')
+        j = i
+        while g and j + 1 < nc and cols[j + 1].get('group') == g:
+            j += 1
+        if g:
+            ws.cell(row=top, column=i + 1, value=g)
+            if j > i:
+                ws.merge_cells(start_row=top, start_column=i + 1, end_row=top, end_column=j + 1)
+            for ci in range(i, j + 1):
+                ws.cell(row=top + 1, column=ci + 1, value=cols[ci]['name'])
+        else:
+            ws.cell(row=top, column=i + 1, value=cols[i]['name'])
+            ws.merge_cells(start_row=top, start_column=i + 1, end_row=top + 1, end_column=i + 1)
+        i = j + 1
+    nums = top + 2
+    for ci in range(nc):
+        ws.cell(row=nums, column=ci + 1, value=ci + 1)
+    for hr in range(top, nums + 1):
+        for ci in range(1, nc + 1):
+            c = ws.cell(row=hr, column=ci)
+            c.font = Font(name=STD_FONT, size=8)
+            c.fill = STD_HEAD_FILL
+            c.border = SAMPLE_BORDER
+            c.alignment = CENTER
+    for ci, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    # высота шапки — под самый длинный заголовок колонки
+    need = [11 * wrapped(col['name'], int(widths[ci] * 1.2)) + 8 for ci, col in enumerate(cols)]
+    ws.row_dimensions[top].height = 14
+    ws.row_dimensions[top + 1].height = max([14] + [need[ci] for ci, col in enumerate(cols) if col.get('group')]
+                                            + [need[ci] - 14 for ci, col in enumerate(cols) if not col.get('group')])
+    cuts = card.get('razrezy', {}).get('default', [])
+    r = nums
+    for x in s['rows']:
+        r += 1
+        lvl, kind, fx = x['level'], x.get('kind', 'detail'), x.get('fx', False)
+        size = 9 if lvl == 0 else 8
+        color = None
+        if kind == 'total':
+            color = ITOGO_FILL if lvl == 0 else RAZREZ_FILLS.get(cuts[lvl - 1]) if lvl <= len(cuts) else None
+        fill = PatternFill('solid', fgColor=color) if color else None
+        ink = ITOGO_FONT if kind == 'total' and lvl == 0 else '555555' if fx else None
+        height = 1
+        for ci, v in enumerate(x['cells']):
+            width, fmt, align, wrap = types[ci]
+            if align == 'center' and isinstance(v, str) and DATE_RE.match(v):
+                d, m, y = DATE_RE.match(v).groups()
+                v = datetime(int(y), int(m), int(d))
+            c = ws.cell(row=r, column=ci + 1, value=None if v == '' else v)
+            c.border = SAMPLE_BORDER
+            c.font = Font(name=STD_FONT, size=size, bold=kind == 'total', italic=fx, color=ink)
+            if fill:
+                c.fill = fill
+            c.alignment = Alignment(horizontal=align, vertical='top', wrap_text=wrap,
+                                    indent=max(0, lvl - 1) if ci == ni else 0)
+            if fmt and not isinstance(v, str):
+                c.number_format = fmt
+            if wrap and isinstance(v, str):
+                height = max(height, text_lines(v, int(width * 1.2) - (2 * lvl if ci == ni else 0)))
+        ws.row_dimensions[r].height = (12 if size == 9 else 11) * height + 2
+    ws.freeze_panes = f'{get_column_letter(ni + 2)}{nums + 1}'
+    ws.print_title_rows = f'{top}:{nums}'
+    table_mm = sum(w * 7 + 5 for w in widths) * 25.4 / 96
+    # A3 — только если на A4 масштаб меньше 50 % (старая система печатала свод в 17 колонок на A4 ≈ 60 %)
+    paper = 'A4' if PRINT_MM['A4'] / table_mm >= 0.5 else 'A3'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4 if paper == 'A4' else ws.PAPERSIZE_A3
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    for side in ('left', 'right', 'top', 'bottom'):
+        setattr(ws.page_margins, side, 0.39)
+    ws.oddFooter.center.text = (f'{row["id"]} · сформировал {s["made_by"]} {s["made_at"]} · '
+                                f'Страница &P из &N')
+    ws.oddFooter.center.size = 8
+    ws.oddFooter.center.font = STD_FONT
+
+
+def std_params_sheet(ws, card):
+    """Лист «Параметры»: все параметры, курсы, период, кто и когда сформировал."""
+    ws.cell(row=1, column=1, value='Параметры отчёта').font = Font(name=STD_FONT, size=11, bold=True)
+    ws.column_dimensions['A'].width = 24
+    ws.column_dimensions['B'].width = 80
+    for r, (k, v) in enumerate(card['sample']['sheet_params'], 3):
+        for ci, (val, bold) in enumerate([(k, True), (v, False)], 1):
+            c = ws.cell(row=r, column=ci, value=val)
+            c.font = Font(name=STD_FONT, size=9, bold=bold)
+            c.border = SAMPLE_BORDER
+            c.alignment = WRAP
+        ws.row_dimensions[r].height = 12 * wrapped(v, 92) + 3
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+
 def describe_rows(row):
     c = row['card']
     yield 'Номер', row['id']
@@ -625,6 +836,12 @@ def describe_rows(row):
     yield 'Когда', c.get('when', '')
     yield 'Параметры', '\n'.join('• ' + p for p in c.get('params', []))
     yield 'Строки', c.get('layout', '')
+    if c.get('razrezy'):
+        z = c['razrezy']
+        yield 'Разрезы', (f'по умолчанию: {" → ".join(z["default"])} → {z["detail"].lower()}; '
+                          f'можно выбрать: {", ".join(z["available"])}')
+    if c.get('empty'):
+        yield 'Если строк нет', c['empty']
     yield 'Выгрузка', c.get('export', 'xlsx, pdf')
     if row['note']:
         yield 'Примечание', row['note']
@@ -701,19 +918,24 @@ def describe_sheet(ws, row, vids):
 def build_report(row, vids, path):
     wb = Workbook()
     ws = wb.active
-    ws.title = 'Образец'
-    sample_sheet(ws, row['card'])
+    if row['card'].get('style') == 'стандарт':
+        ws.title = row['id']
+        std_sheet(ws, row, row['card'])
+        std_params_sheet(wb.create_sheet('Параметры'), row['card'])
+    else:
+        ws.title = 'Образец'
+        sample_sheet(ws, row['card'])
     for n, v in enumerate(vids, 1):
         sample_sheet(wb.create_sheet(f'Вид {n}'), v['card'], f'{row["id"]}, вид «{v["vid"]}»')
     describe_sheet(wb.create_sheet('Описание'), row, vids)
     wb.save(path)
 
 
-def build_samples(rows, out):
+def build_samples(rows, out, only=None):
     out.mkdir(exist_ok=True)
     groups = {}
     for r in rows:
-        if r['file']:
+        if r['file'] and (not only or r['id'] in only):
             groups.setdefault(r['id'], []).append(r)
     made = set()
     for rid, rs in groups.items():
@@ -721,7 +943,7 @@ def build_samples(rows, out):
         made.add(main['file'])
         build_report(main, vids, out / main['file'])
     for f in out.iterdir():
-        if SAMPLE_RE.match(f.name) and f.name not in made:
+        if not only and SAMPLE_RE.match(f.name) and f.name not in made:
             f.unlink()
             print(f'удалён лишний образец {f.name}')
     return len(made)
@@ -730,13 +952,24 @@ def build_samples(rows, out):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     no_samples = '--no-samples' in sys.argv
+    only = {x for a in sys.argv[1:] if a.startswith('--only=') for x in a[len('--only='):].split(',')}
     src = Path(args[0]) if args else SRC
     out = Path(args[1]) if len(args) > 1 else OUT_DIR
     data = json.loads(src.read_text(encoding='utf-8'))
     check(data)
     rows = expand(data)
+    if '--reports' in sys.argv:
+        reports = [r for r in rows if r['part'] == 'отчёт']
+        n = counts(reports)
+        wb = Workbook()
+        sheet_reports(wb, data, reports, n)
+        out.mkdir(parents=True, exist_ok=True)
+        wb.save(out / REPORTS_FILE)
+        print(f'{REPORTS_FILE}: {len(reports)} строк — отчётов {n["reports"]} (заготовок {n["stub"]}) '
+              f'+ видов {n["report_vids"]}; ⚠ {n["warn"]}')
+        return
     n = counts(rows)
-    warns = [(r['key'], w) for r in rows if r['part'] == 'отчёт' and not r['stub'] for w in sum_warnings(r)]
+    warns =[(r['key'], w) for r in rows if r['part'] == 'отчёт' and not r['stub'] for w in sum_warnings(r)]
     opens = [(r['key'], q) for r in rows for q in data['cards'][r['key']].get('open', [])]
     wb = Workbook()
     sheet_list(wb, data, rows, n)
@@ -745,7 +978,7 @@ def main():
     sheet_outside(wb, data)
     out.mkdir(parents=True, exist_ok=True)
     wb.save(out / 'Перечень.xlsx')
-    made = 0 if no_samples else build_samples(rows, out / SAMPLES)
+    made = 0 if no_samples else build_samples(rows, out / SAMPLES, only)
     for k, w in warns:
         print(f'предупреждение: {k}: образец: {w}')
     for k, q in opens:

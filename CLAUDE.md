@@ -122,6 +122,13 @@ python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fie
 # row or card.
 python3 scripts/build_perechen.py         # -> docs/perechen-otchetov/Перечень.xlsx + obrazcy/
 python3 scripts/build_perechen.py --no-samples   # xlsx only
+python3 scripts/build_perechen.py --only=ФО-01,ФО-02   # rebuild only these samples, keep the rest
+python3 scripts/build_perechen.py --reports      # -> Перечень-отчётов.xlsx (reports and their views only)
+
+# Replace one card in perechen.json as text, without reformatting the file; refuses to write if anything
+# else changed. Reports are grilled one per session with the /grill-otchet skill (standard: its standart.md).
+python3 scripts/put_card.py ФО-02 --dump card.json                      # current card -> file
+python3 scripts/put_card.py ФО-02 card.json [--name "…"] [--note "…"]   # file -> card (+ row name/note)
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
