@@ -125,13 +125,12 @@ CENTER = Alignment(wrap_text=True, horizontal='center', vertical='center')
 ORG = 'ОАО «Государственный финансовый холдинг»'
 STD_FONT = 'Arial'
 STD_HEAD_FILL = PatternFill('solid', fgColor='C0C0C0')
-# заливка строки разреза — по смыслу разреза: оргструктура синяя, география зелёная, заёмщик
-# персиковый, классификаторы сиреневые; ИТОГО тёмный с белым шрифтом; строки кредитов без заливки
+# заливка строки разреза — по смыслу разреза: оргструктура синяя, география зелёная, классификаторы
+# сиреневые; ИТОГО тёмный с белым шрифтом; заёмщик и строки кредитов без заливки (заёмщик — жирным)
 ITOGO_FILL, ITOGO_FONT = '44546A', 'FFFFFF'
 RAZREZ_FILLS = {
     'Блок': '6FA8DC', 'Департамент': '9BC2E6', 'Отдел': 'DDEBF7', 'Куратор': 'EAF2FA',
     'Область': 'A9D08E', 'Район': 'E2EFDA',
-    'Заёмщик': 'FCE4D6',
     'Категория риска': 'E4DFEC', 'Группа платёжеспособности': 'E4DFEC', 'Тип проекта': 'E4DFEC',
 }
 # тип колонки: ширина, формат числа, выравнивание, перенос
@@ -369,7 +368,8 @@ def sum_warnings(row):
     for i, r in enumerate(rows):
         kids, j = [], i + 1
         while j < len(rows) and rows[j]['level'] > r['level']:
-            if rows[j]['level'] == r['level'] + 1:
+            # строка «в <валюта> (курс …)» — те же суммы в валюте договора, в итоги не входит
+            if rows[j]['level'] == r['level'] + 1 and not rows[j].get('fx'):
                 kids.append(rows[j])
             j += 1
         if not kids or (len(kids) > 1 and all(kd['cells'][:ni] + kd['cells'][ni + 1:]
