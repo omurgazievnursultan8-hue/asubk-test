@@ -41,9 +41,13 @@ def set_row_field(text, rid, field, value):
     end = re.compile(r'^    \{"id"|^  \]', re.M).search(text, m.end()).start()
     block = text[m.start():end]
     pat = re.compile(r'"' + field + r'": "(?:[^"\\]|\\.)*"')
-    if not pat.search(block):
-        sys.exit(f'у строки «{rid}» нет поля "{field}"')
-    new_block = pat.sub(lambda _: f'"{field}": ' + json.dumps(value, ensure_ascii=False), block, count=1)
+    item = f'"{field}": ' + json.dumps(value, ensure_ascii=False)
+    if pat.search(block):
+        new_block = pat.sub(lambda _: item, block, count=1)
+    else:
+        # поля нет — дописать новой строкой перед закрывающей скобкой строки перечня
+        close = block.rindex('}')
+        new_block = block[:close] + ',\n     ' + item + block[close:]
     return text[:m.start()] + new_block + text[end:]
 
 
