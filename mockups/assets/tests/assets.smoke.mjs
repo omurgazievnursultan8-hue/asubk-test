@@ -755,7 +755,7 @@ group('С-33: куратора в ячейке нет — держит заве�
   ck('UI: 17.03.2028 ИО-13 подсвечен', !!doc.querySelector('[data-testid="curator-over-ИО-13"]'));
   IM.setAsOf('15.03.2028'); IM.go('settings');
   ck('UI: таблица порогов кураторства в настройках', !!doc.querySelector('[data-testid=fallback-limits]'));
-  IM.setFb('offer', 30);
+  IM.setRole('head'); IM.setFb('offer', 30);
   ck('порог правится: при 30 р.д. П-9 больше не подсвечен', !IM.curatorOf('П-9').over);
 });
 
@@ -909,7 +909,7 @@ group('С-39: порог осмотра по виду — скот 1 мес., о
   const inp = doc.querySelector('[data-testid=insp-cattle] input');
   ck('UI: в настройках таблица «вид → порог», у скота 1', !!doc.querySelector('[data-testid=insp-by-kind]') && inp && inp.value === '1');
   ck('UI: пустая строка — умолчание', doc.querySelector('[data-testid=insp-flat] input').value === '' && has(doc.querySelector('[data-testid=insp-flat]').textContent, 'умолчание'));
-  IM.setInspThr('cattle', '');
+  IM.setRole('head'); IM.setInspThr('cattle', '');
   ck('очистили исключение — скот по умолчанию, повода 05.02 нет', IM.inspThr('cattle') === 6 && !IM.triggers('2028-02-05').some(t => t.kind === 'pk-im-no-inspection' && t.id === c.id));
 });
 
@@ -1072,8 +1072,17 @@ group('Волна 3, линия A: каркас, меню, слова (ИМ-60�
     && !!doc.querySelector('[data-testid=queue-draft-Ч-1]'), [nFacts, nDr, rowsQ, foot]);
   IM.openOffer('П-7');
   const here = doc.querySelector('[data-testid=pending-here]');
-  ck('ИМ-72: на экране строка «ждут здесь: N» со ссылкой в очередь, таблицы второго ключа на экране нет',
-    !!here && has(here.textContent, 'ждут здесь') && !!doc.querySelector('[data-testid=pending-here-link]') && !doc.querySelector('[data-testid=pending-card]'));
+  ck('ИМ-72: на карточке строка «ждут здесь: N», таблицы второго ключа на экране нет',
+    !!here && has(here.textContent, 'ждут здесь') && !doc.querySelector('[data-testid=pending-card]'));
+  const pfx = IM.pending().find(x => x.owner === 'П-7');
+  ck('15.9: на карточке предложения у заведующего Сектором кнопка «Опубликовать» вместо ссылки в очередь', !!pfx && !doc.querySelector('[data-testid=pending-here-link]')
+    && has(doc.querySelector('[data-testid="card-publish-' + pfx.f.id + '"]').textContent, 'Опубликовать') && has(doc.querySelector('[data-testid="pub-line-' + pfx.f.id + '"]').textContent, 'ждёт публикации'));
+  IM.setRole('spec'); IM.openOffer('П-7');
+  ck('15.9: у остальных ролей кнопки «Опубликовать» нет — только пометка, кто публикует', !doc.querySelector('[data-testid^=card-publish-]') && has(doc.querySelector('[data-testid=pending-here]').textContent, 'публикует заведующий'));
+  IM.go('offers');
+  ck('реестры по-прежнему отправляют в очередь ссылкой', !!doc.querySelector('[data-testid=pending-here-link]'));
+  IM.setRole('head');
+  IM.go('queue');
   IM.go('queue'); doc.querySelector('[data-testid=queue-draft-publish-Ч-1]').click();
   ck('ИМ-72: черновик публикуется из очереди, список и счётчик уменьшаются вместе', doc.querySelectorAll('[data-testid=queue-table] tbody tr').length === rowsQ - 1 && IM.queueCount() === rowsQ - 1 && !!IM.draftState(IM.DRAFTS[0]).code.match(/done/));
   /* ИМ-62 */
@@ -1674,8 +1683,8 @@ group('UI волны 4: доплата, очередь выручки, «Объ�
   ck('«Настройки»: 18 порогов поводов', rowsThr.length === 18, rowsThr.length);
   const instr = [...rowsThr].filter(r => r.querySelector('select.quiet') && r.querySelector('select.quiet').value === 'Инструкция').length;
   ck('у порогов — источник значения «Инструкция» (11) / «внутренний акт» (7)', instr === 11 && [...rowsThr].filter(r => r.querySelector('select.quiet').value === 'внутренний акт').length === 7, instr);
-  ck('«Настройки»: сроки выплаты доплаты по источникам (5 строк, 30 дн., «Инструкция»)', doc.querySelectorAll('[data-testid=topup-term] tbody tr').length === 5 && [...doc.querySelectorAll('[data-testid=topup-term] tbody tr')].every(r => has(r.textContent, '30 дн.') && has(r.textContent, 'Инструкция')));
-  ck('«Настройки»: рассрочка — ставка 3 %, после продления 5 %, 120 дней, 3 + 3 публикации, предельные сроки', ['3 %', '5 %', '120', 'Инструкция'].every(s => has(txt('[data-testid=settings-instalment]'), s)) && has(txt('[data-testid=settings-realtor]'), '5 %'));
+  ck('«Настройки»: сроки выплаты доплаты по источникам (5 строк, 30 дн., «Инструкция»)', doc.querySelectorAll('[data-testid=topup-term] tbody tr').length === 5 && [...doc.querySelectorAll('[data-testid=topup-term] tbody tr')].every(r => r.querySelector('input').value === '30' && has(r.textContent, 'дн.') && has(r.textContent, 'Инструкция')));
+  ck('«Настройки»: рассрочка — ставка 3 %, после продления 5 %, 120 дней, 3 + 3 публикации, предельные сроки', ['3', '5', '120'].every(s => [...q('[data-testid=settings-instalment]').querySelectorAll('input')].some(i => i.value === s)) && has(txt('[data-testid=settings-instalment]'), 'Инструкция') && has(txt('[data-testid=settings-instalment]'), '%') && q('[data-testid=settings-realtor] input').value === '5');
   ck('«Настройки»: наценка риэлтора 5 %, «Инструкция»', has(txt('[data-testid=settings-realtor]'), 'Инструкция'));
   /* форма объявления и регистрации */
   IM.setRole('spec'); IM.openObject('ИО-2', 'char');
@@ -1798,6 +1807,117 @@ group('Правки после ревью волны 4: выкуп и преим
   pay(IM, e.id, '2027-06-20', 1350000);
   const e3 = IM.topupOf(e.id, '2027-06-21');
   ck('оплата 20.06: к выплате 550 000 − 190 000 = 360 000, вторая строка 130 000', e3.payable === 360000 && e3.dueRows[1].sum === 130000 && e3.owed === 360000, e3.dueRows);
+});
+
+/* ---------- выравнивание макета с ТЗ 22: описи экранов 15.8–15.15 ---------- */
+group('ТЗ 22 · 15.8, 15.10, 15.12: пустые списки названы как в описи экрана', ({ IM, doc }) => {
+  IM.setAsOf('2020-01-01');
+  IM.go('offers');
+  ck('15.8: «Предложений по условиям нет»', doc.querySelector('[data-testid=offers-empty]').textContent.trim() === 'Предложений по условиям нет');
+  IM.go('objects');
+  ck('15.10: «Объектов по условиям нет»', doc.querySelector('[data-testid=objects-empty]').textContent.trim() === 'Объектов по условиям нет');
+  IM.go('contracts');
+  ck('15.12: «Договоров по условиям нет»', doc.querySelector('[data-testid=contracts-empty]').textContent.trim() === 'Договоров по условиям нет');
+});
+
+group('ТЗ 22 · 15.10, 15.3: фильтр «вводный»', ({ IM, doc }) => {
+  IM.go('objects');
+  const all = doc.querySelectorAll('[data-testid^=object-row-]').length;
+  ck('в «Ещё фильтрах» есть признак «вводный»', !!doc.querySelector('[data-testid=f-bIntro]'));
+  IM.setF('bIntro', true);
+  const ids = [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid.replace('object-row-', ''));
+  const want = IM.OBJECTS.filter(o => o.facts.some(f => f.t === 'intro') && IM.objState(o.id).code !== 'none').map(o => o.id);
+  ck('остаются только вводные объекты, и все они', ids.length > 0 && ids.length < all && ids.join() === want.join(), [ids, want]);
+  ck('фильтр включён — подпись «Ещё фильтры · включено»', has(doc.querySelector('details.more summary').textContent, 'включено'));
+});
+
+group('ТЗ 22 · 15.12, 10.9, 10.17: неустойка — по каждому платежу от его даты', ({ IM }) => {
+  const a = IM.contractInfo('ИО-1', '2028-03-15'), b = IM.contractInfo('ИО-8', '2028-03-15');
+  ck('КП-5/27: 168 750 × 0,1 % × 55 дн. + 168 750 × 0,1 % × 24 дн. = 13 331', a.penalty === 13331 && a.overdue === 337500 && a.odDays === 55, [a.penalty, a.overdue, a.odDays]);
+  ck('КП-9/27: 72 000 × 0,1 % × 5 дн. = 360', b.penalty === 360 && b.overdue === 72000 && b.odDays === 5, [b.penalty, b.overdue, b.odDays]);
+  ck('19.02.2028 просрочен один платёж: 168 750 × 0,1 % × 30 дн. = 5 063', IM.contractInfo('ИО-1', '2028-02-19').penalty === 5063, IM.contractInfo('ИО-1', '2028-02-19').penalty);
+  const r = IM.addFact('ИО-1', 'cterm', { doc: 'Соглашение' }, 'lawyer');
+  ck('расторжение КП-5/27: уплачено 731 250, неустойка 13 331, Возврат 717 919', r.ok && r.fact.paid === 731250 && r.fact.penaltyAmt === 13331 && r.fact.refund === 717919, r.fact);
+});
+
+group('ТЗ 22 · 15.13: очередь второго ключа — метка, кнопки, пустая очередь', ({ IM, doc }) => {
+  IM.setRole('head'); IM.go('queue');
+  const f0 = IM.pending()[0].f;
+  const row = doc.querySelector('[data-testid="pending-' + f0.id + '"]');
+  ck('у каждого факта метка «ждёт публикации»', has(doc.querySelector('[data-testid="queue-mark-' + f0.id + '"]').textContent, 'ждёт публикации') && !has(row.textContent, 'ждёт второго ключа'));
+  ck('кнопки «Опубликовать» и «Вернуть на доработку»', doc.querySelector('[data-testid="publish-' + f0.id + '"]').textContent.trim() === 'Опубликовать' && doc.querySelector('[data-testid="return-' + f0.id + '"]').textContent.trim() === 'Вернуть на доработку');
+  ck('у черновика миграции метка и кнопка «Опубликовать»', has(doc.querySelector('[data-testid=queue-mark-Ч-1]').textContent, 'ждёт публикации') && doc.querySelector('[data-testid=queue-draft-publish-Ч-1]').textContent.trim() === 'Опубликовать');
+  IM.setRole('spec'); IM.go('queue');
+  ck('специалист кнопок не видит', !doc.querySelector('[data-testid^="publish-"]') && !doc.querySelector('[data-testid^="return-"]'));
+  IM.setRole('head');
+  IM.pending().forEach(x => { if (x.f.by !== 'head') IM.publish(x.f.id, 'head'); });
+  IM.DRAFTS.forEach(d => { if (IM.draftState(d).code === 'pending') IM.publishDraft(d.id, 'head'); });
+  IM.go('queue');
+  ck('пустая очередь: «Фактов, ждущих публикации, нет»', IM.queueCount() === 0 && doc.querySelector('[data-testid=queue-empty]').textContent.trim() === 'Фактов, ждущих публикации, нет', IM.queueCount());
+});
+
+group('ТЗ 22 · 15.11: карточка объекта — «Опубликовать» и «Исправить» в журнале фактов', ({ IM, doc }) => {
+  const key = IM.addFact('ИО-5', 'reg', { date: '2028-03-10', doc: 'Выписка' }, 'spec');
+  ck('сид: на ИО-5 есть факт, ждущий публикации', key.ok && key.pending, key.why);
+  IM.setRole('head'); IM.openObject('ИО-5');
+  const b = doc.querySelector('[data-testid="card-publish-' + key.fact.id + '"]');
+  ck('15.11: у заведующего на карточке объекта кнопка «Опубликовать», ссылки «открыть очередь» нет', !!b && b.textContent.trim() === 'Опубликовать' && !doc.querySelector('[data-testid=pending-here-link]'));
+  IM.setRole('spec'); IM.openObject('ИО-5');
+  ck('у специалиста кнопки «Опубликовать» нет', !doc.querySelector('[data-testid^=card-publish-]'));
+  IM.setRole('head'); IM.openObject('ИО-5'); doc.querySelector('[data-testid="card-publish-' + key.fact.id + '"]').click();
+  ck('кнопка публикует факт', key.fact.pub === true && !doc.querySelector('[data-testid^=card-publish-]'));
+  IM.setRole('spec'); IM.openObject('ИО-1', 'log');
+  const act = IM.obj('ИО-1').facts.find(f => f.t === 'act' && f.pub);
+  const cb = doc.querySelector('[data-testid="fact-correct-' + act.id + '"]');
+  ck('15.11: у опубликованного акта в журнале фактов кнопка «Исправить»', !!cb && cb.textContent.trim() === 'Исправить' && !cb.disabled);
+  ck('кнопки «Изменить» у опубликованного факта нет', ![...doc.querySelectorAll('#panel button')].some(x => x.textContent.trim() === 'Изменить'));
+  cb.click();
+  ck('«Исправить» открывает форму исправления с обязательным основанием', !!IM.S.form && has(IM.S.form.title, 'Исправление') && IM.S.form.fields.some(f => f.id === 'basis' && f.req));
+  IM.closeForm(); IM.setRole('head'); IM.openObject('ИО-1', 'log');
+  ck('исправление доступно любой роли модуля, в том числе заведующему', !!doc.querySelector('[data-testid="fact-correct-' + act.id + '"]'));
+});
+
+group('ТЗ 22 · 15.14: настройки правит только заведующий Сектором', ({ IM, doc }) => {
+  const t0 = IM.SETTINGS.thr[0].v;
+  ['spec', 'sec', 'lawyer', 'acc', 'probl'].forEach(role => {
+    IM.setRole(role); IM.go('settings');
+    const ins = [...doc.querySelectorAll('#panel input[type=number], #panel select')];
+    ck(role + ': поля настроек недоступны, есть пометка «только для чтения»', ins.length > 0 && ins.every(i => i.disabled) && !!doc.querySelector('[data-testid=settings-readonly]'), ins.filter(i => !i.disabled).length);
+    ck(role + ': порог, срок ответа и наценка риэлтора не меняются', !IM.setThr(0, 99).ok && !IM.setThrSrc(0, 'норма').ok && !IM.setFb('offer', 99).ok && !IM.setInspThr('cattle', 9).ok && !IM.setVal('deadline.spec', 9).ok && !IM.setVal('realtor', 9).ok
+      && IM.SETTINGS.thr[0].v === t0 && IM.SETTINGS.deadline.spec.v === 5 && IM.SETTINGS.realtor.v === 5);
+  });
+  IM.setRole('head'); IM.go('settings');
+  const ins = [...doc.querySelectorAll('#panel input[type=number], #panel select')];
+  ck('заведующий: поля доступны, пометки нет', ins.length > 0 && ins.every(i => !i.disabled) && !doc.querySelector('[data-testid=settings-readonly]'));
+  ck('заведующий меняет порог, срок ответа, срок выплаты, ставку рассрочки и наценку риэлтора', IM.setThr(0, t0 + 1).ok && IM.setVal('deadline.spec', 6).ok && IM.setVal('topupTerm.debtor', 31).ok && IM.setVal('instalment.rate', 4).ok && IM.setVal('realtor', 4).ok
+    && IM.SETTINGS.thr[0].v === t0 + 1 && IM.SETTINGS.deadline.spec.v === 6 && IM.SETTINGS.topupTerm.debtor.v === 31 && IM.SETTINGS.instalment.rate.v === 4 && IM.SETTINGS.realtor.v === 4);
+  ck('значение ноль и меньше не принимается', !IM.setVal('realtor', 0).ok && IM.SETTINGS.realtor.v === 4);
+});
+
+group('ТЗ 22 · 15.15: миграция — разделить и снять черновик', ({ IM, doc }) => {
+  IM.setRole('spec'); IM.go('migration');
+  const lbl = id => (doc.querySelector('[data-testid="' + id + '"]') || { textContent: '' }).textContent.trim();
+  ck('кнопки специалиста: «Дополнить черновик», «Разделить черновик»; «Снять…» ему не показана', lbl('draft-fill-Ч-3') === 'Дополнить черновик' && lbl('draft-split-Ч-3') === 'Разделить черновик' && !doc.querySelector('[data-testid=draft-drop-Ч-3]'));
+  ck('у дополненного черновика делить нельзя', !IM.splitDraft('Ч-1', [1400000, 1000000], 'spec').ok && !doc.querySelector('[data-testid=draft-split-Ч-1]'));
+  const bad = IM.splitDraft('Ч-3', [700000, 400000], 'spec');
+  ck('сумма частей 1 100 000 ≠ 1 200 000 — части не сохраняются', !bad.ok && has(bad.why, 'не сохраняются') && IM.DRAFTS.length === 3, bad.why);
+  ck('одна часть и нулевая часть — отказ', !IM.splitDraft('Ч-3', [1200000], 'spec').ok && !IM.splitDraft('Ч-3', [1200000, 0], 'spec').ok);
+  ck('делит только специалист по имуществу', !IM.splitDraft('Ч-3', [700000, 500000], 'head').ok);
+  const ok = IM.splitDraft('Ч-3', [700000, 500000], 'spec');
+  ck('700 000 + 500 000 = 1 200 000 — две части Ч-3.1 и Ч-3.2, не подтверждены', ok.ok && IM.DRAFTS.length === 4 && IM.DRAFTS.filter(d => d.from === 'Ч-3').every(d => IM.draftState(d).code === 'unconfirmed') && IM.DRAFTS.filter(d => d.from === 'Ч-3').map(d => d.value).join() === '700000,500000', ok);
+  ck('миграция блокирована обеими частями', IM.migrationReport().why.filter(w => has(w, 'Ч-3.')).length === 2);
+  IM.go('migration');
+  ck('части видны на экране со своими кнопками', !!doc.querySelector('[data-testid="draft-Ч-3.1"]') && !!doc.querySelector('[data-testid="draft-split-Ч-3.2"]') && !doc.querySelector('[data-testid="draft-Ч-3"]'));
+  IM.setRole('head'); IM.go('migration');
+  ck('у заведующего: «Снять черновик с основанием» у не подтверждённого и у дополненного, «Опубликовать вводный объект» у дополненного',
+    lbl('draft-drop-Ч-3.1') === 'Снять черновик с основанием' && lbl('draft-drop-Ч-1') === 'Снять черновик с основанием' && lbl('draft-publish-Ч-1') === 'Опубликовать вводный объект' && !doc.querySelector('[data-testid="draft-fill-Ч-3.1"]'));
+  ck('снимать может только заведующий и только с основанием и решением', !IM.dropDraft('Ч-3.1', { basis: 'x', doc: 'y' }, 'spec').ok && !IM.dropDraft('Ч-3.1', { basis: '', doc: 'y' }, 'head').ok && !IM.dropDraft('Ч-3.1', { basis: 'x', doc: '' }, 'head').ok);
+  const d1 = IM.dropDraft('Ч-3.1', { basis: 'вещь не найдена, погашение — ошибка прежней системы', doc: 'Решение № 5/28' }, 'head');
+  ck('снятый черновик: «снят с основанием», блок по нему снят, второго раза нет', d1.ok && IM.draftState(IM.DRAFTS.find(d => d.id === 'Ч-3.1')).label === 'снят с основанием' && !IM.migrationReport().why.some(w => has(w, 'Ч-3.1')) && !IM.dropDraft('Ч-3.1', { basis: 'x', doc: 'y' }, 'head').ok);
+  IM.go('migration');
+  ck('на экране: состояние, основание и «платёж передан в разбор платежей»', has(doc.querySelector('[data-testid="draft-Ч-3.1"]').textContent, 'снят с основанием') && has(doc.querySelector('[data-testid="draft-Ч-3.1"]').textContent, 'разбор платежей') && !doc.querySelector('[data-testid="draft-drop-Ч-3.1"]'));
+  IM.dropDraft('Ч-3.2', { basis: 'иное по решению', doc: 'Решение № 6/28' }, 'head');
+  ck('снят Ч-3.2 — Ч-3 больше не блокирует, остаётся расхождение Кадырова', !IM.migrationReport().why.some(w => has(w, 'Ч-3')) && IM.migrationReport().blocked);
 });
 
 report();

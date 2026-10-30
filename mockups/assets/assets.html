@@ -236,6 +236,7 @@ table.cgrid select.quiet:hover, table.cgrid select.quiet:focus{ border-color:var
 .attn .a span{ color:inherit; opacity:.85; }
 .attn .a.danger{ background:var(--status-error-bg); color:#b02626; }
 .qline{ margin:0 0 10px; font:var(--font-label); color:var(--text-muted); }
+.publine{ display:flex; align-items:center; gap:10px; margin-top:6px; color:var(--text-primary); }
 .nw1{ white-space:nowrap; }
 .menu{ position:relative; display:inline-block; }
 .menu-pop{ display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:30; width:min(480px,92vw); max-height:min(72vh,680px); overflow:auto;
@@ -574,7 +575,7 @@ const inspThr = kind => (SETTINGS.inspByKind[kind] || {}).v || thr('pk-im-no-ins
 
 /* ------------------------------ состояние --------------------------- */
 const S = { asOf: TODAY, role: 'spec', view: 'offers', id: null, tab: 'char', seq: 1, objSeq: 11, form: null,
-  f: { oSrc: '', oState: '', oDue: '', oObl: '', oOrgan: '', bDays: '', bCur: '', bState: '', bKind: '', bCls: '', bRegion: '', bSrc: '', bTop: '', bHousing: false, bEnc: false, bClaim: false } };
+  f: { oSrc: '', oState: '', oDue: '', oObl: '', oOrgan: '', bDays: '', bCur: '', bState: '', bKind: '', bCls: '', bRegion: '', bSrc: '', bTop: '', bHousing: false, bEnc: false, bClaim: false, bIntro: false } };
 const OFFERS = [], OBJECTS = [];
 const offer = id => OFFERS.find(o => o.id === id);
 const obj   = id => OBJECTS.find(o => o.id === id);
@@ -864,12 +865,15 @@ function contractInfo(id, asOf = S.asOf) {
   let due = 0, cum = 0, firstUnpaid = null;
   sch.forEach(s => { cum += s.amount; if (s.date <= asOf) due = cum; if (!firstUnpaid && cum > paid + 0.005) firstUnpaid = s.date; });
   const overdue = Math.max(0, due - paid);
+  /* Неустойка — по каждому платежу графика отдельно, от его даты: неуплаченная часть платежа × ставка × дни от даты платежа до даты среза. */
+  let penaltySum = 0, cumP = 0;
+  sch.forEach(s => { cumP += s.amount; if (s.date < asOf && cumP > paid + 0.005) penaltySum += Math.min(s.amount, cumP - paid) * (c.penalty || 0) / 100 * days(s.date, asOf); });
   const odDays = overdue > 0 && firstUnpaid && firstUnpaid < asOf ? days(firstUnpaid, asOf) : 0;
   const claims = F.filter(f => f.t === 'claim' && f.contract === c.id);
   const interestTotal = Math.round(sch.reduce((a, s) => a + s.interest, 0) * 100) / 100;
   const ext = exts[exts.length - 1];
   return { c, kind: c.kind, price: c.price, ccy: c.ccy, paid, rest: Math.max(0, c.price - paid), due, overdue, odDays,
-    penalty: Math.round(overdue * (c.penalty || 0) / 100 * odDays), firstUnpaid, schedule: sch, pays, claims,
+    penalty: Math.round(penaltySum), firstUnpaid, schedule: sch, pays, claims,
     down: c.kind === 'inst' ? c.down || 0 : 0, years: c.years || null, rate: c.rate || null,
     interestTotal, interestPaid, interestRest: Math.max(0, interestTotal - interestPaid),
     extended: ext ? { f: ext, date: ext.date, years: exts.reduce((a, e) => a + (+e.years || 0), 0), rate: ext.rate } : null,
@@ -1991,9 +1995,37 @@ function addIntro(d, role = S.role) {
 
 /* ---------------- миграция: черновики из легаси (ИМ-59) ---------------- */
 function draftState(dr) {
+  if (dr.dropped) return { code: 'dropped', label: 'снят с основанием' };
   if (dr.objId) return { code: 'done', label: 'вводный объект ' + dr.objId };
   if (dr.fill && dr.pendingKey) return { code: 'pending', label: 'дополнен, ждёт второго ключа' };
   return { code: 'unconfirmed', label: 'не подтверждён' };
+}
+/* Разделить черновик (16.4): один платёж погасил несколько вещей. Сумма частей равна сумме платежа — иначе части не сохраняются.
+   Делится черновик, ещё не подтверждённый документами; части получают номера Ч-1.1, Ч-1.2 … и дополняются по отдельности. */
+function splitDraft(id, parts, role = S.role) {
+  if (!canRole('draft', role)) return no('делит черновик специалист по имуществу');
+  const dr = DRAFTS.find(x => x.id === id); if (!dr) return no('нет черновика ' + id);
+  if (dr.objId) return no('вводный объект уже заведён');
+  if (dr.dropped) return no('черновик снят с основанием');
+  if (dr.fill) return no('черновик уже дополнен документами — делится черновик, который ещё не подтверждён');
+  const a = [].concat(parts || []).map(Number);
+  if (a.length < 2 || a.some(x => !(x > 0))) return no('нужно не меньше двух частей, каждая больше нуля');
+  const sum = Math.round(a.reduce((x, y) => x + y, 0) * 100) / 100;
+  if (Math.abs(sum - dr.value) > 0.005) return no(`сумма частей ${money(sum)} не равна сумме платежа ${money(dr.value)} — части не сохраняются`);
+  const made = a.map((v, i) => ({ id: dr.id + '.' + (i + 1), pay: dr.pay, obligor: dr.obligor, date: dr.date, value: v, fill: null, objId: null, from: dr.id }));
+  DRAFTS.splice(DRAFTS.indexOf(dr), 1, ...made);
+  return { ok: true, why: '', ids: made.map(x => x.id) };
+}
+/* Снять черновик с основанием (16.9): решение заведующего Сектором; платёж уходит в разбор платежей, блок миграции снят. */
+function dropDraft(id, d, role = S.role) {
+  if (role !== 'head') return no('снимает черновик заведующий Сектором по работе с активами');
+  const dr = DRAFTS.find(x => x.id === id); if (!dr) return no('нет черновика ' + id);
+  if (dr.objId) return no('вводный объект уже заведён');
+  if (dr.dropped) return no('черновик уже снят');
+  if (!d || !String(d.basis || '').trim()) return no('укажите основание снятия');
+  if (!String(d.doc || '').trim()) return no('укажите решение, на котором черновик снят');
+  dr.dropped = { basis: String(d.basis).trim(), doc: String(d.doc).trim(), date: TODAY, by: role }; dr.pendingKey = false;
+  return { ok: true, why: '' };
 }
 /* Дополнить черновик по документам: вид, место, что с вещью сейчас. Сумма и обязанное лицо — из платежа, не правятся. */
 function fillDraft(id, d, role = S.role) {
@@ -2081,29 +2113,35 @@ function render() {
 /* Очередь второго ключа: неопубликованные факты + дополненные черновики миграции — одним списком. */
 const draftsWaiting = () => DRAFTS.filter(dr => draftState(dr).code === 'pending');
 const queueCount = () => pending().length + draftsWaiting().length;
-function migrationClosed() { const r = migrationReport(); return !r.blocked && r.rows.every(x => x.st.code === 'done'); }
-function pendingHere(filter) {
-  const n = pending().filter(x => !filter || filter(x)).length;
-  return n ? `<div class="qline" data-testid="pending-here">Ждут здесь второго ключа: <b>${n}</b> · <button class="linky" data-testid="pending-here-link" onclick="IM.go('queue')">открыть очередь</button></div>` : '';
+function migrationClosed() { const r = migrationReport(); return !r.blocked && r.rows.every(x => x.st.code === 'done' || x.st.code === 'dropped'); }
+/* withKeys — карточка предложения и карточка объекта: у факта, ждущего публикации, кнопка «Опубликовать» у заведующего Сектором (4.5);
+   на реестрах и в миграции — строка со ссылкой в очередь. */
+function pendingHere(filter, withKeys) {
+  const list = pending().filter(x => !filter || filter(x)); const n = list.length;
+  if (!n) return '';
+  if (!withKeys) return `<div class="qline" data-testid="pending-here">Ждут здесь второго ключа: <b>${n}</b> · <button class="linky" data-testid="pending-here-link" onclick="IM.go('queue')">открыть очередь</button></div>`;
+  const head = S.role === 'head';
+  return `<div class="qline" data-testid="pending-here">Ждут здесь второго ключа: <b>${n}</b>${head ? list.map(({ f }) => `<div class="publine" data-testid="pub-line-${f.id}"><span class="pill warn">ждёт публикации</span> ${esc(factLabel(f))} от ${fmt(f.date)}
+      <button class="btn btn-primary btn-sm" data-testid="card-publish-${f.id}"${f.by === S.role ? ' disabled title="второй ключ не ставит тот, кто ввёл факт"' : ''} onclick="IM.uiPublish('${f.id}')">Опубликовать</button></div>`).join('') : ' · публикует заведующий Сектором по работе с активами'}</div>`;
 }
 function queueTable() {
   const list = pending(); const dl = draftsWaiting();
   const head = S.role === 'head';
   return `<table class="cgrid" data-testid="queue-table"><thead><tr><th>Дата</th><th>Что</th><th>Где</th><th>Документ</th><th>Ввёл</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
-    <tr class="pend" data-testid="pending-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}</td>
+    <tr class="pend" data-testid="pending-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))} <span class="pill warn" data-testid="queue-mark-${f.id}">ждёт публикации</span></td>
       <td><button class="linky" onclick="IM.open('${jsq(owner)}')">${esc(owner)}</button></td><td>${esc(f.doc || '')}</td><td>${byMark(f)}</td>
-      <td>${head ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-testid="publish-${f.id}" onclick="IM.uiPublish('${f.id}')">Опубликовать вторым ключом</button>
-        <button class="btn btn-secondary btn-sm" onclick="IM.uiReject('${f.id}')">Вернуть</button></div>` : '<span class="small">ждёт заведующего Сектором</span>'}</td></tr>`).join('')}
-    ${dl.map(dr => `<tr class="pend" data-testid="queue-draft-${dr.id}"><td class="mono">${fmt(dr.date)}</td><td>Миграция: вводный объект «${esc(dr.fill.name)}» · ${money(dr.value)}</td>
+      <td>${head ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-testid="publish-${f.id}" onclick="IM.uiPublish('${f.id}')">Опубликовать</button>
+        <button class="btn btn-secondary btn-sm" data-testid="return-${f.id}" onclick="IM.uiReject('${f.id}')">Вернуть на доработку</button></div>` : '<span class="small">ждёт заведующего Сектором</span>'}</td></tr>`).join('')}
+    ${dl.map(dr => `<tr class="pend" data-testid="queue-draft-${dr.id}"><td class="mono">${fmt(dr.date)}</td><td>Миграция: вводный объект «${esc(dr.fill.name)}» · ${money(dr.value)} <span class="pill warn" data-testid="queue-mark-${dr.id}">ждёт публикации</span></td>
       <td>${esc(obl(dr.obligor).name)}</td><td>${esc(dr.fill.doc)}</td><td>${roleMark(dr.by)}</td>
-      <td>${head ? `<button class="btn btn-primary btn-sm" data-testid="queue-draft-publish-${dr.id}" onclick="IM.uiPublishDraft('${dr.id}')">Опубликовать вторым ключом</button>` : '<span class="small">ждёт заведующего Сектором</span>'}</td></tr>`).join('')}
+      <td>${head ? `<button class="btn btn-primary btn-sm" data-testid="queue-draft-publish-${dr.id}" onclick="IM.uiPublishDraft('${dr.id}')">Опубликовать</button>` : '<span class="small">ждёт заведующего Сектором</span>'}</td></tr>`).join('')}
     </tbody></table>`;
 }
 function viewQueue() {
   const n = queueCount();
   return `<div class="card" data-testid="pending-card"><div class="card-head"><h3>Ждут второго ключа · <span data-testid="queue-count">${n}</span></h3>
     <span class="small">Не опубликовано: другие модули это не видят, состояние от этого не меняется.</span></div>
-    ${n ? queueTable() : '<div class="muted" data-testid="queue-empty">Очередь пуста.</div>'}</div>`;
+    ${n ? queueTable() : '<div class="muted" data-testid="queue-empty">Фактов, ждущих публикации, нет</div>'}</div>`;
 }
 function viewTriggers() {
   const tr = triggers();
@@ -2206,7 +2244,7 @@ function viewOffers() {
     <td class="nw"><span class="mono">${fmt(o.deadline)}</span>${st.overdue ? ` <span class="flag">${ico('flag')}истёк</span>` : ''}${st.answer ? `<div class="why">ответ ${fmt(st.answer.date)}</div>` : ''}</td>
     <td>${o.positions.length} поз.${seg(c)}<div class="why">${cnt(c) || '—'}</div></td>
     <td>${pill(st)}${st.waitingAct ? `<div class="why">ждёт акта: ${st.waitingAct}</div>` : ''}</td>
-    <td>${curatorCell(o.id)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">нет предложений по условиям</td></tr>'}</tbody></table>`;
+    <td>${curatorCell(o.id)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted" data-testid="offers-empty">Предложений по условиям нет</td></tr>'}</tbody></table>`;
 }
 
 /* --------------------- ЭКРАН: карточка предложения ------------------ */
@@ -2249,7 +2287,7 @@ function viewOffer(id) {
       <td>${pill(out, 'pos-out-' + p.n)}${out.sub ? `<div class="why">${esc(out.sub)}</div>` : ''}${out.reason ? `<div class="why">${esc(out.reason)}</div>` : ''}${out.date ? `<div class="why">${fmt(out.date)}</div>` : ''}</td>
       <td>${out.obj ? `<button class="linky" onclick="IM.openObject('${out.obj}')">${out.obj}</button>` : '—'}</td>
       <td>${posMenu(p)}</td></tr>`; }).join('');
-  return `${pendingHere(x => x.owner === id)}
+  return `${pendingHere(x => x.owner === id, true)}
   ${OBJECTS.filter(x => x.offer === id && reallocNeeded(x.id)).map(x => `<div class="banner warn">Отменено более раннее принятие того же обязанного лица — деление ${x.id} нужно исправить. <button class="linky" onclick="IM.openObject('${x.id}')">Открыть ${x.id}</button></div>`).join('')}
   <div class="card ohead">
     <div class="ohead-top"><div class="ttl"><h2 class="otitle">${of.id} · ${esc(SOURCES[of.source].name)}</h2><div class="ostate">${pill(st, 'offer-state')}<span class="small">на ${fmt(S.asOf)}</span></div></div>
@@ -2295,12 +2333,18 @@ function viewOffer(id) {
     <div class="why">Проекции не правятся и не заводятся во Взыскании. Продажа объекта Фондом в дело должника не попадает.</div></div></details>
   `;
 }
-function factTable(facts) {
+/* Опубликованный факт не правится: вместо «Изменить» — «Исправить» с обязательным основанием (13.8, 19.6). В макете исправляется стоимость принятия — факт «акт» или «вводный остаток». */
+function correctBtn(f, ownerId) {
+  if (!ownerId || !f.pub || !(f.t === 'act' || f.t === 'intro') || !canRole('corr')) return '';
+  const g = gate(ownerId, 'corr');
+  return `<div style="margin-top:6px"><button class="btn btn-secondary btn-sm" data-testid="fact-correct-${f.id}"${g.ok ? '' : ` disabled title="${esc(g.why)}"`} onclick="IM.uiFact('${jsq(ownerId)}','corr')">Исправить</button></div>`;
+}
+function factTable(facts, ownerId) {
   const corrected = new Set(facts.filter(f => f.t === 'corr' && f.pub).map(f => f.target));
   const list = [...facts].reverse().sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);   /* новые сверху */
   return `<table class="cgrid" data-testid="fact-journal"><thead><tr><th>Дата</th><th>Факт</th><th>Документ</th><th>Ввёл</th><th>Опубликовал</th></tr></thead><tbody>${list.map(f => `
     <tr class="${!f.pub ? 'pend' : ''}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}${corrected.has(f.id) ? ' <span class="pill warn">исправлен</span>' : ''}${f.date > S.asOf ? ' <span class="small">(после выбранной даты)</span>' : ''}</td>
-    <td>${docCell(f)}</td><td>${byMark(f)}</td><td>${!f.pub ? (f.draft ? `<span class="pill warn" data-testid="fact-draft">${f.withdrawn ? 'отозван, черновик' : 'возвращён, черновик'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт второго ключа</span>') : f.pubBy ? roleMark(f.pubBy) : '<span class="small">ключ не нужен</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">фактов нет</td></tr>'}</tbody></table>`;
+    <td>${docCell(f)}</td><td>${byMark(f)}</td><td>${!f.pub ? (f.draft ? `<span class="pill warn" data-testid="fact-draft">${f.withdrawn ? 'отозван, черновик' : 'возвращён, черновик'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт публикации</span>') : (f.pubBy ? roleMark(f.pubBy) : '<span class="small">ключ не нужен</span>') + correctBtn(f, ownerId)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">фактов нет</td></tr>'}</tbody></table>`;
 }
 
 /* ---------------------- ЭКРАН: реестр объектов ---------------------- */
@@ -2309,11 +2353,11 @@ function viewObjects() {
   const regions = [...new Set(OBJECTS.map(o => o.region))];
   const rows = OBJECTS.map(o => ({ o, st: objState(o.id), fl: flags(o.id), tp: topupOf(o.id) })).filter(r => r.st.code !== 'none' || f.bState === 'none')
     .filter(r => (!f.bState || r.st.code === f.bState) && (!f.bKind || r.o.kind === f.bKind) && (!f.bCls || kindOf(r.o.kind).cls === f.bCls)
-      && (!f.bRegion || r.o.region === f.bRegion) && (!f.bSrc || r.o.source === f.bSrc) && (!f.bTop || (r.tp && r.tp.state === f.bTop)) && (!f.bHousing || r.o.housing) && (!f.bEnc || r.fl.encumbered) && (!f.bClaim || (claimOf(r.o.id) || {}).open)
+      && (!f.bRegion || r.o.region === f.bRegion) && (!f.bSrc || r.o.source === f.bSrc) && (!f.bTop || (r.tp && r.tp.state === f.bTop)) && (!f.bHousing || r.o.housing) && (!f.bEnc || r.fl.encumbered) && (!f.bClaim || (claimOf(r.o.id) || {}).open) && (!f.bIntro || isIntro(r.o))
       && (!f.bDays || (r.st.transfer && days(r.st.transfer, ['removed', 'split'].includes(r.st.code) ? r.st.date : S.asOf) > +f.bDays))
       && (!f.bCur || curatorOf(r.o.id).emp === f.bCur));
   const sel = (key, opts) => `<select onchange="IM.setF('${key}',this.value)" data-testid="f-${key}"><option value="">все</option>${opts.map(([v, l]) => `<option value="${v}"${f[key] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-  const nMore = [f.bCls, f.bSrc, f.bDays, f.bTop, f.bHousing, f.bEnc, f.bClaim].filter(Boolean).length;
+  const nMore = [f.bCls, f.bSrc, f.bDays, f.bTop, f.bHousing, f.bEnc, f.bClaim, f.bIntro].filter(Boolean).length;
   return `${pendingHere(x => x.owner.startsWith('ИО-'))}
   <div class="filters">
     <div class="fld w2"><label>Состояние</label>${sel('bState', [['wait', 'принят, ждёт регистрации'], ['onbook', 'на учёте'], ['listed', 'выставлен на продажу'], ['sold_once', 'продан разово'], ['sold_inst', 'продан в рассрочку'], ['removed', 'снят с учёта'], ['split', 'разделён'], ['failed', 'принятие не состоялось'], ['none', 'ещё не возник']])}</div>
@@ -2330,6 +2374,7 @@ function viewObjects() {
       <label class="chk"><input type="checkbox" data-testid="f-bHousing" ${f.bHousing ? 'checked' : ''} onchange="IM.setF('bHousing',this.checked)"> жильё</label>
       <label class="chk"><input type="checkbox" ${f.bEnc ? 'checked' : ''} onchange="IM.setF('bEnc',this.checked)"> обременён</label>
       <label class="chk"><input type="checkbox" data-testid="f-bClaim" ${f.bClaim ? 'checked' : ''} onchange="IM.setF('bClaim',this.checked)"> требование к отчуждателю открыто</label>
+      <label class="chk"><input type="checkbox" data-testid="f-bIntro" ${f.bIntro ? 'checked' : ''} onchange="IM.setF('bIntro',this.checked)"> вводный</label>
     </div></details>
   <div class="shown" data-testid="shown-objects">Показано <b>${rows.length}</b> из <b>${f.bState === 'none' ? OBJECTS.length : OBJECTS.filter(o => objState(o.id).code !== 'none').length}</b></div>
   <div class="tbl-wrap st"><table class="cgrid sticky"><thead><tr><th>№</th><th class="w-name">Вещь</th><th>Местоположение</th><th>Источник</th><th class="num">Учётная стоимость</th><th>Состояние</th><th>Доплата</th><th class="num">Дней на учёте</th><th class="num">Объявлений</th><th>Куратор</th></tr></thead>
@@ -2340,21 +2385,24 @@ function viewObjects() {
     <td>${esc(o.region)}<div class="why">${esc(o.district)}</div></td>
     <td>${esc(SOURCES[o.source].name)}</td><td class="num">${money(objValue(o.id), o.ccy)}</td>
     <td>${pill(st)}${encFlag(o.id)}${(claimOf(o.id) || {}).open ? `<span class="flag" data-testid="flag-claim-${esc(o.id)}">требование ${money(claimOf(o.id).rest)}</span>` : ''}</td>
-    <td data-testid="obj-topup-st-${esc(o.id)}" data-code="${tp ? tp.state : 'none'}">${tp && tp.state !== 'none' ? topupPill(tp) + `<div class="why">${tp.state === 'fixed' ? money(tp.amount, o.ccy) : tp.state === 'paid' ? money(tp.paid, o.ccy) : tp.state === 'held' ? 'не выплачено ' + money(tp.unpaid, o.ccy) : 'к выплате ' + money(tp.payable, o.ccy) + (tp.paid ? ', выплачено ' + money(tp.paid, o.ccy) : '')}${tp.overdue.length ? ' · <span class="err">срок прошёл</span>' : ''}</div>` : '—'}</td><td class="num">${dOn != null && dOn >= 0 ? dOn : '—'}</td><td class="num">${at}</td><td>${curatorCell(o.id)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted">нет объектов по условиям</td></tr>'}</tbody></table></div>`;
+    <td data-testid="obj-topup-st-${esc(o.id)}" data-code="${tp ? tp.state : 'none'}">${tp && tp.state !== 'none' ? topupPill(tp) + `<div class="why">${tp.state === 'fixed' ? money(tp.amount, o.ccy) : tp.state === 'paid' ? money(tp.paid, o.ccy) : tp.state === 'held' ? 'не выплачено ' + money(tp.unpaid, o.ccy) : 'к выплате ' + money(tp.payable, o.ccy) + (tp.paid ? ', выплачено ' + money(tp.paid, o.ccy) : '')}${tp.overdue.length ? ' · <span class="err">срок прошёл</span>' : ''}</div>` : '—'}</td><td class="num">${dOn != null && dOn >= 0 ? dOn : '—'}</td><td class="num">${at}</td><td>${curatorCell(o.id)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted" data-testid="objects-empty">Объектов по условиям нет</td></tr>'}</tbody></table></div>`;
 }
 /* Отчёт миграции из легаси (ИМ-59): один платёж «принятие имущества» — один черновик. */
 function migrationCard() {
-  const mr = migrationReport(); const P = { unconfirmed: 'err', pending: 'warn', done: 'ok' };
+  const mr = migrationReport(); const P = { unconfirmed: 'err', pending: 'warn', done: 'ok', dropped: 'neutral' };
   return `<div class="card" style="margin-top:14px" data-testid="migration-drafts"><h3>Миграция из легаси: черновики вводных объектов</h3>
     ${mr.blocked ? `<div class="banner danger" data-testid="migration-blocked"><b>Миграция заблокирована:</b> ${esc(mr.why.join('; '))}.</div>` : '<div class="banner info" data-testid="migration-ready">Блокирующих строк нет.</div>'}
     <table class="cgrid"><thead><tr><th>Черновик</th><th>Платёж легаси</th><th>Обязанное лицо</th><th>Дата</th><th class="num">Сумма</th><th>Дополнено по документам</th><th>Статус</th><th></th></tr></thead><tbody>${mr.rows.map(({ dr, st }) => `
     <tr data-testid="draft-${dr.id}" data-code="${st.code}"><td><b>${dr.id}</b></td><td>${esc(dr.pay)}</td><td>${esc(obl(dr.obligor).name)}</td><td class="mono">${fmt(dr.date)}</td><td class="num">${money(dr.value)}</td>
       <td>${dr.fill ? `${esc(dr.fill.name)}<div class="why">${esc(kindOf(dr.fill.kind).name)} · ${esc(dr.fill.region)} · сейчас: ${esc(DRAFT_NOW[dr.fill.now])}${dr.fill.outDate ? ' ' + fmt(dr.fill.outDate) : ''}${dr.fill.now === 'once' && dr.fill.outPrice ? ' за ' + money(dr.fill.outPrice) : ''}</div><div class="why">${esc(dr.fill.doc)}</div>` : '<span class="muted">вид, место, характеристики — пусто; документов нет</span>'}</td>
-      <td><span class="pill ${P[st.code]}">${esc(st.label)}</span></td>
+      <td><span class="pill ${P[st.code]}">${esc(st.label)}</span>${dr.dropped ? `<div class="why">${esc(dr.dropped.basis)} · ${esc(dr.dropped.doc)} · ${fmt(dr.dropped.date)}; платёж передан в разбор платежей</div>` : ''}${dr.from ? `<div class="why">часть платежа, делённого как ${esc(dr.from)}</div>` : ''}</td>
       <td>${st.code === 'done' ? `<button class="linky" onclick="IM.openObject('${jsq(dr.objId)}')">${esc(dr.objId)}</button>`
-        : st.code === 'pending' && S.role === 'head' ? `<button class="btn btn-primary btn-sm" data-testid="draft-publish-${dr.id}" onclick="IM.uiPublishDraft('${dr.id}')">Опубликовать вторым ключом</button>`
-        : canRole('draft') ? `<button class="btn btn-secondary btn-sm" data-testid="draft-fill-${dr.id}" onclick="IM.uiDraft('${dr.id}')">Дополнить</button>` : ''}</td></tr>`).join('')}</tbody></table>
-    <div class="why">Сумма, дата и обязанное лицо — из платежа легаси и не правятся. Проданная до запуска вещь мигрирует вместе с фактом выбытия. Черновик без документов блокирует миграцию, пока не подтверждён.</div></div>`;
+        : st.code === 'dropped' ? ''
+        : `<div class="btn-row">${st.code === 'pending' && S.role === 'head' ? `<button class="btn btn-primary btn-sm" data-testid="draft-publish-${dr.id}" onclick="IM.uiPublishDraft('${jsq(dr.id)}')">Опубликовать вводный объект</button>` : ''}
+          ${st.code === 'unconfirmed' && canRole('draft') ? `<button class="btn btn-secondary btn-sm" data-testid="draft-fill-${dr.id}" onclick="IM.uiDraft('${jsq(dr.id)}')">Дополнить черновик</button>
+            <button class="btn btn-secondary btn-sm" data-testid="draft-split-${dr.id}" onclick="IM.uiSplitDraft('${jsq(dr.id)}')">Разделить черновик</button>` : ''}
+          ${S.role === 'head' ? `<button class="btn btn-secondary btn-sm" data-testid="draft-drop-${dr.id}" onclick="IM.uiDropDraft('${jsq(dr.id)}')">Снять черновик с основанием</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table>
+    <div class="why">Сумма, дата и обязанное лицо — из платежа легаси и не правятся. Проданная до запуска вещь мигрирует вместе с фактом выбытия. Черновик без документов блокирует миграцию, пока не подтверждён или не снят решением с основанием. Один платёж на несколько вещей делится до дополнения.</div></div>`;
 }
 
 /* ---------------------- ЭКРАН: карточка объекта --------------------- */
@@ -2478,7 +2526,7 @@ function viewObject(id) {
       ${F.filter(f => ['gift', 'loss', 'ret', 'introOut'].includes(f.t)).map(f => `<div class="k">${FACT_NAME[f.t]}</div><div>${esc(f.doc)}${f.cause ? ' · ' + esc(f.cause) : ''}${f.ground ? ' · основание: ' + esc(f.ground) : ''}${f.insurance ? ' · страховое возмещение ' + money(f.insurance, f.ccy) : ''}</div>`).join('')}
       ${F.filter(f => f.t === 'split').map(f => `<div class="k">Части</div><div>${(f.children || []).map(c => `<button class="linky" onclick="IM.openObject('${jsq(c)}')">${esc(c)}</button> ${money(objValue(c))}`).join(' · ')}</div>`).join('')}
     </div><div class="why">Пять путей: продажа разовая, продажа в рассрочку, обращение в государственную собственность, выбытие, возврат. Снятие с учёта — только следствие завершённого пути.</div>`;
-  else if (tab === 'log') body = factTable(o.facts);
+  else if (tab === 'log') body = factTable(o.facts, o.id);
   else if (tab === 'docs') body = docTable(docRows(F), 'docs-table');
   else if (tab === 'links') body = `<div data-testid="neighbours"><div class="section-h">Что видят Платежи, Взыскание, Залог <span class="small">· только чтение</span></div>
       ${[['Платежи', nb.payments], ['Взыскание', nb.collection], ['Залог', nb.pledge]].filter(x => x[1].length).map(([n, l]) => `<div class="small" style="margin-top:8px"><b>${n}</b></div>${l.map(x => `<div style="margin:3px 0">${esc(x)}</div>`).join('')}`).join('') || '<div class="muted">Ничего не опубликовано.</div>'}</div>
@@ -2487,7 +2535,7 @@ function viewObject(id) {
 
   const attn = triggers().filter(x => x.id === id);
   const born = birthOf(id, FAR);
-  return `${pendingHere(x => x.owner === id)}
+  return `${pendingHere(x => x.owner === id, true)}
   ${st.code === 'none' ? `<div class="banner info" data-testid="not-yet">На ${fmt(S.asOf)} объекта ещё нет${born ? ` — он возникает ${fmt(born)}` : ''}. Сдвиньте дату состояния, чтобы увидеть его историю.</div>` : ''}
   ${st.code === 'wait' ? `<div class="banner warn">Принят, ждёт регистрации с ${fmt(st.since)}: Фонду ещё не принадлежит, погашения ещё не было, продавать нельзя.</div>` : ''}
   ${(() => { const n = reallocNeeded(id); return n ? `<div class="banner warn" data-testid="realloc-needed"><b>Нужно пересчитать деление.</b> ${fmt(n.causeDate)} суд отменил более раннее принятие ${esc(n.cause.join(', '))} того же обязанного лица, а деление этой вещи на ${fmt(n.transfer)} считалось по долгу, уменьшенному отменённой вещью.
@@ -2707,38 +2755,46 @@ function viewContracts() {
     <td class="num" data-testid="contract-interest-${o.id}">${ci.kind === 'inst' ? money(ci.interestTotal, ci.ccy) + ' / ' + money(ci.interestPaid, ci.ccy) : '—'}</td>
     <td>${ci.extended ? `на ${yrs(ci.extended.years)} с ${fmt(ci.extended.date)}` : '—'}</td>
     <td>${ci.overdue && ci.active ? `<span class="pill err">${money(ci.overdue, ci.ccy)} · ${ci.odDays} дн.</span>` : '—'}</td><td>${ci.claims.length || '—'}</td>
-    <td>${ci.terminated ? '<span class="pill neutral">расторгнут</span>' : ci.complete ? '<span class="pill ok">оплачен</span>' : '<span class="pill info">действует</span>'}</td></tr>`).join('') || '<tr><td colspan="13" class="muted">договоров нет</td></tr>'}</tbody></table>
+    <td>${ci.terminated ? '<span class="pill neutral">расторгнут</span>' : ci.complete ? '<span class="pill ok">оплачен</span>' : '<span class="pill info">действует</span>'}</td></tr>`).join('') || '<tr><td colspan="13" class="muted" data-testid="contracts-empty">Договоров по условиям нет</td></tr>'}</tbody></table>
   <div class="why">Договор КП — не кредит: у рассрочки нет госрешения, программы и заявки. Деньги — только через Платежи. Остаток и просрочка — по телу; проценты рассрочки — отдельно, на счёт Госфинхолдинга.</div>`;
 }
 
 /* ------------------------- ЭКРАН: настройки ------------------------ */
+/* Настройки правит только заведующий Сектором по работе с активами; остальные роли видят значения для чтения (14.11, 18.3). */
+const canSet = (role = S.role) => role === 'head';
+const setGuard = () => canSet() ? null : no('настройки правит только заведующий Сектором по работе с активами');
+const SET_DIS = ' disabled title="правит только заведующий Сектором по работе с активами"';
 function viewSettings() {
   const SRC = ['норма', 'Инструкция', 'внутренний акт'];
+  const dis = canSet() ? '' : SET_DIS;
+  /* число правится только у заведующего; у остальных — обычный текст */
+  const num = (path, v, unit) => canSet() ? `<input type="number" style="width:70px;height:28px" value="${esc(v)}" data-testid="set-${path}" onchange="IM.setVal('${path}',this.value)"> ${esc(unit || '')}` : `${esc(v)} ${esc(unit || '')}`;
   const exc = KINDS.filter(k => k.cls === 'вещь' && SETTINGS.inspByKind[k.id]);
-  return `<div class="section-h">Пороги поводов</div>
+  return `${canSet() ? '' : `<div class="banner info" data-testid="settings-readonly">Настройки правит заведующий Сектором по работе с активами. Роль «${esc(roleName(S.role))}» видит значения только для чтения.</div>`}
+  <div class="section-h">Пороги поводов</div>
   <table class="cgrid"><thead><tr><th>Повод для Заданий</th><th>Объект</th><th>Условие</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>${SETTINGS.thr.map((t, i) => `
     <tr><td>${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>
-    <td>${t.id === 'pk-im-offer-overdue' ? esc(t.unit) : `<input type="number" style="width:70px;height:28px" value="${t.v}" onchange="IM.setThr(${i},this.value)"> ${esc(t.unit)}`}</td>
-    <td><select class="quiet" onchange="IM.setThrSrc(${i},this.value)">${SRC.map(s => `<option${s === t.src ? ' selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
+    <td>${t.id === 'pk-im-offer-overdue' ? esc(t.unit) : `<input type="number" style="width:70px;height:28px" value="${t.v}"${dis} onchange="IM.setThr(${i},this.value)"> ${esc(t.unit)}`}</td>
+    <td><select class="quiet"${dis} onchange="IM.setThrSrc(${i},this.value)">${SRC.map(s => `<option${s === t.src ? ' selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
   <details class="fold" style="margin-top:22px"${S.fInsp ? ' open' : ''} ontoggle="IM.fInsp(this.open)"><summary>Порог осмотра по виду<span class="small">· ${exc.length ? 'исключения: ' + exc.map(k => esc(k.name) + ' — ' + SETTINGS.inspByKind[k.id].v + ' мес.').join(', ') : 'исключений нет, везде умолчание'}</span></summary><div class="fold-b">
   <table class="cgrid" data-testid="insp-by-kind"><thead><tr><th>Вид имущества</th><th>Порог «давно не осматривали»</th><th>Источник значения</th></tr></thead><tbody>${KINDS.filter(k => k.cls === 'вещь').map(k => { const x = SETTINGS.inspByKind[k.id];
-    return `<tr data-testid="insp-${k.id}"><td>${esc(k.name)}</td><td><input type="number" style="width:70px;height:28px" value="${x ? x.v : ''}" placeholder="${thr('pk-im-no-inspection')}" onchange="IM.setInspThr('${k.id}',this.value)"> мес.${x ? '' : ' <span class="small">умолчание</span>'}</td><td>${x ? esc(x.src) : '—'}</td></tr>`; }).join('')}</tbody></table>
+    return `<tr data-testid="insp-${k.id}"><td>${esc(k.name)}</td><td><input type="number" style="width:70px;height:28px" value="${x ? x.v : ''}" placeholder="${thr('pk-im-no-inspection')}"${dis} onchange="IM.setInspThr('${k.id}',this.value)"> мес.${x ? '' : ' <span class="small">умолчание</span>'}</td><td>${x ? esc(x.src) : '—'}</td></tr>`; }).join('')}</tbody></table>
   <div class="why">Пустая строка — умолчание повода «${esc(TRIG_NAME['pk-im-no-inspection'])}» (${thr('pk-im-no-inspection')} мес.). Заполняются только исключения. Справочник видов Залога не трогается.</div></div></details>
   <div class="section-h">Сколько можно оставаться без куратора</div>
   <table class="cgrid" data-testid="fallback-limits"><thead><tr><th>Что</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>
-    ${[['offer', 'Предложение имущества'], ['object', 'Объект имущества']].map(([k, l]) => `<tr><td>${l}</td><td><input type="number" style="width:70px;height:28px" value="${SETTINGS.fallback[k].v}" onchange="IM.setFb('${k}',this.value)"> р.д.</td><td>${esc(SETTINGS.fallback[k].src)}</td></tr>`).join('')}
+    ${[['offer', 'Предложение имущества'], ['object', 'Объект имущества']].map(([k, l]) => `<tr><td>${l}</td><td><input type="number" style="width:70px;height:28px" value="${SETTINGS.fallback[k].v}"${dis} onchange="IM.setFb('${k}',this.value)"> р.д.</td><td>${esc(SETTINGS.fallback[k].src)}</td></tr>`).join('')}
   </tbody></table>
   <div class="why">Если правило кураторства не называет работника, закрепление держит заведующий отделом. Дольше порога — реестры подсвечивают «куратора нет дольше порога». Значения правятся в справочнике Кураторства.</div>
   <div class="section-h">Сроки ответа по источнику — если в документе источника срока нет</div>
   <table class="cgrid"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.deadline).map(([k, d]) => `
-    <tr><td>${esc(SOURCES[k].name)}</td><td>${d.v} ${d.unit}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
+    <tr><td>${esc(SOURCES[k].name)}</td><td>${num('deadline.' + k, d.v, d.unit)}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
   <div class="section-h">Срок выплаты доплаты по источнику — со дня поступления выручки</div>
   <table class="cgrid" data-testid="topup-term"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.topupTerm).map(([k, d]) => `
-    <tr><td>${esc(SOURCES[k].name)}</td><td>${d.v} ${d.unit}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
+    <tr><td>${esc(SOURCES[k].name)}</td><td>${num('topupTerm.' + k, d.v, d.unit)}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
   ${[['instalment', 'Рассрочка'], ['realtor', 'Риэлтор']].filter(([k]) => SETTINGS[k]).map(([k, title]) => { const x = SETTINGS[k];
-    const rows = x && x.v != null ? [[x.label || title, x]] : Object.entries(x).filter(([, y]) => y && typeof y === 'object' && y.v != null).map(([kk, y]) => [y.label || kk, y]);
-    return `<div class="section-h">${title}</div><table class="cgrid" data-testid="settings-${k}"><thead><tr><th>Что</th><th>Значение</th><th>Источник значения</th></tr></thead><tbody>${rows.map(([l, y]) => `
-    <tr><td>${esc(l)}</td><td>${esc(y.v)} ${esc(y.unit || '')}</td><td>${esc(y.src || '')}</td></tr>`).join('')}</tbody></table>`; }).join('')}`;
+    const rows = x && x.v != null ? [[x.label || title, x, k]] : Object.entries(x).filter(([, y]) => y && typeof y === 'object' && y.v != null).map(([kk, y]) => [y.label || kk, y, k + '.' + kk]);
+    return `<div class="section-h">${title}</div><table class="cgrid" data-testid="settings-${k}"><thead><tr><th>Что</th><th>Значение</th><th>Источник значения</th></tr></thead><tbody>${rows.map(([l, y, path]) => `
+    <tr><td>${esc(l)}</td><td>${num(path, y.v, y.unit)}</td><td>${esc(y.src || '')}</td></tr>`).join('')}</tbody></table>`; }).join('')}`;
 }
 
 /* ---------------------------- формы -------------------------------- */
@@ -2969,6 +3025,19 @@ function uiDraft(id) {
   v => { const r = fillDraft(id, v); if (r.ok) r.msg = 'Черновик ' + id + ' дополнен — ждёт второго ключа'; return r; },
   `Сумма ${money(dr.value)}, дата ${fmt(dr.date)} и обязанное лицо — из платежа легаси, не правятся.`); S.form.submit = 'Сохранить';
 }
+function uiSplitDraft(id) {
+  const dr = DRAFTS.find(x => x.id === id);
+  openForm(`Разделить черновик ${id} · ${obl(dr.obligor).name} · ${money(dr.value)}`, [{ id: 'parts', label: 'Суммы частей через запятую, сом', req: true, wide: true, ph: '1 500 000, 900 000' }],
+  v => { const r = splitDraft(id, String(v.parts).split(/[,;]+/).map(x => x.replace(/\s/g, '').replace(',', '.')).filter(Boolean)); if (r.ok) r.msg = 'Черновик ' + id + ' разделён: ' + r.ids.join(', '); return r; },
+  `Платёж легаси ${dr.pay.replace(/ «.*/, '')} на ${money(dr.value)}. Сумма частей должна быть равна сумме платежа, иначе части не сохраняются. Каждую часть затем дополняют по её документам.`); S.form.submit = 'Разделить';
+}
+function uiDropDraft(id) {
+  const dr = DRAFTS.find(x => x.id === id);
+  openForm(`Снять черновик ${id} · ${obl(dr.obligor).name} · ${money(dr.value)}`, [{ id: 'basis', label: 'Основание', type: 'select', options: [['вещь не найдена, погашение — ошибка прежней системы', 'вещь не найдена, погашение — ошибка прежней системы'], ['иное по решению', 'иное по решению']], req: true, wide: true },
+    { id: 'doc', label: 'Решение (номер)', req: true, wide: true }],
+  v => { const r = dropDraft(id, v); if (r.ok) r.msg = 'Черновик ' + id + ' снят: платёж передан в разбор платежей'; return r; },
+  'Блок миграции по этому платежу снимается, сам платёж уходит в разбор платежей. Без решения черновик не снимается.'); S.form.submit = 'Снять';
+}
 function uiDecision(id) {
   const of = offer(id); const open = of.positions.filter(p => posOutcome(id, p.n).code === 'review');
   const late = of.deadline && S.asOf > of.deadline && !offerAnswer(of, of.deadline);
@@ -3021,7 +3090,7 @@ function myFactsCard() {
   return `<div class="card" data-testid="my-facts"><div class="card-head"><h3>Мои неопубликованные факты · ${list.length}</h3></div>
     <table class="cgrid"><thead><tr><th>Дата</th><th>Факт</th><th>Где</th><th>Состояние</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
     <tr data-testid="my-fact-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}</td><td>${esc(owner)}</td>
-      <td>${f.draft ? `<span class="pill warn">${f.withdrawn ? 'отозван' : 'возвращён'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт второго ключа</span>'}</td>
+      <td>${f.draft ? `<span class="pill warn">${f.withdrawn ? 'отозван' : 'возвращён'}</span>${f.returned ? `<div class="why">${esc(f.returned.reason)}</div>` : ''}` : '<span class="pill warn">ждёт публикации</span>'}</td>
       <td><div class="btn-row"><button class="btn btn-secondary btn-sm" data-testid="my-edit-${f.id}" onclick="IM.uiEditFact('${f.id}')">Править</button>
         ${f.draft ? `<button class="btn btn-primary btn-sm" data-testid="my-resubmit-${f.id}" onclick="IM.uiResubmit('${f.id}')">Отправить снова</button><button class="btn btn-secondary btn-sm" onclick="IM.uiDiscard('${f.id}')">Удалить</button>`
           : `<button class="btn btn-secondary btn-sm" data-testid="my-withdraw-${f.id}" onclick="IM.uiWithdraw('${f.id}')">Отозвать</button>`}</div></td></tr>`).join('')}</tbody></table></div>`;
@@ -3035,7 +3104,7 @@ Object.assign(IM, {
   contractInfo, announcements, appsOf, saleBases, preempt, instalmentRule, instalmentSchedule, buybackPrice, consentPrice, debtNow, expensesOf, noticeTerm,
   PUB_PLACES, TERMS, ENC_MARKS, NOTICE_CH, COMMITTEE_V, CONTRACT_ONLY, LISTED_CLOSE, reallocNeeded, birthOf, gate, canRole, addFact, publish, rejectPending, pending, registerOffer, editPosition, addPosition, addIntro,
   splitValues, triggers, curatorOf, neighbours, caseJournal, result, migrationControl,
-  MIGRATED, queueCount, migrationClosed, claimOf, inspThr, DRAFTS, draftState, fillDraft, publishDraft, migrationReport, uiDraft,
+  MIGRATED, queueCount, migrationClosed, claimOf, inspThr, DRAFTS, draftState, fillDraft, splitDraft, dropDraft, publishDraft, migrationReport, uiDraft, uiSplitDraft, uiDropDraft,
   money, fmt, render, openForm, submitForm, docOf, docRows, offerDocRows, printItems, uiFact, uiDecision, uiNewOffer, uiIntro, uiEditPos, uiAddPos, lifeStrip, actionMenu, closeMenus, toggleMenu,
   go(v) { S.view = v; S.id = null; render(); },
   open(id) { id.startsWith('П-') ? IM.openOffer(id) : IM.openObject(id); },
@@ -3049,10 +3118,16 @@ Object.assign(IM, {
   setF(k, v) { S.f[k] = v; render(); },
   openDocFile(name) { toast('Файл «' + name + '» открывается из документооборота', ''); },
   uiPrint(label, id) { toast('Бланк «' + label + '» подготовлен к печати: ' + id, 'ok'); },
-  setThr(i, v) { SETTINGS.thr[i].v = +v; render(); },
-  setFb(k, v) { SETTINGS.fallback[k].v = +v; render(); },
-  setThrSrc(i, v) { SETTINGS.thr[i].src = v; render(); },
-  setInspThr(k, v) { if (v === '' || !(+v > 0)) delete SETTINGS.inspByKind[k]; else SETTINGS.inspByKind[k] = { v: +v, src: (SETTINGS.inspByKind[k] || {}).src || 'внутренний акт' }; render(); },
+  setThr(i, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.thr[i].v = +v; render(); return yes; },
+  setFb(k, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.fallback[k].v = +v; render(); return yes; },
+  setThrSrc(i, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.thr[i].src = v; render(); return yes; },
+  setInspThr(k, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; }
+    if (v === '' || !(+v > 0)) delete SETTINGS.inspByKind[k]; else SETTINGS.inspByKind[k] = { v: +v, src: (SETTINGS.inspByKind[k] || {}).src || 'внутренний акт' }; render(); return yes; },
+  /* срок ответа, срок выплаты доплаты, правила рассрочки, наценка риэлтора: путь вида 'deadline.pssi', 'instalment.rate', 'realtor' */
+  setVal(path, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; }
+    const node = path.split('.').reduce((a, k) => a && a[k], SETTINGS); if (!node || node.v == null) return no('нет такой настройки');
+    if (!(+v > 0)) { toast('значение должно быть больше нуля', 'err'); render(); return no('значение должно быть больше нуля'); }
+    node.v = +v; render(); return yes; },
   uiPublishDraft(id) { const r = publishDraft(id); toast(r.ok ? 'Вводный объект ' + r.id + ' заведён' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
   closeForm() { S.form = null; renderModal(); },
   pickFile, syncShow, withdrawFact, resubmitFact, discardFact, revisePending, drafts,
