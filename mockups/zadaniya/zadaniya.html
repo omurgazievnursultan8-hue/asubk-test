@@ -254,6 +254,7 @@ const EMP = [
   {id:'E36',name:'Кадырова С.М.',     role:'секретарь комитета по администрированию кредитов', dept:'Комитет по администрированию кредитов', chief:'E16'},
   {id:'E37',name:'Жумалиева Г.С.',    role:'главный бухгалтер',       dept:'Бухгалтерия',         chief:'E16'},
   {id:'E38',name:'Токтобаева Н.А.',   role:'бухгалтер',               dept:'Бухгалтерия',         chief:'E37'},
+  {id:'E39',name:'Сулайманова Б.К.',  role:'кредитный инспектор',     dept:'Сопровождение', chief:'E2'},
 ];
 function emp(id){ return EMP.find(e=>e.id===id); }
 function chiefOf(id){ const e=emp(id); return e && e.chief; }
@@ -306,6 +307,8 @@ const ROLES = [
   {id:'zl-committee', name:'Комитет по администрированию кредитов', owner:'Залог', dept:'Комитет по администрированию кредитов', holders:['E16','E36']},
   // восстановление платежа и невыясненное поступление: факт денег — у бухгалтера, задание берёт любой носитель роли
   {id:'pl-accountant', name:'Бухгалтер', owner:'Пользователи', dept:'Бухгалтерия', holders:['E25','E38']},
+  // факт п. 11 без решения комитета: роль доступа классификации, не кураторства — задание берёт любой носитель роли
+  {id:'cl-inspector', name:'Кредитный инспектор', owner:'Пользователи', dept:'Сопровождение', holders:['E3','E39']},
 ];
 /* отделы заключений по заявке: ключ отдела → роль-очередь */
 const AP_DEPTS = {risk:{name:'Отдел рисков', role:'ap-dept-risk'}, credit:{name:'Кредитный отдел', role:'ap-dept-credit'}};
@@ -368,6 +371,9 @@ const CURATION = [ // закрепление: роль кураторства ×
   {role:'ведущий куратор заёмщика', obj:'00807200210033', emp:'E1', from:'2026-12-01', to:null},
   // реструктуризация: заявка не объект закрепления — сроки п. 18 ведёт куратор основного кредита заявки
   ...[['КД-2025/361','E1'],['КД-2025/362','E3'],['КД-2024/363','E1'],['КД-2025/364','E3'],['КД-2024/365','E1'],['КД-2025/366','E1'],['КД-2025/367','E3']]
+    .map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
+  // классификация: факт п. 11 без решения — очереди «Кредитный инспектор»; куратор кредита задания не получает
+  ...[['КД-2025/391','E1'],['КД-2024/392','E3'],['КД-2025/393','E1'],['КД-2023/394','E1'],['КД-2025/395','E3'],['КД-2024/396','E1']]
     .map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
 ];
 function curationOn(role, obj, d){ return CURATION.find(c=>c.role===role && c.obj===obj && c.from<=d && (!c.to || d<=c.to)) || null; }
@@ -534,6 +540,22 @@ const RS_STEPS = [
    act:'Направить в уполномоченный государственный орган письмо с позицией комитета',
    where:'реструктуризация, заявка: отправка письма зафиксирована с исходящим номером'},
 ];
+/* вид классификации: факт п. 11 без реквизитов решения комитета в категорию не идёт — очереди «Кредитный инспектор»;
+   ключ «вид · кредит · факт», гасит решение, внесённое в факт. Метки пересчёта и закрытие периода — техника модуля, не виды */
+const CL_STEPS = [
+  {id:'pk-cl-no-decision', title:'Факт п. 11 без решения комитета', traits:['заёмщик','факт','фактор','уровень','наступил','внесён'], dueN:15,
+   act:'Получить решение комитета по факту п. 11 и внести его реквизиты или аннулировать ошибочный факт',
+   where:'классификация, реестр фактов кредита: реквизиты решения комитета в факте или аннулирование с причиной'},
+];
+/* справочник факторов п. 11 — как его отдаёт классификация: вид, уровень и пункт задаёт норма, не пользователь */
+const CL_FACTOR = {
+  'f-nonTarget': {name:'Нецелевое использование средств',       level:'высокий', norm:'п. 11.3'},
+  'f-lostColl':  {name:'Утрата предмета залога',                level:'высокий', norm:'п. 11.3'},
+  'f-hide':      {name:'Сокрытие имущества от взыскания',       level:'высокий', norm:'п. 11.3'},
+  'f-noAct':     {name:'Уклонение от подписания акта сверки',   level:'средний', norm:'п. 11.2'},
+  'f-collDown':  {name:'Ухудшение состояния предмета залога',   level:'средний', norm:'п. 11.2'},
+  'f-noReport':  {name:'Непредставление отчётности по кредиту', level:'средний', norm:'п. 11.2'},
+};
 function seedPovodKinds(){ return [
   {id:'pk-overdue',      title:'Просрочено задание',                    objectType:'task',      traits:['давность_раб_дней'], rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-rejected',      title:'Задание отклонено',                     objectType:'task',      traits:[],                    rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
@@ -651,6 +673,10 @@ function seedPovodKinds(){ return [
   // Реструктуризация: сроки п. 18 по заявке — куратору основного кредита заявки; ключ без периода — до факта в заявке
   ...RS_STEPS.map(x=>({id:x.id, title:x.title, objectType:'rs-application', traits:x.traits, sumAttr:'остаток задолженности по кредитам заявки',
     rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-23', activatedAt:'2026-11-23', ownerExec:true})),
+  // Классификация: факт п. 11 без решения комитета — очереди «Кредитный инспектор»; ключ «вид · кредит · факт» — до решения в факте
+  ...CL_STEPS.map(x=>({id:x.id, title:x.title, objectType:'credit', traits:x.traits, sumAttr:'остаток основного долга',
+    rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-30', activatedAt:'2026-11-30', ownerExec:true,
+    addrForm:'очередь', take:'через очередь'})),
 ].map(k=>Object.assign({
   sumAttr:null,       // реквизит суммы: какая величина объекта повода — «сумма по заданию»; пусто — денежного объекта нет
   periodic:false,     // опрос: событийный / периодический
@@ -757,6 +783,8 @@ function seedActions(){ return [
   ...ZM_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Реструктуризация: письмо ставит паузу взыскания — оба срока высокой важности
   ...RS_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'высокая', needsProof:false, where:x.where})),
+  // Классификация: срока нормы нет — средняя важность, как у видов платежей и заёмщика
+  ...CL_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
 ]; }
 
 /* адресат — формула: участник задания-объекта · должность · роль кураторства по объекту повода */
@@ -902,6 +930,9 @@ function seedRules(){ return [
   ...RS_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), mode:'авто', addressee:A_CUR_CR,
     dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок по норме реструктуризации (п. 18)',
     editions:[ed('2026-11-23','подключение соседа «Реструктуризация»')]})),
+  // Классификация: срок нормой не задан — значение правила от выдачи, продление — общим порядком
+  ...CL_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), mode:'авто', addressee:{by:'очередь', role:'cl-inspector'},
+    dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-11-30','подключение соседа «Классификация»')]})),
 ]; }
 function ed(from, basis){ return {n:1, from, by:'выпуск 1', basis, release:1}; } // начальные деловые значения ставит выпуск
 /* правило — деловая половина вида: поля прода меняются только новой редакцией с датой начала и основанием;
@@ -1024,6 +1055,7 @@ const ZL_KINDS = ZL_STEPS.map(x=>x.id);
 const PL_KINDS = PL_STEPS.map(x=>x.id);
 const ZM_KINDS = ZM_STEPS.map(x=>x.id);
 const RS_KINDS = RS_STEPS.map(x=>x.id);
+const CL_KINDS = CL_STEPS.map(x=>x.id);
 const AP_KINDS = ['ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
   'ap-program-closed','ap-stuck-new','ap-doc-expired'];
 /* источник объявляет интервал опроса и, если умолчание не подходит, порог молчания (минуты) */
@@ -1044,6 +1076,7 @@ const SOURCES = [
   {id:'payments',   name:'Платежи',             kinds: PL_KINDS,        pollEveryMin:1440, silenceMin:null},
   {id:'borrower',   name:'Заёмщик',             kinds: ZM_KINDS,        pollEveryMin:1440, silenceMin:null},
   {id:'restructuring', name:'Реструктуризация', kinds: RS_KINDS,        pollEveryMin:1440, silenceMin:null},
+  {id:'classification', name:'Классификация',   kinds: CL_KINDS,        pollEveryMin:1440, silenceMin:null},
 ];
 function sourceOfKind(kindId){ return SOURCES.find(s=>s.kinds.indexOf(kindId)!==-1) || null; }
 /* чей повод: владелец-сосед вида (вид объявляет сам, если ответ даёт другой сосед), иначе источник */
@@ -1547,6 +1580,7 @@ function seedOwnerObjects(){ return {
   pl: seedPayments(),
   zm: seedBorrowers(),
   rs: seedRestructuring(),
+  cl: seedClassification(),
   /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
      на приказ, редакция на дату; пусто — периодичность не объявлена */
   ant: [
@@ -1679,6 +1713,35 @@ function RSA(id, borrower, credits, reg, debt, ev){ // заявка: обращ�
   const by = curatorOn('куратор кредита', credits[0], reg);
   return {type:'rs-application', id, borrower, credits, credit:credits[0], debt,
     ev:[{t:reg, reg:true, by, how:`обращение заёмщика зарегистрировано: заявка ${id}, остаток по кредитам заявки ${money(debt)}`}].concat(ev)};
+}
+/* реестр фактов п. 11 по кредиту (ответ классификации): факт вносит кредитный инспектор — с реквизитами решения комитета или без
+   них; решение вносится в заведённый факт позже, ошибочный факт аннулируется с причиной. Погашенный кредит — вне области */
+function seedClassification(){ return [
+  CLC('КД-2025/391', 'ОсОО «Талас Агро Трейд»', 24600000, '2025-04-14', [
+    CLF('2026-11-12', 'E3', 'F-101', 'f-noAct', '2026-11-09')]),
+  CLC('КД-2024/392', 'ОАО «Ош Курулуш Материалдары»', 61800000, '2024-06-03', [
+    CLF('2026-12-02', 'E39', 'F-102', 'f-collDown', '2026-12-01'),
+    CLF('2026-12-02', 'E39', 'F-103', 'f-nonTarget', '2026-11-27')]),
+  CLC('КД-2025/393', 'ИП Жапаров К.Т.', 3900000, '2025-09-22', [
+    CLF('2026-11-26', 'E3', 'F-104', 'f-collDown', '2026-11-20', {doc:'протокол КАБК № 29 от 25.11.2026'})]),
+  CLC('КД-2023/394', 'КФХ «Ак-Талаа»', 1200000, '2023-03-15', [
+    CLF('2026-10-22', 'E3', 'F-105', 'f-lostColl', '2026-10-19'),
+    {t:'2026-12-07', closed:true, by:null, how:'кредит КД-2023/394 погашен полностью: вне области классификации'}]),
+  CLC('КД-2025/395', 'ОсОО «Нарын Гидро Курулуш»', 15300000, '2025-02-11', [
+    CLF('2026-11-18', 'E39', 'F-106', 'f-noReport', '2026-11-16', {until:'2026-12-04'})]),
+  CLC('КД-2024/396', 'ОсОО «Чүй Мебель»', 8700000, '2024-10-07', [
+    CLF('2026-11-16', 'E39', 'F-107', 'f-noAct', '2026-11-13'),
+    {t:'2026-11-18', annul:{fact:'F-107', reason:'введён ошибочно: акт сверки подписан 12.11.2026'}, by:'E39',
+     how:'факт F-107 аннулирован: введён ошибочно: акт сверки подписан 12.11.2026'}]),
+]; }
+function CLC(id, borrower, debt, issued, ev){ // кредит действующий с выдачи — в области классификации
+  return {type:'cl-credit', id, borrower, debt, ev:[{t:issued, by:null, how:`кредит ${id} действующий: в области классификации, остаток основного долга ${money(debt)}`}].concat(ev)};
+}
+function CLF(t, by, id, kind, occurred, extra){ // факт п. 11: вид из справочника, дата наступления; решение комитета и «действует до» — если есть
+  const k = CL_FACTOR[kind], x = extra || {};
+  return {t, by, fact:Object.assign({id, kind, occurred}, x),
+    how:`внесён факт ${id}: ${k.name} (${k.level}, ${k.norm}), наступил ${fmt(occurred)}${x.until ? `, действует до ${fmt(x.until)}` : ''}` +
+      (x.doc ? `; решение комитета — ${x.doc}` : '; реквизитов решения комитета нет')};
 }
 function PLR(id, payer, purpose, amount, date, hint){ // поступление из реестра ЦК без распознанной привязки
   return {type:'receipt', id, payer, purpose, amount, hint, ev:[{t:date, by:'E25', how:`поступление ${id} без привязки: ${money(amount)}`}]};
@@ -2046,6 +2109,34 @@ function rsAt(o, d){
   return s;
 }
 function rsCancel(s){ return s.outcome ? s.outcome.how : s.last.how; }
+/* реестр фактов кредита на дату: факт с внесённым решением комитета, аннулированием, интервалом «действует до»; погашение кредита.
+   Ждёт решения факт не аннулированный, без решения, с живым интервалом, на кредите в области классификации */
+function clAt(o, d){
+  if(!o || !o.ev.length || o.ev[0].t>d) return null;
+  const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
+  const s = {type:'cl-credit', id:o.id, borrower:o.borrower, debt:o.debt, facts:{}, order:[], closed:null, last};
+  evs.forEach(e=>{
+    if(e.fact){
+      s.facts[e.fact.id] = Object.assign({}, e.fact, CL_FACTOR[e.fact.kind], {entered:e.t, by:e.by,
+        decision:e.fact.doc ? {doc:e.fact.doc, t:e.t, by:e.by} : null, annulled:null});
+      s.order.push(e.fact.id);
+    }
+    if(e.decision && s.facts[e.decision.fact]) s.facts[e.decision.fact].decision = {doc:e.decision.doc, t:e.t, by:e.by};
+    if(e.annul && s.facts[e.annul.fact]) s.facts[e.annul.fact].annulled = {reason:e.annul.reason, t:e.t, by:e.by};
+    if(e.closed) s.closed = e;
+    if(e.debt!=null) s.debt = e.debt;
+  });
+  s.open = !s.closed;
+  s.pending = s.open ? s.order.map(id=>s.facts[id]).filter(f=>!f.annulled && !f.decision && (!f.until || f.until>=d)) : [];
+  return s;
+}
+function clCancel(s, d, id){ // почему факт больше не ждёт решения, если решения нет
+  const f = s.facts[id];
+  if(s.closed) return s.closed.how;
+  if(f && f.annulled) return `факт ${f.id} аннулирован: ${f.annulled.reason}`;
+  if(f && f.until && f.until<d) return `интервал действия факта ${f.id} истёк ${fmt(f.until)}: фактор больше не действует`;
+  return s.last.how;
+}
 function ownerObj(src, id){ return state.owner[src].find(o=>o.id===id); }
 function objAt(o, d){ // карточка на дату: события по дату включительно; объекта ещё нет или он удалён — null
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
@@ -2075,7 +2166,7 @@ function objAt(o, d){ // карточка на дату: события по д�
 }
 const STATE_AT = {rp:(o, d)=>obligationAt(o, d), doc:(o, d)=>docAt(o, d), imo:(o, d)=>offerAt(o, d), ima:(o, d)=>assetAt(o, d), an:(o, d)=>reviewAt(o, d), ant:(o, d)=>templateAt(o, d),
   cr:(o, d)=>creditAt(o, d), vz:(o, d)=>vzAt(o, d), zl:(o, d)=>zlAt(o, d), pl:(o, d)=>plAt(o, d), zm:(o, d)=>zmAt(o, d),
-  rs:(o, d)=>rsAt(o, d)}; // как владелец читает карточку на дату
+  rs:(o, d)=>rsAt(o, d), cl:(o, d)=>clAt(o, d)}; // как владелец читает карточку на дату
 function stateAt(src, o, d){ return (STATE_AT[src] || objAt)(o, d); }
 function ownerAt(src, id, d){ return stateAt(src, ownerObj(src, id), d); }
 /* документ на дату: этап хранится, исполнение выводится — из резолюций, отправок и ознакомлений */
@@ -2427,6 +2518,16 @@ Object.assign(OWNER_CFG, {
   'pk-rs-letter':    RSC({when:s=>s.open && !!s.committee && !s.letter, since:s=>s.committee.t, due:s=>s.dueLetter,
     traits:s=>({заёмщик:s.borrower, кредит:s.credit, решение_комитета:s.committee.t, позиция:s.committee.committee, срок:s.dueLetter, сумма:s.debt}),
     done:e=>!!e.letter, cancel:s=>rsCancel(s)}),
+});
+// Классификация: ключ «вид · кредит · факт» — у каждого факта своя судьба; адресат — очередь роли, объекта кураторства нет;
+// гасит решение комитета, внесённое в этот факт; аннулирование, истёкший интервал и погашение кредита — «снято» с причиной
+Object.assign(OWNER_CFG, {
+  'pk-cl-no-decision': {src:'cl', objectType:'credit', cur:false, when:s=>s.pending.length>0,
+    each:s=>s.pending.map(f=>({key:f.id, sub:f.id})),
+    since:(s,d,x)=>s.facts[x.sub].entered,
+    traits:(s,d,x)=>{ const f = s.facts[x.sub];
+      return {заёмщик:s.borrower, факт:f.id, фактор:f.name, уровень:`${f.level}, ${f.norm}`, наступил:f.occurred, внесён:f.entered, сумма:s.debt}; },
+    done:(e,p)=>!!e.decision && e.decision.fact===p.sub, cancel:(s,d,p)=>clCancel(s, d, p.sub)},
 });
 /* атрибуция отпадения: кто и что сделал у владельца; снятие — причина от владельца */
 function appearedOn(p){
@@ -2907,6 +3008,46 @@ function rsStep(id, by, step, arg){
   const f = RS_FACTS[step];
   ownerObj('rs', id).ev.push(Object.assign({t:state.today, by, how:f.how(arg)}, f.ev(arg)));
 }
+/* факт п. 11 в реестре кредита (демо соседа): завести факт, внести в него реквизиты решения комитета, аннулировать с причиной —
+   вносит и правит кредитный инспектор (роль доступа классификации); куратор кредита без роли — нет */
+const CL_STEP_NAMES = ['факт','решение','аннулировать'];
+function clStepError(id, by, step, arg){
+  const o = ownerObj('cl', id), d = state.today, s = clAt(o, d), a = arg || {};
+  if(!s) return 'кредита в реестре классификации нет';
+  if(s.closed) return 'кредит погашен: вне области классификации';
+  if(CL_STEP_NAMES.indexOf(step)===-1) return `шага «${step}» в реестре фактов нет`;
+  const later = o.ev.filter(e=>e.t>d && (e.fact || e.decision || e.annul)).map(e=>e.t).sort()[0]; // записи реестра, не события кредита
+  if(later) return `в реестре фактов кредита уже есть запись от ${fmt(later)}: задним числом не вносится`;
+  if(!holds('cl-inspector', by)) return 'факты п. 11 вносит и правит кредитный инспектор';
+  if(step==='факт'){
+    if(!CL_FACTOR[a.kind]) return 'вид фактора не выбран';
+    if(!a.occurred) return 'не указана дата наступления';
+    if(a.occurred>d) return 'дата наступления в будущем';
+    if(a.occurred<byDate(o.ev)[0].t) return 'дата наступления раньше выдачи кредита';
+    if(a.until && a.until<a.occurred) return '«действует до» раньше даты наступления';
+    return null;
+  }
+  const f = s.facts[a.fact];
+  if(!f) return 'факта нет';
+  if(f.annulled) return `факт ${f.id} аннулирован`;
+  if(step==='решение'){
+    if(f.decision) return `решение по факту ${f.id} уже внесено`;
+    if(f.until && f.until<d) return `интервал действия факта ${f.id} истёк ${fmt(f.until)}: решение не вносится`;
+    return String(a.doc || '').trim() ? null : 'нужны реквизиты решения комитета: номер и дата протокола';
+  }
+  return String(a.reason || '').trim() ? null : 'аннулирование без причины не принимается';
+}
+function clStep(id, by, step, arg){
+  const err = clStepError(id, by, step, arg); if(err) throw new Error(err);
+  const o = ownerObj('cl', id), t = state.today, a = arg;
+  if(step==='факт'){
+    const n = state.owner.cl.reduce((k, x)=>k + x.ev.filter(e=>e.fact).length, 0);
+    o.ev.push(CLF(t, by, 'F-'+(101+n), a.kind, a.occurred, {until:a.until || undefined, doc:a.doc || undefined}));
+    return 'F-'+(101+n);
+  }
+  if(step==='решение') o.ev.push({t, by, decision:{fact:a.fact, doc:a.doc.trim()}, how:`факт ${a.fact}: внесены реквизиты решения комитета — ${a.doc.trim()}`});
+  else o.ev.push({t, by, annul:{fact:a.fact, reason:a.reason.trim()}, how:`факт ${a.fact} аннулирован: ${a.reason.trim()}`});
+}
 /* пачка на подпись — одно действие, подпись пишется в журнал каждого документа отдельно */
 function docSignBatch(ids, by){
   const live = ids.filter(id=>{ const s = ownerAt('doc', id, state.today); return s && s.stage==='Подпись' && !s.signed; });
@@ -2945,7 +3086,7 @@ function seedState(){
                       //  traits, journal:[{t,ev}]}
     pollRuns: [],      // {id, date, sources:[{name,answer,new,gone,matched,rollup:[kind..]}], complete}
     notifications: [], // {id, t, kind, taskId, to, due}
-    sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false, collection:false, collateral:false, payments:false, borrower:false, restructuring:false}, // недоступность на источник, не глобально
+    sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false, collection:false, collateral:false, payments:false, borrower:false, restructuring:false, classification:false}, // недоступность на источник, не глобально
     owner: Object.assign(seedOwnerObjects(), {rp: seedObligations()}), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
     statCleared: false, // демо: сосед статистики снова отвечает
     neighborSet: {lp:{expiringDays:30}, ap:{stuckWd:10}, rp:{soonDays:7}}, // настройки соседей (демо): задания их только читают
@@ -3790,12 +3931,17 @@ function rsDescribe(p){ // заявка на реструктуризацию ·
   const o = ownerObj('rs', p.ownerId||p.objectId);
   return o ? `заявка на реструктуризацию ${o.id} · ${o.borrower} · ${o.credits.length>1 ? 'кредиты' : 'кредит'} ${o.credits.join(', ')}` : p.objectId;
 }
+function clDescribe(p){ // кредит · заёмщик · факт п. 11 с видом, уровнем и пунктом
+  const o = ownerObj('cl', p.ownerId||p.objectId), e = o && o.ev.find(x=>x.fact && x.fact.id===p.sub), k = e && CL_FACTOR[e.fact.kind];
+  return o ? `кредит ${o.id} · ${o.borrower}${k ? ` · факт ${p.sub} «${k.name}» (${k.level}, ${k.norm})` : ''}` : p.objectId;
+}
 function describePovod(p){
   if(p.objectType==='task'){ const t=taskOf(p.objectId); return t ? `«${t.label}» (${p.objectId})` : p.objectId; }
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='zl') return zlDescribe(p);
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='pl') return plDescribe(p);
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='zm') return zmDescribe(p);
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='rs') return rsDescribe(p);
+  if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='cl') return clDescribe(p);
   if(p.objectType==='povodKind'){ return `вид «${kindOf(p.objectId).title}»`; }
   if(p.objectType==='source'){ const src=SOURCES.find(x=>x.id===p.objectId); return `источник «${src ? src.name : p.objectId}»`; }
   if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
@@ -4480,6 +4626,7 @@ function renderOwnerCard(t, p){
   if(cfg.src==='pl') return renderPlCard(p.ownerId||p.objectId);
   if(cfg.src==='zm') return renderZmCard(p.ownerId||p.objectId);
   if(cfg.src==='rs') return renderRsCard(p.ownerId||p.objectId);
+  if(cfg.src==='cl') return renderClCard(p.ownerId||p.objectId);
   const o = ownerObj(cfg.src, p.objectId), s = objAt(o, state.today), src = cfg.src;
   if(!s) return '';
   const who = id=>id ? esc(emp(id)?.name) : '—';
@@ -4856,6 +5003,36 @@ function renderRsCard(id){ // заявка на реструктуризацию
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
     <div class="small">Срок здесь — подсветка без исполнителя и без отметки о просрочке; поручение и просрочка — в заданиях. Пакет, вынос на комитет и письмо вносит сотрудник отраслевого департамента, визы — заключанты СРМиК и ДПО, позицию — секретарь или председатель комитета. Задания увидят факт на следующем опросе.</div></div>`;
 }
+function renderClCard(id){ // реестр фактов п. 11 кредита у владельца: факт без решения — подсветка без исполнителя, решение или аннулирование — кнопкой
+  const o = ownerObj('cl', id), d = state.today, s = clAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
+  const head = `<h3>Факты п. 11 по кредиту ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
+  if(!s) return `<div class="card">${head}<div class="small">кредита на ${fmt(d)} нет</div></div>`;
+  const cur = curatorOn('куратор кредита', o.id, d);
+  const btn = (step, arg, label)=>`<button class="btn btn-secondary btn-sm" onclick='ZD.ui(()=>ZD.clStep(${JSON.stringify(o.id)}, ZD.state.viewer, ${JSON.stringify(step)}, ${JSON.stringify(arg)}))'>${esc(label)}</button>`;
+  const fate = f=>f.annulled ? `аннулирован ${fmt(f.annulled.t)}: ${f.annulled.reason}` : f.decision ? `решение комитета: ${f.decision.doc}`
+    : f.until && f.until<d ? `нет; интервал истёк ${fmt(f.until)}` : 'нет — в категорию риска не идёт';
+  const rows = s.order.map(fid=>{
+    const f = s.facts[fid], live = s.pending.indexOf(f)!==-1;
+    return `<tr><td>${esc(f.id)} · ${esc(f.name)}<div class="small">${esc(f.level)}, ${esc(f.norm)} · наступил ${fmt(f.occurred)}${f.until ? ' · действует до '+fmt(f.until) : ''}</div></td>
+      <td class="small">${fmt(f.entered)} · ${who(f.by)}</td><td${live ? '' : ' class="small"'}>${esc(fate(f))}</td>
+      <td>${live ? btn('решение', {fact:f.id, doc:`протокол КАБК № ${30+o.ev.length} от ${fmt(d)}`}, 'Внести решение комитета')+' '+
+        btn('аннулировать', {fact:f.id, reason:'введён ошибочно: факт не подтвердился'}, 'Аннулировать') : ''}</td></tr>`;
+  });
+  return `<div class="card">${head}
+    <div class="kv">
+      <div class="k">Заёмщик</div><div class="v">${esc(s.borrower)}</div>
+      <div class="k">Остаток основного долга</div><div class="v">${money(s.debt)} сом</div>
+      <div class="k">Кредит</div><div class="v">${s.open ? 'действующий — в области классификации' : esc(s.closed.how)}</div>
+      <div class="k">Куратор кредита на ${fmt(d)}</div><div class="v">${cur ? who(cur) : 'нет'} <span class="small">ответ кураторства</span></div>
+      <div class="k">Последняя запись</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div>
+    </div>
+    <div class="section-h">Факты п. 11: решение комитета</div>
+    ${rows.length ? `<table class="cgrid"><thead><tr><th>Факт</th><th>Внесён</th><th>Решение комитета</th><th>Гасит факт</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+      : '<div class="small">фактов нет</div>'}
+    <div class="section-h">Журнал</div>
+    <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
+    <div class="small">Факт без решения комитета здесь — подсветка без исполнителя: в категорию риска он не идёт; поручение — в заданиях, очереди кредитных инспекторов. Факт, решение комитета и аннулирование с причиной вносит кредитный инспектор. Задания увидят запись на следующем опросе.</div></div>`;
+}
 function renderCrBatch(t){ // вал платежей: уведомить выбранных у владельца или «не требуется» с причиной
   const live = liveKeys(t), mine = !isTerminal(t) && canActFor(t, state.viewer), k = kindOf(t.originKind);
   const fate = key=>{ const e = t.journal.filter(x=>x.key===key && (x.ev==='ключ вышел' || x.ev==='ключ отпал')).pop();
@@ -5117,6 +5294,7 @@ return {
   plStep, plAt, plNotices, PL_KINDS, deptHead,
   zmStep, zmAt, ZM_KINDS,
   rsStep, rsAt, RS_KINDS, RS_NORM,
+  clStep, clAt, CL_KINDS,
   tasksByBasis, reviewTaskDraft, anStep, AN_KINDS, ffSet, ffLabel,
   crStep, crNoticeBatch, creditAt, CR_KINDS,
   vzStep, vzAt, vzOpen, VZ_KINDS, VZ_TPL,
