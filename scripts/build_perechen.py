@@ -339,7 +339,8 @@ def expand(data):
             warn = [r['warn']] if r.get('warn') else []
             if p == 'бланк' and r.get('ext'):
                 warn.append('Кыргызский текст')
-            card = dict(cards[rid]) if vid else {}
+            # вид наследует поля формы, кроме стиля: вид по стандарту объявляет его сам
+            card = {k: v for k, v in cards[rid].items() if k != 'style'} if vid else {}
             card.update(cards[key(r)])
             has_file = p == 'отчёт' and not is_stub(main)
             out.append(dict(
@@ -706,7 +707,8 @@ def std_sheet(ws, row, card):
     nc = len(cols)
     types = [COL_TYPES[c.get('type', 'text')] for c in cols]
     # ширина по типу, но не уже самого длинного слова заголовка: слово не рвётся посередине (Arial 8)
-    widths = [max(t[0], round(max(len(w) for w in c['name'].split()) * 0.8 + 0.6, 1))
+    # ширину типа карточка может расширить полем "width" (значение справочника длиннее типа)
+    widths = [max(c.get('width', t[0]), round(max(len(w) for w in c['name'].split()) * 0.8 + 0.6, 1))
               for t, c in zip(types, cols)]
     ni = next(i for i, c in enumerate(cols) if c.get('type') == 'name')
     grey = Font(name=STD_FONT, size=8, color='808080')
@@ -770,7 +772,8 @@ def std_sheet(ws, row, card):
         ink = ITOGO_FONT if kind == 'total' and lvl == 0 else '555555' if fx else None
         height = 1
         for ci, v in enumerate(x['cells']):
-            width, fmt, align, wrap = types[ci]
+            _, fmt, align, wrap = types[ci]
+            width = widths[ci]
             if align == 'center' and isinstance(v, str) and DATE_RE.match(v):
                 d, m, y = DATE_RE.match(v).groups()
                 v = datetime(int(y), int(m), int(d))
@@ -856,6 +859,10 @@ def vid_rows(row, vrow):
         v = vrow['card'].get(f)
         if v and v != row['card'].get(f):
             yield label, '\n'.join('• ' + p for p in v) if isinstance(v, list) else v
+    z = vrow['card'].get('razrezy')
+    if z and z != row['card'].get('razrezy'):
+        yield 'Разрезы', (f'по умолчанию: {" → ".join(z["default"])} → {z["detail"].lower()}; '
+                          f'можно выбрать: {", ".join(z["available"])}')
     yield 'Основание', vrow['basis']
     yield 'Образец-основа', vrow['sample']
 
@@ -926,7 +933,11 @@ def build_report(row, vids, path):
         ws.title = 'Образец'
         sample_sheet(ws, row['card'])
     for n, v in enumerate(vids, 1):
-        sample_sheet(wb.create_sheet(f'Вид {n}'), v['card'], f'{row["id"]}, вид «{v["vid"]}»')
+        if v['card'].get('style') == 'стандарт':
+            std_sheet(wb.create_sheet(f'Вид {n}'), row, v['card'])
+            std_params_sheet(wb.create_sheet(f'Вид {n} — параметры'), v['card'])
+        else:
+            sample_sheet(wb.create_sheet(f'Вид {n}'), v['card'], f'{row["id"]}, вид «{v["vid"]}»')
     describe_sheet(wb.create_sheet('Описание'), row, vids)
     wb.save(path)
 
