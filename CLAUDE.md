@@ -130,6 +130,13 @@ python3 scripts/build_perechen.py --reports      # -> Перечень-отчё�
 python3 scripts/put_card.py ФО-02 --dump card.json                      # current card -> file
 python3 scripts/put_card.py ФО-02 card.json [--name "…"] [--note "…"]   # file -> card (+ row name/note)
 
+# Rebuild the dashboard tile list for the final act (appendix to ТЗ 24; sheets «Плитки» ПЛ-NN and
+# «Отчёты плиток» ОП-NN) from its one source docs/perechen-plitok/plitki.json. Reconciles with the
+# mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
+# traffic-light thresholds, shift base, default view kinds, params, role layouts; fails and writes
+# nothing on a mismatch. Rerun after editing plitki.json or the mockup's tiles/layouts.
+python3 scripts/build_perechen_plitok.py  # -> docs/perechen-plitok/Перечень плиток.xlsx
+
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html
