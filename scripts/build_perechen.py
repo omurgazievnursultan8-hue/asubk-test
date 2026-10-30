@@ -135,6 +135,8 @@ RAZREZ_FILLS = {
     'Категория риска': 'E4DFEC', 'Группа платёжеспособности': 'E4DFEC', 'Тип проекта': 'E4DFEC',
     'Валюта': 'E4DFEC', 'Состояние': 'E4DFEC',
 }
+# ячейка, значение которой отличается от первичного (ФО-09: условие изменено после выдачи)
+MARK_FILL = PatternFill('solid', fgColor='FFF2CC')
 # тип колонки: ширина, формат числа, выравнивание, перенос
 COL_TYPES = {
     'name': (40, None, 'left', True),
@@ -774,17 +776,23 @@ def std_sheet(ws, row, card):
             color = ITOGO_FILL if lvl == 0 else RAZREZ_FILLS.get(cuts[lvl - 1]) if lvl <= len(cuts) else None
         fill = PatternFill('solid', fgColor=color) if color else None
         ink = ITOGO_FONT if kind == 'total' and lvl == 0 else '555555' if fx else None
+        # "mark": номера колонок (с 0), чьи ячейки выделяются заливкой — значение изменено (ФО-09)
+        marks = set(x.get('mark', []))
         height = 1
         for ci, v in enumerate(x['cells']):
             _, fmt, align, wrap = types[ci]
             width = widths[ci]
+            # явный перевод строки переносится в любой колонке: «Euribor-6m + 4,00» / «= 6,08»
+            wrap = wrap or isinstance(v, str) and '\n' in v
             if align == 'center' and isinstance(v, str) and DATE_RE.match(v):
                 d, m, y = DATE_RE.match(v).groups()
                 v = datetime(int(y), int(m), int(d))
             c = ws.cell(row=r, column=ci + 1, value=None if v == '' else v)
             c.border = SAMPLE_BORDER
             c.font = Font(name=STD_FONT, size=size, bold=kind == 'total', italic=fx, color=ink)
-            if fill:
+            if ci in marks:
+                c.fill = MARK_FILL
+            elif fill:
                 c.fill = fill
             c.alignment = Alignment(horizontal=align, vertical='top', wrap_text=wrap,
                                     indent=max(0, lvl - 1) if ci == ni else 0)
