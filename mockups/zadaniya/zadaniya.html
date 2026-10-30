@@ -324,6 +324,9 @@ const CURATION = [ // закрепление: роль кураторства ×
   // кредиты из рабочих списков обзоров: куратор объекта подставляется в поручение по обзору
   ...[['КД-2023/187','E1'],['КД-2024/031','E3'],['КД-2024/112','E1'],['КД-2025/044','E3']]
     .map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
+  // кредиты с графиком: у Нурлановой — десять сезонных кредитов с одной датой платежа
+  ...[['КД-2026/015','E1'],['КД-2026/022','E1'], ...Array.from({length:10}, (_, i)=>['КД-2026/'+(101+i),'E3'])]
+    .map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
 ];
 function curationOn(role, obj, d){ return CURATION.find(c=>c.role===role && c.obj===obj && c.from<=d && (!c.to || d<=c.to)) || null; }
 function curatorOn(role, obj, d){ const c = curationOn(role, obj, d); return c ? c.emp : null; }
@@ -377,6 +380,7 @@ function calNote(from, to){ // годы промежутка, которых н�
   return gap.length ? `календарь ${gap.join(', ')} года не заведён — рабочие дни по сб/вс` : '';
 }
 function fmt(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}.${m}.${y}`; }
+const money = n=>Number(n).toLocaleString('ru-RU');
 
 /* ---------- 2. реестры: вид повода · действие · правило ---------- */
 function seedPovodKinds(){ return [
@@ -473,6 +477,10 @@ function seedPovodKinds(){ return [
    rollup:null, sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true, selfRelease:'решение без поручений'},
   {id:'pk-an-no-review', title:'Обзора за период нет',                 objectType:'template', traits:['период','периодичность','закрыт'],
    rollup:null, sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true, periodic:true, periodAbsorb:'нет'},
+  // Кредит: платёж по графику через 30 к.д. или ближе — уведомить заёмщика или решить, что не требуется
+  {id:'pk-cr-payment-due', title:'Срок платежа по графику близко', objectType:'credit', traits:['заёмщик','дата_платежа','сумма','дней_до'],
+   sumAttr:'сумма платежа по графику', rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-10-01', activatedAt:'2026-10-01',
+   ownerExec:true, selfRelease:'не требуется'},
 ].map(k=>Object.assign({
   sumAttr:null,       // реквизит суммы: какая величина объекта повода — «сумма по заданию»; пусто — денежного объекта нет
   periodic:false,     // опрос: событийный / периодический
@@ -566,6 +574,9 @@ function seedActions(){ return [
    where:'карточка задания: «Поручение по обзору» — исполнителя называете вы, контролёр — вы; поручать нечего — «Решение без поручений» с основанием'},
   {id:'act-an-no-review', label:'Обеспечить обзор за период по всему портфелю', importance:'высокая', needsProof:false,
    where:'анализ: обзор по шаблону за период без закреплённых разрезов — утверждение'},
+  // Кредит
+  {id:'act-cr-notice', label:'Уведомить заёмщика о предстоящем платеже', importance:'средняя', needsProof:false,
+   where:'карточка кредита, «График»: уведомление заёмщику по строке; уведомлять не нужно — «Не требуется» с причиной в задании'},
 ]; }
 
 /* адресат — формула: участник задания-объекта · должность · роль кураторства по объекту повода */
@@ -591,6 +602,7 @@ const N_AP_MEMBER = {by:'названный', who:'член комиссии'};
 const N_AP_CHAIR  = {by:'названный', who:'председатель комиссии'};
 const N_DOC = who=>({by:'названный', who});
 const A_CUR_IM = {by:'кураторство', role:'куратор имущества'};
+const A_CUR_CR = {by:'кураторство', role:'куратор кредита'};
 const A_HEAD_TO = {by:'должность', who:'руководитель подразделения «кому направлен»', unitFrom:'повод'}; // подразделение называет обзор
 const A_HEAD_AN = {by:'должность', who:'заведующий отделом анализа', unit:'Отдел анализа'};
 const Q_DOC_REG  = {by:'очередь', role:'doc-registrar'};
@@ -681,6 +693,9 @@ function seedRules(){ return [
   {id:'rule-pk-an-no-review', kind:'pk-an-no-review', action:'act-an-no-review', mode:'авто', addressee:A_HEAD_AN, dueN:20,
    dueUnit:'workday', dueBase:'состояние', ownDue:'поле шаблона «N р.д. после закрытия периода»', dueSource:ACT_SRC,
    editions:[ed('2026-10-01','подключение соседа «Анализ»')]},
+  // Кредит: порог «за 30 к.д.» — у кредита, здесь только срок решения куратора
+  {id:'rule-pk-cr-payment-due', kind:'pk-cr-payment-due', action:'act-cr-notice', mode:'авто', addressee:A_CUR_CR, dueN:5,
+   dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-10-01','подключение соседа «Кредит»')]},
 ]; }
 function ed(from, basis){ return {n:1, from, by:'выпуск 1', basis, release:1}; } // начальные деловые значения ставит выпуск
 /* правило — деловая половина вида: поля прода меняются только новой редакцией с датой начала и основанием;
@@ -797,6 +812,7 @@ const DOC_KINDS = ['doc-revise','doc-approve','doc-sign','doc-register','doc-dis
 const IM_KINDS = ['pk-im-offer-overdue','pk-im-act-pending','pk-im-registration-pending','pk-im-topup-pending','pk-im-no-inspection',
   'pk-im-not-listed','pk-im-unsold','pk-im-instalment-overdue','pk-im-encumbrance-ending','pk-im-claim-open'];
 const AN_KINDS = ['pk-an-decision','pk-an-no-review'];
+const CR_KINDS = ['pk-cr-payment-due'];
 const AP_KINDS = ['ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
   'ap-program-closed','ap-stuck-new','ap-doc-expired'];
 /* источник объявляет интервал опроса и, если умолчание не подходит, порог молчания (минуты) */
@@ -811,6 +827,7 @@ const SOURCES = [
   {id:'docs',       name:'Документооборот',     kinds: DOC_KINDS,       pollEveryMin:5,    silenceMin:30,   ownerAdmin:'E18'},
   {id:'assets',     name:'Имущество',           kinds: IM_KINDS,        pollEveryMin:1440, silenceMin:null},
   {id:'analysis',   name:'Анализ',              kinds: AN_KINDS,        pollEveryMin:1440, silenceMin:null},
+  {id:'credit',     name:'Кредит',              kinds: CR_KINDS,        pollEveryMin:1440, silenceMin:null},
 ];
 function sourceOfKind(kindId){ return SOURCES.find(s=>s.kinds.indexOf(kindId)!==-1) || null; }
 /* чей повод: владелец-сосед вида (вид объявляет сам, если ответ даёт другой сосед), иначе источник */
@@ -1225,6 +1242,26 @@ function seedOwnerObjects(){ return {
     AR('ОБ-8', 'ШО-04', Q3_26, {}, 'требует внимания', 'Кредитные программы', [], '2026-10-19', ['2026-10-26','E16']),
     AR('ОБ-9', 'ШО-12', {from:'2026-08-01', to:'2026-08-31'}, {}, 'требует внимания', 'Кредитные программы', [], '2026-10-09', null),
   ],
+  /* кредит: график — ответ кредита по расчётному ядру; платёж по строке (Платежи) и уведомление заёмщику — факты владельца */
+  cr: [
+    CRD('КД-2023/187', 'ОсОО «Нарын-Сүт»', '2023-06-20', ['2026-09-20','2026-10-20','2026-11-20','2026-12-20'], 412500,
+      [{t:'2026-09-18', paid:'2026-09-20', by:'E25', how:'платёж по графику 20.09 зачислен'},
+       {t:'2026-10-05', notice:'2026-10-20', by:'E1', how:'уведомление заёмщику о платеже 20.10 отправлено, исх. № 2214'}]),
+    CRD('КД-2024/112', 'КФХ «Ала-Тоо»', '2024-05-05', ['2026-08-05','2026-11-05','2027-02-05'], 1250000,
+      [{t:'2026-08-05', paid:'2026-08-05', by:'E25', how:'платёж по графику 05.08 зачислен'},
+       {t:'2026-11-05', paid:'2026-11-05', by:'E25', how:'платёж по графику 05.11 зачислен'}]),
+    CRD('КД-2026/015', 'ИП Мамытов Б.К.', '2026-03-15', ['2026-09-15','2026-10-15','2026-11-15'], 98000,
+      [{t:'2026-09-15', paid:'2026-09-15', by:'E25', how:'платёж по графику 15.09 зачислен'}]),
+    CRD('КД-2026/022', 'ОсОО «Талас-Агро»', '2026-04-28', ['2026-10-28','2027-04-28'], 640000,
+      [{t:'2026-10-12', paid:'2026-10-28', by:'E25', how:'платёж по графику 28.10 зачислен досрочно'}]),
+    CRD('КД-2024/031', 'ОсОО «Ош-Жемиш»', '2024-04-26', ['2026-10-26','2027-04-26'], 310000, []),
+    CRD('КД-2025/044', 'КФХ «Сулайман»', '2025-10-26', ['2026-10-26','2027-10-26'], 520000, []),
+    // сезонные: платёж после уборки, одна дата у всех; по семи из десяти куратор уведомила заёмщиков 06.10
+    ...[['КФХ «Бакыт»',185000],['КФХ «Жер-Бай»',142000],['КФХ «Ак-Суу»',96000],['КФХ «Тоо-Башы»',210000],['КФХ «Нур-Агро»',88000],
+        ['КФХ «Кара-Кулжа»',134000],['КФХ «Чоң-Алай»',240000],['КФХ «Өзгөн-Күрүч»',118000],['КФХ «Ноокат»',102000],['КФХ «Араван»',156000]]
+      .map(([who, sum], i)=>CRD('КД-2026/'+(101+i), who, '2026-03-02', ['2026-10-26','2027-10-26'], sum,
+        i<7 ? [{t:'2026-10-06', notice:'2026-10-26', by:'E3', how:'уведомление заёмщику о платеже 26.10 отправлено'}] : [])),
+  ],
   /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
      на приказ, редакция на дату; пусто — периодичность не объявлена */
   ant: [
@@ -1242,6 +1279,9 @@ function AR(id, tpl, period, cuts, verdict, to, worklist, created, appr, replace
   const ev = [{t:created, by:'E26', how:`обзор ${id} заведён по шаблону ${tpl}`}];
   if(appr) ev.push({t:appr[0], approved:true, by:appr[1], how:`обзор ${id} утверждён`+(replaces ? ` взамен ${replaces}` : '')});
   return {id, tpl, period, cuts, verdict, to, worklist, replaces:replaces||null, author:'E26', ev};
+}
+function CRD(id, borrower, issued, dates, amount, ev){ // кредит: выдача, равные платежи по графику, факты владельца
+  return {id, borrower, schedule:dates.map(date=>({date, amount})), ev:[{t:issued, by:'E2', how:`кредит ${id} выдан`}].concat(ev)};
 }
 /* общий календарь закрытия периодов (ответ статистики): конец периода → день закрытия */
 const PERIOD_CLOSED = {'2025-03-31':'2025-04-07','2025-06-30':'2025-07-07','2025-09-30':'2025-10-06','2025-12-31':'2026-01-13',
@@ -1340,6 +1380,21 @@ function assetAt(o, d){ // объект на дату: состояние выв
   return s;
 }
 const IM_ON = ['на учёте','выставлен на продажу','продан в рассрочку']; // вещь Фонда — осматривается
+/* кредит на дату: строки графика, внесённые платежи и уведомления заёмщику по строкам */
+function creditAt(o, d){
+  if(!o || !o.ev.length || o.ev[0].t>d) return null;
+  const s = {id:o.id, borrower:o.borrower, schedule:o.schedule, paid:{}, notices:{}, last:null};
+  for(const e of byDate(o.ev)){
+    if(e.t>d) continue;
+    if(e.paid) s.paid[e.paid] = e;
+    if(e.notice) s.notices[e.notice] = e;
+    s.last = e;
+  }
+  return s;
+}
+const CR_NOTICE_DAYS = 30; // за сколько к.д. до платежа куратор решает об уведомлении — порог кредита, задания его не настраивают
+/* строки графика, до которых 30 к.д. или меньше: срок не наступил, платёж не внесён, заёмщик не уведомлён */
+function crDue(s, d){ return s.schedule.filter(x=>x.date>d && kd(d, x.date)<=CR_NOTICE_DAYS && !s.paid[x.date] && !s.notices[x.date]); }
 function ownerObj(src, id){ return state.owner[src].find(o=>o.id===id); }
 function objAt(o, d){ // карточка на дату: события по дату включительно; объекта ещё нет или он удалён — null
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
@@ -1367,7 +1422,8 @@ function objAt(o, d){ // карточка на дату: события по д�
   }
   return s;
 }
-const STATE_AT = {rp:(o, d)=>obligationAt(o, d), doc:(o, d)=>docAt(o, d), imo:(o, d)=>offerAt(o, d), ima:(o, d)=>assetAt(o, d), an:(o, d)=>reviewAt(o, d), ant:(o, d)=>templateAt(o, d)}; // как владелец читает карточку на дату
+const STATE_AT = {rp:(o, d)=>obligationAt(o, d), doc:(o, d)=>docAt(o, d), imo:(o, d)=>offerAt(o, d), ima:(o, d)=>assetAt(o, d), an:(o, d)=>reviewAt(o, d), ant:(o, d)=>templateAt(o, d),
+  cr:(o, d)=>creditAt(o, d)}; // как владелец читает карточку на дату
 function stateAt(src, o, d){ return (STATE_AT[src] || objAt)(o, d); }
 function ownerAt(src, id, d){ return stateAt(src, ownerObj(src, id), d); }
 /* документ на дату: этап хранится, исполнение выводится — из резолюций, отправок и ознакомлений */
@@ -1601,6 +1657,14 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
       срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода` : 'не назван'}),
     attrib:(s,p,d)=>{ const [from, to] = p.sub.split('..'), r = periodReview(s.id, {from, to}, d);
       return r ? {by:r.approvedBy, how:`обзор ${r.id} по всему портфелю за ${perText(r.period)} утверждён`} : {cancel:s.last.how}; }},
+  // Кредит: ключ «вид · кредит · дата платежа»; гасит уведомление заёмщику по строке, без него — внесение или дата платежа
+  'pk-cr-payment-due': {src:'cr', objectType:'credit', cur:true, when:(s,d)=>crDue(s, d).length>0,
+    each:(s,d)=>crDue(s, d).map(x=>({period:x.date, sub:x.date, since:addDays(x.date, -CR_NOTICE_DAYS), x})),
+    since:(s,d,x)=>x.since,
+    traits:(s,d,x)=>({заёмщик:s.borrower, дата_платежа:x.x.date, сумма:x.x.amount, дней_до:kd(d, x.x.date)}),
+    done:(e,p)=>e.notice===p.sub,
+    cancel:(s,d,p)=>s.paid[p.sub] && s.paid[p.sub].t<p.sub ? `платёж ${fmt(p.sub)} внесён до срока`
+      : d>=p.sub ? `наступил срок платежа ${fmt(p.sub)}` : null},
 };
 /* атрибуция отпадения: кто и что сделал у владельца; снятие — причина от владельца */
 function appearedOn(p){
@@ -1883,6 +1947,38 @@ function imStep(src, id, by, step, arg){
   if(!st.ok(s, arg)) throw new Error(`«${step}» недоступно: ${s.status}`);
   o.ev.push(Object.assign({t:d, by}, st.ev(arg, s)));
 }
+/* действия в карточке кредита (демо соседа): уведомление заёмщику по строке графика — куратор кредита, его замещающий
+   или руководитель; платёж по строке отмечает бухгалтер в Платежах */
+function crNoticeError(id, by, date){
+  const d = state.today, s = creditAt(ownerObj('cr', id), d), cur = curatorOn('куратор кредита', id, d);
+  if(!s) return 'кредита нет';
+  if(!s.schedule.some(r=>r.date===date)) return 'в графике нет строки на эту дату';
+  if(s.paid[date]) return `платёж ${fmt(date)} уже внесён`;
+  if(s.notices[date]) return `${id}: заёмщик о платеже ${fmt(date)} уже уведомлён`;
+  if(date<=d) return 'срок платежа наступил — уведомлять поздно';
+  if(!cur || !(by===cur || by===actingFor(cur, d) || by===chiefOf(cur))) return 'уведомляет куратор кредита, его замещающий или руководитель';
+  return null;
+}
+function crStep(id, by, step, date){
+  const o = ownerObj('cr', id), d = state.today, s = creditAt(o, d);
+  if(!s) throw new Error('кредита нет');
+  if(step==='уведомить'){
+    const err = crNoticeError(id, by, date); if(err) throw new Error(err);
+    o.ev.push({t:d, notice:date, by, how:`уведомление заёмщику о платеже ${fmt(date)} отправлено`});
+  } else if(step==='платёж'){
+    if(by!=='E25') throw new Error('платёж отмечает бухгалтер — в Платежах');
+    if(!s.schedule.some(r=>r.date===date) || s.paid[date]) throw new Error('строки нет или платёж уже внесён');
+    o.ev.push({t:d, paid:date, by, how:`платёж по графику ${fmt(date)} зачислен`+(d<date ? ' досрочно' : '')});
+  } else throw new Error('такого действия у кредита нет');
+}
+/* уведомление по выбранным платежам вала — одно действие, запись в карточку каждого кредита отдельно */
+function crNoticeBatch(keys, by){
+  const ps = keys.map(k=>povodByKey(k)).filter(p=>p && p.status!=='gone');
+  if(!ps.length) throw new Error('выберите платежи');
+  const err = ps.map(p=>crNoticeError(p.objectId, by, p.sub)).find(Boolean); if(err) throw new Error(err);
+  ps.forEach(p=>crStep(p.objectId, by, 'уведомить', p.sub));
+  return ps.length;
+}
 /* пачка на подпись — одно действие, подпись пишется в журнал каждого документа отдельно */
 function docSignBatch(ids, by){
   const live = ids.filter(id=>{ const s = ownerAt('doc', id, state.today); return s && s.stage==='Подпись' && !s.signed; });
@@ -1921,7 +2017,7 @@ function seedState(){
                       //  traits, journal:[{t,ev}]}
     pollRuns: [],      // {id, date, sources:[{name,answer,new,gone,matched,rollup:[kind..]}], complete}
     notifications: [], // {id, t, kind, taskId, to, due}
-    sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false}, // недоступность на источник, не глобально
+    sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false}, // недоступность на источник, не глобально
     owner: Object.assign(seedOwnerObjects(), {rp: seedObligations()}), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
     statCleared: false, // демо: сосед статистики снова отвечает
     neighborSet: {lp:{expiringDays:30}, ap:{stuckWd:10}, rp:{soonDays:7}}, // настройки соседей (демо): задания их только читают
@@ -2098,13 +2194,25 @@ function reject(taskId, note){
 }
 /* «Снять» — автор, из любого нетерминального, с основанием; ключ, снятый с поручения,
    по правилу не переиздаётся, пока жив */
-function releaseTask(taskId, by, reason){
+function releaseTask(taskId, by, reason, onlyKeys){
   const t=taskOf(taskId);
   if(!t || isTerminal(t)) throw new Error('задание закрыто — снимать нечего');
   const k = t.originKind && kindOf(t.originKind);
   if(k && k.selfRelease){ // решение адресата без действия у владельца: с основанием, ключ не переиздаётся, пока жив
     if(!canActFor(t, by)) throw new Error(`«${k.selfRelease}» принимает адресат задания`);
     if(!reason) throw new Error('нужно основание решения');
+    if(t.rollupKeys){ // в вале — по выбранным поводам (не названы — все живые); вал закрывается, когда живых не осталось
+      const pick = onlyKeys===undefined ? liveKeys(t) : onlyKeys;
+      if(!pick.length) throw new Error('выберите поводы');
+      if(pick.some(key=>t.rollupKeys.indexOf(key)===-1 || keyStatus(t, key)!=='жив')) throw new Error('повода нет в вале, он уже решён или отпал');
+      pick.forEach(key=>{ log(t,'ключ вышел',Object.assign({key, причина:k.selfRelease, reason}, actor(t, by)));
+        const p = povodByKey(key); if(p && p.status!=='gone') log(p,'снят без поручения',{task:t.id, reason}); });
+      if(t.rollupKeys.every(key=>pick.indexOf(key)!==-1)){ // решено всё разом — вал снят с этим основанием
+        log(t,'закрыто',Object.assign({outcome:'снято', reason:`${k.selfRelease}: ${reason}`}, actor(t, by)));
+        notify(t,'закрыто');
+      } else settleRollup(t);
+      return t;
+    }
     log(t,'закрыто',Object.assign({outcome:'снято', reason:`${k.selfRelease}: ${reason}`}, actor(t, by)));
     notify(t,'закрыто');
     const p = povodByKey(t.povodKey); if(p && p.status!=='gone') log(p,'снят без поручения',{task:t.id});
@@ -2678,9 +2786,11 @@ function settleRollup(t){ // вал закрыт, когда живых ключ
     if(!t.journal.some(e=>e.ev==='повод отпал')){ log(t,'повод отпал',{}); notify(t,'повод-отпал', t.controller); }
     return;
   }
-  if(t.rollupKeys.every(k=>keyStatus(t,k)==='отпал') && ownerExecOf(t)){ // все сняты — вал снят; иначе исполнен со сводкой
-    const ends = t.rollupKeys.map(k=>t.journal.filter(e=>e.key===k && e.ev==='ключ отпал').slice(-1)[0]);
-    const off = ends.filter(e=>e.outcome==='снято').length, n = ends.length;
+  const sr = t.originKind && kindOf(t.originKind) ? kindOf(t.originKind).selfRelease : null;
+  const ends = t.rollupKeys.map(k=>t.journal.filter(e=>e.key===k && (e.ev==='ключ отпал' || e.ev==='ключ вышел')).slice(-1)[0]);
+  // все сняты — вал снят; иначе исполнен со сводкой; решение адресата по поводу — «снято», переданное другому — не исход вала
+  if(ownerExecOf(t) && ends.every(e=>e.ev==='ключ отпал' || (sr && e.причина===sr))){
+    const off = ends.filter(e=>e.ev==='ключ вышел' || e.outcome==='снято').length, n = ends.length;
     log(t,'закрыто', off===n ? {outcome:'снято', reason:'все шаги вала сняты'} : {outcome:'исполнено', note:`шагов ${n}: исполнено ${n-off}, снято ${off}`});
     notify(t,'закрыто');
   } else if(t.rollupKeys.every(k=>keyStatus(t,k)==='отпал')){ log(t,'закрыто',{outcome:'исполнено'}); notify(t,'закрыто'); }
@@ -2755,6 +2865,7 @@ function describePovod(p){
   if(p.objectType==='asset'){ const o = ownerObj('ima', p.objectId); return `объект имущества ${p.objectId} «${o ? o.title : ''}»`; }
   if(p.objectType==='contract'){ const o = ownerObj('ima', p.ownerId);
     return `договор купли-продажи ${p.objectId} · объект ${p.ownerId} «${o ? o.title : ''}» · платёж от ${fmt(p.sub)}`; }
+  if(p.objectType==='credit'){ const o = ownerObj('cr', p.objectId); return `кредит ${p.objectId}${o ? ' · '+o.borrower : ''} · платёж ${fmt(p.sub)}`; }
   if(p.objectType==='review'){ const o = ownerObj('an', p.objectId);
     return `обзор ${p.objectId}${o ? ` по шаблону ${o.tpl} за ${perText(o.period)}${wholePortfolio(o) ? '' : ' · '+Object.values(o.cuts).join(', ')}` : ''}`; }
   if(p.objectType==='template'){ const o = ownerObj('ant', p.objectId), [from, to] = String(p.sub||'..').split('..');
@@ -3163,7 +3274,8 @@ function renderCardDrawer(){
         <div class="k">Состояние</div><div class="v"><b>${esc(displayState(t))}</b></div>
       </div>
       ${t.kind==='rule' ? renderOrigin(t, povod) : ''}
-      ${t.decide ? '' : t.rollupKeys ? `<div class="section-h">Ключи вала</div>
+      ${t.rollupKeys && t.originKind==='pk-cr-payment-due' ? renderCrBatch(t) : ''}
+      ${t.decide || t.originKind==='pk-cr-payment-due' ? '' : t.rollupKeys ? `<div class="section-h">Ключи вала</div>
       <table class="cgrid"><thead><tr><th>Ключ</th><th>Ответственный (снимок)</th><th>Судьба</th></tr></thead>
         <tbody>${t.rollupKeys.map(k=>`<tr><td class="mono small">${esc(k)}</td><td>${esc(emp(t.rollupResp&&t.rollupResp[k])?.name||'—')}</td>
           <td><span class="pill ${keyStatus(t,k)==='жив'?'ok':keyStatus(t,k)==='отпал'?'neutral':'info'}">${keyStatus(t,k)}</span></td></tr>`).join('')}</tbody></table>` : ''}
@@ -3247,6 +3359,10 @@ function renderTaskActions(t){
     html += renderReviewDecision(t);
   } else if(owned && mine && st!=='поручено'){
     html += `<div class="banner info">Работа делается в карточке у владельца — ${esc(act.where)}. Задание закроется само, когда повод отпадёт; кнопки «сдано» здесь нет.</div>`;
+    if(selfRel && !t.rollupKeys) html += `<div class="card"><h3>Решение «${esc(selfRel)}»</h3><div class="form-row">
+      <div class="fld"><label>Причина</label><input id="srWhy"></div>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.releaseTask('${id}', ZD.state.viewer, document.getElementById('srWhy').value.trim()))">Закрыть — ${esc(selfRel)}</button>
+    </div><div class="small">Пока повод жив, новое задание по нему не выдаётся.</div></div>`;
   }
   if(st==='поручено' && mine){
     html += `<div class="btn-row">
@@ -3402,6 +3518,7 @@ function renderOwnerCard(t, p){
   if(cfg.src==='imo' || cfg.src==='ima') return renderImCard(cfg.src, p.ownerId||p.objectId);
   if(cfg.src==='an' || cfg.src==='ant') return renderAnCard(cfg.src, p.ownerId||p.objectId);
   if(cfg.src==='rp') return renderRepCard(p.ownerId||p.objectId);
+  if(cfg.src==='cr') return renderCrCard(p.objectId);
   const o = ownerObj(cfg.src, p.objectId), s = objAt(o, state.today), src = cfg.src;
   if(!s) return '';
   const who = id=>id ? esc(emp(id)?.name) : '—';
@@ -3563,6 +3680,43 @@ function renderImCard(src, id){
     <div class="form-row" style="margin-top:12px"><div class="fld"><label>Позиция · дата «по» · сумма</label><input id="imArg"></div></div>
     <div class="btn-row">${btns.join('')}</div>
     <div class="small">Сделанное здесь задания увидят на следующем опросе — «Журнал прогонов». Пороги поводов — настройки модуля имущества.</div></div>`;
+}
+function renderCrCard(id){ // кредит у владельца: график, кто уведомлён, что внесено
+  const o = ownerObj('cr', id), d = state.today, s = creditAt(o, d), who = x=>x ? esc(emp(x)?.name) : '—';
+  const head = `<h3>Карточка кредита ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
+  if(!s) return `<div class="card">${head}<div class="small">кредита на ${fmt(d)} нет</div></div>`;
+  const cur = curatorOn('куратор кредита', o.id, d);
+  const btn = (step, date, label)=>`<button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.crStep('${esc(o.id)}', ZD.state.viewer, '${step}', '${date}'))">${label}</button>`;
+  const line = x=>{ const p = s.paid[x.date], n = s.notices[x.date], left = kd(d, x.date);
+    const st = p ? `внесён ${fmt(p.t)}` : n ? `заёмщик уведомлён ${fmt(n.t)} · ${who(n.by)}` : left<=0 ? 'срок наступил'
+      : left<=CR_NOTICE_DAYS ? `<span class="pill warn">через ${left} дн.</span>` : '';
+    return `<tr><td>${fmt(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td class="small">${st}</td>
+      <td>${!p && !n && left>0 ? btn('уведомить', x.date, 'Уведомить заёмщика') : ''}${!p ? btn('платёж', x.date, 'Платёж зачислен') : ''}</td></tr>`; };
+  return `<div class="card">${head}
+    <div class="kv">
+      <div class="k">Заёмщик</div><div class="v">${esc(s.borrower)}</div>
+      <div class="k">Куратор кредита на ${fmt(d)}</div><div class="v">${cur ? who(cur)+(actingFor(cur, d)!==cur ? `; действует ${who(actingFor(cur, d))}` : '') : 'не закреплён'}</div>
+      <div class="k">Последний факт</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div>
+    </div>
+    <table class="cgrid"><thead><tr><th>Платёж по графику</th><th>Сумма, сом</th><th>Состояние</th><th></th></tr></thead>
+      <tbody>${s.schedule.map(line).join('')}</tbody></table>
+    <div class="small">Уведомляет куратор, его замещающий или руководитель; платёж отмечает бухгалтер в Платежах. Задания увидят это на следующем опросе.</div></div>`;
+}
+function renderCrBatch(t){ // вал платежей: уведомить выбранных у владельца или «не требуется» с причиной
+  const live = liveKeys(t), mine = !isTerminal(t) && canActFor(t, state.viewer), k = kindOf(t.originKind);
+  const fate = key=>{ const e = t.journal.filter(x=>x.key===key && (x.ev==='ключ вышел' || x.ev==='ключ отпал')).pop();
+    return !e ? '' : e.ev==='ключ вышел' ? `${e.причина}: ${e.reason}` : e.outcome==='снято' ? `снято: ${e.reason}` : `исполнено · ${emp(e.by)?.name||''}`; };
+  return `<div class="section-h">Платежи вала</div>
+    <table class="cgrid"><thead><tr><th></th><th>Кредит</th><th>Платёж</th><th>Сумма, сом</th><th>Итог</th></tr></thead>
+    <tbody>${t.rollupKeys.map(key=>{ const p = povodByKey(key), on = live.indexOf(key)!==-1, o = ownerObj('cr', p.objectId);
+      return `<tr class="${on?'':'hole'}"><td>${on && mine ? `<input type="checkbox" class="dcKey" value="${esc(key)}" checked>` : ''}</td>
+        <td>${esc(p.objectId)} · ${esc(o.borrower)}</td><td>${fmt(p.sub)}</td><td style="text-align:right">${money(p.traits.сумма)}</td>
+        <td class="small">${esc(fate(key))}</td></tr>`; }).join('')}</tbody></table>
+    ${mine && live.length ? `<div class="form-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.crNoticeBatch(ZD.checkedKeys(), ZD.state.viewer))">Уведомить выбранных</button>
+      <div class="fld"><label>Причина «${esc(k.selfRelease)}»</label><input id="crWhy"></div>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.releaseTask('${t.id}', ZD.state.viewer, document.getElementById('crWhy').value.trim(), ZD.checkedKeys()))">Не требуется — выбранные</button>
+    </div><div class="small">Уведомление пишется в карточку каждого кредита — задания увидят его на следующем опросе. Решённое «не требуется» не всплывает до даты платежа.</div>` : ''}`;
 }
 function renderDocBatch(t){ // вал подписи: пачка одним действием
   const ids = t.rollupKeys.map(k=>povodByKey(k)).filter(Boolean).map(p=>p.ownerId||p.objectId);
@@ -3806,6 +3960,7 @@ return {
   docStep, docSignBatch, stepByKey, signerOn, DOC_KINDS,
   imStep, IM_KINDS, curationOn,
   tasksByBasis, reviewTaskDraft, anStep, AN_KINDS, ffSet, ffLabel,
+  crStep, crNoticeBatch, creditAt, CR_KINDS,
 };
 })();
 </script>
