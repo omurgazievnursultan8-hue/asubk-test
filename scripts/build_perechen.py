@@ -59,6 +59,8 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -741,7 +743,8 @@ def std_sheet(ws, row, card):
     types = [(t[0], c.get('fmt', t[1]), t[2], t[3])
              for c in cols for t in [COL_TYPES[c.get('type', 'text')]]]
     # ширина по типу, но не уже самого длинного слова заголовка: слово не рвётся посередине (Arial 8)
-    # ширину типа карточка может расширить полем "width" (значение справочника длиннее типа)
+    # ширину типа карточка может изменить полем "width": шире — значение справочника длиннее типа,
+    # уже — форма должна уместиться на A4 (ФО-01)
     widths = [max(c.get('width', t[0]), round(max(len(w) for w in c['name'].split()) * 0.8 + 0.6, 1))
               for t, c in zip(types, cols)]
     ni = next(i for i, c in enumerate(cols) if c.get('type') == 'name')
@@ -852,6 +855,11 @@ def std_sheet(ws, row, card):
                 c.number_format = fmt
             if wrap and isinstance(v, str):
                 height = max(height, text_lines(v, int(width * 1.2) - (2 * lvl if ci == ni else 0)))
+            # вторая линия наименования в жирной строке — обычным шрифтом (область и район заёмщика, ФО-01)
+            if ci == ni and kind == 'total' and lvl and isinstance(v, str) and '\n' in v:
+                head, tail = v.split('\n', 1)
+                c.value = CellRichText(TextBlock(InlineFont(rFont=STD_FONT, sz=size, b=True), head + '\n'),
+                                       TextBlock(InlineFont(rFont=STD_FONT, sz=size), tail))
         ws.row_dimensions[r].height = (12 if size == 9 else 11) * height + 2
     ws.freeze_panes = f'{get_column_letter(ni + 2)}{nums + 1}'
     ws.print_title_rows = f'{top}:{nums}'
