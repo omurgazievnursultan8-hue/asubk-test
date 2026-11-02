@@ -498,7 +498,7 @@ def sheet_list(wb, data, rows, n):
     r += 1
     text_row(ws, r, f'{data["date"]}. {data["stage"]}', nc, Font(italic=True, color='555555'))
     r += 1
-    total = (f'Отчётов: {n["reports"]} (из них заготовок внешних форм: {n["stub"]}), видов отчётов: '
+    total = (f'Отчётов: {n["reports"]} (из них заготовок: {n["stub"]}), видов отчётов: '
              f'{n["report_vids"]}. Бланков: {n["blanks"]}, видов бланков: {n["blank_vids"]}. '
              f'Общих требований: {n["reqs"]}. Строк с ⚠: {n["warn"]} (кыргызский текст: {n["kg"]}).')
     text_row(ws, r, total, nc, Font(bold=True))
@@ -543,7 +543,7 @@ def sheet_reports(wb, data, rows, n):
     r += 1
     text_row(ws, r, data['date'], nc, Font(italic=True, color='555555'))
     r += 1
-    total = (f'Отчётов: {n["reports"]} (из них заготовок внешних форм: {n["stub"]}), видов отчётов: '
+    total = (f'Отчётов: {n["reports"]} (из них заготовок: {n["stub"]}), видов отчётов: '
              f'{n["report_vids"]}. Строк с ⚠: {n["warn"]}.')
     text_row(ws, r, total, nc, Font(bold=True))
     r += 2
