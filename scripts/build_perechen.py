@@ -154,12 +154,16 @@ RAZREZ_FILLS = {
     'Состояние доплаты': 'E4DFEC', 'Обременение': 'E4DFEC', 'Путь выбытия': 'E4DFEC', 'Итог позиции': 'E4DFEC',
     'Орган': 'E4DFEC', 'Подразделение куратора': '9BC2E6', 'Месяц': 'E4DFEC',
     'Кредитная программа': 'E4DFEC', 'Статус заявки': 'E4DFEC', 'Месяц подачи': 'E4DFEC',
-    'Кредитный специалист': 'EAF2FA', 'Изменение': 'E4DFEC',
+    'Кредитный специалист': 'EAF2FA', 'Изменение': 'E4DFEC', 'Срок просрочки': 'E4DFEC',
     # раздел сводки показателей (ФО-59) — светлый оттенок ИТОГО: строки ИТОГО в сводке нет
     'Раздел показателей': 'D9E1F2',
 }
 # ячейка, значение которой отличается от первичного (ФО-09: условие изменено после выдачи)
 MARK_FILL = PatternFill('solid', fgColor='FFF2CC')
+# ячейка, требующая вопроса на заседании (ФО-01: «мер нет», «стал высокий риск»): шрифт без заливки
+ALERT_INK = '9C0006'
+# заголовок блока под таблицей (ФО-01: «Вышли за месяц»)
+AFTER_FILL = PatternFill('solid', fgColor='D9E1F2')
 # тип колонки: ширина, формат числа, выравнивание, перенос
 COL_TYPES = {
     'name': (40, None, 'left', True),
@@ -267,7 +271,7 @@ def check_cards(data, errors):
             continue
         if m['part'] == 'отчёт':
             cols = c.get('columns') or cards.get(r['id'], {}).get('columns') or []
-            for j, row in enumerate(s.get('rows', []), 1):
+            for j, row in enumerate(s.get('rows', []) + (s.get('after') or {}).get('rows', []), 1):
                 if not isinstance(row.get('level'), int) or row['level'] < 0:
                     errors.append(f'{k}: образец, строка {j}: нет уровня')
                 if len(row.get('cells', [])) != len(cols):
@@ -396,8 +400,9 @@ def sum_warnings(row):
     for i, r in enumerate(rows):
         kids, j = [], i + 1
         while j < len(rows) and rows[j]['level'] > r['level']:
-            # строка «в <валюта> (курс …)» — те же суммы в валюте договора, в итоги не входит
-            if rows[j]['level'] == r['level'] + 1 and not rows[j].get('fx'):
+            # строка «в <валюта> (курс …)» — те же суммы в валюте договора, в итоги не входит;
+            # строка "band" — та же сумма по другому признаку под ИТОГО (сроки просрочки, ФО-01), не разрез
+            if rows[j]['level'] == r['level'] + 1 and not rows[j].get('fx') and not rows[j].get('band'):
                 kids.append(rows[j])
             j += 1
         if not kids or (len(kids) > 1 and all(kd['cells'][:ni] + kd['cells'][ni + 1:]
@@ -405,7 +410,7 @@ def sum_warnings(row):
             continue  # нет подстрок или разделы — разные разрезы одного итога
         for ci, col in enumerate(cols):
             label = f'{col.get("group", "")} {col["name"]}'
-            if ci == ni or NOT_ADDITIVE.search(col['name']) or '%' in label:
+            if ci == ni or col.get('additive') is False or NOT_ADDITIVE.search(col['name']) or '%' in label:
                 continue
             v = r['cells'][ci]
             vals = [kd['cells'][ci] for kd in kids]
@@ -790,17 +795,36 @@ def std_sheet(ws, row, card):
                                             + [need[ci] - 14 for ci, col in enumerate(cols) if not col.get('group')])
     cuts = card.get('razrezy', {}).get('default', [])
     r = nums
-    for x in s['rows']:
+    # "after": блок под таблицей — заголовок и строки в тех же колонках; в итоги и проверку сумм не входит
+    after = s.get('after') or {}
+    heading = [{'heading': after['title']}] if after else []
+    for x in s['rows'] + heading + after.get('rows', []):
         r += 1
+        if 'heading' in x:
+            c = ws.cell(row=r, column=1, value=x['heading'])
+            c.font = Font(name=STD_FONT, size=8, bold=True)
+            c.alignment = Alignment(horizontal='left', vertical='top')
+            for ci in range(1, nc + 1):
+                ws.cell(row=r, column=ci).fill = AFTER_FILL
+                ws.cell(row=r, column=ci).border = SAMPLE_BORDER
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=nc)
+            ws.row_dimensions[r].height = 13
+            continue
         lvl, kind, fx = x['level'], x.get('kind', 'detail'), x.get('fx', False)
         size = 9 if lvl == 0 else 8
         color = None
         if kind == 'total':
             color = ITOGO_FILL if lvl == 0 else RAZREZ_FILLS.get(cuts[lvl - 1]) if lvl <= len(cuts) else None
+        # "band": строка сроков просрочки сразу под ИТОГО — со своей заливкой и отступом
+        band = x.get('band', False)
+        if band:
+            color = RAZREZ_FILLS['Срок просрочки']
         fill = PatternFill('solid', fgColor=color) if color else None
         ink = ITOGO_FONT if kind == 'total' and lvl == 0 else '555555' if fx else None
         # "mark": номера колонок (с 0), чьи ячейки выделяются заливкой — значение изменено (ФО-09)
         marks = set(x.get('mark', []))
+        # "alert": номера колонок (с 0), чьи ячейки выделяются жирным тёмно-красным шрифтом без заливки (ФО-01)
+        alerts = set(x.get('alert', []))
         # "fmt": формат чисел строки вместо формата колонки — единица у строки своя (сводка показателей, ФО-59)
         row_fmt = x.get('fmt')
         height = 1
@@ -816,13 +840,14 @@ def std_sheet(ws, row, card):
                 v = datetime(int(y), int(m), int(d))
             c = ws.cell(row=r, column=ci + 1, value=None if v == '' else v)
             c.border = SAMPLE_BORDER
-            c.font = Font(name=STD_FONT, size=size, bold=kind == 'total', italic=fx, color=ink)
+            c.font = Font(name=STD_FONT, size=size, bold=kind == 'total' or ci in alerts, italic=fx,
+                          color=ALERT_INK if ci in alerts else ink)
             if ci in marks:
                 c.fill = MARK_FILL
             elif fill:
                 c.fill = fill
             c.alignment = Alignment(horizontal=align, vertical='top', wrap_text=wrap,
-                                    indent=max(0, lvl - 1) if ci == ni else 0)
+                                    indent=(1 if band else max(0, lvl - 1)) if ci == ni else 0)
             if fmt and not isinstance(v, str):
                 c.number_format = fmt
             if wrap and isinstance(v, str):
