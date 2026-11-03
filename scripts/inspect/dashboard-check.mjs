@@ -1427,7 +1427,7 @@ const asUser = id => { DB.state.userId = id; };
     `основа «Просрочено»: главное ${DB.fmtVal(b.value, 'sum')}, сдвиг по главному ${DB.fmtVal(b.shift.delta, 'sum')} ${b.shift.label}; мини-ряд — 12 концов месяцев до даты отчёта (на «конец прошлого месяца» — до сентября) (ДБ-115)`);
   // сравнения нет — причина; у неполного периода плана — прогресс к плану
   mk('p-plan', { report:'fo-54', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.paidPlanned' } });
-  mk('p-iss', { report:'fo-56', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.issued' } });
+  mk('p-iss', { report:'fo-53', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.issued' } });
   mk('p-co', { report:'fo-10', params:{ curator:'*' }, main:{ col:'rsapp.late' } });
   mk('p-form', { report:'r-form', params:{}, main:{ col:'loan.balance' } });
   const pl = DB.base('p-plan', 'u1', 'lead'), is = DB.base('p-iss', 'u1', 'lead'), co = DB.base('p-co', 'u1', 'lead'), fo = DB.base('p-form', 'u1', 'lead'), pp = pl.shift.plan;
@@ -1884,7 +1884,7 @@ const asUser = id => { DB.state.userId = id; };
   const R = id => DB.reportById(id);
   ok(194, R('r-borrowers').cols.join() === 'borrower.count,borrower.total' && ['bover', 'bodays', 'bdebt', 'bcredits', 'bhist'].every(d => R('r-borrowers').dims.includes(d))
     && ['rsapp.inWork', 'rsapp.late', 'rsapp.multi', 'rsapp.count'].every(c => R('fo-10').cols.includes(c)) && R('fo-10').dims.includes('rstage')
-    && R('fo-56').dims.includes('program') && R('fo-98').dims.includes('pgsource')
+    && R('fo-53').dims.includes('program') && R('fo-98').dims.includes('pgsource')
     && ['lead-borr', 'cur-borod', 'cat-brepsh', 'lead-rs', 'cur-rs', 'cat-rsmulti', 'lead-issued', 'cat-plan', 'cat-progn'].every(id => !DB.reportBroken(T(id)) && DB.ask(T(id), U('u1'), 'lead', {}).state !== 'broken'),
     'отчёты слияния: «Заёмщики» с пятью разрезами и двумя колонками, «Обращения о реструктуризации» с четырьмя колонками и стадией, «Выдано» с программой, «Программы» с источником; плитки на них не сломаны');
   DB.seed();
