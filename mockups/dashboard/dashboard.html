@@ -1611,7 +1611,7 @@ ind('program.count',  { obj:'program', name:'Программ' });
 ind('claim.count',    { obj:'claim', name:'Требований открыто', where:r=>r.open, dir:'up_bad' });
 ind('claim.amount',   { obj:'claim', name:'Сумма требований', agg:'sum', field:'amount', unit:'sum', where:r=>r.open, dir:'up_bad' });
 ind('claim.since',    { obj:'claim', name:'Наибольший срок с направления', agg:'max', field:'sinceDays', unit:'days', where:r=>r.open, dir:'up_bad' });
-ind('claim.realization',{ obj:'claim', name:'Под реализацией залога', where:r=>r.open && r.realization });
+ind('claim.realization',{ obj:'claim', name:'Под реализацией залога', agg:'sum', field:'amount', unit:'sum', where:r=>r.open && r.realization });
 ind('claim.recovered',{ obj:'claim', name:'Взыскано', agg:'sum', kind:'flow', field:'recovered', unit:'sum', dir:'up_good' });
 ind('measure.count',  { obj:'measure', name:'Мер взыскания', kind:'event' });
 ind('receipt.amount', { obj:'receipt', name:'Поступило', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
