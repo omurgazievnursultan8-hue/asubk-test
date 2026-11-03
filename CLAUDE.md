@@ -133,8 +133,10 @@ python3 scripts/put_card.py ФО-02 card.json [--name "…"] [--note "…"]   # 
 # Rebuild the dashboard tile list for the final act (appendix to ТЗ 24; sheets «Плитки» ПЛ-NN and
 # «Отчёты плиток» ОП-NN) from its one source docs/perechen-plitok/plitki.json. Reconciles with the
 # mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
-# traffic-light thresholds, shift base, default view kinds, params, role layouts; fails and writes
-# nothing on a mismatch. Rerun after editing plitki.json or the mockup's tiles/layouts.
+# traffic-light thresholds, shift base, default view kinds, params, role layouts; reads the report
+# cards in perechen.json (read-only): a tile's column and slice must be in the ФО card or in its
+# request; fails and writes nothing on a mismatch. Rerun after editing plitki.json, the mockup's
+# tiles/layouts, or a card that tiles stand on.
 python3 scripts/build_perechen_plitok.py  # -> docs/perechen-plitok/Перечень плиток.xlsx
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.

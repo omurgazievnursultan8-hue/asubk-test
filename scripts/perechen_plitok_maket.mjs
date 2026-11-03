@@ -26,7 +26,7 @@ const tiles = DB.TILES.filter(t => t.owner === 'catalog').map(t => ({
   views: Object.keys(t.views || {}),
   params: t.kind === 'link' ? null : DB.paramChips(t).join(' · ') }));
 const reports = [...new Set(tiles.map(t => t.report).filter(Boolean))].map(id => {
-  const r = DB.reportById(id); return { id, title: r.title }; });
+  const r = DB.reportById(id); return { id, title: r.title, fo: r.fo || null, cols: r.cols.map(c => DB.IND[c].name) }; });
 const layouts = Object.keys(DB.DECLARED_SEED).map(rid => {
   const items = []; let section = null;
   for (const x of DB.DECLARED_SEED[rid]) { if (x.startsWith('s:')) section = x.slice(2); else items.push({ section, tile: x }); }
