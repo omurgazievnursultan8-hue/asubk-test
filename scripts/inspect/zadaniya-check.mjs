@@ -1,18 +1,18 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–22 макета модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–23 макета модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
 //   A  непустой первый прогон (3 повода из 3 демо-заданий, заведённых до первого опроса);
 //   B  идемпотентный повтор (второй прогон в ту же дату: new=0, matched=3, gone=0);
 //   C  воспроизведённая заморозка при недоступном источнике («заморожен» на каждый повод,
-//      answer='таймаут', complete=false) и разморозка следующим успешным прогоном.
+//      answer='ошибка', complete=false) и разморозка следующим успешным прогоном.
 // Дальше — структурные инварианты волны:
 //   D  три реестра (ИЗ-8): вид повода / действие / правило, ровно 6 своих видов (ИЗ-16 п.10);
 //   E  журнал — только дозапись, состояние выводится чтением последней записи, не хранится
 //      полем (ИЗ-6 п.11 / ADR-0136 §5);
 //   F  исход выводится перекрёстно, не раньше срока (ИЗ-6);
 //   G  свободное поручение без контролёра запрещено (ИЗ-7 п.13) — независимая ось подтверждения;
-//   H  оба рода ручного задания (ИЗ-5 п.5): свободное поручение и правило в ручном режиме;
+//   H  ручного режима нет: «назначает пользователь» — свободное поручение, ненужное снимает автор (было — правило в ручном режиме);
 //   I  жёсткий стопор рекурсии, один шаг (ИЗ-16 п.11);
 //   J  рубильник вида повода (ИЗ-13 п.12): не введён в действие — поводов не порождает,
 //      но факт неактивности сам становится поводом («вид повода не введён в действие»);
@@ -90,7 +90,7 @@
 //   видов соседей), #106/#118 (виды «документ» есть — над документом, резолюцией и выдачей, не над карточками соседей).
 // Подключение имущества (канон имущества §9, §10.1; ЗН-1, ADR-0262), волна 11 макета 11.10.2026:
 //   U  #145-164 — девятый источник записями трёх реестров: десять видов pk-im-* (восемь исходных, «ждёт акта» и «требование
-//      к отчуждателю»), ночной опрос, порог молчания по умолчанию; адресат — формула «куратор имущества» по предложению или
+//      к отчуждателю»), ночной опрос, молчание — две ночи подряд; адресат — формула «куратор имущества» по предложению или
 //      объекту (у договора КП — по объекту), ответ кураторства «держит заведующий отделом», замещение, переадресация
 //      непринятого; пороги появления — настройки модуля имущества, в заданиях только срок «внутренний акт»; ключ «вид · объект»,
 //      период — только у просрочки рассрочки (платёж по графику); работу закрывает опубликованный факт (второй ключ), не
@@ -204,6 +204,16 @@
 //   Поменялись по канону: #88 (девяносто шесть видов соседей), #145 (восемнадцать видов имущества), #157 (признак
 //   «объявлений без заявок»), #164 (над банкротством), #190 (105 видов, надзор 72); #148/#159 и ключи обязательств
 //   (#47, #49, #70, #211) — заведующий Сектором и получатель в ключе.
+// Решения по направлению модуля (ЗНП-1…ЗНП-24, ADR-0327; канон §14), волна 23 макета 03.11.2026:
+//   AG #294-313 — реестр 105 видов: заданий 77 (шаг 24, надзор 46, самоопрос 7), подсветка 25, сигнал 1, выведено 2, построчная
+//      сверка с файлом оснований; подсветка без заданий, просрочек и строк, возврат только выпуском; вала и порога нет: каждый
+//      повод — задание, очередь складывает от двух, 11 и 10 просрочек считаются ровно по заданиям, пакет поштучно, свод
+//      уведомлений за прогон; поле состояния пишет запись журнала, расхождение ловит ночь; опрос по сохранению у четырёх
+//      источников, сбой сохранение не ломает, ошибка не значит пусто, порог — две ночи подряд; сигнал и его настройка; ручного
+//      режима нет, «Снять» у надзора; первый выпуск — порядок подключения; сторож проглоченных исключений опроса (#313).
+//   Переписаны под модель, а не удалены: блоки C, E, H, J, M–Q; подсветка читается через highlightsOn, вал — через группу (#47,
+//   #69-72, #137, #150), ручной режим — через «Снять» (#22-23, #191-192, #198), порог молчания — через две ночи (#84), задание по
+//   платежу — через сигнал (#212-223). Сняты #221, #224 (действия вала над платежами). Перечень — в статус-файле.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -229,6 +239,17 @@ const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 ZD.seed();
 const TODAY = ZD.state.today;
+const throws = fn => { try { fn(); return ''; } catch (e) { return e.message || 'ошибка'; } };
+/* опрос по сохранению глотает исключения, чтобы сбой не ломал сохранение; сторож #313: ошибка — только от смоделированного отказа источника */
+const savePollSeen = { total: 0, swallowed: [] };
+const collectSavePolls = () => {
+  savePollSeen.total += ZD.state.savePolls.length;
+  ZD.state.savePolls.filter(p => p.answer === 'ошибка' && p.error !== 'источник не ответил').forEach(p => savePollSeen.swallowed.push(`${p.src}: ${p.error}`));
+};
+const seedState0 = ZD.seed;
+ZD.seed = () => { collectSavePolls(); return seedState0(); };
+const hlRows = (kind, d) => ZD.highlightsOn(d || ZD.state.today).find(x => x.kind === kind).rows; // подсветка: ответ соседа, заданий не рождает
+const noWork = kind => !ZD.state.tasks.some(t => t.originKind === kind) && !ZD.state.povods.some(p => p.kind === kind);
 
 /* ---------- A. Первый прогон самоопроса непустой ---------- */
 (() => {
@@ -270,7 +291,7 @@ const TODAY = ZD.state.today;
   ZD.runPoll();
   const appearedBefore = ZD.state.povods.filter(p => p.status === 'appeared').length;
   const rf = ZD.runPoll({ down: true });
-  ok(7, rf.complete === false && rf.sources[0].answer === 'таймаут',
+  ok(7, rf.complete === false && rf.sources[0].answer === 'ошибка',
     `прогон с недоступным источником объявлен НЕполным в журнале прогонов, а не тихо пропущен (ИЗ-12 п.7)`);
   const frozen = ZD.state.povods.filter(p => p.status === 'frozen');
   ok(8, frozen.length === appearedBefore &&
@@ -290,10 +311,10 @@ const TODAY = ZD.state.today;
 /* ---------- D. Три реестра (ИЗ-8), ровно 6 своих видов повода (ИЗ-16 п.10) ---------- */
 (() => {
   ZD.seed();
-  ok(11, ZD.SELF_KINDS.length === 9 &&
-        ZD.SELF_KINDS.join(',') === ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review','pk-neighbor-silent','pk-kind-inactive',
-          'pk-addr-missing','pk-ext-pending','pk-returning'].join(','),
-    `девять собственных видов повода, порядок как в каноне §4: ${ZD.SELF_KINDS.join(' · ')}`);
+  ok(11, ZD.SELF_KINDS.length === 7 &&
+        ZD.SELF_KINDS.join(',') === ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review','pk-neighbor-silent',
+          'pk-addr-missing','pk-ext-pending'].join(',') && ZD.SOURCES[0].highlights.join(',') === 'pk-kind-inactive,pk-returning',
+    `семь собственных видов дают задания, порядок как в каноне §4: ${ZD.SELF_KINDS.join(' · ')}; «вид не введён» и «повод возвращается» — подсветка реестра (ЗНП-1): за них не спросят`);
   const kindsOk = ZD.SELF_KINDS.every(id => {
     const k = ZD.kindOf(id);
     return k && k.objectType && Array.isArray(k.traits) && k.genus === 'самоопрос' && !('rollup' in k) && 'sensitive' in k;
@@ -301,17 +322,17 @@ const TODAY = ZD.state.today;
   const actionsOk = ZD.SELF_KINDS.every(id => ZD.actionOf(ZD.ruleForKind(id).action));
   const rulesOk = ZD.SELF_KINDS.every(id => {
     const r = ZD.ruleForKind(id);
-    return r && r.mode === 'авто' && r.author === 'post-admin' && typeof r.rollup === 'number' && Array.isArray(r.editions) &&
-      r.editions.length === 1 && r.editions[0].by === 'выпуск 1' && r.editions[0].values.dueN === r.dueN;
+    return r && r.author === 'post-admin' && !('mode' in r) && !('rollup' in r) && Array.isArray(r.editions) &&
+      r.editions.length === 1 && r.editions[0].by === 'выпуск 1' && r.editions[0].values.dueN === r.dueN &&
+      !('mode' in r.editions[0].values) && !('rollup' in r.editions[0].values);
   });
   ok(12, kindsOk && actionsOk && rulesOk,
     `три реестра держат разные вещи: вид повода — владелец/объект/признаки/род/чувствительность, действие — формулировку и важность, ` +
-    `правило — режим/автора-должность/срок/свёртку и редакции со значениями; порога свёртки у вида больше нет`);
-  const modes = ZD.SELF_KINDS.map(id => ZD.ruleForKind(id).mode);
-  ok(13, modes.every(x => x === 'авто') && ZD.ruleForKind('pk-kind-inactive').mode === 'авто' &&
-        ZD.state.rules.every(r => r.mode === 'авто'),
-    `все девять правил самоопроса — авто, «вид не введён в действие» тоже: ручной режим бывает только у надзора; ` +
-    `на старте ни одно правило не ручное`);
+    `правило — автора-должность/срок и редакции со значениями; режима и порога свёртки нет ни у вида, ни у правила, ни у редакции (ЗНП-3, ЗНП-8)`);
+  const mode = throws(() => ZD.editRule('rule-overdue', { mode: 'ручной' }, { by: 'E4', basis: 'приказ' }));
+  const roll = throws(() => ZD.editRule('rule-overdue', { rollup: 5 }, { by: 'E4', basis: 'приказ' }));
+  ok(13, /выпуском/.test(mode) && /выпуском/.test(roll) && ZD.state.rules.every(r => !('mode' in r)) && ZD.GENERA.indexOf('вал') === -1,
+    `все правила авто и другого нет: редакция с режимом или порогом свёртки отбита («${mode}»), ни одно правило реестра режима не держит (ЗНП-8)`);
 })();
 
 /* ---------- E. Журнал append-only, состояние выводится, не хранится полем ---------- */
@@ -319,11 +340,11 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const t = ZD.state.tasks[0];
   const jLenBefore = t.journal.length;
-  ok(14, !('state' in t) && !('status' in t),
-    `у задания нет поля-состояния — состояние читается функцией по последней записи журнала (ADR-0136 §5)`);
+  ok(14, !('state' in t) && !('status' in t) && t.current.ev === ZD.lastEv(t) && ZD.checkStateField().length === 0,
+    `у задания одно поле текущего состояния, и оно равно выводу из журнала (ЗНП-5); отдельного статуса нет, журнал главный`);
   ZD.take(t.id);
-  ok(15, t.journal.length === jLenBefore + 1 && t.journal[jLenBefore].ev === 'принято',
-    `переход дописал журнал, не переписал прежнюю запись — журнал только растёт`);
+  ok(15, t.journal.length === jLenBefore + 1 && t.journal[jLenBefore].ev === 'принято' && t.current.ev === 'принято',
+    `переход дописал журнал и той же операцией поле, не переписал прежнюю запись — журнал только растёт`);
   const beforeLast = JSON.stringify(t.journal[0]);
   ok(16, JSON.stringify(t.journal[0]) === beforeLast,
     `более ранняя запись журнала не изменилась переходом — задним числом журнал не переписывается`);
@@ -356,32 +377,28 @@ const TODAY = ZD.state.today;
     `с контролёром свободное поручение заводится штатно`);
 })();
 
-/* ---------- H. Оба рода ручного задания (ИЗ-5 п.5) ---------- */
+/* ---------- H. Ручного режима нет: «назначает пользователь» — свободное поручение, ненужное снимает автор (ЗНП-8) ---------- */
 (() => {
   ZD.seed();
   const free = ZD.state.tasks.filter(t => t.kind === 'free');
   ok(21, free.length === 4 && free.every(t => t.controller),
-    `первый род — свободное поручение без повода и ключа, с обязательным контролёром: ` +
+    `«назначает пользователь» — свободное поручение без повода и ключа, с обязательным контролёром (ЗНП-8): ` +
     `${free.length} демо-задания заведены до первого опроса`);
-  ZD.editRule('rule-org-head-vacant', { mode: 'ручной' }, { by: 'E4', basis: 'приказ №12' });
+  const mode = throws(() => ZD.editRule('rule-org-head-vacant', { mode: 'ручной' }, { by: 'E4', basis: 'приказ №12' }));
   ZD.runPoll();
-  const dec = ZD.state.tasks.filter(t => t.decide);
-  const heads = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant' && !t.decide);
-  ok(22, dec.length === 1 && dec[0].assignee === 'E16' && dec[0].author === 'E16' && dec[0].rollupKeys.length === 3 &&
-       heads.length === 0 && dec[0].dueDate === ZD.addWorkdays('2026-09-02', 2) && ZD.lastEv(dec[0]) === 'принято',
-    `второй род — правило надзора в ручном режиме: прогон выдал не работу, а одно задание «решить по поводам» автору правила ` +
-    `(держатель должности «Заместитель директора» — Токтосунов) со списком из 3 поводов и сроком правила 2 р.д.; поштучных заданий нет`);
-  const [k1, k2, k3] = dec[0].rollupKeys;
-  const out = ZD.decidePovods(dec[0].id, [k1, k2], 'поручить', 'E16');
-  let noBasis = ''; try { ZD.decidePovods(dec[0].id, [k3], 'не поручать', 'E16'); } catch (e) { noBasis = e.message; }
-  ZD.decidePovods(dec[0].id, [k3], 'не поручать', 'E16', 'вакансия закрывается конкурсом');
+  const heads = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant');
+  ok(22, /выпуском/.test(mode) && heads.length === 3 && heads.every(t => t.povodKey && t.addr.by === 'кураторство') &&
+       !ZD.state.tasks.some(t => t.decide || t.rollupKeys) && ZD.taskRows().every(r => r.genus !== 'решить' && r.genus !== 'вал') && ZD.decidePovods === undefined,
+    `рода «решить по поводам» нет: правило надзора не переводится в ручной режим, прогон сам выдал три задания адресатам по формуле (ЗНП-8)`);
+  const t3 = heads[2], n = heads.length;
+  const noBasis = throws(() => ZD.releaseTask(t3.id, t3.author, ''));
+  const stranger = throws(() => ZD.releaseTask(t3.id, 'E3', 'не нужно'));
+  ZD.releaseTask(t3.id, t3.author, 'вакансия закрывается конкурсом');
   ZD.runPoll();
-  const after = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant' && !t.decide);
-  ok(23, out.length === 2 && out.every(t => t.ruleId === 'rule-org-head-vacant' && t.addr && t.addr.by === 'кураторство') &&
-       /основание/.test(noBasis) && ZD.outcomeOf(dec[0]).outcome === 'исполнено' && after.length === 2 &&
-       ZD.povodReleased(ZD.povodByKey(k3)) && ZD.state.tasks.filter(t => t.decide).length === 1,
-    `автор поручил два повода — задания ушли адресатам по формуле правила тем же путём, что в авто; третий «не поручать» — только ` +
-    `с основанием, ключ не всплыл на следующем прогоне; «решить» закрыто «исполнено», нового не выдано`);
+  const after = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant');
+  ok(23, /основание/.test(noBasis) && /автор/.test(stranger) && ZD.outcomeOf(t3).outcome === 'снято' && after.length === n &&
+       ZD.povodReleased(ZD.povodByKey(t3.povodKey)),
+    `ненужное снимает автор кнопкой «Снять» с основанием: тот же результат, что давал ручной режим — ключ не всплыл на следующем прогоне (ЗНП-8)`);
 })();
 
 /* ---------- I. Жёсткий стопор рекурсии, один шаг (ИЗ-16 п.11) ---------- */
@@ -406,24 +423,25 @@ const TODAY = ZD.state.today;
   const open = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant' && !ZD.isTerminal(t));
   const self = err(() => ZD.deactivateKind('pk-rejected', 'E4', 'приказ'));
   const step = err(() => ZD.deactivateKind('doc-sign', 'E4', 'приказ'));
+  const hl = err(() => ZD.deactivateKind('lp-expiring', 'E4', 'приказ'));
   const user = err(() => ZD.deactivateKind('pk-org-head-vacant', 'E2', 'приказ'));
   const bare = err(() => ZD.deactivateKind('pk-org-head-vacant', 'E4', ''));
   ZD.deactivateKind('pk-org-head-vacant', 'E4', 'приказ №14 — вакансии ведёт кадровая служба');
-  ok(25, /выпуском/.test(self) && /выпуском/.test(step) && /администратор/.test(user) && /основание/.test(bare) &&
+  ok(25, /выпуском/.test(self) && /выпуском/.test(step) && /выпуском/.test(hl) && /администратор/.test(user) && /основание/.test(bare) &&
        ZD.kindOf('pk-org-head-vacant').activatedAt === null && open.length === 3 &&
        open.every(t => ZD.outcomeOf(t) && ZD.outcomeOf(t).outcome === 'снято' && /вид выключен/.test(ZD.outcomeOf(t).reason)),
-    `рубильник — только у надзора и только у администратора заданий с основанием: самоопрос и шаг документа выключаются выпуском; ` +
+    `рубильник — только у надзора и сигнала и только у администратора заданий с основанием: самоопрос, шаг документа и подсветка выключаются выпуском; ` +
     `выключение надзора закрыло его 3 открытых задания «снято: вид выключен»`);
   ZD.state.today = '2026-09-03';
   ZD.runPoll();
   const ownPovod = ZD.state.povods.some(p => p.kind === 'pk-org-head-vacant' && p.status !== 'gone');
-  const metaOff = ZD.state.povods.some(p => p.kind === 'pk-kind-inactive' && p.objectId === 'pk-org-head-vacant');
-  const k = ZD.kindOf('pk-org-liq-blocked'); k.activatedAt = null; k.createdAt = '2026-08-28'; // пришёл выпуском и не введён
+  const metaOff = hlRows('pk-kind-inactive').some(r => r.objectId === 'pk-org-head-vacant');
+  const k = ZD.kindOf('pk-stat-neighbor-silent'); k.activatedAt = null; k.createdAt = '2026-08-28'; // пришёл выпуском и не введён
   ZD.runPoll();
-  const metaNew = ZD.state.povods.some(p => p.kind === 'pk-kind-inactive' && p.objectId === 'pk-org-liq-blocked' && p.status !== 'gone');
-  ok(26, !ownPovod && !metaOff && metaNew,
+  const metaNew = hlRows('pk-kind-inactive').some(r => r.objectId === 'pk-stat-neighbor-silent');
+  ok(26, !ownPovod && !metaOff && metaNew && noWork('pk-kind-inactive'),
     `выключенный надзор своих поводов не даёт и «не введён в действие» не считается — выключен с основанием; вид, пришедший ` +
-    `выпуском и не введённый дольше срока, — повод «вид повода не введён в действие»`);
+    `выпуском и не введённый дольше срока, виден в подсветке реестра, задания и повода нет (ЗНП-1)`);
   ZD.activateKind('pk-org-head-vacant', 'E4', 'приказ №15');
   ZD.runPoll();
   const revived = ZD.state.povods.some(p => p.kind === 'pk-org-head-vacant' && p.status !== 'gone');
@@ -450,7 +468,7 @@ const TODAY = ZD.state.today;
 /* ---------- L. Сторож чистоты макета, «сегодня» заморожено ---------- */
 (() => {
   const noComm = m[1];
-  const refs = src.match(/ADR-\d{4}|ИЗ-\d+|ИО-\d+|ЗН-\d+|ЗГ-\d+|ЗКП-\d+|ЗЗ-\d+|ЗА-\d+|ИА-\d+|ЗДБ-\d+|ЗНС-\d+|ЗЦ-\d+|P\d+-R\d+|[Вв]олн[аеыуой][ -]*\d/g) || [];
+  const refs = src.match(/ADR-\d{4}|ИЗ-\d+|ИО-\d+|ЗН-\d+|ЗГ-\d+|ЗКП-\d+|ЗЗ-\d+|ЗА-\d+|ИА-\d+|ЗДБ-\d+|ЗНС-\d+|ЗЦ-\d+|ЗНП-\d+|P\d+-R\d+|[Вв]олн[аеыуой][ -]*\d/g) || [];
   ok(30, refs.length === 0,
     `макет чистый: ни ADR-, ни ИЗ-/ИО-/ЗН-/ЗГ-/ЗКП-/ЗЗ-/ЗА-/ИА-номеров, ни истории волн — пояснения живут в ` +
     `ASUBK-zadaniya-logika.md и журнале волн${refs.length?' · найдено: '+[...new Set(refs)].join(', '):''}`);
@@ -471,10 +489,10 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const r = ZD.runPoll();
   const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
-  ok(33, !!orgSrc && orgSrc.answer === 'множество' && orgSrc.new === 6,
-    `первое подключение Оргструктуры: полное множество за все шесть видов сразу, 6 новых поводов ` +
-    `(3 headVacant + 1 acting-expiring + 1 no-staff + 1 orphan-terr; invariant/liq-blocked пусты на ` +
-    `этих демо-данных — #36)`);
+  const hl = ['pk-org-acting-expiring','pk-org-no-staff','pk-org-orphan-terr'].map(k => hlRows(k).length).join();
+  ok(33, !!orgSrc && orgSrc.answer === 'множество' && orgSrc.new === 3 && hl === '1,1,1',
+    `первое подключение Оргструктуры: задания даёт один вид — 3 новых повода «вакансия руководителя»; остальные пять видов — ` +
+    `подсветка (и.о., без штата, территория — по 1 объекту; инвариант и ликвидация пусты на демо-данных — #36), опрос их не трогает`);
 })();
 
 (() => {
@@ -482,49 +500,40 @@ const TODAY = ZD.state.today;
   const r = ZD.runPoll();
   const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
   const headPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-head-vacant');
-  const rollupTask = ZD.state.tasks.find(t => t.originKind === 'pk-org-head-vacant' && Array.isArray(t.rollupKeys));
   const single = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant' && t.povodKey);
-  ok(34, !orgSrc.rollup.includes('pk-org-head-vacant') && headPovods.length === 3 && !rollupTask && single.length === 3 &&
-       ZD.ruleForKind('pk-org-head-vacant').rollup === null && ZD.rollupOf(ZD.ruleForKind('pk-org-head-vacant')) === 10,
-    `демо-порог 2 снят (ЗН-25): правило не объявило своего — действует умолчание 10; три вакансии руководителя ` +
-    `(у E2 одна, у E1 две) ниже порога по паре «вид × адресат» — три поштучных задания, вала нет`);
+  ok(34, !('rollup' in orgSrc) && headPovods.length === 3 && single.length === 3 && !ZD.state.tasks.some(t => t.rollupKeys) &&
+       !('rollup' in ZD.ruleForKind('pk-org-head-vacant')) && ZD.rollupOf === undefined,
+    `порога свёртки нет (ЗНП-3): три вакансии руководителя (у E2 одна, у E1 две) — три задания, каждое со своим сроком и журналом, вал не рождается ни при каком числе`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
   const kinds = ['pk-org-acting-expiring','pk-org-no-staff','pk-org-orphan-terr'];
-  const okEach = kinds.every(k => {
-    const povods = ZD.state.povods.filter(p => p.kind === k);
-    const tasks = ZD.state.tasks.filter(t => t.originKind === k && t.povodKey);
-    return povods.length === 1 && tasks.length === 1;
-  });
+  const okEach = kinds.every(k => hlRows(k).length === 1 && noWork(k) && ZD.kindOf(k).genus === 'подсветка' && !ZD.ruleForKind(k));
   ok(35, okEach,
-    `три остальных непустых вида Оргструктуры (acting-expiring/no-staff/orphan-terr) — по 1 строке, ` +
-    `ниже порога свёртки 2 — выдают задания поштучно как обычно, без свёртки`);
+    `три непустых вида Оргструктуры в подсветке (acting-expiring/no-staff/orphan-terr): объект виден, задания и повода нет, правила нет (ЗНП-4)`);
 })();
 
 (() => {
   ZD.seed();
   let threw = false;
   try { ZD.runPoll(); } catch (e) { threw = true; }
-  const invPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-invariant');
-  const liqPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-liq-blocked');
-  ok(36, !threw && invPovods.length === 0 && liqPovods.length === 0,
-    `пустые списки соседа (invariant/liq-blocked на этих демо-данных) дают ноль поводов без ошибки — ` +
+  ok(36, !threw && hlRows('pk-org-invariant').length === 0 && hlRows('pk-org-liq-blocked').length === 0 && noWork('pk-org-invariant') && noWork('pk-org-liq-blocked'),
+    `пустые списки соседа (invariant/liq-blocked на этих демо-данных) дают пустую подсветку без ошибки — ` +
     `полное множество допускает пустой ответ по виду, это не молчание источника (ИЗ-3)`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const orgPovods = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind));
-  const shapeOk = orgPovods.length > 0 &&
-    orgPovods.every(p => /^pk-org-[a-z-]+\|(unit|employee|territory):.+\|$/.test(p.key));
+  const orgPovods = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind)).map(p => p.key)
+    .concat(['pk-org-acting-expiring','pk-org-no-staff','pk-org-orphan-terr'].flatMap(k => hlRows(k).map(r => r.key)));
+  const shapeOk = orgPovods.length === 6 && orgPovods.every(k => /^pk-org-[a-z-]+\|(unit|employee|territory):.+\|$/.test(k));
   ok(37, shapeOk,
     `ключ шва на реальных видах объекта Оргструктуры держит ту же тройку «вид повода · (вид объекта+id) · ` +
-    `период» (ИЗ-13 п.9), объект — не «task», как у собственных видов, а unit/employee/territory: ` +
-    `${orgPovods.slice(0,2).map(p=>p.key).join(' · ')}`);
+    `период» (ИЗ-13 п.9) — и у задания, и у подсветки: ` +
+    `${orgPovods.slice(0,2).join(' · ')}`);
 })();
 
 (() => {
@@ -567,7 +576,7 @@ const TODAY = ZD.state.today;
   const selfSrc = r.sources.find(s => s.name.indexOf('самоопрос') !== -1);
   const selfStillAppeared = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
   const orgFrozen = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'frozen').length;
-  ok(40, r.complete === false && orgSrc.answer === 'таймаут' && selfSrc.answer === 'множество' &&
+  ok(40, r.complete === false && orgSrc.answer === 'ошибка' && selfSrc.answer === 'множество' &&
        selfStillAppeared === selfAppearedBefore && orgAppearedBefore > 0 && orgFrozen === orgAppearedBefore,
     `независимая заморозка по отдельному источнику (opts.downSources, волна 2): молчит только Оргструктура — ` +
     `её ${orgFrozen} повода замерзают, self остаётся цел (${selfStillAppeared} appeared без изменений) — ` +
@@ -624,7 +633,7 @@ const TODAY = ZD.state.today;
   const selfStillAppeared = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
   const orgStillAppeared = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
   const statFrozen = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent' && p.status === 'frozen').length;
-  ok(44, r.complete === false && statSrc.answer === 'таймаут' && selfSrc.answer === 'множество' && orgSrc.answer === 'множество' &&
+  ok(44, r.complete === false && statSrc.answer === 'ошибка' && selfSrc.answer === 'множество' && orgSrc.answer === 'множество' &&
        selfStillAppeared === selfAppearedBefore && orgStillAppeared === orgAppearedBefore && statFrozen === 1,
     `независимая заморозка третьего источника: молчит только Статистика — её 1 повод замерзает, ` +
     `self (${selfStillAppeared}) и Оргструктура (${orgStillAppeared}) остаются целы без изменений — ` +
@@ -645,7 +654,7 @@ const TODAY = ZD.state.today;
        p.journal[p.journal.length - 1].ev === 'отпал' &&
        !ZD.isTerminal(taskAfter) && ZD.lastEv(taskAfter) === 'отпало',
     `когда сосед перестаёт молчать (streak обнуляется у Статистики — полное, но ПУСТОЕ множество, ` +
-    `не таймаут), повод отпадает штатной сверкой ИЗ-3, а не заморозкой: журнал повода — «отпал»; ` +
+    `не ошибка источника), повод отпадает штатной сверкой ИЗ-3, а не заморозкой: журнал повода — «отпал»; ` +
     `открытое на него задание не тихо закрыто, а помечено «отпало» — тем же путём, что и любое ` +
     `непринятое задание с отпавшим поводом (handleGoneForKind), и само становится кандидатом на ` +
     `собственный повод «отпавшее задание требует разбора» (pk-lapsed-review) при следующем самоопросе`);
@@ -671,16 +680,14 @@ const TODAY = ZD.state.today;
   const r = ZD.runPoll();
   const repSrc = r.sources.find(s => s.name.indexOf('Отчётность') !== -1);
   const rep = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue');
-  const rollupTask = rep.find(t => Array.isArray(t.rollupKeys));
+  const byWho = id => rep.filter(t => t.assignee === id).length;
   const prom = rep.find(t => t.povodKey === 't-overdue/2026-07-01/dep-prom/unit:kabk');
   const osh = rep.find(t => t.povodKey === 't-overdue/2026-07-01/rep-osh/unit:kabk');
-  ok(47, repSrc.rollup.indexOf('pk-rep-obligation-overdue') !== -1 && rep.length === 3 &&
-       !!rollupTask && rollupTask.rollupKeys.length === 11 && rollupTask.addr.by === 'кураторство' &&
-       rollupTask.addr.responsible === 'E1' && rollupTask.assignee === 'E1' &&
+  ok(47, !('rollup' in repSrc) && rep.length === 13 && rep.every(t => t.povodKey && !t.rollupKeys) && byWho('E1') === 11 &&
+       rep.filter(t => t.assignee === 'E1').every(t => t.addr.by === 'кураторство' && t.addr.responsible === 'E1') &&
        prom && prom.assignee === 'E3' && osh && osh.addr.via === 'запасной' && osh.assignee === 'E5',
-    `порог считается по паре «вид × адресат» (ЗН-23): 13 просроченных форм разложены по кураторам — 11 у E1 ` +
-    `выше порога 10 → один вал ${rollupTask && rollupTask.id} с одним ответственным; dep-prom (E3) и ` +
-    `rep-osh (куратора нет → запасной E2, в отпуске → E5) — поштучно; ни вала запасному, ни вала на троих`);
+    `каждый повод — отдельное задание (ЗНП-3): 13 просроченных форм — 13 заданий: 11 у куратора E1 (вала нет), dep-prom у E3, ` +
+    `rep-osh — куратора нет, запасной E2, в отпуске, действует E5`);
 })();
 
 (() => {
@@ -690,7 +697,7 @@ const TODAY = ZD.state.today;
   const r2 = ZD.runPoll();
   const repSrc = r2.sources.find(s => s.name.indexOf('Отчётность') !== -1);
   ok(48, repSrc.new === 0 && repSrc.matched === 13 && repSrc.gone === 0 && ZD.state.tasks.length === tasksBefore,
-    `повторный прогон той же датой на источнике Отчётности: new=0, matched=3, gone=0, второй вал-таск ` +
+    `повторный прогон той же датой на источнике Отчётности: new=0, matched=13, gone=0, второе задание ` +
     `поверх открытого не выдан — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у ` +
     `self/orgstruct/statistics`);
 })();
@@ -747,7 +754,7 @@ const TODAY = ZD.state.today;
   const orgStillAppeared = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
   const statStillAppeared = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent' && p.status === 'appeared').length;
   const repFrozen = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue' && p.status === 'frozen').length;
-  ok(52, r.complete === false && repSrc.answer === 'таймаут' &&
+  ok(52, r.complete === false && repSrc.answer === 'ошибка' &&
        selfSrc.answer === 'множество' && orgSrc.answer === 'множество' && statSrc.answer === 'множество' &&
        selfStillAppeared === selfAppearedBefore && orgStillAppeared === orgAppearedBefore &&
        statStillAppeared === statAppearedBefore && repFrozen === 13,
@@ -773,19 +780,18 @@ const TODAY = ZD.state.today;
 /* ---------- P. Решения ЗН-1…ЗН-10 (канон §14) ---------- */
 const at = d => { ZD.state.today = d; };
 const taskByKey = re => ZD.state.tasks.find(t => t.povodKey && re.test(t.povodKey));
-const notes = (kind, taskId) => ZD.state.notifications.filter(n => n.kind === kind && (!taskId || n.taskId === taskId));
-const throws = fn => { try { fn(); return ''; } catch (e) { return e.message || 'ошибка'; } };
+const notes = (kind, taskId) => ZD.state.notifications.filter(n => n.kind === kind && (!taskId || n.items.some(i => i.taskId === taskId))); // свод: одна запись, внутри перечень заданий
 const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { by, basis: 'приказ' });
 
 /* ЗН-1 — адресат формулой правила */
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
+  const ca = taskByKey(/^pk-org-head-vacant\|unit:ЦА/);
   const stat = ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighbor-silent');
-  ok(54, bat && bat.addr.by === 'кураторство' && bat.addr.responsible === 'E2' && bat.addr.subst === true &&
-       bat.assignee === 'E5' && stat && stat.assignee === 'E1' && stat.addr.responsible === 'E1',
-    `адресат — формула правила: «Баткенская» → роль «куратор подразделения» → ответственный E2, в отпуске → ` +
+  ok(54, ca && ca.addr.by === 'кураторство' && ca.addr.responsible === 'E2' && ca.addr.subst === true &&
+       ca.assignee === 'E5' && stat && stat.assignee === 'E1' && stat.addr.responsible === 'E1',
+    `адресат — формула правила: «ЦА — Кредитный отдел» → роль «куратор подразделения» → ответственный E2, в отпуске → ` +
     `действует E5 (замещение на дату); сосед-модуль «взыскание» → куратор модуля E1, а не руководитель ` +
     `одноимённого отдела «Взыскание» E5 и не администратор E4 — омоним не смешан`);
 })();
@@ -793,10 +799,10 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const orphan = taskByKey(/^pk-org-orphan-terr/);
+  const orphan = taskByKey(/rep-osh/);
   ok(55, orphan && orphan.addr.via === 'запасной' && orphan.addr.responsible === 'E2' && orphan.assignee === 'E5' &&
        !ZD.state.povods.some(p => p.kind === 'pk-addr-missing'),
-    `объект без закрепления (unit-talas-obl) → запасной адресат: руководитель подразделения-владельца вида ` +
+    `объект без закрепления (форма представительства в Оше) → запасной адресат: руководитель подразделения-владельца вида ` +
     `(«Сопровождение», E2 → действует E5); цепочка не дошла до администратора — повода «адресат не найден» нет`);
 })();
 
@@ -821,31 +827,32 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  const e2SeesByCuration = ZD.visibleTo(bat, 'E2') && !ZD.chiefChainIncludes(bat.assignee, 'E2') &&
-    bat.author !== 'E2' && bat.controller !== 'E2';
-  at('2026-09-04');
+  const ca = taskByKey(/^pk-org-head-vacant\|unit:ЦА/); // ответственный E2 в отпуске, действует E5
+  const e2SeesByCuration = ZD.visibleTo(ca, 'E2') && !ZD.chiefChainIncludes(ca.assignee, 'E2') &&
+    ca.author !== 'E2' && ca.controller !== 'E2';
+  const osh = taskByKey(/^pk-org-head-vacant\|unit:Ошская/);
+  at('2026-09-08');
   ZD.runPoll();
-  const ev = bat.journal.filter(e => e.ev === 'переадресовано');
-  ok(57, e2SeesByCuration && ev.length === 1 && ev[0].from === 'E5' && ev[0].to === 'E1' && bat.assignee === 'E1' &&
-       ZD.lastEv(bat) === 'поручено' && notes('переадресовано', bat.id).some(n => n.to === 'E5') &&
-       ZD.visibleTo(bat, 'E1') && ZD.responsibleNow(bat) === 'E1' && bat.addr.responsible === 'E1',
-    `02.09 задание видит ответственный по кураторству E2 — не исполнитель, не автор, не руководитель по ` +
-    `цепочке (пятое основание); 04.09 закрепление «Баткенской» перешло к E1 — непринятое задание ` +
-    `переадресовано E5 → E1 событием «переадресовано», снова «поручено», прежнему ушло уведомление, снимок адресата обновлён`);
+  const ev = osh.journal.filter(e => e.ev === 'переадресовано');
+  ok(57, e2SeesByCuration && ev.length === 1 && ev[0].from === 'E1' && ev[0].to === 'E3' && osh.assignee === 'E3' &&
+       ZD.lastEv(osh) === 'поручено' && notes('переадресовано', osh.id).some(n => n.to === 'E1') &&
+       ZD.visibleTo(osh, 'E3') && ZD.responsibleNow(osh) === 'E3' && osh.addr.responsible === 'E3',
+    `02.09 задание по ЦА видит ответственный по кураторству E2 — не исполнитель, не автор, не руководитель по ` +
+    `цепочке (пятое основание); 08.09 закрепление «Ошской» перешло к E3 — непринятое задание ` +
+    `переадресовано E1 → E3 событием «переадресовано», снова «поручено», прежнему ушло уведомление, снимок адресата обновлён`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  ZD.addProgress(bat.id, 'E5', 'запросил проект приказа');
-  ZD.take(bat.id, 'E5');
-  at('2026-09-04');
+  const osh = taskByKey(/^pk-org-head-vacant\|unit:Ошская/);
+  ZD.addProgress(osh.id, 'E1', 'запросил проект приказа');
+  ZD.take(osh.id, 'E1');
+  at('2026-09-08');
   ZD.runPoll();
-  ok(58, bat.assignee === 'E5' && !bat.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(bat) === 'принято',
+  ok(58, osh.assignee === 'E1' && !osh.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(osh) === 'принято',
     `то же закрепление сменилось, но задание взято в работу («Взять в работу» → «принято») — остаётся у ` +
-    `исполнителя E5, переадресации нет (состояние «${ZD.deriveState(bat)}»)`);
+    `исполнителя E1, переадресации нет (состояние «${ZD.deriveState(osh)}»)`);
 })();
 
 /* ЗН-3 — продление: запрос и утверждение, установленный срок */
@@ -904,7 +911,7 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
   const t = ZD.state.tasks.find(x => x.label.indexOf('скан согласия') !== -1);
   ZD.requestExtension(t.id, 'E1', '2026-09-17', 'основание');
   ZD.decideExtension(t.id, 'E4', false, 'срок держим');
-  at('2026-09-04');
+  at('2026-09-08');
   ZD.runPoll();
   const kinds = new Set(ZD.state.notifications.map(n => n.kind));
   const fresh = ['переадресовано','запрошено-продление','решение-по-продлению'];
@@ -936,14 +943,14 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  ZD.take(bat.id);
-  const noProof = throws(() => ZD.claim(bat.id));
-  const stillOpen = ZD.lastEv(bat) === 'принято';
-  ZD.claim(bat.id, 'приказ №12');
-  const e = bat.journal[bat.journal.length - 1];
+  const t = taskByKey(/dep-prom/);
+  ZD.take(t.id);
+  const noProof = throws(() => ZD.claim(t.id));
+  const stillOpen = ZD.lastEv(t) === 'принято';
+  ZD.claim(t.id, 'приказ №12');
+  const e = t.journal[t.journal.length - 1];
   ok(64, /подтвержден/.test(noProof) && stillOpen && e.ev === 'заявлено' && e.proof === 'приказ №12',
-    `действие «Продлить или закрыть исполнение обязанностей» требует ссылку на подтверждение: без неё ` +
+    `действие «Обеспечить сдачу просроченной формы» требует ссылку на подтверждение: без неё ` +
     `сдача отбита («${noProof}»), со ссылкой — реквизит записи «заявлено»`);
 })();
 
@@ -990,14 +997,14 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
   ZD.seed();
   ZD.runPoll();
   const key = ZD.state.povods.find(p => p.kind === 'pk-stat-neighbor-silent').key;
-  for (let i = 0; i < 3; i++) { ZD.toggleStatCleared(true); ZD.runPoll(); ZD.toggleStatCleared(false); ZD.runPoll(); }
-  const before = ZD.state.povods.some(p => p.kind === 'pk-returning');
-  ZD.runPoll();
-  const pv = ZD.state.povods.find(p => p.kind === 'pk-returning');
-  const fix = ZD.state.tasks.find(t => t.originKind === 'pk-returning');
-  ok(67, !before && !!pv && pv.objectId === key && pv.traits.повторов === 3 && !!fix && fix.assignee === 'E4',
-    `ключ вновь появился 3 раза за 30 дней — собственный повод «повод возвращается» (${pv && pv.key}) с ` +
-    `заданием администратору: разбирать причину, а не симптом`);
+  const flip = () => { ZD.toggleStatCleared(true); ZD.runPoll(); ZD.toggleStatCleared(false); ZD.runPoll(); };
+  flip(); flip();
+  const before = hlRows('pk-returning').length;
+  flip();
+  const rows = hlRows('pk-returning');
+  ok(67, before === 0 && rows.length === 1 && rows[0].objectId === key && rows[0].traits.повторов === 3 && noWork('pk-returning'),
+    `ключ вновь появился 3 раза за 30 дней — виден в подсветке реестра «повод возвращается» (${rows[0] && rows[0].key}); ` +
+    `задания администратору нет: за это не спросят (ЗНП-1)`);
 })();
 
 /* ЗН-8 — реквизит суммы, строки статистике */
@@ -1019,66 +1026,56 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
     `суммы вида, но не число`);
 })();
 
-/* ЗН-9 — вал как контейнер ключей (вал «Отчётности» у E1: 11 ключей) */
-const repVal = () => ZD.state.tasks.find(t => t.originKind === 'pk-rep-obligation-overdue' && t.rollupKeys);
+/* ЗНП-3 — вала нет: у E1 по Отчётности одиннадцать отдельных заданий, очередь складывает их в строку группы */
 const repKey = d => 't-overdue/2026-07-01/' + d + '/unit:kabk';
+const repOf = d => ZD.state.tasks.filter(t => t.povodKey === repKey(d)).pop();
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const val = repVal();
   at('2026-09-08');
   ZD.runPoll();
-  const gone = ['rep-batken','rep-jalal','rep-issyk'].map(repKey);
-  ok(69, gone.every(k => ZD.keyStatus(val, k) === 'отпал') && !ZD.isTerminal(val) && ZD.liveKeys(val).length === 7 &&
-       !ZD.state.tasks.some(t => gone.includes(t.povodKey)),
-    `08.09 три представительства сдали форму — их ключи помечены «отпал» в списке вала ${val.id}, вал открыт ` +
-    `с ${ZD.liveKeys(val).length} живыми ключами (ещё один вышел — #70), поштучных заданий на отпавшие ключи нет`);
+  const gone = ['rep-batken','rep-jalal','rep-issyk'].map(d => repOf(d));
+  const live = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue' && t.assignee === 'E1' && !ZD.isTerminal(t) && ZD.lastEv(t) !== 'отпало');
+  ok(69, gone.every(t => ZD.lastEv(t) === 'отпало' && t.journal.some(e => e.ev === 'отпало')) && live.length === 7 &&
+       live.every(t => ZD.povodByKey(t.povodKey).status === 'appeared'),
+    `08.09 три представительства сдали форму — у каждого своего задания своя запись «отпало» в своём журнале; ` +
+    `у E1 осталось ${live.length} живых заданий (ещё одно ушло новому куратору — #70), судьба каждого своя`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const val = repVal();
-  const kar = repKey('rep-karakol');
+  const kar = repOf('rep-karakol');
   at('2026-09-08');
   ZD.runPoll();
   const repTasks = () => ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue').length;
   const n = repTasks();
   ZD.runPoll();
-  const single = ZD.state.tasks.filter(t => t.povodKey === kar);
-  ok(70, ZD.keyStatus(val, kar) === 'вышел' && single.length === 1 && single[0].assignee === 'E3' &&
-       single[0].repeatOf === null && !ZD.isTerminal(val) && repTasks() === n,
-    `08.09 куратор «Каракола» сменился E1 → E3: ключ вышел из непринятого вала ${val.id} поштучным ` +
-    `заданием ${single[0] && single[0].id} у нового ответственного (не «повтор»), вал открыт; повторный прогон дублей не дал`);
+  ok(70, kar.assignee === 'E3' && kar.journal.some(e => e.ev === 'переадресовано' && e.from === 'E1' && e.to === 'E3') &&
+       kar.repeatOf === null && !ZD.isTerminal(kar) && repTasks() === n && notes('переадресовано', kar.id).some(x => x.to === 'E1'),
+    `08.09 куратор «Каракола» сменился E1 → E3: непринятое задание ${kar.id} переадресовано новому ответственному отдельно от остальных десяти, ` +
+    `нового задания не родилось; повторный прогон дублей не дал`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const val = repVal();
+  const rep = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue' && t.assignee === 'E1');
   at('2026-09-04'); ZD.runPoll();
-  const midOpen = !ZD.isTerminal(val) && ZD.liveKeys(val).length === 11;
+  const midOpen = rep.every(t => !ZD.isTerminal(t) && ZD.lastEv(t) === 'поручено');
   at('2026-09-15'); ZD.runPoll();
-  const o = ZD.outcomeOf(val);
-  ok(71, midOpen && o && o.outcome === 'исполнено' && val.rollupKeys.every(k => ZD.keyStatus(val, k) === 'отпал'),
-    `вал закрыт, только когда живых ключей не осталось: 04.09 открыт со всеми 11, к 15.09 сдали все — ` +
-    `ключи отпали штатно, исход «исполнено»`);
+  ok(71, rep.length === 11 && midOpen && rep.every(t => ZD.lastEv(t) === 'отпало' && ZD.povodGoneFor(t)),
+    `04.09 все 11 заданий открыты; к 15.09 сдали все — поводы отпали штатно, у каждого задания своя запись и свой разбор; общего исхода на 11 нет`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const val = repVal();
-  const notExec = throws(() => ZD.splitRollup(val.id, 'E4'));
-  const out = ZD.splitRollup(val.id, val.assignee);
-  const keys = out.map(t => t.povodKey).sort().join('|');
-  const tasksBefore = ZD.state.tasks.length;
-  ZD.runPoll();
-  ok(72, notExec && out.length === 11 && keys === val.rollupKeys.slice().sort().join('|') &&
-       ZD.outcomeOf(val).outcome === 'снято' && out.every(t => t.repeatOf === null && t.assignee === 'E1') &&
-       ZD.state.tasks.length === tasksBefore,
-    `исполнитель разобрал вал на поштучные: 11 заданий по формуле адресата (все — куратору E1), вал ` +
-    `«снято», «повтором» поштучные не считаются, повторный прогон дублей не дал; не исполнителю — отказ`);
+  const rep = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue' && t.assignee === 'E1');
+  const keys = rep.map(t => t.povodKey);
+  ok(72, ZD.splitRollup === undefined && ZD.liveKeys === undefined && ZD.keyStatus === undefined && rep.length === 11 &&
+       new Set(keys).size === 11 && rep.every(t => t.repeatOf === null && t.journal.length >= 1 && t.dueDate && !('rollupResp' in t)),
+    `разбирать нечего: вала и его операций нет, 11 заданий — 11 своих ключей, сроков и журналов`);
 })();
 
 /* ЗН-10 — поглощение периодом */
@@ -1086,10 +1083,10 @@ const repKey = d => 't-overdue/2026-07-01/' + d + '/unit:kabk';
   ZD.seed();
   const clean = ZD.checkRegistry().length === 0;
   ZD.state.povodKinds.push({ id: 'pk-test-periodic', title: 'проверочный периодический', objectType: 'unit', traits: [],
-    rollup: 2, sensitive: false, ownerDept: 'Сопровождение', createdAt: '2026-09-02', activatedAt: null,
+    sensitive: false, ownerDept: 'Сопровождение', createdAt: '2026-09-02', activatedAt: null,
     sumAttr: null, periodic: true, periodAbsorb: null });
   ZD.state.povodKinds.push({ id: 'pk-test-event', title: 'проверочный событийный', objectType: 'unit', traits: [],
-    rollup: 2, sensitive: false, ownerDept: 'Сопровождение', createdAt: '2026-09-02', activatedAt: null,
+    sensitive: false, ownerDept: 'Сопровождение', createdAt: '2026-09-02', activatedAt: null,
     sumAttr: null, periodic: false, periodAbsorb: 'да' });
   const errs = ZD.checkRegistry();
   ok(73, clean && errs.some(e => /проверочный периодический.*поглощение/.test(e)) && errs.some(e => /проверочный событийный.*поглощение/.test(e)),
@@ -1116,24 +1113,24 @@ const repKey = d => 't-overdue/2026-07-01/' + d + '/unit:kabk';
 
 (() => {
   ZD.seed();
-  const own = ZD.SELF_KINDS.slice(6).map(id => [ZD.ruleForKind(id).rollup, ZD.ruleForKind(id).dueN, ZD.ruleForKind(id).mode].join('/'));
+  const own = ['pk-addr-missing','pk-ext-pending'].map(id => ZD.ruleForKind(id).dueN);
   ZD.runPoll();
   const r2 = ZD.runPoll();
-  ok(75, own.join(' · ') === '5/1/авто · 20/1/авто · 20/3/авто' && r2.sources[0].new === 0,
-    `три новых собственных вида по таблице канона §4 (порог/срок/режим): ${own.join(' · ')}; на штатном ` +
-    `прогоне 02.09 ложных поводов не дают — повтор той же датой: новых 0`);
+  ok(75, own.join(' · ') === '1 · 1' && !ZD.ruleForKind('pk-returning') && r2.sources[0].new === 0,
+    `«адресат не найден» и «запрос продления без ответа» — срок ${own.join(' и ')} р.д.; у «повод возвращается» правила нет — подсветка; ` +
+    `на штатном прогоне 02.09 ложных поводов не дают — повтор той же датой: новых 0`);
 })();
 
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  ZD.reassignTask(bat.id, 'E3', 'E4', 'Садыков на выезде');
-  at('2026-09-04');
+  const osh = taskByKey(/^pk-org-head-vacant\|unit:Ошская/);
+  ZD.reassignTask(osh.id, 'E5', osh.author, 'Садыков на выезде');
+  at('2026-09-08');
   ZD.runPoll();
-  ok(76, bat.assignee === 'E3' && !bat.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(bat) === 'поручено',
-    `переназначенное человеком задание смена закрепления не перекрывает: «Баткенская» осталась у E3, ` +
-    `хотя 04.09 куратором стал E1 — переадресация системная и только для задания, адресованного формулой`);
+  ok(76, osh.assignee === 'E5' && !osh.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(osh) === 'поручено',
+    `переназначенное человеком задание смена закрепления не перекрывает: «Ошская» осталась у E5, ` +
+    `хотя 08.09 куратором стал E3 — переадресация системная и только для задания, адресованного формулой`);
 })();
 
 /* ---------- Q. Решения гриллинга ЗН-11…ЗН-25 (канон §14) ---------- */
@@ -1159,31 +1156,31 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  ZD.addProgress(bat.id, 'E5', 'изучаю приказ об и.о.');
-  at('2026-09-04');
+  const osh = taskByKey(/^pk-org-head-vacant\|unit:Ошская/);
+  ZD.addProgress(osh.id, 'E1', 'изучаю приказ');
+  at('2026-09-08');
   ZD.runPoll();
-  ok(78, bat.assignee === 'E1' && bat.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(bat) === 'поручено',
+  ok(78, osh.assignee === 'E3' && osh.journal.some(e => e.ev === 'переадресовано') && ZD.lastEv(osh) === 'поручено',
     `отметка о ходе от переадресации не защищает — только «Взять в работу»: задание с отметкой, но не взятое, ` +
-    `при смене куратора ушло E5 → E1 (сравнить с #58)`);
+    `при смене куратора ушло E1 → E3 (сравнить с #58)`);
 })();
 
 /* ЗН-12 — возврат заявленного только на полном прогоне со срезом позже дня заявления */
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const t = statTask();
-  ZD.take(t.id); ZD.claim(t.id);
+  const t = repOf('rep-batken'); // без контролёра; форму сдадут к 08.09
+  ZD.take(t.id); ZD.claim(t.id, 'письмо в представительство');
   ZD.runPoll();
   const sameDay = ZD.lastEv(t);
   at('2026-09-03');
-  const r3 = ZD.runPoll({ downSources: ['reports'] });
+  const r3 = ZD.runPoll({ downSources: ['statistics'] });
   const partial = ZD.lastEv(t);
   at('2026-09-04');
   ZD.runPoll();
   const back = ZD.lastEv(t);
-  ZD.claim(t.id);
-  ZD.toggleStatCleared(true);
+  ZD.claim(t.id, 'повторное письмо');
+  at('2026-09-08');
   ZD.runPoll();
   const o = ZD.outcomeOf(t);
   ok(79, sameDay === 'заявлено' && !r3.complete && partial === 'заявлено' && back === 'возвращено' &&
@@ -1196,24 +1193,24 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const t = taskByKey(/^pk-org-no-staff/);
-  const ctrl = t && t.controller === 'E4' && t.assignee === 'E3';
+  const t = statTask();
+  const ctrl = t && t.controller === 'E4' && t.assignee === 'E1';
   ZD.take(t.id); ZD.claim(t.id);
   const early = throws(() => ZD.acceptDecision(t.id, true));
-  ZD.acceptDecision(t.id, false, 'приложите штатное расписание');
+  ZD.acceptDecision(t.id, false, 'приложите ответ владельца взыскания');
   const returned = ZD.lastEv(t) === 'возвращено';
   ZD.claim(t.id);
-  at('2026-09-10');
+  ZD.toggleStatCleared(true);
   ZD.runPoll();
   const waits = ZD.lastEv(t) === 'ожидает приёмки' && t.journal.some(e => e.ev === 'повод отпал') &&
     notes('повод-отпал', t.id).some(n => n.to === 'E4') && !ZD.isTerminal(t);
   ZD.acceptDecision(t.id, true);
-  const n = ZD.state.tasks.filter(x => x.originKind === 'pk-org-no-staff').length;
+  const n = ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length;
   ZD.runPoll();
   ok(80, ctrl && /жив/.test(early) && returned && waits && ZD.outcomeOf(t).outcome === 'исполнено' &&
-       ZD.state.tasks.filter(x => x.originKind === 'pk-org-no-staff').length === n,
-    `у правила «подразделение без штата» назван контролёр E4: пока повод жив, «Принять» отбито («${early}»), ` +
-    `«Вернуть» работает; 10.09 подразделение укомплектовано — задание не закрылось само, а ждёт контролёра ` +
+       ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length === n,
+    `у правила «сосед статистики молчит» назван контролёр E4: пока повод жив, «Принять» отбито («${early}»), ` +
+    `«Вернуть» работает; сосед ответил — задание не закрылось само, а ждёт контролёра ` +
     `с отметкой «повод отпал»; принял — «исполнено», переиздания нет`);
 })();
 
@@ -1245,16 +1242,16 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const bat = taskByKey(/Баткенская/);
-  const due = ZD.dueOf(bat);
-  ZD.take(bat.id); ZD.claim(bat.id, 'приказ №12');
-  at('2026-09-04');
+  const kar = repOf('rep-karakol');
+  const due = ZD.dueOf(kar);
+  ZD.take(kar.id); ZD.claim(kar.id, 'письмо в представительство');
+  at('2026-09-08');
   ZD.runPoll();
-  const st = ZD.lastEv(bat);
-  ZD.claim(bat.id, 'приказ №12, редакция 2');
-  ok(82, st === 'возвращено' && bat.assignee === 'E5' && !bat.journal.some(e => e.ev === 'переадресовано') &&
-       ZD.dueOf(bat) === due && ZD.lastEv(bat) === 'заявлено' && !ZD.isTerminal(bat),
-    `возвращённое задание осталось у E5 — смена куратора 04.09 его не переадресовала, срок прежний ` +
+  const st = ZD.lastEv(kar);
+  ZD.claim(kar.id, 'письмо, редакция 2');
+  ok(82, st === 'возвращено' && kar.assignee === 'E1' && !kar.journal.some(e => e.ev === 'переадресовано') &&
+       ZD.dueOf(kar) === due && ZD.lastEv(kar) === 'заявлено' && !ZD.isTerminal(kar),
+    `возвращённое задание осталось у E1 — смена куратора 08.09 его не переадресовала, срок прежний ` +
     `(${due}); доделано и заявлено повторно без нового «Взять в работу»`);
 })();
 
@@ -1264,7 +1261,7 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
   ZD.runPoll();
   const t1 = ZD.state.tasks.find(x => x.label.indexOf('Сверить остаток') !== -1); // E1, срок 25.08
   const esc = ZD.state.tasks.find(x => x.povodKey === `pk-overdue|task:${t1.id}|`);
-  const sig = esc ? ZD.state.notifications.filter(n => n.taskId === esc.id).map(n => n.kind).join(',') : '';
+  const sig = esc ? ZD.state.notifications.filter(n => n.items.some(i => i.taskId === esc.id)).map(n => n.kind).join(',') : '';
   const fresh = ZD.createFreeTask({ label: 'сверить реестр', assignee: 'E3', controller: 'E4', author: 'E4', dueDate: '2026-09-01' });
   ZD.runPoll();
   const key = `pk-overdue|task:${fresh.id}|`;
@@ -1280,27 +1277,25 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
     `по самому заданию; новое просроченное 01.09: 02.09 и 04.09 повода нет, 08.09 (5 р.д.) — задание руководителю E2 (действует E5)`);
 })();
 
-/* ЗН-20 — порог молчания: время, объявляет источник */
+/* ЗНП-6 — сбой опроса: один порог, две ночи подряд */
 (() => {
-  const thr = ZD.SOURCES.map(s => ZD.silenceThreshold(s));
-  const doc = ZD.silenceThreshold({ pollEveryMin: 5, silenceMin: null });
-  const own = ZD.silenceThreshold({ pollEveryMin: 60, silenceMin: 240 });
   ZD.seed();
   ZD.runPoll();
-  at('2026-09-03'); ZD.runPoll({ downSources: ['reports'] });
+  at('2026-09-03'); const r3 = ZD.runPoll({ downSources: ['reports'] });
   const after1 = ZD.state.povods.some(p => p.kind === 'pk-neighbor-silent');
+  const sil1 = ZD.silenceOf('reports', '2026-09-03');
   at('2026-09-04'); ZD.runPoll({ downSources: ['reports'] });
   const pv = ZD.povodByKey('pk-neighbor-silent|source:reports|');
   const only = ZD.state.povods.filter(p => p.kind === 'pk-neighbor-silent').length === 1;
   const fix = pv && ZD.state.tasks.find(t => t.povodKey === pv.key);
   const tr = pv ? Object.assign({}, pv.traits) : {};
   at('2026-09-08'); ZD.runPoll(); ZD.runPoll();
-  ok(84, thr.every((x, i) => x === (ZD.SOURCES[i].pollEveryMin === 5 ? 30 : 2880)) && thr.filter(x => x === 30).length === 4 && doc === 30 && own === 240 && !after1 && pv && only &&
-       tr.порог_минут === 2880 && tr.молчит_минут === 2880 && pv.stateDate === '2026-09-03' &&
+  ok(84, ZD.SILENT_NIGHTS === 2 && ZD.silenceThreshold === undefined && ZD.SOURCES.every(s => !('pollEveryMin' in s) && !('silenceMin' in s)) &&
+       r3.sources.find(s => s.src === 'reports').answer === 'ошибка' && sil1.nights === 1 && !after1 && pv && only &&
+       tr.ночей_подряд === 2 && tr.молчит_с === '2026-09-03' && pv.stateDate === '2026-09-03' &&
        fix && fix.assignee === 'E4' && pv.status === 'gone',
-    `порог — время: у ночных источников два интервала = 2880 мин, у пятиминутных (Госрешение, программы, заявки, документооборот) — не меньше 30, объявленный ` +
-    `источником — свой (240); Отчётность молчит с 03.09: сутки — не повод, двое суток — повод на источник ` +
-    `с заданием администратору; ответила 08.09 — повод отпал`);
+    `порог один на все источники — две ночи подряд, интервала и своего порога у источника нет (ЗНП-6): Отчётность не ответила 03.09 — ` +
+    `одна ночь, не повод; 04.09 — вторая ночь, в этот же прогон повод с заданием администратору; ответила 08.09 — повод отпал`);
 })();
 
 /* ЗН-22 — замещение после выдачи */
@@ -1318,30 +1313,32 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
   ZD.claim(t.id, null, 'E3');
   at('2026-09-15');
   ok(85, !before && sees && !!stranger && t.assignee === 'E1' && e.ev === 'принято' && e.by === 'E3' && e.for === 'E1' &&
-       ZD.lastEv(t) === 'заявлено' && !ZD.visibleTo(t, 'E3'),
+       ZD.lastEv(t) === 'ожидает приёмки' && !ZD.visibleTo(t, 'E3'),
     `задание не переехало: исполнитель E1, но 10.09 замещающий E3 его видит и действует за него — взял ` +
     `в работу («E3 за E1» в журнале), отметил ход, заявил; посторонний — отказ; 15.09 замещение кончилось — не видит`);
 })();
 
-/* ЗН-23 — свёртка по паре «вид × адресат» */
+/* ЗНП-3, ЗНП-14 — группа в списке по паре «вид × человек» */
 (() => {
   ZD.seed();
-  setRule('rule-org-head-vacant', 'rollup', 1);
+  const noThreshold = throws(() => setRule('rule-org-head-vacant', 'rollup', 1));
   ZD.runPoll();
   const head = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant');
-  const val = head.find(t => t.rollupKeys);
-  const single = head.filter(t => t.povodKey);
-  ok(86, head.length === 2 && val && val.rollupKeys.length === 2 && val.assignee === 'E1' &&
-       Object.values(val.rollupResp).every(x => x === 'E1') && single.length === 1 && single[0].addr.responsible === 'E2',
-    `правило объявило порог 1 (редакцией): у E1 две вакансии (Ош, Жалал-Абад) — вал ${val && val.id} ему, у E2 одна — поштучно; ` +
-    `у вала один ответственный`);
+  ZD.state.viewer = 'E1';
+  const g = ZD.queueGroups('mine').find(x => x.kind === 'pk-org-head-vacant');
+  ZD.state.viewer = 'E5'; // действует за E2, но исполнитель в задании — E5
+  const one = ZD.queueGroups('mine').filter(x => x.task && x.task.originKind === 'pk-org-head-vacant').length;
+  ok(86, /выпуском/.test(noThreshold) && head.length === 3 && head.every(t => t.povodKey) && g && g.count === 2 && g.assignee === 'E1' &&
+       g.tasks.every(t => t.assignee === 'E1') && one === 1,
+    `порога у правила нет («${noThreshold}»); три задания остаются тремя: у E1 две вакансии (Ош, Жалал-Абад) сложены в строку группы, ` +
+    `у E5 одна — обычная строка: группа только в списке и только от двух`);
 })();
 
 /* ЗН-24 — производственный календарь */
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const ruleDue = taskByKey(/^pk-org-no-staff/).dueDate;
+  const ruleDue = taskByKey(/^pk-org-head-vacant/).dueDate;
   ok(87, !ZD.isWork('2026-08-31') && ZD.addWorkdays('2026-08-28', 1) === '2026-09-01' && ZD.isWork('2026-03-28') &&
        ZD.workdaysBetween('2026-08-25', '2026-09-02') === 5 && ruleDue === '2026-09-04' &&
        /2027/.test(ZD.calNote('2026-12-28', '2027-01-05')) && ZD.calNote('2026-09-02', '2026-09-04') === '',
@@ -1349,16 +1346,13 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
     `25.08 по 02.09 — 5 р.д., а не 6; год 2027 не заведён — видимая отметка «${ZD.calNote('2026-12-28', '2027-01-05')}»`);
 })();
 
-/* ЗН-25 — порог свёртки по умолчанию 10 */
+/* ЗНП-3 — порога свёртки по умолчанию нет */
 (() => {
   ZD.seed();
-  const neigh = ZD.state.povodKinds.filter(k => !ZD.SELF_KINDS.includes(k.id));
-  const own = ZD.SELF_KINDS.map(id => ZD.ruleForKind(id).rollup);
-  ok(88, ZD.ROLLUP_DEFAULT === 10 && neigh.length === 96 && neigh.every(k => ZD.ruleForKind(k.id).rollup === null && ZD.rollupOf(ZD.ruleForKind(k.id)) === 10) &&
-       own.every(x => typeof x === 'number') && own.filter(x => x === 5).length === 2,
-    `у правил девяноста шести видов соседей (восемь — Госрешение и программы, двенадцать — заявки, одиннадцать — документооборот, восемнадцать — имущество, один из них выведен выпуском, два — анализ, два — отчётность, один из них выведен выпуском, один — кредит, девять — взыскание, пятнадцать — залог, пять — платежи, три — заёмщик, два — реструктуризация, один — классификация) своего порога нет — действует умолчание 10; правила собственных видов объявили своё ` +
-
-    `(20, у «сосед не отвечает» и «адресат не найден» — 5)`);
+  ok(88, ZD.ROLLUP_DEFAULT === undefined && ZD.rollupOf === undefined && ZD.state.rules.length === 79 &&
+       ZD.state.rules.every(r => !('rollup' in r) && !('mode' in r) && r.editions.every(e => !('rollup' in e.values) && !('mode' in e.values))),
+    `порога нет ни по умолчанию, ни у правила, ни в значениях редакции; правил 79 — по одному на каждое из 77 видов с заданием и 2 выведенных; ` +
+    `у подсветки и сигнала правила нет`);
 })();
 
 /* ИЗ-5 — вернувшийся ключ при открытом задании второго не порождает */
@@ -1386,12 +1380,11 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   const kinds = [...gd.kinds, ...lp.kinds];
   const wired = kinds.every(k => ZD.kindOf(k) && ZD.ruleForKind(k) && ZD.actionOf(ZD.ruleForKind(k).action) && ZD.kindOf(k).ownerExec);
   const steps = ['gd-review','gd-revise','lp-review','lp-revise'], data = ['gd-closed-live-programs','gd-active-no-doc','lp-expiring','lp-expired'];
-  ok(90, gd.pollEveryMin === 5 && lp.pollEveryMin === 5 && kinds.length === 8 && wired && ZD.checkRegistry().length === 0 &&
-       steps.every(k => kinds.includes(k)) && data.every(k => kinds.includes(k)) &&
-       ZD.ownerOfKind('gd-closed-live-programs') === 'Госрешение' && lp.kinds.includes('gd-closed-live-programs'),
-    `Госрешение и Кредитные программы — пятый и шестой источник, опрос 5 мин; восемь видов (по четыре: шаги ` +
-    `согласования и поводы по данным) заведены записями трёх реестров, реестр сходится; «закрыто, а программа ` +
-    `действует» — вид Госрешения, ответ о программах даёт владелец программ`);
+  ok(90, gd.onSave === true && lp.onSave === true && kinds.join() === steps.join() && wired && ZD.checkRegistry().length === 0 &&
+       data.every(k => ZD.kindOf(k).genus === 'подсветка' && !ZD.ruleForKind(k) && !kinds.includes(k)) &&
+       gd.all.length + lp.all.length === 8 && ZD.ownerOfKind('gd-closed-live-programs') === 'Госрешение' && lp.highlights.includes('gd-closed-live-programs'),
+    `Госрешение и Кредитные программы — пятый и шестой источник, опрос по сохранению; восемь видов: четыре шага согласования дают задания, ` +
+    `четыре вида по данным — подсветка без правила; «закрыто, а программа действует» — вид Госрешения, ответ о программах даёт владелец программ`);
 })();
 
 /* ЗГ-2, ЗН-17 — очередь роли «Согласующий» и названный автор; принятие — реквизит вида */
@@ -1400,7 +1393,7 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.runPoll();
   const q = lastOf('gd-review', 'GD-12'), n = lastOf('gd-revise', 'GD-15');
   const queued = q && q.assignee === null && ZD.inQueue(q) && ZD.visibleTo(q, 'E6') && ZD.visibleTo(q, 'E8') && !ZD.visibleTo(q, 'E3') &&
-    ZD.state.notifications.filter(x => x.taskId === q.id && x.kind === 'поручено').map(x => x.to).sort().join() === 'E6,E8' &&
+    ZD.state.notifications.filter(x => x.items.some(i => i.taskId === q.id) && x.kind === 'поручено').map(x => x.to).sort().join() === 'E6,E8' &&
     ZD.queueTasks && (ZD.state.viewer = 'E8', ZD.queueTasks('role').includes(q)) && !ZD.queueTasks('mine').includes(q);
   const stranger = throws(() => ZD.take(q.id, 'E3'));
   ZD.take(q.id, 'E8');
@@ -1420,7 +1413,7 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.runPoll();
   const t = lastOf('lp-review', 'LP-14'); // автор программы — E6, носитель роли «Согласующий»
   const hidden = t.queue.exclude.join() === 'E6' && !ZD.visibleTo(t, 'E6') && ZD.visibleTo(t, 'E8') &&
-    !ZD.state.notifications.some(x => x.taskId === t.id && x.to === 'E6');
+    !ZD.state.notifications.some(x => x.items.some(i => i.taskId === t.id) && x.to === 'E6');
   const appeared = ZD.state.notifications.filter(x => x.kind === 'повод-появился' && x.t === '2026-09-02').map(x => x.to);
   const self = throws(() => ZD.take(t.id, 'E6'));
   const ownerSelf = throws(() => ZD.ownerStep('lp', 'LP-14', 'E6', 'одобрить'));
@@ -1433,23 +1426,23 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const rev = lastOf('gd-review', 'GD-9'), exp = lastOf('lp-expiring', 'LP-8'), fix = lastOf('gd-revise', 'GD-15');
-  ZD.take(exp.id, 'E8');
-  const noClaim = throws(() => ZD.claim(exp.id, null, 'E8'));
-  const noRelease = throws(() => ZD.releaseTask(exp.id, 'E4', 'не нужно'));
+  const rev = lastOf('gd-review', 'GD-9'), q = lastOf('gd-review', 'GD-12'), fix = lastOf('gd-revise', 'GD-15');
+  ZD.take(q.id, 'E6');
+  const noClaim = throws(() => ZD.claim(q.id, null, 'E6'));
+  const noRelease = throws(() => ZD.releaseTask(q.id, 'E4', 'не нужно'));
   at('2026-09-03'); ZD.runPoll();   // GD-9 отклонил E8 — очередь никто не брал
   const o1 = ZD.outcomeOf(rev);
-  at('2026-09-09'); ZD.runPoll();   // LP-8 продлила E6, а задание брал E8
-  const o2 = ZD.outcomeOf(exp);
+  const q0 = ZD.ownerAt('gd', 'GD-12', '2026-09-03').status;
+  ZD.ownerStep('gd', 'GD-12', 'E8', 'одобрить');   // взяла E6, одобрил E8
+  const o2 = ZD.outcomeOf(q);
   at('2026-09-10'); ZD.runPoll();   // GD-15 отправила E3 за E1 (командировка)
   const o3 = ZD.outcomeOf(fix), e3 = fix.journal[fix.journal.length - 1];
   const neverLapsed = ZD.state.tasks.filter(t => /^(gd|lp)-/.test(t.originKind)).every(t => !t.journal.some(e => e.ev === 'отпало'));
-  ok(93, /владельц/.test(noClaim) && /владел/.test(noRelease) && o1.outcome === 'исполнено' && o1.by === 'E8' &&
-       o2.outcome === 'исполнено · выполнил другой' && o2.by === 'E6' && o3.outcome === 'исполнено' && e3.by === 'E3' && e3.for === 'E1' &&
+  ok(93, /владельц/.test(noClaim) && /владел/.test(noRelease) && o1.outcome === 'исполнено' && o1.by === 'E8' && q0 === 'На рассмотрении' &&
+       o2 && o2.outcome === 'исполнено · выполнил другой' && o2.by === 'E8' && o3.outcome === 'исполнено' && e3.by === 'E3' && e3.for === 'E1' &&
        neverLapsed,
-    `«Заявить» и «Снять» отбиты («${noClaim}»); GD-9 отклонён 03.09 — задание очереди «исполнено», выполнил E8; LP-8 ` +
-    `продлена E6, а задание брал E8 — «исполнено · выполнил другой»; GD-15 отправлена E3 за E1 — «исполнено» ` +
-    `(действующий за адресата); «отпало — ждёт разбора» у таких видов не бывает`);
+    `«Заявить» и «Снять» отбиты («${noClaim}»); GD-9 отклонён 03.09 — задание очереди «исполнено», выполнил E8; GD-12 взяла E6, а одобрил E8 — ` +
+    `«исполнено · выполнил другой»; GD-15 отправлена E3 за E1 — «исполнено» (действующий за адресата); «отпало — ждёт разбора» у таких видов не бывает`);
 })();
 
 /* ЗГ-4 — ключ «вид · госрешение:id», админ-возврат — «повтор после» */
@@ -1462,9 +1455,9 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   const again = lastOf('gd-review', 'GD-9');
   const ev = ZD.ownerAt('gd', 'GD-9', '2026-09-08').last;
   ok(94, first.povodKey === 'gd-review|gosreshenie:GD-9|' && again !== first && again.repeatOf === first.id && again.repeatCount === 1 &&
-       ev.by === 'E4' && ZD.silenceThreshold(ZD.SOURCES.find(s => s.id === 'gosresh')) === 30,
+       ev.by === 'E4' && ZD.SOURCES.find(s => s.id === 'gosresh').onSave === true,
     `ключ ${first.povodKey} — период пуст; «Отклонён» → «На рассмотрении» администратором 08.09 — новое задание ` +
-    `${again.id} «повтор после ${first.id}»; опрос 5 мин, порог молчания 30 мин`);
+    `${again.id} «повтор после ${first.id}»; источник опрашивается по сохранению`);
 })();
 
 /* ЗГ-5, ЗГ-6, ЗКП-3 — «закрыто, а программы живы»: объект — программа, каскада нет */
@@ -1472,16 +1465,14 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.seed();
   ZD.runPoll();
   at('2026-09-04'); ZD.runPoll();   // GD-4 закрыт; на него ссылаются LP-5 и LP-11
-  const ts = ZD.state.tasks.filter(t => t.originKind === 'gd-closed-live-programs');
-  const p = ZD.povodByKey('gd-closed-live-programs|program:LP-5|');
+  const rows = hlRows('gd-closed-live-programs');
+  const p = rows.find(r => r.key === 'gd-closed-live-programs|program:LP-5|');
   const live = ['LP-5', 'LP-11'].every(id => ZD.ownerAt('lp', id, '2026-09-04').status === 'Действует');
-  ok(95, ts.length === 2 && ts.map(t => t.povodKey).sort().join() === 'gd-closed-live-programs|program:LP-11|,gd-closed-live-programs|program:LP-5|' &&
-       ts.every(t => t.queue && t.queue.role === 'lp-approver' && t.addr.via === 'очередь') && live &&
-       p.objectType === 'program' && /не принимаются/.test(p.traits.заявки) && p.stateDate === '2026-09-04' &&
+  ok(95, rows.map(r => r.key).sort().join() === 'gd-closed-live-programs|program:LP-11|,gd-closed-live-programs|program:LP-5|' && live &&
+       p.objectType === 'program' && /не принимаются/.test(p.traits.заявки) && p.stateDate === '2026-09-04' && noWork('gd-closed-live-programs') &&
        !ZD.state.tasks.some(t => t.povodKey && /gosreshenie:GD-4/.test(t.povodKey)),
-    `GD-4 закрыт 04.09 — повод на каждую действующую программу под ним (LP-5, LP-11), очередь «Согласующий» ` +
-    `программ; программы остались «Действует» (каскада статуса нет), приём заявок виден заблокированным сразу; ` +
-    `на само решение задания нет`);
+    `GD-4 закрыт 04.09 — в подсветке каждая действующая программа под ним (LP-5, LP-11), заданий нет; ` +
+    `программы остались «Действует» (каскада статуса нет), приём заявок виден заблокированным сразу`);
 })();
 
 /* ЗГ-7 — «Действует без документа»: автору, без автора — администратору; отпадает после загрузки */
@@ -1489,15 +1480,16 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.seed();
   ZD.runPoll();
   at('2026-09-03'); ZD.runPoll();   // перенос данных: GD-1 без автора, GD-3 автора знает
-  const g1 = lastOf('gd-active-no-doc', 'GD-1'), g3 = lastOf('gd-active-no-doc', 'GD-3');
+  const on3 = hlRows('gd-active-no-doc').map(r => r.objectId).sort().join();
   at('2026-09-04'); ZD.runPoll();
-  const miss = ZD.state.tasks.find(t => t.povodKey === `pk-addr-missing|task:${g1.id}|`);
+  const noMiss = !ZD.state.povods.some(p => p.kind === 'pk-addr-missing' && /gd-active-no-doc/.test(p.key));
   const wrong = throws(() => ZD.gdAttachDoc('GD-1', 'E3'));
   at('2026-09-10'); ZD.runPoll();   // E3 приложила документ к GD-3
-  ok(96, g3.assignee === 'E3' && g3.addr.via === 'названный' && g1.assignee === 'E4' && g1.addr.via === 'администратор' && !!miss &&
-       ZD.outcomeOf(g3).outcome === 'исполнено' && ZD.ownerAt('gd', 'GD-3', '2026-09-10').status === 'Действует' && /автор/.test(wrong),
-    `перенесённые 03.09 решения без документа: GD-3 — автору E3, GD-1 (автора нет) — администратору E4, и это ` +
-    `повод «адресат не найден» (${miss && miss.id}); E3 приложила документ 10.09 без смены статуса — задание исполнено`);
+  const on10 = hlRows('gd-active-no-doc').map(r => r.objectId).join();
+  ok(96, on3 === 'GD-1,GD-3' && on10 === 'GD-1' && noMiss && noWork('gd-active-no-doc') &&
+       ZD.ownerAt('gd', 'GD-3', '2026-09-10').status === 'Действует' && /автор/.test(wrong),
+    `перенесённые 03.09 решения без документа видны в подсветке: GD-1 и GD-3, заданий нет, «адресат не найден» не возникает; ` +
+    `E3 приложила документ 10.09 без смены статуса — GD-3 из подсветки ушло`);
 })();
 
 /* ЗГ-8, ЗКП-8 — сроки и порог: значения правила с источником «внутренний акт» */
@@ -1505,23 +1497,24 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.seed();
   ZD.runPoll();
   const due = id => ZD.ruleForKind(id).dueN;
-  const allActs = ['gd-review','gd-revise','gd-closed-live-programs','gd-active-no-doc','lp-review','lp-revise','lp-expiring','lp-expired']
-    .every(k => ZD.ruleForKind(k).dueSource === 'внутренний акт');
-  const exp = lastOf('lp-expiring', 'LP-8'), rev = lastOf('gd-review', 'GD-12');
+  const steps = ['gd-review','gd-revise','lp-review','lp-revise'];
+  const allActs = steps.every(k => ZD.ruleForKind(k).dueSource === 'внутренний акт');
+  const rev = lastOf('gd-review', 'GD-12');
+  const noRule = ['gd-closed-live-programs','gd-active-no-doc','lp-expiring','lp-expired'].every(k => !ZD.ruleForKind(k));
+  const exp8 = hlRows('lp-expiring').some(r => r.objectId === 'LP-8');
   setRule('rule-gd-review', 'dueN', 7, 'E4');
   at('2026-09-03'); ZD.runPoll();   // GD-9 отклонён — задание закрыто
   at('2026-09-08'); ZD.runPoll();   // возвращён на рассмотрение — новое задание по новой редакции
   const again = lastOf('gd-review', 'GD-9');
   const bad = throws(() => setRule('rule-org-head-vacant', 'dueN', 3, 'E2'));
-  ok(97, [due('gd-review'), due('gd-revise'), due('gd-closed-live-programs'), due('gd-active-no-doc')].join('/') === '7/10/5/10' &&
-       [due('lp-review'), due('lp-revise'), due('lp-expired')].join('/') === '5/10/5' && ZD.expiringDays() === 30 && allActs &&
-       exp.dueDate === '2026-09-24' && rev.dueDate === '2026-09-09' && ZD.dueOf(rev) === '2026-09-09' &&
+  ok(97, [due('gd-review'), due('gd-revise')].join('/') === '7/10' &&
+       [due('lp-review'), due('lp-revise')].join('/') === '5/10' && ZD.expiringDays() === 30 && allActs && noRule && exp8 &&
+       rev.dueDate === '2026-09-09' && ZD.dueOf(rev) === '2026-09-09' &&
        again.dueDate === ZD.addWorkdays('2026-09-08', 7) && again.ruleEdition === 2 && /администратор/.test(bad) &&
-       !('threshold' in ZD.ruleForKind('lp-expiring')) && ZD.state.neighborSet.lp.expiringDays === 30,
-    `сроки 5/10/5/10 р.д. у Госрешения и 5/10/5 у программ, «срок истекает» — день перед «Датой по» (LP-8: 24.09), ` +
-    `порог 30 к.д. — настройка программ, не правила; источник — «внутренний акт»; правка срока «Рассмотреть госрешение» на 7 — ` +
-    `новая редакция, выданное держит снимок (GD-12: 09.09), новое — по 7 р.д.; правит только администратор заданий`);
-
+       ZD.state.neighborSet.lp.expiringDays === 30,
+    `сроки шагов 5/10 р.д. у Госрешения и программ, источник — «внутренний акт»; порог 30 к.д. «срок истекает» — настройка программ, ` +
+    `у подсветки правила нет; правка срока «Рассмотреть госрешение» на 7 — новая редакция, выданное держит снимок (GD-12: 09.09), новое — по 7 р.д.; ` +
+    `правит только администратор заданий`);
 })();
 
 /* ЗГ-9, ЗН-19 — неразобранная очередь: сразу руководителю подразделения роли, на 5-й р.д. — администратору */
@@ -1531,8 +1524,8 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   const q = lastOf('gd-review', 'GD-12'); // срок 09.09, никто не берёт
   at('2026-09-10'); ZD.runPoll();
   const s1 = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял`);
-  const lateAll = ZD.state.notifications.filter(n => n.taskId === q.id && n.kind === 'срок-истёк').map(n => n.to).sort().join();
-  const s1sig = s1 ? ZD.state.notifications.filter(n => n.taskId === s1.id).map(n => n.kind).join() : '';
+  const lateAll = ZD.state.notifications.filter(n => n.items.some(i => i.taskId === q.id) && n.kind === 'срок-истёк').map(n => n.to).sort().join();
+  const s1sig = s1 ? ZD.state.notifications.filter(n => n.items.some(i => i.taskId === s1.id)).map(n => n.kind).join() : '';
   at('2026-09-15'); ZD.runPoll();
   const before5 = !ZD.state.tasks.some(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял, 5-й р.д.`);
   at('2026-09-16'); ZD.runPoll();
@@ -1563,45 +1556,39 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const ing = lastOf('lp-expiring', 'LP-5'); // «Дата по» 07.09
-  at('2026-09-07'); ZD.runPoll();
-  const stillOn = !ZD.isTerminal(ing) && !ZD.povodByKey('lp-expired|program:LP-5|');
-  at('2026-09-08'); ZD.runPoll();
-  const ed = lastOf('lp-expired', 'LP-5');
-  const p = ZD.povodByKey('lp-expired|program:LP-5|');
-  ok(100, ing.dueDate === '2026-09-06' && stillOn && ZD.outcomeOf(ing).outcome === 'снято' && ZD.outcomeOf(ing).reason === 'перешло в истёкший' &&
-       ed && !ed.repeatOf && ed.dueDate === ZD.addWorkdays('2026-09-08', 5) && p.stateDate === '2026-09-08' && /не принимаются/.test(p.traits.заявки),
-    `LP-5: «Срок истекает» с 02.09 (до 07.09 ≤ 30 к.д.), срок задания 06.09; 07.09 — ещё истекает; 08.09 «Дата по» ` +
-    `прошла — задание снято «перешло в истёкший», новое «Срок истёк» (${ed && ed.id}) на 5 р.д., приём заявок заблокирован`);
+  const has = (k, d) => hlRows(k, d).some(r => r.objectId === 'LP-5');
+  const r8 = hlRows('lp-expired', '2026-09-08').find(r => r.objectId === 'LP-5');
+  ok(100, has('lp-expiring', '2026-09-02') && has('lp-expiring', '2026-09-07') && !has('lp-expired', '2026-09-07') &&
+       !has('lp-expiring', '2026-09-08') && !!r8 && r8.stateDate === '2026-09-08' && /не принимаются/.test(r8.traits.заявки) &&
+       noWork('lp-expiring') && noWork('lp-expired'),
+    `LP-5 в подсветке: «Срок истекает» с 02.09 (до 07.09 ≤ 30 к.д.); 07.09 — ещё истекает; 08.09 «Дата по» прошла — ` +
+    `перешла в «Срок истёк», приём заявок заблокирован; заданий ни на один из видов нет`);
 })();
 
 /* ЗКП-5 — «Продлить срок»: Согласующий, только «Дата по», без смены статуса; потом — «повтор после» */
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const t = lastOf('lp-expiring', 'LP-8');
+  const before = hlRows('lp-expiring').some(r => r.objectId === 'LP-8');
   const notHolder = throws(() => ZD.lpExtend('LP-8', 'E3', '2027-03-31', 'приказ'));
   const noReason = throws(() => ZD.lpExtend('LP-8', 'E8', '2027-03-31', ''));
   const notActive = throws(() => ZD.lpExtend('LP-14', 'E8', '2028-01-01', 'приказ'));
   at('2026-09-09'); ZD.runPoll();   // E6 продлила до 31.03.2027
   const s = ZD.ownerAt('lp', 'LP-8', '2026-09-09');
-  at('2027-03-01'); ZD.runPoll();
-  const back = lastOf('lp-expiring', 'LP-8');
-  ok(101, /Согласующий/.test(notHolder) && /причина/.test(noReason) && /действующ/.test(notActive) &&
-       ZD.outcomeOf(t).outcome === 'исполнено' && s.status === 'Действует' && s.dateTo === '2027-03-31' &&
-       back !== t && back.repeatOf === t.id && /2027/.test(ZD.calNote(back.journal[0].t, ZD.dueOf(back))),
+  const gone = !hlRows('lp-expiring').some(r => r.objectId === 'LP-8');
+  const back = hlRows('lp-expiring', '2027-03-01').some(r => r.objectId === 'LP-8');
+  ok(101, before && /Согласующий/.test(notHolder) && /причина/.test(noReason) && /действующ/.test(notActive) &&
+       s.status === 'Действует' && s.dateTo === '2027-03-31' && gone && back && noWork('lp-expiring'),
     `продлевает только Согласующий, с причиной и только действующую; E6 продлила LP-8 09.09 — статус «Действует», ` +
-    `изменилась одна «Дата по», задание «Срок истекает» исполнено; 01.03.2027 под новую дату — «повтор после ${t.id}», ` +
-    `у срока отметка «${ZD.calNote(back.journal[0].t, ZD.dueOf(back))}»`);
+    `изменилась одна «Дата по», LP-8 ушла из подсветки; 01.03.2027 под новую дату — снова там; заданий нет`);
 })();
 
 /* ЗКП-7 — бессрочная программа поводов о сроке не даёт */
 (() => {
   ZD.seed();
-  for (const d of ['2026-09-02', '2026-09-10', '2027-03-01']) { at(d); ZD.runPoll(); }
-  ok(102, ZD.ownerAt('lp', 'LP-11', '2027-03-01').dateTo === null &&
-       !ZD.state.povods.some(p => /^lp-expir/.test(p.kind) && p.objectId === 'LP-11'),
-    `LP-11 без «Даты по» — ни «истекает», ни «истёк» ни на одну дату`);
+  const seen = ['2026-09-02', '2026-09-10', '2027-03-01'].map(d => { at(d); ZD.runPoll(); return ['lp-expiring','lp-expired'].some(k => hlRows(k, d).some(r => r.objectId === 'LP-11')); });
+  ok(102, ZD.ownerAt('lp', 'LP-11', '2027-03-01').dateTo === null && seen.every(x => !x) && hlRows('lp-expiring', '2027-03-01').length > 0,
+    `LP-11 без «Даты по» — ни «истекает», ни «истёк» ни на одну дату, при том что другие программы в «истекает» есть`);
 })();
 
 /* ЗКП-9 — «Сменить основание»: только на действующее решение, «Дата с» ≥ даты решения */
@@ -1609,16 +1596,15 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   ZD.seed();
   ZD.runPoll();
   at('2026-09-04'); ZD.runPoll();
-  const t = lastOf('gd-closed-live-programs', 'LP-11');
+  const before = hlRows('gd-closed-live-programs').some(r => r.objectId === 'LP-11');
   const notActive = throws(() => ZD.lpChangeBase('LP-11', 'E8', 'GD-12', 'перевод'));
   const early = throws(() => ZD.lpChangeBase('LP-5', 'E8', 'GD-2', 'перевод'));
-  ZD.take(t.id, 'E8');
   at('2026-09-15'); ZD.runPoll();   // E8 сменил основание LP-11 на GD-2
   const s = ZD.ownerAt('lp', 'LP-11', '2026-09-15');
-  ok(103, /действующее/.test(notActive) && /Дата с/.test(early) && s.base === 'GD-2' && s.status === 'Действует' &&
-       ZD.outcomeOf(t).outcome === 'исполнено' && ZD.outcomeOf(t).by === 'E8' && ZD.povodByKey(t.povodKey).status === 'gone',
-    `основание — только действующее решение («${notActive}»), «Дата с» не раньше даты решения («${early}»); E8 взял ` +
-    `задание и 15.09 сменил основание LP-11 на GD-2 — статус прежний, задание исполнено с атрибуцией`);
+  ok(103, before && /действующее/.test(notActive) && /Дата с/.test(early) && s.base === 'GD-2' && s.status === 'Действует' &&
+       !hlRows('gd-closed-live-programs').some(r => r.objectId === 'LP-11'),
+    `основание — только действующее решение («${notActive}»), «Дата с» не раньше даты решения («${early}»); ` +
+    `15.09 E8 сменил основание LP-11 на GD-2 — статус прежний, программа ушла из подсветки`);
 })();
 
 /* ЗКП-10 — адресация только очередями и названным автором, кураторство не применяется */
@@ -1627,7 +1613,7 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   for (const d of ['2026-09-02', '2026-09-04', '2026-09-08']) { at(d); ZD.runPoll(); }
   const ts = ZD.state.tasks.filter(t => /^(gd|lp)-/.test(t.originKind));
   const rules = ZD.state.rules.filter(r => /^(gd|lp)-/.test(r.kind));
-  ok(104, ts.length >= 10 && ts.every(t => ['очередь', 'названный', 'администратор'].includes(t.addr.via) && t.addr.by !== 'кураторство') &&
+  ok(104, ts.length === 7 && ts.every(t => ['очередь', 'названный', 'администратор'].includes(t.addr.via) && t.addr.by !== 'кураторство') &&
        rules.every(r => ['очередь', 'названный'].includes(r.addressee.by)) && ts.every(t => ZD.responsibleNow(t) === null),
     `${ts.length} заданий Госрешения и программ: адресат — очередь роли или названный поводом автор (без автора — ` +
     `администратор); формулы через кураторство ни у одного правила нет`);
@@ -1637,14 +1623,11 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
 (() => {
   ZD.seed();
   for (const d of ['2026-09-02', '2026-09-04', '2026-09-08']) { at(d); ZD.runPoll(); }
-  const a = lastOf('gd-closed-live-programs', 'LP-5'), b = lastOf('lp-expired', 'LP-5');
-  const both = !ZD.isTerminal(a) && !ZD.isTerminal(b) && a.id !== b.id;
-  ZD.take(b.id, 'E6');
+  const on = k => hlRows(k).some(r => r.objectId === 'LP-5');
+  const both = on('gd-closed-live-programs') && on('lp-expired');
   at('2026-09-10'); ZD.runPoll();   // E8 закрыл LP-5
-  ok(105, both && ZD.outcomeOf(a).outcome === 'исполнено' && ZD.outcomeOf(a).by === 'E8' &&
-       ZD.outcomeOf(b).outcome === 'исполнено · выполнил другой' && ZD.outcomeOf(b).by === 'E8',
-    `на LP-5 08.09 открыты два задания — «закрыто, а программа действует» (${a.id}) и «срок истёк» (${b.id}); ` +
-    `E8 закрыл программу 10.09 — закрылись оба с атрибуцией (второе брала E6 — «выполнил другой»)`);
+  ok(105, both && !on('gd-closed-live-programs') && !on('lp-expired') && ZD.ownerAt('lp', 'LP-5', '2026-09-10').status === 'Закрыта',
+    `на LP-5 08.09 две строки подсветки — «закрыто, а программа действует» и «срок истёк»; E8 закрыл программу 10.09 — ушли обе`);
 })();
 
 /* ЗГ-11, ЗКП-12 — без пересечения с документооборотом */
@@ -1665,7 +1648,7 @@ const lastOf = (kind, obj) => { const a = gdTask(kind, obj); return a[a.length -
   at('2026-09-04'); ZD.runPoll();
   const rows = ZD.taskRows();
   const own = k => (rows.find(r => r.kind === k) || {}).owner;
-  ok(107, own('gd-review') === 'Госрешение' && own('gd-closed-live-programs') === 'Госрешение' && own('lp-expiring') === 'Кредитные программы' &&
+  ok(107, own('gd-review') === 'Госрешение' && own('gd-revise') === 'Госрешение' && own('lp-review') === 'Кредитные программы' &&
        own('pk-rep-obligation-overdue') === 'Отчётность' && own('pk-overdue') === 'Задания' && rows.filter(r => r.kind === null).every(r => r.owner === null),
     `строка задания несёт «чей повод»: Госрешение, Кредитные программы, Отчётность, сами Задания; у свободного — пусто`);
 })();
@@ -1675,19 +1658,19 @@ const apTasks = (kind, app, sub) => ZD.state.tasks.filter(t => t.povodKey === `$
 const apLast = (kind, app, sub) => { const a = apTasks(kind, app, sub); return a[a.length - 1]; };
 const pollOn = (...ds) => ds.forEach(d => { at(d); ZD.runPoll(); });
 const AP_STEP_KINDS = ['ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register'];
-const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
+const AP_HL_KINDS = ['ap-program-closed','ap-doc-expired'];
 
 /* ЗЗ-1 — седьмой источник, оба рода поводов записями реестра */
 (() => {
   ZD.seed();
   const ap = ZD.SOURCES.find(s => s.id === 'apps');
   const wired = ap.kinds.every(k => { const kd = ZD.kindOf(k), r = ZD.ruleForKind(k), a = r && ZD.actionOf(r.action);
-    return kd && kd.ownerExec && kd.objectType === 'application' && r.mode === 'авто' && a && a.where; });
-  ok(108, ZD.SOURCES.length === 17 && ZD.SOURCES[6] === ap && ap.pollEveryMin === 5 && ap.kinds.length === 12 &&
-       AP_STEP_KINDS.every(k => ap.kinds.includes(k)) && AP_DATA_KINDS.every(k => ap.kinds.includes(k)) && wired &&
+    return kd && kd.ownerExec && kd.objectType === 'application' && !('mode' in r) && a && a.where; });
+  ok(108, ZD.SOURCES.length === 17 && ZD.SOURCES[6] === ap && ap.onSave === true && ap.all.length === 12 && ap.kinds.length === 10 &&
+       AP_STEP_KINDS.every(k => ap.kinds.includes(k)) && ap.kinds.includes('ap-stuck-new') && ap.highlights.join() === AP_HL_KINDS.join() && wired &&
        ZD.checkRegistry().length === 0 && ZD.ownerOfKind('ap-vote') === 'Заявки',
-    `Заявки — седьмой источник, опрос 5 мин: девять шагов на передачах работы и три повода по данным заведены записями ` +
-    `трёх реестров, у каждого действия — где делается работа; реестр сходится`);
+    `Заявки — седьмой источник, опрос по сохранению: девять шагов на передачах работы и застой дают задания, «программа не принимает» и ` +
+    `«документ просрочен» — подсветка; у каждого действия — где делается работа; реестр сходится`);
 })();
 
 /* ЗЗ-2 — шаги только на передачах: свой «Новый» задания не даёт; форма адресата по шагу */
@@ -1718,7 +1701,7 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   pollOn('2026-09-09');
   const stuck = apLast('ap-stuck-new', 'AP-107');
   at('2026-09-10');
-  const pc = apLast('ap-program-closed', 'AP-105'); // E1 в командировке, замещает E3
+  const pc = apLast('ap-register', 'AP-109'); // E1 в командировке, замещает E3
   const subst = pc.assignee === 'E1' && ZD.visibleTo(pc, 'E3') && ZD.canActFor(pc, 'E3');
   const queues = apLast('ap-conclusion', 'AP-101', 'отдел:risk').queue.role === 'ap-dept-risk' &&
     apLast('ap-conclusion', 'AP-101', 'отдел:credit').queue.role === 'ap-dept-credit' && apLast('ap-prelim', 'AP-101').queue.role === 'ap-commission';
@@ -1740,8 +1723,8 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   at('2026-09-10');
   const personal = !ZD.visibleTo(e1, 'E3') && !ZD.canActFor(e1, 'E3') && ZD.actingFor('E1', '2026-09-10') === 'E3';
   pollOn('2026-09-10', '2026-09-15');
-  const n = ZD.state.notifications.filter(x => x.taskId === e1.id).map(x => x.kind + ':' + x.to);
-  const chairOwn = ZD.state.notifications.some(x => x.taskId === votes[0].id && (x.kind === 'срок-истёк' || x.kind === 'эскалация'));
+  const n = ZD.state.notifications.filter(x => x.items.some(i => i.taskId === e1.id)).map(x => x.kind + ':' + x.to);
+  const chairOwn = ZD.state.notifications.some(x => x.items.some(i => i.taskId === votes[0].id) && (x.kind === 'срок-истёк' || x.kind === 'эскалация'));
   const noReassign = throws(() => ZD.reassignTask(e1.id, 'E3', 'E4', 'командировка'));
   const noExtend = throws(() => ZD.requestExtension(e1.id, 'E1', '2026-09-25', 'командировка'));
   const app = ZD.state.owner.ap.find(o => o.id === 'AP-101');
@@ -1760,19 +1743,19 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
 (() => {
   ZD.seed();
   pollOn('2026-09-02', '2026-09-04');
-  const pc = ZD.povodByKey('ap-program-closed|application:AP-103|');
+  const pc = hlRows('ap-program-closed').find(r => r.key === 'ap-program-closed|application:AP-103|');
   pollOn('2026-09-08');
   const stuck8 = !!ZD.povodByKey('ap-stuck-new|application:AP-107|');
-  const doc = ZD.povodByKey('ap-doc-expired|application:AP-104|'), docT = apLast('ap-doc-expired', 'AP-104');
+  const doc = hlRows('ap-doc-expired').find(r => r.key === 'ap-doc-expired|application:AP-104|');
   pollOn('2026-09-09');
   const st = ZD.povodByKey('ap-stuck-new|application:AP-107|');
-  const ts = AP_DATA_KINDS.map(k => ZD.state.tasks.find(t => t.originKind === k));
-  ok(112, pc && pc.stateDate === '2026-09-04' && pc.traits.причина === 'основание закрыто' && apLast('ap-program-closed', 'AP-103').assignee === 'E3' &&
+  const t = ZD.state.tasks.find(x => x.originKind === 'ap-stuck-new');
+  ok(112, pc && pc.stateDate === '2026-09-04' && pc.traits.причина === 'основание закрыто' && noWork('ap-program-closed') &&
        !stuck8 && st && st.stateDate === '2026-09-09' && st.traits.без_событий_раб_дней === 10 &&
-       doc && doc.stateDate === '2026-09-08' && /Орозбекова/.test(doc.traits.документы) && docT.assignee === 'E3' &&
-       ts.every(t => t && t.addr.role === 'специалист заявки'),
-    `«программа не принимает» AP-103 с 04.09 (основание LP-11 закрыто) — E3; «застряла в „Новый“» AP-107 — 08.09 ещё нет, ` +
-    `09.09 (10 р.д. без событий) — есть; «документ просрочен» AP-104 с 08.09 — E3; все три — формулой «специалист заявки»`);
+       doc && doc.stateDate === '2026-09-08' && /Орозбекова/.test(doc.traits.документы) && noWork('ap-doc-expired') &&
+       t && t.addr.role === 'специалист заявки',
+    `«программа не принимает» AP-103 с 04.09 (основание LP-11 закрыто) и «документ просрочен» AP-104 с 08.09 — в подсветке, без заданий; ` +
+    `«застряла в „Новый“» AP-107 — 08.09 ещё нет, 09.09 (10 р.д. без событий) — задание формулой «специалист заявки»`);
 })();
 
 /* ЗЗ-6 — перевести или отозвать: «Сменить программу», гейт «Сформировать кредит» */
@@ -1784,18 +1767,16 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   const review = throws(() => ZD.apStep('AP-101', 'E1', 'сменить программу', 'LP-8', 'перевод'));
   const closed = throws(() => ZD.apStep('AP-104', 'E3', 'сменить программу', 'LP-5', 'перевод'));
   const noWhy = throws(() => ZD.apStep('AP-104', 'E3', 'сменить программу', 'LP-14', ''));
+  const on = (id, d) => hlRows('ap-program-closed', d).some(r => r.objectId === id);
+  const p103 = on('AP-103', '2026-09-04') && !on('AP-103', '2026-09-10');
+  const p105 = on('AP-105', '2026-09-10') && !on('AP-105', '2026-09-15');
   ZD.runPoll();
-  const a103 = apLast('ap-program-closed', 'AP-103');
-  pollOn('2026-09-15');
-  const a105 = apLast('ap-program-closed', 'AP-105');
-  pollOn('2026-09-16');
+  pollOn('2026-09-15', '2026-09-16');
   ok(113, /не принимает/.test(gate) && /сначала возврат/.test(review) && /принимать заявки/.test(closed) && /причина/.test(noWhy) &&
-       ZD.outcomeOf(a103).outcome === 'исполнено' && ZD.outcomeOf(a103).by === 'E3' &&
-       ZD.outcomeOf(a105).outcome === 'снято' && ZD.outcomeOf(a105).reason === 'программа снова принимает заявки' &&
-       ZD.ownerAt('ap', 'AP-105', '2026-09-16').status === 'Ожидает решения/программы' && !!apLast('ap-bind', 'AP-105'),
+       p103 && p105 && ZD.ownerAt('ap', 'AP-105', '2026-09-16').status === 'Ожидает решения/программы' && !!apLast('ap-bind', 'AP-105'),
     `кредит по LP-11, которая не принимает заявки, не формируется («${gate}»); на рассмотрении программу не сменить ` +
-    `(«${review}»), на закрытую — тоже; AP-103: E3 сменила программу 10.09 — задание исполнено; AP-105: 15.09 основание ` +
-    `LP-11 сменено — «снято: программа снова принимает заявки», 16.09 кредит сформирован (поток B) — шаг «Привязать решение и программу»`);
+    `(«${review}»), на закрытую — тоже; AP-103: E3 сменила программу 10.09 — ушла из подсветки; AP-105: 15.09 основание ` +
+    `LP-11 сменено — тоже ушла; 16.09 кредит сформирован (поток B) — шаг «Привязать решение и программу»`);
 })();
 
 /* ЗЗ-7 — отзыв, удаление, отклонение: шаги отпадают с атрибуцией */
@@ -1844,12 +1825,12 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   ZD.seed();
   pollOn('2026-09-02', '2026-09-03', '2026-09-08', '2026-09-09');
   const keys = ['ap-vote|application:AP-101·член:E5|', 'ap-conclusion|application:AP-106·отдел:risk|', 'ap-confirm|application:AP-102|'];
-  const group = ZD.state.povods.filter(p => p.objectId === 'AP-104' && p.kind === 'ap-doc-expired');
+  const group = hlRows('ap-doc-expired').filter(p => p.objectId === 'AP-104');
   ok(117, keys.every(k => ZD.povodByKey(k)) && group.length === 1 && group[0].traits.группа === '3 чл.' &&
        ZD.state.povods.filter(p => /^ap-/.test(p.kind)).every(p => /^ap-[a-z-]+\|application:AP-\d+(·(отдел|член):[A-Za-z0-9]+)?\|$/.test(p.key)) &&
-       ZD.silenceThreshold(ZD.SOURCES.find(s => s.id === 'apps')) === 30,
+       ZD.SOURCES.find(s => s.id === 'apps').onSave === true,
     `ключ «вид · заявка:id», у заключения и голоса — плюс отдел / член, период пуст (${keys.join(', ')}); групповая AP-104 ` +
-    `(3 чл.) — один повод на заявку, а не на члена; опрос 5 мин, порог молчания 30 мин`);
+    `(3 чл.) — одна строка на заявку, а не на члена; источник опрашивается по сохранению`);
 })();
 
 /* ЗЗ-11 — без пересечения с документооборотом */
@@ -1867,16 +1848,15 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   pollOn('2026-09-02', '2026-09-09');
   const r = k => ZD.ruleForKind(k);
   const wd = ['ap-confirm','ap-conclusion','ap-prelim','ap-form-credit','ap-bind','ap-register'].map(k => r(k).dueN).join('/');
-  const data = AP_DATA_KINDS.map(k => r(k).dueN).join('/');
   const sup = apLast('ap-supplement', 'AP-104'), dec = apLast('ap-decide', 'AP-101');
   const named = throws(() => setRule('rule-ap-vote', 'dueN', 5, 'E4'));
   const thr = throws(() => setRule('rule-ap-stuck-new', 'threshold', 12, 'E4'));
-  ok(119, wd === '2/3/3/2/30/10' && data === '5/5/5' && r('ap-supplement').dueN === 1 && r('ap-supplement').dueUnit === 'month' &&
+  ok(119, wd === '2/3/3/2/30/10' && r('ap-stuck-new').dueN === 5 && AP_HL_KINDS.every(k => !r(k)) && r('ap-supplement').dueN === 1 && r('ap-supplement').dueUnit === 'month' &&
        r('ap-supplement').dueSource === 'Типовое положение, п. 66' && r('ap-vote').dueUnit === 'named' && r('ap-decide').dueUnit === 'named' &&
        r('ap-confirm').dueSource === 'внутренний акт' && sup.dueDate === '2026-10-02' && dec.dueDate === '2026-09-16' &&
        /не настраивается/.test(named) && /настройка соседа/.test(thr) && !('threshold' in r('ap-stuck-new')) &&
        r('ap-stuck-new').editions.length === 1 && ZD.state.neighborSet.ap.stuckWd === 10,
-    `ГФ 2, заключение 3, изучение 3, сформировать 2, привязать 30, зарегистрировать 10 р.д.; поводы — 5 р.д.; порог застоя 10 р.д. — ` +
+    `ГФ 2, заключение 3, изучение 3, сформировать 2, привязать 30, зарегистрировать 10 р.д.; застой — 5 р.д.; порог застоя 10 р.д. — ` +
     `настройка заявок, в правиле его нет и правкой правила он не меняется; «Дополнить» — 1 к.м. по норме (AP-104: 02.09 → 02.10); ` +
     `решение — дата заседания (AP-101: 16.09); срок голоса называет запись комиссии и не настраивается`);
 })();
@@ -1889,8 +1869,8 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   const early = ZD.state.tasks.some(t => t.esc);
   pollOn('2026-10-05');
   const esc = ZD.state.tasks.find(t => t.esc && t.povodKey === `pk-overdue|task:${sup.id}|недостатки не устранены`);
-  const toHolders = esc && ZD.state.notifications.filter(n => n.taskId === esc.id && n.kind === 'эскалация').map(n => n.to).sort().join();
-  const late = ZD.state.notifications.some(n => n.taskId === sup.id && n.kind === 'срок-истёк' && n.to === 'E3');
+  const toHolders = esc && ZD.state.notifications.filter(n => n.items.some(i => i.taskId === esc.id) && n.kind === 'эскалация').map(n => n.to).sort().join();
+  const late = ZD.state.notifications.some(n => n.items.some(i => i.taskId === sup.id) && n.kind === 'срок-истёк' && n.to === 'E3');
   pollOn('2026-10-12');
   const general = ZD.state.tasks.some(t => t.povodKey === `pk-overdue|task:${sup.id}|`);
   const notRole = throws(() => ZD.apStep('AP-104', 'E2', 'отклонить за неустранение недостатков', null, 'п. 66'));
@@ -1913,7 +1893,7 @@ const AP_DATA_KINDS = ['ap-program-closed','ap-stuck-new','ap-doc-expired'];
   pollOn('2026-09-02', '2026-09-04', '2026-09-08');
   const q = apLast('ap-confirm', 'AP-102'); // срок 04.09, никто не берёт
   const s1 = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял`);
-  const late = ZD.state.notifications.filter(n => n.taskId === q.id && n.kind === 'срок-истёк').map(n => n.to).join();
+  const late = ZD.state.notifications.filter(n => n.items.some(i => i.taskId === q.id) && n.kind === 'срок-истёк').map(n => n.to).join();
   pollOn('2026-09-15');
   const s2 = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял, 5-й р.д.`);
   pollOn('2026-09-16');
@@ -1958,16 +1938,16 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
   ZD.seed();
   const doc = ZD.SOURCES.find(s => s.id === 'docs');
   const wired = doc.kinds.every(k => { const kd = ZD.kindOf(k), r = ZD.ruleForKind(k), a = r && ZD.actionOf(r.action);
-    return kd && kd.ownerExec && r.mode === 'авто' && !r.controller && a && a.where && ZD.ownerOfKind(k) === 'Документооборот'; });
+    return kd && kd.ownerExec && !('mode' in r) && !r.controller && a && a.where && ZD.ownerOfKind(k) === 'Документооборот'; });
   const queue = doc.kinds.filter(k => ZD.kindOf(k).addrForm === 'очередь');
   const named = doc.kinds.filter(k => ZD.kindOf(k).addrForm === 'названный');
   const personal = doc.kinds.filter(k => ZD.kindOf(k).personal);
-  ok(124, ZD.SOURCES.length === 17 && ZD.SOURCES[7] === doc && doc.pollEveryMin === 5 && doc.silenceMin === 30 && ZD.silenceThreshold(doc) === 30 &&
+  ok(124, ZD.SOURCES.length === 17 && ZD.SOURCES[7] === doc && doc.onSave === true && !('silenceMin' in doc) &&
        doc.ownerAdmin === 'E18' && doc.kinds.length === 11 && wired && ZD.checkRegistry().length === 0 &&
        queue.join() === 'doc-register,doc-dispatch,doc-file' && queue.every(k => ZD.kindOf(k).take === 'через очередь') &&
        named.length === 8 && named.every(k => ZD.kindOf(k).take === 'не нужно') && personal.join() === 'doc-sign' &&
        ZD.ruleForKind('doc-register').addressee.role === 'doc-registrar' && ZD.ruleForKind('doc-file').addressee.role === 'doc-archivist',
-    `Документооборот — восьмой источник, опрос 5 мин, порог молчания объявлен 30 мин, администратор владельца E18; одиннадцать ` +
+    `Документооборот — восьмой источник, опрос по сохранению, молчание — две ночи подряд, администратор владельца E18; одиннадцать ` +
     `видов записями трёх реестров, исполнение у владельца, контролёра заданий нет; очередь роли — регистрация, отправка ` +
     `(«Регистратор») и сдача в дело («Архивариус»), остальные восемь — названный поводом без принятия, «лично» — только подпись`);
 })();
@@ -2056,7 +2036,7 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
   pollOn('2026-09-08', '2026-09-09', '2026-09-10');
   const q = docLast('doc-register', 'document:D-208');
   const s1 = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял`);
-  const late = ZD.state.notifications.filter(n => n.taskId === q.id && n.kind === 'срок-истёк').map(n => n.to).sort().join();
+  const late = ZD.state.notifications.filter(n => n.items.some(i => i.taskId === q.id) && n.kind === 'срок-истёк').map(n => n.to).sort().join();
   pollOn('2026-09-15');
   const early2 = ZD.state.tasks.some(t => t.povodKey === `pk-overdue|task:${q.id}|никто не взял, 5-й р.д.`);
   pollOn('2026-09-16');
@@ -2155,7 +2135,7 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
   pollOn('2026-09-02', '2026-09-03', '2026-09-04', '2026-09-08');
   const acq = ZD.state.tasks.filter(t => t.originKind === 'doc-acquaint' && /D-205/.test(t.povodKey));
   const e8 = docLast('doc-acquaint', 'document:D-205', 'получатель:E8');
-  const late = ZD.state.notifications.some(n => n.taskId === e8.id && n.kind === 'срок-истёк' && n.to === 'E8');
+  const late = ZD.state.notifications.some(n => n.items.some(i => i.taskId === e8.id) && n.kind === 'срок-истёк' && n.to === 'E8');
   pollOn('2026-09-15');
   const esc = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${e8.id}|`);
   const subst = throws(() => ZD.docStep('D-205', 'E7', 'ознакомлен'));
@@ -2169,24 +2149,27 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
 (() => {
   ZD.seed();
   pollOn('2026-09-15', '2026-09-16');
-  const val = ZD.state.tasks.find(t => t.originKind === 'doc-sign' && t.rollupKeys);
-  const n = val && val.rollupKeys.length;
-  const viaSub = val && ZD.visibleTo(val, 'E7');
+  const pack = ZD.state.tasks.filter(t => t.originKind === 'doc-sign' && t.assignee === 'E16');
+  const viaSub = pack.some(t => ZD.visibleTo(t, 'E7'));
+  ZD.state.viewer = 'E16';
+  const g = ZD.queueGroups('mine').find(x => x.kind === 'doc-sign');
+  ZD.state.viewer = 'E4';
   pollOn('2026-10-02');
   const d210 = docLast('doc-sign', 'document:D-210');
-  const subSees = ZD.visibleTo(val, 'E7');
+  const subSees = pack.some(t => ZD.visibleTo(t, 'E7'));
   const stranger = throws(() => ZD.docSignBatch(['D-301'], 'E5'));
-  const signed = ZD.docSignBatch(val.rollupKeys.map(k => ZD.povodByKey(k).ownerId), 'E7');
+  const polls = ZD.state.savePolls.length;
+  const signed = ZD.docSignBatch(pack.map(t => ZD.povodByKey(t.povodKey).ownerId), 'E7');
+  const onePoll = ZD.state.savePolls.length === polls + 1, atOnce = pack.every(t => ZD.isTerminal(t));
   const marks = ['D-301', 'D-312'].map(id => ZD.state.owner.doc.find(o => o.id === id).ev.filter(e => e.sign && e.by === 'E7' && e.for === 'E16').length);
   ZD.runPoll();
-  ok(137, n === 12 && val.assignee === 'E16' && ZD.lastEv(val) !== 'поручено' && !viaSub && !subSees && d210 && d210.assignee === 'E7' &&
-       d210.addr.responsible === 'E7' && /приказ/.test(stranger) && signed === 12 && marks.join() === '1,1' &&
-       ZD.outcomeOf(val).outcome === 'исполнено' && /шагов 12: исполнено 12, снято 0/.test(JSON.stringify(val.journal[val.journal.length - 1])) &&
-       val.journal.filter(e => e.ev === 'ключ отпал' && e.by === 'E7' && e.for === 'E16').length === 12,
-    `16.09 пачка из 12 уведомлений на подпись Токтосунову — один вал (порог 10 по паре «вид × адресат»), сразу в работе; ` +
-    `с 01.10 он в отпуске с приказом «с правом подписи» на E7: вал остаётся у E16 и замещающему в заданиях не виден («лично»), ` +
+  ok(137, pack.length === 12 && g && g.count === 12 && g.tasks.length === 12 && pack.every(t => t.journal.length >= 1 && t.dueDate) && pack.every(t => t.assignee === 'E16') &&
+       !viaSub && !subSees && d210 && d210.assignee === 'E7' && d210.addr.responsible === 'E7' && /приказ/.test(stranger) && signed === 12 && marks.join() === '1,1' &&
+       onePoll && atOnce && pack.every(t => { const o = ZD.outcomeOf(t), e = t.journal[t.journal.length - 1]; return o.outcome === 'исполнено' && e.by === 'E7' && e.for === 'E16'; }),
+    `16.09 пачка из 12 документов на подпись Токтосунову — 12 заданий, строка группы в очереди, у каждого свой срок и журнал; ` +
+    `с 01.10 он в отпуске с приказом «с правом подписи» на E7: задания остаются у E16 и замещающему в заданиях не видны («лично»), ` +
     `новый D-210 документ назвал прямо E7; E5 без приказа подписать не может; E7 подписал пачку одним действием — по записи ` +
-    `в журнале каждого документа («E7 за E16»), каждый ключ вала несёт свой исход и атрибуцию, вал закрыт «исполнено» со сводкой «шагов 12: исполнено 12, снято 0»`);
+    `в журнале каждого документа («E7 за E16»), пачка — один опрос, все 12 заданий закрылись сразу, каждое со своим исходом и атрибуцией`);
 })();
 
 /* возврат оригинала: повод — не вернули к сроку выдачи, срок задания — срок выдачи */
@@ -2196,7 +2179,7 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
   const early = docTasks('doc-return', 'issue:V-1').length;
   pollOn('2026-10-05');
   const t = docLast('doc-return', 'issue:V-1');
-  const late = ZD.state.notifications.some(n => n.taskId === t.id && n.kind === 'срок-истёк' && n.to === 'E6');
+  const late = ZD.state.notifications.some(n => n.items.some(i => i.taskId === t.id) && n.kind === 'срок-истёк' && n.to === 'E6');
   pollOn('2026-10-12');
   ok(138, early === 0 && t.assignee === 'E6' && t.dueDate === '2026-10-02' && late && ZD.outcomeOf(t).outcome === 'исполнено' &&
        ZD.outcomeOf(t).by === 'E6' && ZD.povodByKey('doc-return|issue:V-1|').stateDate === '2026-10-03' &&
@@ -2241,7 +2224,7 @@ const DOC_STEP_DUES = { 'doc-revise': 3, 'doc-approve': 2, 'doc-sign': 2, 'doc-r
   const r = ZD.runPoll({ downSources: ['docs'] });
   const docFrozen = ZD.state.povods.filter(p => /^doc-/.test(p.kind) && p.status !== 'gone').every(p => p.status === 'frozen');
   const others = ZD.state.povods.filter(p => p.status === 'appeared' && !/^doc-/.test(p.kind)).length;
-  ok(141, !r.complete && r.sources[7].answer === 'таймаут' && docFrozen && others === before,
+  ok(141, !r.complete && r.sources[7].answer === 'ошибка' && docFrozen && others === before,
     `документооборот молчит — его поводы заморожены, ${others} поводов остальных семи источников живы`);
 })();
 
@@ -2311,20 +2294,23 @@ const IM_ORDER = ['pk-im-offer-overdue','pk-im-act-pending','pk-im-registration-
   'pk-im-not-listed','pk-im-unsold','pk-im-instalment-overdue','pk-im-encumbrance-ending','pk-im-claim-open'];
 const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','pk-im-relist','pk-im-application-pending','pk-im-topup-due',
   'pk-im-bankruptcy','pk-im-pledge-term']; // выпуск по Инструкции о принятии имущества (волна 22)
+const IM_HL = ['pk-im-encumbrance-ending','pk-im-claim-open'];
+const IM_TASK = IM_ORDER.filter(k => !IM_HL.includes(k));
 
 /* девятый источник: десять видов записями трёх реестров, адресат — формула кураторства */
 (() => {
   ZD.seed();
   const im = ZD.SOURCES.find(s => s.id === 'assets');
-  const wired = IM_ORDER.every(k => { const kd = ZD.kindOf(k), r = ZD.ruleForKind(k), a = r && ZD.actionOf(r.action);
+  const wired = IM_TASK.every(k => { const kd = ZD.kindOf(k), r = ZD.ruleForKind(k), a = r && ZD.actionOf(r.action);
     return kd && kd.ownerExec && kd.addrForm === 'формула' && kd.take === 'нужно' && !kd.periodic && kd.activatedAt === '2026-10-01' &&
-      r.mode === 'авто' && !r.controller && r.addressee.by === 'кураторство' && r.addressee.role === 'куратор имущества' &&
+      !('mode' in r) && !r.controller && r.addressee.by === 'кураторство' && r.addressee.role === 'куратор имущества' &&
       a && a.where && ZD.ownerOfKind(k) === 'Имущество'; });
-  ok(145, ZD.SOURCES.length === 17 && ZD.SOURCES[8] === im && im.pollEveryMin === 1440 && im.silenceMin === null &&
-       ZD.silenceThreshold(im) === 2880 && im.kinds.join() === IM_ORDER.concat(IM_INSTR_ORDER).join() && wired && ZD.checkRegistry().length === 0,
-    `Имущество — девятый источник, ночной опрос, порог молчания по умолчанию (две ночи); первые десять видов pk-im-* — восемь ` +
-    `исходных, «принятая позиция ждёт акта» и «требование к отчуждателю» — записями трёх реестров: адресат — формула ` +
-    `«куратор имущества», «Взять в работу», работа в карточке имущества, контролёра нет; за ними восемь видов выпуска по Инструкции; реестр сходится`);
+  ok(145, ZD.SOURCES.length === 17 && ZD.SOURCES[8] === im && im.onSave === false && im.all.join() === IM_ORDER.concat(IM_INSTR_ORDER).join() &&
+       im.kinds.join() === IM_TASK.concat(IM_INSTR_ORDER).join() && im.highlights.join() === IM_HL.join() &&
+       IM_HL.every(k => !ZD.ruleForKind(k)) && wired && ZD.checkRegistry().length === 0,
+    `Имущество — девятый источник, ночной опрос, молчание — две ночи подряд; из первых десяти видов восемь дают задания записями трёх реестров: ` +
+    `адресат — формула «куратор имущества», «Взять в работу», работа в карточке имущества, контролёра нет; «обременение кончается» и ` +
+    `«требование к отчуждателю» — подсветка; за ними восемь видов выпуска по Инструкции; реестр сходится`);
 })();
 
 /* рубильник и клэмп: до 01.10 поводов нет, база срока прижата, давность честная */
@@ -2332,14 +2318,14 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
   ZD.seed();
   const r0 = ZD.runPoll();
   const before = r0.sources.find(s => s.src === 'assets');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-im-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-im-/.test(r.key)).length;
   at('2026-10-01');
   const r1 = ZD.runPoll(), a1 = r1.sources.find(s => s.src === 'assets');
   const reg = ZD.povodByKey('pk-im-registration-pending|asset:ОИ-501|'), act = ZD.povodByKey('pk-im-act-pending|offer:П-42·позиция:1|');
-  ok(146, before.new === 0 && before.answer === 'множество' && inactive === 0 && a1.new === 23 &&
+  ok(146, before.new === 0 && before.answer === 'множество' && inactive === 0 && a1.new === 21 &&
        ZD.state.povods.filter(p => /^pk-im-/.test(p.kind)).every(p => p.stateDate === '2026-10-01') &&
-       reg.traits.дней === 73 && act.traits.дней_без_акта === 57,
-    `до ввода видов в действие (01.10) имущество отвечает пустым множеством, «вид не введён» не возникает; 01.10 — 23 повода, ` +
+       IM_HL.every(k => hlRows(k).length === 1) && reg.traits.дней === 73 && act.traits.дней_без_акта === 57,
+    `до ввода видов в действие (01.10) имущество отвечает пустым множеством, «вид не введён» не возникает; 01.10 — 21 повод и 2 строки подсветки, ` +
     `база срока каждого прижата к 01.10, а признак хранит давность: квартира ждёт регистрации 73 дня, дом без акта 57 дней`);
 })();
 
@@ -2361,6 +2347,9 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
 /* адресат — формула: куратор предложения / объекта, ответ кураторства «держит заведующий», «Взять в работу» */
 (() => {
   ZD.seed();
+  ZD.releaseTaskKind('pk-im-encumbrance-ending', 2, { basis: { group: 'прямо в Порядке', source: 'демо выпуска' },
+    action: { label: 'Разобрать конец обременения', where: 'карточка имущества' },
+    rule: { addressee: { by: 'кураторство', role: 'куратор имущества' }, dueN: 10 } }); // демо-адресат: подсветка может стать заданием выпуском
   pollOn('2026-10-01');
   const off = imLast('pk-im-offer-overdue|offer:П-41|'), enc = imLast('pk-im-encumbrance-ending|asset:ОИ-509|');
   const reg = imLast('pk-im-registration-pending|asset:ОИ-501|');
@@ -2370,7 +2359,7 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
        reg.assignee === 'E22' && enc.assignee === 'E24' && enc.addr.responsible === 'E24' && /держит заведующий/.test(enc.addr.hold || '') &&
        !!noClaim && ZD.lastEv(reg) === 'принято',
     `«Срок ответа истёк» — куратору предложения П-41 (Абдраимова), «ждёт регистрации» — куратору объекта ОИ-501 (Усенов); ` +
-    `у ОИ-509 правило работника не называет — кураторство отвечает «держит заведующий Сектором», задание Джолдошеву; ` +
+    `у ОИ-509 правило работника не называет — кураторство отвечает «держит заведующий Сектором», задание по выпущенному виду Джолдошеву; ` +
     `задание берут в работу, «Заявить» отбито — работа у владельца`);
 })();
 
@@ -2383,18 +2372,23 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
     `скот и офис осмотрены 25.08: по скоту (порог вида 1 мес.) повод есть, по офису (умолчание 6 мес.) — нет; порог объявляет сосед`);
 })();
 
-/* свёртка по паре «вид × адресат»: двенадцать партий зерна — вал Усенову, скот — поштучно Абдраимовой */
+/* группа по паре «вид × человек»: двенадцать партий зерна — строка группы Усенову, скот — обычная строка Абдраимовой */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
   const insp = ZD.state.tasks.filter(t => t.originKind === 'pk-im-no-inspection');
-  const val = insp.find(t => t.rollupKeys), one = insp.filter(t => t.povodKey);
+  const grain = insp.filter(t => t.assignee === 'E22'), one = insp.filter(t => t.assignee === 'E21');
+  ZD.state.viewer = 'E22';
+  const g = ZD.queueGroups('mine').find(x => x.kind === 'pk-im-no-inspection');
+  ZD.state.viewer = 'E21';
+  const solo = ZD.queueGroups('mine').filter(x => x.task && x.task.originKind === 'pk-im-no-inspection').length;
+  ZD.state.viewer = 'E4';
   pollOn('2026-10-14');
-  const end = val && val.journal[val.journal.length - 1];
-  ok(150, insp.length === 2 && val && val.rollupKeys.length === 12 && val.assignee === 'E22' && one.length === 1 && one[0].assignee === 'E21' &&
-       ZD.outcomeOf(val).outcome === 'исполнено' && end.note === 'шагов 12: исполнено 12, снято 0',
-    `«давно не осматривали» 01.10: двенадцать партий зерна у Усенова — больше порога 10 — один вал ему, скот у Абдраимовой — ` +
-    `поштучно; 14.10 осмотр элеватора — все ключи вала отпали с атрибуцией, вал «исполнено» со сводкой`);
+  ok(150, insp.length === 13 && grain.length === 12 && one.length === 1 && g && g.count === 12 && g.nearest === grain[0].dueDate && solo === 1 &&
+       new Set(grain.map(t => t.povodKey)).size === 12 &&
+       grain.every(t => ZD.outcomeOf(t).outcome === 'исполнено' && ZD.outcomeOf(t).by === 'E22' && !('rollupKeys' in t)),
+    `«давно не осматривали» 01.10: двенадцать партий зерна у Усенова — 12 заданий и строка группы, скот у Абдраимовой — обычная строка; ` +
+    `14.10 осмотр элеватора — каждое из 12 заданий закрылось само, с атрибуцией`);
 })();
 
 /* срок ответа истёк: промежуточное письмо — исполнено */
@@ -2506,47 +2500,38 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
 /* обременение: кончилось по сроку — «снято»; продлено — «исполнено» */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-30');
-  const t = imLast('pk-im-encumbrance-ending|asset:ОИ-509|');
-  const alive = !ZD.isTerminal(t);
-  pollOn('2026-11-02');
-  ZD.seed();
-  pollOn('2026-10-01');
-  const u = imLast('pk-im-encumbrance-ending|asset:ОИ-509|');
+  const on = d => hlRows('pk-im-encumbrance-ending', d).some(r => r.objectId === 'ОИ-509');
+  const before = on('2026-10-01') && on('2026-10-30') && !on('2026-11-02');
   at('2026-10-05'); ZD.imStep('ima', 'ОИ-509', 'E24', 'продлить обременение', '2027-06-30'); ZD.runPoll();
-  ok(159, alive && ZD.outcomeOf(t).outcome === 'снято' && ZD.outcomeOf(t).reason === 'обременение кончилось 31.10.2026' &&
-       ZD.outcomeOf(u).outcome === 'исполнено' && ZD.outcomeOf(u).by === 'E24',
-    `аренда ОИ-509 до 31.10 — повод с 01.10; 02.11 аренда кончилась сама — «снято: обременение кончилось 31.10.2026»; ` +
-    `в другом прогоне 05.10 заведующий Сектором продлил аренду — «исполнено»`);
+  ok(159, before && !on('2026-10-05') && noWork('pk-im-encumbrance-ending'),
+    `аренда ОИ-509 до 31.10 — в подсветке с 01.10; 02.11 аренда кончилась сама — ушла из подсветки; ` +
+    `в другом прогоне 05.10 заведующий Сектором продлил аренду — тоже ушла; заданий нет`);
 })();
 
 /* требование к отчуждателю: частичная оплата повод не гасит, остаток 0 — гасит */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-20');
-  const t = imLast('pk-im-claim-open|asset:ОИ-510|');
-  const p = ZD.povodByKey(t.povodKey);
-  const mid = !ZD.isTerminal(t) && p.status === 'appeared' && p.traits.остаток === 150000;
-  pollOn('2026-11-02');
-  ok(160, mid && ZD.outcomeOf(t).outcome === 'исполнено' && ZD.outcomeOf(t).by === 'E22' && t.dueDate === '2026-10-15',
-    `требование 200 000 открыто с 01.08 — повод с 30.09 (60 к.д.); 20.10 погашено 50 000 — повод жив, остаток 150 000; ` +
-    `02.11 погашен остаток — «исполнено»`);
+  const row = d => hlRows('pk-im-claim-open', d).find(r => r.objectId === 'ОИ-510');
+  const mid = row('2026-10-20');
+  ok(160, !row('2026-09-30') && row('2026-10-01') && row('2026-10-01').stateDate === '2026-10-01' && mid && mid.traits.остаток === 150000 && !row('2026-11-02') && noWork('pk-im-claim-open'),
+    `требование 200 000 открыто с 01.08 — 60 к.д. прошли 30.09, вид введён 01.10 — в подсветке с 01.10; 20.10 погашено 50 000 — строка жива, остаток 150 000; ` +
+    `02.11 погашен остаток — ушла; заданий нет`);
 })();
 
 /* пороги — настройки соседа; в заданиях только срок «внутренний акт» и реквизит суммы */
 (() => {
   ZD.seed();
-  const rules = IM_ORDER.map(k => ZD.ruleForKind(k)), dues = rules.map(r => r.dueN).join();
+  const rules = IM_TASK.map(k => ZD.ruleForKind(k)), dues = rules.map(r => r.dueN).join();
   const noThr = throws(() => setRule('rule-pk-im-unsold', 'threshold', 4, 'E4'));
   setRule('rule-pk-im-no-inspection', 'dueN', 5, 'E4');
   pollOn('2026-10-01');
   const one = imLast('pk-im-no-inspection|asset:ОИ-503|');
   const rows = ZD.taskRows().filter(r => /^pk-im-/.test(r.kind || ''));
-  ok(161, dues === '2,10,10,5,10,15,15,5,10,10' && rules.every(r => r.dueSource === 'внутренний акт' && !('threshold' in r)) &&
+  ok(161, dues === '2,10,10,5,10,15,15,5' && rules.every(r => r.dueSource === 'внутренний акт' && !('threshold' in r)) &&
        !!noThr && one.dueDate === '2026-10-08' && one.ruleEdition === 2 &&
        IM_ORDER.every(k => ZD.kindOf(k).sumAttr) && rows.length && rows.every(r => r.owner === 'Имущество' && r.sumAttr),
     `порог появления повода — настройка модуля имущества, у правила заданий его нет; срок задания — значение правила ` +
-    `«внутренний акт» (2/10/10/5/10/15/15/5/10/10 р.д.), правка — новой редакцией; у каждого вида — реквизит суммы, строка ` +
+    `«внутренний акт» (2/10/10/5/10/15/15/5 р.д.), правка — новой редакцией; у каждого вида — реквизит суммы, строка ` +
     `статистике несёт «чей повод» — Имущество`);
 })();
 
@@ -2558,9 +2543,9 @@ const IM_INSTR_ORDER = ['pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','p
   at('2026-10-02'); const r = ZD.runPoll({ downSources: ['assets'] });
   const frozen = ZD.state.povods.filter(p => /^pk-im-/.test(p.kind) && p.status === 'frozen').length;
   const offer = imLast('pk-im-offer-overdue|offer:П-41|');
-  ok(162, !r.complete && r.sources.find(s => s.src === 'assets').answer === 'таймаут' && frozen === 23 &&
+  ok(162, !r.complete && r.sources.find(s => s.src === 'assets').answer === 'ошибка' && frozen === 21 &&
        ZD.state.povods.filter(p => !/^pk-im-/.test(p.kind) && p.status === 'frozen').length === 0 && others > 0 && !ZD.isTerminal(offer),
-    `02.10 имущество не ответило: его 23 повода заморожены, промежуточное письмо по П-41 задания не закрыло — ждёт ответа; ` +
+    `02.10 имущество не ответило: его 21 повод заморожен, промежуточное письмо по П-41 задания не закрыло — ждёт ответа; ` +
     `поводы остальных источников не тронуты`);
 })();
 
@@ -2608,59 +2593,58 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   ZD.seed();
   const an = ZD.SOURCES.find(s => s.id === 'analysis');
   const d = ZD.kindOf('pk-an-decision'), m = ZD.kindOf('pk-an-no-review');
-  const rd = ZD.ruleForKind('pk-an-decision'), rm = ZD.ruleForKind('pk-an-no-review');
-  ok(165, ZD.SOURCES.length === 17 && ZD.SOURCES[9] === an && an.name === 'Анализ' && an.pollEveryMin === 1440 && an.silenceMin === null &&
-       ZD.silenceThreshold(an) === 2880 && an.kinds.join() === 'pk-an-decision,pk-an-no-review' && ZD.AN_KINDS.length === 2 &&
-       d.ownerExec && d.selfRelease === 'решение без поручений' && !d.periodic && d.objectType === 'review' &&
+  const rm = ZD.ruleForKind('pk-an-no-review');
+  ok(165, ZD.SOURCES.length === 17 && ZD.SOURCES[9] === an && an.name === 'Анализ' && an.onSave === false &&
+       an.kinds.join() === 'pk-an-no-review' && an.highlights.join() === 'pk-an-decision' && ZD.AN_KINDS.length === 2 &&
+       d.genus === 'подсветка' && !ZD.ruleForKind('pk-an-decision') && !d.selfRelease && !d.periodic && d.objectType === 'review' &&
        m.ownerExec && !m.selfRelease && m.periodic && m.periodAbsorb === 'нет' && m.objectType === 'template' &&
-       [d, m].every(k => k.addrForm === 'формула' && k.take === 'нужно' && k.activatedAt === '2026-10-01' && ZD.ownerOfKind(k.id) === 'Анализ') &&
-       rd.mode === 'авто' && !rd.controller && rm.mode === 'авто' && !rm.controller && ZD.actionOf(rd.action).here && ZD.actionOf(rm.action).where &&
+       [d, m].every(k => k.activatedAt === '2026-10-01' && ZD.ownerOfKind(k.id) === 'Анализ') &&
+       m.addrForm === 'формула' && m.take === 'нужно' && !('mode' in rm) && !rm.controller && ZD.actionOf(rm.action).where &&
        ZD.checkRegistry().length === 0,
-    `Анализ — десятый источник, ночной опрос, порог молчания по умолчанию; два вида записями трёх реестров: «обзор требует решения, ` +
-    `поручений нет» (решение адресата без поручений с основанием) и «обзора за период нет» (периодический, поглощения периодом нет); ` +
-    `адресат — формула, «Взять в работу», контролёра у правил нет; реестр сходится`);
+    `Анализ — десятый источник, ночной опрос, молчание — две ночи подряд; «обзор требует решения, поручений нет» — подсветка без правила; ` +
+    `«обзора за период нет» — задание (периодический, поглощения периодом нет): адресат — формула, «Взять в работу», контролёра нет; реестр сходится`);
 })();
 
 /* рубильник и клэмп: до 01.10 — пусто; 01.10 — пять поводов, база прижата, давность честная */
 (() => {
   ZD.seed();
   const r0 = ZD.runPoll(), a0 = r0.sources.find(s => s.src === 'analysis');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-an-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-an-/.test(r.key)).length;
+  const off = hlRows('pk-an-decision').length;
   at('2026-10-01');
   const a1 = ZD.runPoll().sources.find(s => s.src === 'analysis');
   const pv = ZD.state.povods.filter(p => /^pk-an-/.test(p.kind));
-  const ob2 = ZD.povodByKey(AN_D('ОБ-2')), q2 = ZD.povodByKey(AN_P('ШО-04', Q2));
-  ok(166, a0.new === 0 && a0.answer === 'множество' && inactive === 0 && a1.new === 5 && pv.every(p => p.stateDate === '2026-10-01') &&
-       ob2.traits.утверждён === '2026-04-22' && q2.traits.закрыт === '2026-07-06',
-    `до ввода видов (01.10) анализ отвечает пустым множеством, «вид не введён» не возникает; 01.10 — 5 поводов (ОБ-2, ОБ-3, ОБ-4; ` +
-    `ШО-04 за II квартал, ШО-12 за август), база срока прижата к 01.10, а признак хранит правду: ОБ-2 утверждён 22.04, квартал закрыт 06.07`);
+  const ob2 = hlRows('pk-an-decision').find(r => r.objectId === 'ОБ-2'), q2 = ZD.povodByKey(AN_P('ШО-04', Q2));
+  ok(166, a0.new === 0 && a0.answer === 'множество' && inactive === 0 && off === 0 && a1.new === 2 && pv.length === 2 && pv.every(p => p.stateDate === '2026-10-01') &&
+       hlRows('pk-an-decision').length === 3 && ob2.stateDate === '2026-10-01' && ob2.traits.утверждён === '2026-04-22' && q2.traits.закрыт === '2026-07-06',
+    `до ввода видов (01.10) анализ отвечает пустым множеством, «вид не введён» не возникает; 01.10 — 2 повода (ШО-04 за II квартал, ШО-12 за август) и ` +
+    `3 строки подсветки (ОБ-2, ОБ-3, ОБ-4), база прижата к 01.10, а признак хранит правду: ОБ-2 утверждён 22.04, квартал закрыт 06.07`);
 })();
 
-/* «поручений нет»: ключ «вид · обзор», адресат — руководитель подразделения «кому направлен», срок 5 р.д. от утверждения */
+/* «поручений нет»: подсветка, ключ «вид · обзор», признак — кому направлен; заданий нет */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const t2 = anLast(AN_D('ОБ-2')), t3 = anLast(AN_D('ОБ-3')), t4 = anLast(AN_D('ОБ-4'));
+  const row = (no, d) => hlRows('pk-an-decision', d).find(r => r.objectId === no);
+  const r2 = row('ОБ-2'), r3 = row('ОБ-3'), r4 = row('ОБ-4');
   at('2026-10-12'); ZD.runPoll();
-  const t5 = anLast(AN_D('ОБ-5'));
-  ok(167, t2.assignee === 'E2' && t3.assignee === 'E5' && t4.assignee === 'E7' && t5.assignee === 'E5' &&
-       t2.addr.by === 'должность' && t2.addr.unit === 'Сопровождение' && !t2.queue && !t2.controller &&
-       t2.dueDate === '2026-10-08' && t5.dueDate === '2026-10-19' && ZD.lastEv(t2) === 'поручено' &&
-       ZD.povodByKey(AN_D('ОБ-2')).traits.кому_направлен === 'Сопровождение',
-    `ключ «вид · обзор» (${t2.povodKey}); адресат — руководитель подразделения, которому обзор направлен: Сопровождение — ` +
-    `Токтогулов, Взыскание — Садыков, Кредитные программы — Мамбетов; срок 5 р.д. от даты утверждения (ОБ-5 утверждён 12.10 — до 19.10), ` +
-    `у подключения — от 01.10; задание ждёт «Взять в работу»`);
+  const r5 = row('ОБ-5');
+  ok(167, r2.key === AN_D('ОБ-2') && r2.traits.кому_направлен === 'Сопровождение' && r3.traits.кому_направлен === 'Взыскание' && r4.traits.кому_направлен === 'Кредитные программы' &&
+       r5.traits.кому_направлен === 'Взыскание' && r5.stateDate === '2026-10-12' && noWork('pk-an-decision'),
+    `ключ «вид · обзор» (${r2.key}); в подсветке видно, кому обзор направлен: Сопровождение, Взыскание, Кредитные программы; ОБ-5 утверждён 12.10 — ` +
+    `строка с 12.10; задания руководителю нет`);
 })();
 
 /* «требует внимания» и черновик повода не дают */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-14', '2026-10-26');
-  const keys = ZD.state.povods.filter(p => p.kind === 'pk-an-decision').map(p => p.objectId).sort().join();
-  ok(168, keys === 'ОБ-2,ОБ-3,ОБ-4,ОБ-5' && !ZD.povodByKey(AN_D('ОБ-1')) && !ZD.povodByKey(AN_D('ОБ-6')) && !ZD.povodByKey(AN_D('ОБ-9')) &&
+  const seen = new Set();
+  ['2026-10-01', '2026-10-14', '2026-10-26'].forEach(d => { at(d); ZD.runPoll(); hlRows('pk-an-decision').forEach(r => seen.add(r.objectId)); });
+  const keys = Array.from(seen).sort().join();
+  ok(168, keys === 'ОБ-2,ОБ-3,ОБ-4,ОБ-5' && noWork('pk-an-decision') &&
        ZD.ownerAt('an', 'ОБ-1', '2026-10-26').verdict === 'требует внимания' && !ZD.ownerAt('an', 'ОБ-9', '2026-10-26').approved,
-    `поводом стали только утверждённые обзоры с выводом «требует решения руководства» (${keys}); ОБ-1, ОБ-6–ОБ-8 «требуют внимания», ` +
-    `ОБ-9 — черновик: повода нет`);
+    `в подсветке только утверждённые обзоры с выводом «требует решения руководства» (${keys}); ОБ-1, ОБ-6–ОБ-8 «требуют внимания», ` +
+    `ОБ-9 — черновик: строки нет`);
 })();
 
 /* поручение по обзору — свободное задание: подставлен куратор объекта, автор вправе заменить, контролёр — автор */
@@ -2686,94 +2670,72 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
     `(«${replaced}»); свободное без основания по-прежнему требует контролёра`);
 })();
 
-/* шов «задания по основанию»: только поручения; задание по поводу не в счёт; первое поручение гасит повод */
+/* шов «задания по основанию»: только поручения; первое поручение убирает обзор из подсветки */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const rule = anLast(AN_D('ОБ-2'));
+  const has = no => hlRows('pk-an-decision').some(r => r.objectId === no);
   const before = ZD.tasksByBasis('ОБ-2');
   at('2026-10-02'); ZD.runPoll();
-  const alive = ZD.povodByKey(AN_D('ОБ-2')).status;
+  const alive = has('ОБ-2');
   at('2026-10-05');
   const p = poruch('ОБ-2', 'КД-2024/031', 'E2');
   const seam = ZD.tasksByBasis('ОБ-2');
-  const stillOpen = !ZD.isTerminal(rule);
-  ZD.runPoll();
-  const o = ZD.outcomeOf(rule), e = rule.journal[rule.journal.length - 1];
-  ok(170, before.length === 0 && alive === 'appeared' && seam.length === 1 && seam[0].task === p.id && seam[0].assignee === 'E3' &&
-       seam[0].due === '2026-10-30' && seam[0].object === 'КД-2024/031' && stillOpen &&
-       ZD.povodByKey(AN_D('ОБ-2')).status === 'gone' && o.outcome === 'исполнено' && o.by === 'E2' && e.how.indexOf(p.id) !== -1 &&
-       ZD.tasksByBasis('ОБ-3').length === 0,
-    `задание ${rule.id} по поводу ОБ-2 в шов не попало — повод жив и на 02.10; 05.10 Токтогулов поручил ${p.id} по КД-2024/031 — шов ` +
-    `отдаёт его с существом, сроком, адресатом и состоянием; ночью повод отпал, задание «исполнено» с атрибуцией: ${e.how}`);
+  ok(170, before.length === 0 && alive && seam.length === 1 && seam[0].task === p.id && seam[0].assignee === 'E3' &&
+       seam[0].due === '2026-10-30' && seam[0].object === 'КД-2024/031' && !has('ОБ-2') && has('ОБ-3') && ZD.tasksByBasis('ОБ-3').length === 0,
+    `пока поручений нет, ОБ-2 в подсветке и на 02.10; 05.10 Токтогулов поручил ${p.id} по КД-2024/031 — шов ` +
+    `отдаёт его с существом, сроком, адресатом и состоянием; обзор ушёл из подсветки сразу, ОБ-3 остался`);
 })();
 
-/* поручил не адресат — «выполнил другой» */
+/* поручить может не только руководитель подразделения, которому обзор направлен */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const t4 = anLast(AN_D('ОБ-4'));
   at('2026-10-05');
-  poruch('ОБ-4', 'КД-2023/187', 'E16');
-  ZD.runPoll();
-  const o = ZD.outcomeOf(t4);
-  ok(171, o.outcome === 'исполнено · выполнил другой' && o.by === 'E16' && t4.assignee === 'E7',
-    `по ОБ-4 задание у Мамбетова, а поручил заместитель директора Токтосунов — «исполнено · выполнил другой», атрибуция — кто поручил`);
+  const p = poruch('ОБ-4', 'КД-2023/187', 'E16');
+  const seam = ZD.tasksByBasis('ОБ-4');
+  ok(171, seam.length === 1 && seam[0].task === p.id && p.author === 'E16' && !hlRows('pk-an-decision').some(r => r.objectId === 'ОБ-4'),
+    `ОБ-4 направлен Кредитным программам, а поручил заместитель директора Токтосунов — поручение в шве, обзор ушёл из подсветки`);
 })();
 
-/* решение без поручений: адресат, обязательное основание, ключ не переиздаётся, пока жив */
+/* решение без поручений: задания нет, снимать нечего, обзор виден, пока поручений нет */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const t3 = anLast(AN_D('ОБ-3'));
-  at('2026-10-02');
-  const noReason = throws(() => ZD.releaseTask(t3.id, 'E5', ''));
-  const author = throws(() => ZD.releaseTask(t3.id, 'E4', 'не наш вопрос'));
-  const claimNo = throws(() => ZD.claim(t3.id, null, 'E5'));
-  ZD.releaseTask(t3.id, 'E5', 'реструктуризация уже на комитете, поручать нечего');
-  const o = ZD.outcomeOf(t3);
+  const before = ZD.state.tasks.length;
   pollOn('2026-10-02', '2026-10-05', '2026-10-08');
-  const p = ZD.povodByKey(AN_D('ОБ-3'));
-  const again = ZD.state.tasks.filter(t => t.povodKey === AN_D('ОБ-3')).length;
-  ok(172, /основание/.test(noReason) && /адресат/.test(author) && !!claimNo && o.outcome === 'снято' &&
-       o.reason === 'решение без поручений: реструктуризация уже на комитете, поручать нечего' && o.by === 'E5' &&
-       p.status === 'appeared' && ZD.povodReleased(p) && again === 1,
-    `Садыков закрыл задание по ОБ-3 «снято: решение без поручений» с основанием; без основания и не адресату — отказ, «заявить» — ` +
-    `отказ; повод жив (поручений нет), но помечен «снят без поручения» — нового задания 02.10–08.10 не выдано`);
+  const on = hlRows('pk-an-decision').some(r => r.objectId === 'ОБ-3');
+  ok(172, on && noWork('pk-an-decision') && !ZD.kindOf('pk-an-decision').selfRelease && !ZD.state.tasks.some(t => t.povodKey === AN_D('ОБ-3')) && ZD.state.tasks.length >= before,
+    `у подсветки нет адресата и нечего снимать: особого решения «без поручений» больше нет, ОБ-3 виден в подсветке до 08.10, пока поручений нет`);
 })();
 
-/* замена обзора: открытое задание по заменённому — «снято: обзор заменён», заменяющий — новый ключ */
+/* замена обзора: заменённый уходит из подсветки, заменяющий — новая строка */
 (() => {
   ZD.seed();
   pollOn('2026-10-01', '2026-10-08');
-  const t4 = anLast(AN_D('ОБ-4'));
+  const has = (no, d) => hlRows('pk-an-decision', d).some(r => r.objectId === no);
+  const before = has('ОБ-4') && has('ОБ-3');
   pollOn('2026-10-12', '2026-10-14');
-  const o = ZD.outcomeOf(t4), t5 = anLast(AN_D('ОБ-5'));
-  ok(173, o.outcome === 'снято' && o.reason === 'обзор заменён ОБ-6' && o.by === 'владелец' &&
-       ZD.ownerAt('an', 'ОБ-4', '2026-10-14').replacedBy === 'ОБ-6' && !ZD.povodByKey(AN_D('ОБ-6')) &&
-       t5 && !t5.repeatOf && ZD.outcomeOf(anLast(AN_D('ОБ-3'))).reason === 'обзор заменён ОБ-5',
-    `14.10 ОБ-4 заменён ОБ-6 — задание Мамбетова «снято: обзор заменён ОБ-6»; ОБ-6 «требует внимания» — повода нет; ОБ-3 заменён ОБ-5 — ` +
-    `тоже «снято», а ОБ-5 даёт новый ключ и новое задание, не «повтор после»`);
+  ok(173, before && !has('ОБ-4') && !has('ОБ-6') && !has('ОБ-3') && has('ОБ-5') &&
+       ZD.ownerAt('an', 'ОБ-4', '2026-10-14').replacedBy === 'ОБ-6' && noWork('pk-an-decision'),
+    `14.10 ОБ-4 заменён ОБ-6 — строка ушла; ОБ-6 «требует внимания» — строки нет; ОБ-3 заменён ОБ-5 — ` +
+    `тоже ушла, а ОБ-5 даёт новую строку`);
 })();
 
-/* поручения по заменённому заменяющему не засчитываются: «без поручений» с основанием «поручено по ОБ-…» */
+/* поручения по заменённому заменяющему не засчитываются */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
   at('2026-10-05');
   const p3 = poruch('ОБ-3', 'КД-2025/044', 'E5');
   ZD.runPoll();
-  const t3 = anLast(AN_D('ОБ-3'));
+  const gone3 = !hlRows('pk-an-decision').some(r => r.objectId === 'ОБ-3');
   pollOn('2026-10-12');
-  const t5 = anLast(AN_D('ОБ-5'));
   const seam5 = ZD.tasksByBasis('ОБ-5').length;
-  ZD.releaseTask(t5.id, 'E5', `поручено по ОБ-3: ${p3.id}`);
   pollOn('2026-10-14', '2026-10-20');
-  ok(174, ZD.outcomeOf(t3).outcome === 'исполнено' && seam5 === 0 && ZD.tasksByBasis('ОБ-3').length === 1 &&
-       ZD.outcomeOf(t5).reason === `решение без поручений: поручено по ОБ-3: ${p3.id}` &&
-       ZD.state.tasks.filter(t => t.povodKey === AN_D('ОБ-5')).length === 1 && ZD.povodByKey(AN_D('ОБ-5')).status === 'appeared',
-    `по ОБ-3 поручено ${p3.id} — задание исполнено; 12.10 ОБ-3 заменён ОБ-5: его поручение заменяющему не засчитано, повод по ОБ-5 есть; ` +
-    `Садыков закрыл «решение без поручений» с основанием «поручено по ОБ-3: ${p3.id}» — до 20.10 не переиздано`);
+  ok(174, gone3 && seam5 === 0 && ZD.tasksByBasis('ОБ-3').length === 1 && ZD.tasksByBasis('ОБ-3')[0].task === p3.id &&
+       hlRows('pk-an-decision').some(r => r.objectId === 'ОБ-5'),
+    `по ОБ-3 поручено ${p3.id} — ушёл из подсветки; 12.10 ОБ-3 заменён ОБ-5: его поручение заменяющему не засчитано, ОБ-5 в подсветке и на 20.10`);
 })();
 
 /* период закрывает только обзор по всему портфелю */
@@ -2854,19 +2816,19 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   pollOn('2026-11-05');
   const esc = ZD.state.tasks.find(t => t.povodKey === `pk-overdue|task:${aug.id}|`);
   ok(180, !early && esc && esc.assignee === 'E16' && ZD.chiefOf('E27') === 'E16' && !esc.queue &&
-       ZD.state.notifications.some(n => n.taskId === aug.id && n.kind === 'срок-истёк' && n.to === 'E27'),
+       ZD.state.notifications.some(n => n.items.some(i => i.taskId === aug.id) && n.kind === 'срок-истёк' && n.to === 'E27'),
     `август ШО-12 просрочен с 29.10: заведующему — «срок истёк», 02.11 эскалации ещё нет, 05.11 (5-й р.д.) — задание «Просрочено задание» ` +
     `его руководителю Токтосунову; особого адресата эскалации и неразобранной очереди у вида нет`);
 })();
 
-/* суммы нет, свёртка — общий порог, «чей повод» — Анализ */
+/* суммы нет, порога свёртки нет, «чей повод» — Анализ */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
   const rows = ZD.taskRows().filter(r => /^pk-an-/.test(r.kind || ''));
-  ok(181, ['pk-an-decision', 'pk-an-no-review'].every(k => ZD.kindOf(k).sumAttr === null && ZD.ruleForKind(k).rollup === null && ZD.rollupOf(ZD.ruleForKind(k)) === 10) &&
-       rows.length === 5 && rows.every(r => r.owner === 'Анализ' && r.sumAttr === null),
-    `у видов анализа реквизита суммы нет — денежного объекта нет; порог свёртки — умолчание 10; строки статистике несут «чей повод» — Анализ`);
+  ok(181, ['pk-an-decision', 'pk-an-no-review'].every(k => ZD.kindOf(k).sumAttr === null) && !('rollup' in ZD.ruleForKind('pk-an-no-review')) &&
+       rows.length === 2 && rows.every(r => r.owner === 'Анализ' && r.sumAttr === null),
+    `у видов анализа реквизита суммы нет — денежного объекта нет; порога свёртки нет; строки статистике несут «чей повод» — Анализ`);
 })();
 
 /* молчит анализ — замерзают только его поводы */
@@ -2878,7 +2840,7 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   at('2026-10-20'); const r = ZD.runPoll({ downSources: ['analysis'] });
   const frozen = ZD.state.povods.filter(p => /^pk-an-/.test(p.kind) && p.status === 'frozen').length;
   const live = ZD.state.povods.filter(p => /^pk-an-/.test(p.kind) && p.status !== 'gone').length;
-  ok(182, !r.complete && r.sources.find(s => s.src === 'analysis').answer === 'таймаут' && frozen === live && frozen > 0 &&
+  ok(182, !r.complete && r.sources.find(s => s.src === 'analysis').answer === 'ошибка' && frozen === live && frozen > 0 &&
        ZD.state.povods.filter(p => !/^pk-an-/.test(p.kind) && p.status === 'frozen').length === 0 && !ZD.isTerminal(t),
     `20.10 анализ не ответил: его ${frozen} повода заморожены, утверждённый ОБ-7 задание по II кварталу не закрыл — ждёт ответа; ` +
     `поводы остальных источников не тронуты`);
@@ -2897,7 +2859,7 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   const o = ZD.outcomeOf(aug);
   ok(183, /заведующий/.test(analyst) && /уже утверждён/.test(twice) && o.outcome === 'исполнено' && o.by === 'E27' &&
        ZD.describePovod(ZD.povodByKey(AN_P('ШО-12', AUG))).indexOf('период 01.08.2026—31.08.2026') !== -1 &&
-       ZD.describePovod(ZD.povodByKey(AN_D('ОБ-3'))).indexOf('Ошская область') !== -1,
+       ZD.describePovod(hlRows('pk-an-decision', '2026-10-01').find(r => r.objectId === 'ОБ-3')).indexOf('Ошская область') !== -1,
     `в демо-карточке шаблона ОБ-9 утверждает заведующий, не аналитик; утверждённый — повторно нельзя; утверждение ОБ-9 за август по ` +
     `всему портфелю — на опросе 12.10 задание по августу «исполнено»`);
 })();
@@ -2939,20 +2901,18 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
     `(9-го ещё 5) и хранит «было 5 → стало 7», основание и автора правки`);
 })();
 
-/* выданное держит снимок: разбор вала после правки — срок и автор по редакции вала */
+/* выданное держит снимок: правка правила после выдачи срок и автора заданий не трогает */
 (() => {
   ZD.seed();
-  setRule('rule-org-head-vacant', 'rollup', 1);
+  setRule('rule-org-head-vacant', 'dueN', 3);
   ZD.runPoll();
-  const val = ZD.state.tasks.find(t => t.originKind === 'pk-org-head-vacant' && t.rollupKeys);
+  const issued = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant');
   ZD.editRule('rule-org-head-vacant', { dueN: 9, author: 'post-admin' }, { by: 'E4', basis: 'приказ №43' });
-  const pieces = ZD.splitRollup(val.id, val.assignee);
-  const fresh = ZD.state.tasks.find(t => t.originKind === 'pk-org-head-vacant' && t.povodKey && pieces.indexOf(t) === -1);
-  ok(186, val.ruleEdition === 2 && pieces.length === 2 &&
-       pieces.every(t => t.ruleEdition === 2 && t.dueDate === ZD.addWorkdays('2026-09-02', 2) && t.author === 'E16') &&
-       ZD.ruleForKind('pk-org-head-vacant').edN === 3 && fresh && fresh.ruleEdition === 2 && fresh.dueDate === ZD.addWorkdays('2026-09-02', 2),
-    `вал выдан по редакции 2; правило переправлено (срок 9, автор — администратор); разбор вала дал поштучные по снимку вала — ` +
-    `редакция 2, срок 2 р.д., поручил заместитель директора; поштучное, выданное раньше правки, тоже не тронуто`);
+  ZD.runPoll();
+  ok(186, issued.length === 3 && issued.every(t => t.ruleEdition === 2 && t.dueDate === ZD.addWorkdays('2026-09-02', 3) && t.author === 'E16') &&
+       ZD.ruleForKind('pk-org-head-vacant').edN === 3 && ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant').length === 3,
+    `три задания выданы по редакции 2; правило переправлено (срок 9, автор — администратор); выданные держат снимок — ` +
+    `редакция 2, срок 3 р.д., поручил заместитель директора`);
 })();
 
 /* автор правила — должность; автор задания — держатель на дату выдачи; вакантна — администратор */
@@ -2966,7 +2926,7 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
        stat.author === 'E4' && stat.authorPost === 'post-stat' && stat.authorVia === 'вакантна' &&
        ZD.ruleForKind('pk-im-unsold').author === 'post-assets' && ZD.ruleForKind('doc-sign').author === 'post-office' &&
        ZD.ruleForKind('pk-overdue').author === 'post-admin',
-    `у всех 60 правил автор — должность, а не фамилия: «Рассмотреть госрешение» поручил заведующий отделом программ ` +
+    `у всех 79 правил автор — должность, а не фамилия: «Рассмотреть госрешение» поручил заведующий отделом программ ` +
     `(Мамбетов) — он и утверждает продление; у «сосед статистики молчит» должность «Руководитель аналитики» вакантна — ` +
     `поручил администратор модуля, с отметкой; имущество — заведующий Сектором, документ — канцелярия, самоопрос — администратор`);
 })();
@@ -2974,93 +2934,76 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
 /* контролёр и важность правятся редакцией; выданное держит снимок */
 (() => {
   ZD.seed();
-  ZD.editRule('rule-org-orphan-terr', { controller: 'автор', importance: 'низкая' }, { by: 'E4', basis: 'служебная записка №7' });
+  ZD.editRule('rule-org-head-vacant', { controller: 'автор', importance: 'низкая' }, { by: 'E4', basis: 'служебная записка №7' });
   ZD.runPoll();
-  const t = ZD.state.tasks.find(x => x.originKind === 'pk-org-orphan-terr');
-  const other = ZD.state.tasks.find(x => x.originKind === 'pk-org-acting-expiring');
-  ZD.editRule('rule-org-orphan-terr', { controller: null, importance: 'высокая' }, { by: 'E4', basis: 'служебная записка №8' });
+  const t = ZD.state.tasks.find(x => x.originKind === 'pk-org-head-vacant');
+  const other = ZD.state.tasks.find(x => x.originKind === 'pk-rep-obligation-overdue');
+  ZD.editRule('rule-org-head-vacant', { controller: null, importance: 'высокая' }, { by: 'E4', basis: 'служебная записка №8' });
   ok(188, t.controller === 'E16' && t.controller === t.author && t.importance === 'низкая' && other.controller === null &&
-       other.importance === ZD.actionOf(other.action).importance && t.controller === 'E16' && t.importance === 'низкая' &&
-       ZD.ruleForKind('pk-org-orphan-terr').controller === null && ZD.ruleForKind('pk-org-orphan-terr').importance === 'высокая',
-    `в правиле «территория без подразделения» контролёр — автор, важность — низкая: задание выдано с контролёром ` +
+       other.importance === ZD.actionOf(other.action).importance &&
+       ZD.ruleForKind('pk-org-head-vacant').controller === null && ZD.ruleForKind('pk-org-head-vacant').importance === 'высокая',
+    `в правиле «вакансия руководителя» контролёр — автор, важность — низкая: задание выдано с контролёром ` +
     `(заместитель директора) и низкой важностью; соседнее правило без правки — по действию; следующая редакция задание не трогает`);
 })();
 
-/* порог свёртки — поле правила, правится редакцией с основанием; у вида его нет */
+/* порога свёртки нет нигде: попытка не даёт редакции */
 (() => {
   ZD.seed();
-  const e = setRule('rule-org-head-vacant', 'rollup', 1);
+  const e = throws(() => setRule('rule-org-head-vacant', 'rollup', 1));
   const r = ZD.ruleForKind('pk-org-head-vacant');
-  ok(189, ZD.state.povodKinds.every(k => !('rollup' in k)) && e.values.rollup === 1 && e.by === 'E4' && e.basis === 'приказ' &&
-       r.editions.length === 2 && ZD.rollupOf(r) === 1 && r.editions[0].values.rollup === null,
-    `порога свёртки у вида больше нет: он в правиле и меняется редакцией — с автором правки и основанием, прежнее значение ` +
-    `(умолчание 10) остаётся в редакции 1`);
+  ok(189, /выпуском/.test(e) && ZD.state.povodKinds.every(k => !('rollup' in k)) && r.editions.length === 1 && !('rollup' in r.editions[0].values) && !('rollup' in r),
+    `порога свёртки нет ни у вида, ни у правила, ни в редакции; попытка поставить его отбита («${e}») и редакции не дала`);
 })();
 
-/* род вида: шаг и самоопрос — всегда авто; ручной и рубильник — только у надзора */
+/* род вида: пять родов; ручного режима нет ни у кого */
 (() => {
   ZD.seed();
   const g = x => ZD.state.povodKinds.filter(k => k.genus === x).length;
-  const step = throws(() => setRule('rule-doc-sign', 'mode', 'ручной'));
-  const self = throws(() => setRule('rule-overdue', 'mode', 'ручной'));
-  const nad = setRule('rule-pk-im-unsold', 'mode', 'ручной');
-  ok(190, g('самоопрос') === 9 && g('шаг') === 24 && g('надзор') === 72 && /всегда авто/.test(step) && /всегда авто/.test(self) &&
-       nad.values.mode === 'ручной' && ZD.checkRegistry().length === 0,
-    `род объявлен у всех 105 видов: самоопрос 9, шаг 24 (согласования, заявка на передачах работы, документ), надзор 72; ` +
-    `ручной режим у шага подписи и у самоопроса — отказ, у надзора «не продан» — новая редакция; реестр сходится`);
+  const modes = ['rule-doc-sign', 'rule-overdue', 'rule-pk-im-unsold'].map(id => throws(() => setRule(id, 'mode', 'ручной')));
+  ok(190, ZD.GENERA.join() === 'шаг,надзор,самоопрос,сигнал,подсветка' && g('самоопрос') === 7 && g('шаг') === 24 && g('надзор') === 48 && g('сигнал') === 1 && g('подсветка') === 25 &&
+       ZD.state.povodKinds.length === 105 && modes.every(x => /выпуском/.test(x)) && ZD.checkRegistry().length === 0,
+    `род объявлен у всех 105 видов: шаг 24, надзор 48 (из них два выведены выпуском), самоопрос 7, сигнал 1, подсветка 25; ` +
+    `ручной режим отбит и у шага, и у самоопроса, и у надзора; реестр сходится`);
 })();
 
-/* ручной режим: «решить по поводам» автору; новые поводы — в открытое; перевод в авто — нерешённые поручаются */
+/* режим всегда авто: новый повод сразу — задание адресату по формуле, «решить» автору нет */
 (() => {
   ZD.seed();
-  setRule('rule-stat-silent', 'mode', 'ручной');
   ZD.runPoll();
-  const t = ZD.state.tasks.find(x => x.decide && x.originKind === 'pk-stat-neighbor-silent');
-  const n0 = t.rollupKeys.length, own = t.assignee;
-  const alien = throws(() => ZD.decidePovods(t.id, t.rollupKeys, 'поручить', 'E7'));
+  const first = ZD.state.tasks.filter(x => x.originKind === 'pk-stat-neighbor-silent');
   at('2026-09-04'); ZD.runPoll();
-  const added = t.journal.filter(e => e.ev === 'ключ добавлен').length, label = t.label, st = ZD.lastEv(t);
-  setRule('rule-stat-silent', 'mode', 'авто');
-  ZD.runPoll();
-  const issued = ZD.state.tasks.filter(x => x.originKind === 'pk-stat-neighbor-silent' && !x.decide);
-  const o = ZD.outcomeOf(t);
-  ok(191, n0 === 1 && own === 'E4' && /автор/.test(alien) && added === 1 && /2 шт\./.test(label) && st === 'принято' && issued.length === 2 &&
-       o.outcome === 'снято' && /переведено в авто/.test(o.reason) && ZD.state.tasks.filter(x => x.decide).length === 1,
-    `правило «сосед статистики молчит» в ручном: прогон 02.09 — «решить» на 1 повод автору (должность вакантна — ` +
-    `администратор); чужой решать не может; 04.09 второй повод добавлен в то же открытое «решить» (2 шт.); правило переведено в авто — ` +
-    `оба нерешённых поручены сами, «решить» снято`);
+  const issued = ZD.state.tasks.filter(x => x.originKind === 'pk-stat-neighbor-silent');
+  ok(191, first.length === 1 && first[0].assignee === 'E1' && issued.length === 2 && issued.every(t => t.kind === 'rule' && !t.decide && t.povodKey) &&
+       ZD.state.tasks.every(x => !x.decide) && ZD.decidePovods === undefined,
+    `«сосед статистики молчит»: прогон 02.09 — задание куратору E1; 04.09 второй повод — второе задание адресату по формуле, ` +
+    `накопительного «решить» автору нет`);
 })();
 
-/* ручной режим: свёртки нет; не решил в срок — обычная просрочка; кнопки «поручить вручную» нет */
+/* вместо «решить в срок» — обычная просрочка каждого задания; кнопки «поручить вручную» нет */
 (() => {
   ZD.seed();
-  setRule('rule-org-head-vacant', 'rollup', 1);
-  setRule('rule-org-head-vacant', 'mode', 'ручной');
   ZD.runPoll();
-  const t = ZD.state.tasks.find(x => x.decide);
-  const rolled = ZD.state.tasks.some(x => x.originKind === 'pk-org-head-vacant' && x.rollupKeys && !x.decide);
+  const ts = ZD.state.tasks.filter(x => x.originKind === 'pk-org-head-vacant');
   at('2026-09-15'); ZD.runPoll();
-  const ov = ZD.state.povods.find(p => p.kind === 'pk-overdue' && p.objectId === t.id);
-  const ovTask = ov && ZD.state.tasks.find(x => x.povodKey === ov.key);
-  ok(192, t.rollupKeys.length === 3 && !rolled && t.dueDate === '2026-09-04' && !!ovTask && ovTask.assignee === 'E4' &&
-       typeof ZD.issueManual === 'undefined',
-    `порог 1 при ручном режиме вал не выдал — все 3 повода в «решить»; автор не решил к 04.09 — 15.09 «Просрочено задание» ` +
-    `руководителю автора; кнопки «поручить все разом» больше нет`);
+  const esc = ts.map(t => ZD.state.tasks.find(x => x.povodKey === `pk-overdue|task:${t.id}|`));
+  ok(192, ts.length === 3 && ts.every(t => t.dueDate === '2026-09-04') && esc.every(x => !!x && x.originKind === 'pk-overdue') && typeof ZD.issueManual === 'undefined',
+    `все 3 повода — 3 задания со сроком 04.09; не сделано — 15.09 у каждого своя «Просрочено задание» руководителю исполнителя; ` +
+    `кнопки «поручить все разом» нет`);
 })();
 
-/* вернувшийся повод снова в открытом «решить» — живой, без второй строки */
+/* снятый автором повод отпал и вернулся — новое задание «повтор после», пока жив — не переиздаётся */
 (() => {
   ZD.seed();
-  setRule('rule-org-head-vacant', 'mode', 'ручной');
   ZD.runPoll();
-  const t = ZD.state.tasks.find(x => x.decide);
-  const [k1] = t.rollupKeys;
-  ZD.decidePovods(t.id, [k1], 'не поручать', 'E16', 'конкурс объявлен');
-  ZD.povodByKey(k1).status = 'gone'; // повод отпал и вернулся
+  const t = ZD.state.tasks.find(x => x.originKind === 'pk-org-head-vacant');
+  ZD.releaseTask(t.id, t.author, 'конкурс объявлен');
   ZD.runPoll();
-  ok(198, t.rollupKeys.length === 3 && ZD.liveKeys(t).length === 3 && !ZD.isTerminal(t) && ZD.lastEv(t) === 'принято',
-    `повод, по которому решили «не поручать», отпал и вернулся — снова живой в том же «решить», без второй строки; ` +
-    `состояние «решить» — по-прежнему в работе`);
+  const held = ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length;
+  ZD.povodByKey(t.povodKey).status = 'gone'; // повод отпал и вернулся
+  ZD.runPoll();
+  const again = ZD.state.tasks.filter(x => x.povodKey === t.povodKey);
+  ok(198, held === 1 && again.length === 2 && again[1].repeatOf === t.id && ZD.outcomeOf(t).outcome === 'снято' && !ZD.isTerminal(again[1]),
+    `повод, задание по которому автор снял с основанием, пока жив — нового задания нет; отпал и вернулся — новое «повтор после ${t.id}»`);
 })();
 
 /* порог появления — настройка соседа: правило его не хранит, сверка не пропускает */
@@ -3068,16 +3011,16 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const n30 = ZD.state.povods.filter(p => p.kind === 'lp-expiring').length;
+  const n30 = hlRows('lp-expiring').length;
   ZD.seed();
   ZD.state.neighborSet.lp.expiringDays = 10;
   ZD.runPoll();
-  const n10 = ZD.state.povods.filter(p => p.kind === 'lp-expiring').length;
+  const n10 = hlRows('lp-expiring').length;
   ZD.seed();
   ZD.ruleForKind('ap-stuck-new').threshold = 12;
   const errs = ZD.checkRegistry();
-  ok(193, n30 > n10 && !('threshold' in ZD.ruleForKind('lp-expiring')) && errs.some(e => /настройка соседа/.test(e)),
-    `«Истекает» — настройка программ: 30 к.д. дают ${n30} повода, 10 к.д. — ${n10}; правило заданий порога не хранит, а ` +
+  ok(193, n30 > n10 && !ZD.ruleForKind('lp-expiring') && errs.some(e => /настройка соседа/.test(e)),
+    `«Истекает» — настройка программ: 30 к.д. дают ${n30} строки подсветки, 10 к.д. — ${n10}; у подсветки правила нет, а ` +
     `подложенный в правило порог сверка реестра ловит`);
 })();
 
@@ -3098,12 +3041,12 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
 /* один вид — одно правило; правило называет существующие вид и действие */
 (() => {
   ZD.seed();
-  const r = ZD.ruleForKind('pk-org-orphan-terr');
+  const r = ZD.ruleForKind('pk-org-head-vacant');
   ZD.state.rules.push(Object.assign({}, r, { id: 'rule-dup' }), Object.assign({}, r, { id: 'rule-bad', kind: 'pk-nope', action: 'act-nope' }));
   const errs = ZD.checkRegistry();
   ZD.runPoll();
-  ok(195, errs.some(e => /правил 2/.test(e)) && errs.some(e => /pk-nope.*не заведён/.test(e)) && ZD.ruleForKind('pk-org-orphan-terr') === null &&
-       ZD.state.povods.some(p => p.kind === 'pk-org-orphan-terr') && !ZD.state.tasks.some(t => t.originKind === 'pk-org-orphan-terr'),
+  ok(195, errs.some(e => /правил 2/.test(e)) && errs.some(e => /pk-nope.*не заведён/.test(e)) && ZD.ruleForKind('pk-org-head-vacant') === null &&
+       ZD.state.povods.some(p => p.kind === 'pk-org-head-vacant') && !ZD.state.tasks.some(t => t.originKind === 'pk-org-head-vacant'),
     `второе правило на вид и правило на незаведённый вид сверка ловит; вид с двумя правилами повод видит, но не поручает ` +
     `ни по одному — первое попавшееся не берётся`);
 })();
@@ -3111,27 +3054,24 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
 /* выпуск правит только свои поля — новой редакцией, деловые значения прода сохраняет */
 (() => {
   ZD.seed();
-  setRule('rule-org-orphan-terr', 'dueN', 4);
-  const e = ZD.releaseRule('rule-org-orphan-terr', 14, { addressee: { by: 'должность', who: 'администратор модуля' } });
-  const bad = throws(() => ZD.releaseRule('rule-org-orphan-terr', 14, { dueN: 2 }));
-  const r = ZD.ruleForKind('pk-org-orphan-terr');
+  setRule('rule-org-head-vacant', 'dueN', 4);
+  const e = ZD.releaseRule('rule-org-head-vacant', 14, { addressee: { by: 'должность', who: 'администратор модуля' } });
+  const bad = throws(() => ZD.releaseRule('rule-org-head-vacant', 14, { dueN: 2 }));
+  const r = ZD.ruleForKind('pk-org-head-vacant');
   ok(196, e.by === 'выпуск 14' && e.values.dueN === 4 && r.dueN === 4 && r.addressee.by === 'должность' && r.edN === e.n &&
        /поле прода/.test(bad),
     `выпуск 14 сменил адресата новой редакцией и сохранил срок 4, поставленный администратором по приказу; срок выпуском ` +
     `не меняется`);
 })();
 
-/* «вид повода не введён в действие» — самоопрос в авторежиме, автор — администратор заданий */
+/* «вид не введён в действие» — подсветка реестра: видно, заданий нет */
 (() => {
   ZD.seed();
-  const k = ZD.kindOf('pk-org-liq-blocked'); k.activatedAt = null; k.createdAt = '2026-08-28'; // пришёл выпуском, не введён
+  const k = ZD.kindOf('pk-org-head-vacant'); k.activatedAt = null; k.createdAt = '2026-08-28'; // пришёл выпуском, не введён
   ZD.runPoll();
-  const r = ZD.ruleForKind('pk-kind-inactive');
-  const t = ZD.state.tasks.filter(x => x.originKind === 'pk-kind-inactive');
-  ok(197, r.mode === 'авто' && r.author === 'post-admin' && t.length === 1 && t[0].assignee === 'E4' && !t[0].decide &&
-       !ZD.state.tasks.some(x => x.decide),
-    `вид «ликвидация заблокирована» пришёл выпуском 28.08 и не введён — прогон 02.09 сам выдал задание «ввести вид в действие» ` +
-    `администратору, без «решить по поводам»: самоопрос ручным не бывает`);
+  const rows = hlRows('pk-kind-inactive').filter(r => r.objectId === 'pk-org-head-vacant');
+  ok(197, rows.length === 1 && !ZD.ruleForKind('pk-kind-inactive') && noWork('pk-kind-inactive') && ZD.state.tasks.every(x => !x.decide),
+    `вид «вакансия руководителя» пришёл выпуском 28.08 и не введён — администратор видит его в подсветке реестра; задания нет, за это не спросят`);
 })();
 
 
@@ -3306,26 +3246,18 @@ const outc = t => (ZD.outcomeOf(t) || {});
     `например ${seen.slice(-3).join(', ')}`);
 })();
 
-/* строка — одна на задание на дату; закрытые остаются, вал — одна строка с числом ключей */
+/* строка — одна на задание на дату; закрытые остаются; рода «вал» и «решить» и числа ключей нет */
 (() => {
   ZD.seed();
   walk('2026-10-16', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
   const rows = ZD.taskRows('2026-10-16'), early = ZD.taskRows('2026-09-02');
-  const ids = rows.map(r => r.task), val = rows.find(r => r.genus === 'вал');
+  const ids = rows.map(r => r.task);
   const closed = rows.filter(r => r.closed);
   const total = ZD.state.tasks.filter(t => t.journal[0].t <= '2026-10-16').length;
-  ZD.seed();
-  at('2026-10-05'); setRule('rule-rep-due', 'mode', 'ручной');
-  walk('2026-10-08');
-  const dec = ZD.state.tasks.find(t => t.decide && t.ruleId === 'rule-rep-due');
-  const k6 = dec && ZD.taskRows('2026-10-06').find(r => r.task === dec.id), k8 = dec && ZD.taskRows('2026-10-08').find(r => r.task === dec.id);
-  ok(208, k6 && k8 && k6.genus === 'решить' && k6.keys === 1 && k8.keys === 4 &&
-       new Set(ids).size === ids.length && ids.length === total &&
-       early.length < rows.length && early.every(r => r.issued <= '2026-09-02') && val && val.keys === val.rollupKeys.length && val.keys > 1 &&
-       closed.length > 0 && rows.every(r => r.date === '2026-10-16'),
+  ok(208, new Set(ids).size === ids.length && ids.length === total && early.length < rows.length && early.every(r => r.issued <= '2026-09-02') &&
+       closed.length > 0 && rows.every(r => r.date === '2026-10-16' && ['по правилу', 'свободное'].includes(r.genus) && !('keys' in r)),
     `ЗДБ-5 — на 16.10 ${rows.length} строк, по одной на задание, из них закрытых ${closed.length}; на 02.09 — ${early.length} ` +
-    `(только выданные к той дате); вал ${val && val.task} — одна строка, ключей ${val && val.keys}; «решить по поводам» ` +
-    `при ручном правиле — на 06.10 ключей ${k6 && k6.keys}, на 08.10 — ${k8 && k8.keys}`);
+    `(только выданные к той дате); род — по правилу или свободное, числа ключей в строке нет: у каждого задания один повод`);
 })();
 
 /* состав строки и состояние на дату: одно задание в четыре дня; охват — исполнитель, у очереди — роль */
@@ -3339,7 +3271,7 @@ const outc = t => (ZD.outcomeOf(t) || {});
   ok(209, a.assignee === null && a.queueRole === 'rep-kp' && a.dept === 'Кредитные программы' && /поручено/i.test(a.state) && !a.overdue &&
        b.assignee === 'E6' && b.queueRole === null && /принято|в работе/i.test(b.state) &&
        c.overdue && c.overdueWd === 3 && c.closed === null && e.closed === '2026-10-26' && e.outcome === 'исполнено' && !e.overdue &&
-       a.genus === 'по правилу' && a.kindGenus === 'надзор' && a.importance === 'высокая' && a.authorPost && a.keys === 1 &&
+       a.genus === 'по правилу' && a.kindGenus === 'надзор' && a.importance === 'высокая' && a.authorPost && !('keys' in a) &&
        gf.assignee === null && gf.dept === 'Головной филиал' && gf.overdue && sopr.closed && sopr.dept === 'Сопровождение' && sopr.queueRole === null,
     `ЗДБ-6/7 — задание ${id}: 08.10 «${a.state}» в очереди «Отчётность · Кредитные программы», охват — подразделение роли; ` +
     `09.10 «${b.state}» у E6; 20.10 просрочено ${c.overdueWd} р.д.; 26.10 закрыто «${e.outcome}»; род — по правилу, вид — ` +
@@ -3384,31 +3316,27 @@ const outc = t => (ZD.outcomeOf(t) || {});
 
 /* ---------- Y. Подключение кредита (волна макета 15) ---------- */
 const crKey = (id, date) => `pk-cr-payment-due|credit:${id}|${date}`;
-const crLast = (id, date) => { const a = ZD.state.tasks.filter(t => t.povodKey === crKey(id, date)); return a[a.length - 1]; };
-const crVal = () => ZD.state.tasks.find(t => t.originKind === 'pk-cr-payment-due' && t.rollupKeys);
+const noTaskCr = () => !ZD.state.tasks.some(t => t.originKind === 'pk-cr-payment-due');
+const crSig = to => ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.originKind === 'pk-cr-payment-due' && (!to || n.to === to));
 
-/* одиннадцатый источник: один вид записями трёх реестров, адресат — куратор кредита */
+/* одиннадцатый источник: один вид — сигнал, правила и действия нет */
 (() => {
   ZD.seed();
-  const cr = ZD.SOURCES.find(s => s.id === 'credit'), k = ZD.kindOf('pk-cr-payment-due'), r = ZD.ruleForKind('pk-cr-payment-due');
-  const a = r && ZD.actionOf(r.action);
-  ok(212, ZD.SOURCES.length === 17 && ZD.SOURCES[10] === cr && cr.name === 'Кредит' && cr.pollEveryMin === 1440 && cr.silenceMin === null &&
-       ZD.silenceThreshold(cr) === 2880 && cr.kinds.join() === 'pk-cr-payment-due' && ZD.CR_KINDS.length === 1 &&
-       k.objectType === 'credit' && k.ownerExec && k.addrForm === 'формула' && k.take === 'нужно' && k.selfRelease === 'не требуется' &&
-       k.genus === 'надзор' && !k.periodic && k.sumAttr === 'сумма платежа по графику' && k.activatedAt === '2026-10-01' &&
-       r.mode === 'авто' && !r.controller && r.addressee.by === 'кураторство' && r.addressee.role === 'куратор кредита' &&
-       r.dueN === 5 && r.dueUnit === 'workday' && a && /заёмщик/.test(a.label) && /карточка кредита/.test(a.where) &&
+  const cr = ZD.SOURCES.find(s => s.id === 'credit'), k = ZD.kindOf('pk-cr-payment-due'), c = ZD.state.signals['pk-cr-payment-due'];
+  ok(212, ZD.SOURCES.length === 17 && ZD.SOURCES[10] === cr && cr.name === 'Кредит' && cr.onSave === false &&
+       cr.kinds.join() === 'pk-cr-payment-due' && ZD.CR_KINDS.length === 1 && ZD.SIGNAL_KINDS.join() === 'pk-cr-payment-due' &&
+       k.objectType === 'credit' && k.genus === 'сигнал' && !k.selfRelease && !k.periodic && k.sumAttr === 'сумма платежа по графику' && k.activatedAt === '2026-10-01' &&
+       !ZD.ruleForKind('pk-cr-payment-due') && !ZD.actionOf('act-cr-payment') && c.recipients[0].role === 'куратор кредита' && c.channels.join() === 'всплывающее' &&
        ZD.ownerOfKind('pk-cr-payment-due') === 'Кредит' && ZD.checkRegistry().length === 0,
-    `Кредит — одиннадцатый источник, ночной опрос, порог молчания по умолчанию; один вид «срок платежа по графику близко» ` +
-    `записями трёх реестров: надзор, работа у владельца, адресат — формула «куратор кредита», «Взять в работу», решение ` +
-    `адресата «не требуется», реквизит — сумма платежа по графику, срок 5 р.д.; реестр сходится`);
+    `Кредит — одиннадцатый источник, ночной опрос, молчание — две ночи подряд; один вид «срок платежа по графику близко» — сигнал: правила и действия нет, ` +
+    `получатель — куратор кредита, способ — всплывающее, реквизит — сумма платежа по графику; реестр сходится`);
 })();
 
 /* рубильник и клэмп: до 01.10 поводов нет; 01.10 — 15, база срока прижата, ключ «вид · кредит · дата платежа» */
 (() => {
   ZD.seed();
   const r0 = ZD.runPoll(), c0 = r0.sources.find(s => s.src === 'credit');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-cr-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-cr-/.test(r.key)).length;
   at('2026-10-01');
   const r1 = ZD.runPoll(), c1 = r1.sources.find(s => s.src === 'credit');
   const ps = ZD.state.povods.filter(p => p.kind === 'pk-cr-payment-due');
@@ -3437,125 +3365,86 @@ const crVal = () => ZD.state.tasks.find(t => t.originKind === 'pk-cr-payment-due
     `КД-2023/187 20.11 появляется 21.10, не 20.10`);
 })();
 
-/* адресат: куратор кредита; у Нурлановой двенадцать платежей — вал, у Есеновой — поштучно */
+/* получатель — куратор кредита; за прогон одно уведомление с перечнем, заданий нет */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const own = ZD.state.tasks.filter(t => t.originKind === 'pk-cr-payment-due');
-  const one = own.filter(t => t.povodKey), val = crVal();
-  const t = crLast('КД-2023/187', '2026-10-20');
-  const noClaim = throws(() => { ZD.take(t.id, 'E1'); ZD.claim(t.id, null, 'E1'); });
-  ok(215, own.length === 4 && one.length === 3 && one.every(x => x.assignee === 'E1' && x.addr.by === 'кураторство' &&
-       x.addr.role === 'куратор кредита' && x.dueDate === '2026-10-08') &&
-       val && val.assignee === 'E3' && val.rollupKeys.length === 12 && /не выдаётся|работа делается у владельца/.test(noClaim) &&
-       /КД-2023\/187 · ОсОО «Нарын-Сүт» · платёж 20\.10\.2026/.test(t.label),
-    `01.10: три платежа Есеновой — поштучно, срок 5 р.д. (08.10); двенадцать платежей Нурлановой 26.10 — больше порога 10 — ` +
-    `один вал ей; «Заявить» отбито — работа в карточке кредита`);
+  const e1 = crSig('E1'), e3 = crSig('E3');
+  const seenBefore = crSig().length;
+  ZD.runPoll();
+  ok(215, noTaskCr() && e1.length === 1 && e1[0].count === 3 && e1[0].items.length === 3 && e3.length === 1 && e3[0].count === 12 && e3[0].taskId === null && e3[0].due === null &&
+       /Срок платежа/.test(e1[0].text) && e1[0].channels.join() === 'всплывающее' && crSig().length === seenBefore &&
+       e1[0].items.some(i => /КД-2023\/187 · ОсОО «Нарын-Сүт» · платёж 20\.10\.2026/.test(i.text)),
+    `01.10: Есеновой одно уведомление о трёх платежах, Нурлановой одно о двенадцати; задания и срока нет; живой повод повторно не шлётся`);
 })();
 
-/* уведомление заёмщику гасит повод: куратор — «исполнено», руководитель за куратора — «выполнил другой» */
+/* уведомление заёмщику — действие куратора в карточке кредита: повод не гасит, закрывать нечего */
 (() => {
   ZD.seed();
   pollOn('2026-10-01', '2026-10-05');
-  const t187 = crLast('КД-2023/187', '2026-10-20'), o187 = ZD.outcomeOf(t187);
+  const p187 = ZD.povodByKey(crKey('КД-2023/187', '2026-10-20'));
   pollOn('2026-10-06');
-  const t112 = crLast('КД-2024/112', '2026-11-05');
   at('2026-10-07');
   const stranger = throws(() => ZD.crStep('КД-2024/112', 'E6', 'уведомить', '2026-11-05'));
   const past = throws(() => ZD.crStep('КД-2023/187', 'E1', 'уведомить', '2026-09-20'));
   ZD.crStep('КД-2024/112', 'E2', 'уведомить', '2026-11-05');
   pollOn('2026-10-08');
-  const o112 = ZD.outcomeOf(t112);
-  ok(216, o187.outcome === 'исполнено' && o187.by === 'E1' && ZD.povodByKey(t187.povodKey).status === 'gone' &&
-       /куратор кредита/.test(stranger) && !!past && o112.outcome === 'исполнено · выполнил другой' && o112.by === 'E2',
-    `05.10 Есенова отправила уведомление о платеже 20.10 — повод отпал, задание «исполнено»; по КД-2024/112 уведомил ` +
-    `руководитель Токтогулов — «исполнено · выполнил другой»; чужой сотрудник и прошедший платёж — отказ`);
+  const s = ZD.creditAt(ZD.state.owner.cr.find(o => o.id === 'КД-2024/112'), '2026-10-08');
+  ok(216, p187.status === 'appeared' && ZD.povodByKey(crKey('КД-2024/112', '2026-11-05')).status === 'appeared' && noTaskCr() &&
+       /куратор кредита/.test(stranger) && !!past && s.notices['2026-11-05'] && s.notices['2026-11-05'].by === 'E2',
+    `05.10 Есенова уведомила заёмщика о платеже 20.10 — запись в карточке, повод жив до даты платежа; по КД-2024/112 уведомил ` +
+    `руководитель Токтогулов — запись с его именем; чужой сотрудник и прошедший платёж — отказ; заданий нет`);
 })();
 
-/* «не требуется»: решение адресата с причиной; ключ не переиздаётся, пока жив */
+/* отвечать на сигнал нечем: решения адресата нет, повод живёт до даты платежа */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const t = crLast('КД-2026/015', '2026-10-15');
-  const noWhy = throws(() => ZD.releaseTask(t.id, 'E1', ''));
-  const notMine = throws(() => ZD.releaseTask(t.id, 'E3', 'не нужно'));
-  ZD.take(t.id, 'E1');
-  ZD.releaseTask(t.id, 'E1', 'автоплатёж, просрочек не было');
-  const o = ZD.outcomeOf(t);
+  const key = crKey('КД-2026/015', '2026-10-15');
+  const n0 = crSig('E1').length;
   pollOn('2026-10-02', '2026-10-14');
-  const p = ZD.povodByKey(t.povodKey), alive = p.status === 'appeared', released = ZD.povodReleased(p);
-  const n = ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length;
+  const alive = ZD.povodByKey(key).status === 'appeared';
+  const again = crSig('E1').filter(n => n.items.some(i => i.key === key)).length;
   pollOn('2026-10-15');
-  ok(217, !!noWhy && !!notMine && o.outcome === 'снято' && o.reason === 'не требуется: автоплатёж, просрочек не было' && o.by === 'E1' &&
-       alive && released && n === 1 && ZD.povodByKey(t.povodKey).status === 'gone' &&
-       ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length === 1,
-    `Есенова решила «не требуется» по платежу КД-2026/015 15.10 с причиной — «снято»; без причины и не адресатом — отказ; ` +
-    `повод жив до 15.10, новое задание по нему не выдано; 15.10 повод отпал`);
+  ok(217, n0 === 1 && alive && again === 1 && ZD.povodByKey(key).status === 'gone' && noTaskCr() && !ZD.kindOf('pk-cr-payment-due').selfRelease,
+    `платёж КД-2026/015 15.10: сигнал ушёл один раз, ответа и решения «не требуется» нет; повод жив до 15.10 и второго уведомления не даёт; 15.10 повод отпал`);
 })();
 
-/* досрочный платёж и наступление срока — «снято» с причиной кредита; просрочка — общим механизмом */
+/* досрочный платёж и наступление срока гасят повод; просрочки у сигнала нет */
 (() => {
   ZD.seed();
   pollOn('2026-10-01', '2026-10-06', '2026-10-12');
-  const t022 = crLast('КД-2026/022', '2026-10-28'), o022 = ZD.outcomeOf(t022);
-  const t112 = crLast('КД-2024/112', '2026-11-05');
-  pollOn('2026-10-14');
-  const late = ZD.isOverdue(t112, '2026-10-14') && notes('срок-истёк', t112.id).some(n => n.to === 'E1');
-  pollOn('2026-10-20');
-  const esc = ZD.state.tasks.find(x => x.originKind === 'pk-overdue' && x.povodKey === `pk-overdue|task:${t112.id}|`);
-  pollOn('2026-11-05');
-  const o112 = ZD.outcomeOf(t112);
-  ok(218, o022.outcome === 'снято' && o022.reason === 'платёж 28.10.2026 внесён до срока' && t022.dueDate === '2026-10-08' &&
-       t112.dueDate === '2026-10-13' && late && !!esc && esc.assignee === 'E2' &&
-       o112.outcome === 'снято' && o112.reason === 'наступил срок платежа 05.11.2026',
-    `КД-2026/022: платёж 28.10 зачислен 12.10 — «снято: внесён до срока»; КД-2024/112: срок решения 13.10 прошёл — 14.10 ` +
-    `Есеновой «срок истёк», на 5-й р.д. (20.10) — задание руководителю Токтогулову; 05.11 — «снято: наступил срок платежа»`);
+  const p022 = ZD.povodByKey(crKey('КД-2026/022', '2026-10-28'));
+  const p112 = ZD.povodByKey(crKey('КД-2024/112', '2026-11-05'));
+  const a112 = p112.status === 'appeared';
+  pollOn('2026-10-14', '2026-10-20', '2026-11-05');
+  ok(218, p022.status === 'gone' && a112 && p112.status === 'gone' && noTaskCr() && !ZD.state.tasks.some(t => t.originKind === 'pk-overdue' && /pk-cr-/.test(t.povodKey)) &&
+       ZD.state.notifications.filter(n => n.originKind === 'pk-cr-payment-due').every(n => n.kind === 'сигнал'),
+    `КД-2026/022: платёж 28.10 зачислен 12.10 — повод отпал; КД-2024/112: 05.11 наступил срок платежа — повод отпал; ` +
+    `ни просрочки, ни эскалации, ни других уведомлений: только сигнал`);
 })();
 
 /* следующий платёж — новый ключ, не «повтор после» */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-05', '2026-10-21');
-  const a = crLast('КД-2023/187', '2026-10-20'), b = crLast('КД-2023/187', '2026-11-20');
-  ok(219, ZD.isTerminal(a) && !!b && b.id !== a.id && b.repeatOf === null && b.repeatCount === 0 && b.assignee === 'E1' &&
-       b.dueDate === '2026-10-28',
-    `платёж 20.10 закрыт уведомлением; 21.10 по платежу 20.11 — новое задание Есеновой со своим сроком (28.10), ` +
-    `«повтор после» нет — у каждого платежа свой ключ`);
+  pollOn('2026-10-01', '2026-10-05');
+  const a = ZD.povodByKey(crKey('КД-2023/187', '2026-10-20'));
+  pollOn('2026-10-20', '2026-10-21');
+  const b = ZD.povodByKey(crKey('КД-2023/187', '2026-11-20'));
+  const sent = crSig('E1').filter(n => n.t === '2026-10-21');
+  ok(219, a.status === 'gone' && !!b && b.key !== a.key && b.status === 'appeared' && sent.length === 1 && sent[0].items.some(i => i.key === b.key),
+    `платёж 20.10 прошёл; 21.10 по платежу 20.11 — новый ключ и новый сигнал Есеновой: у каждого платежа свой ключ`);
 })();
 
-/* вал: «не требуется» по выбранным, уведомления гасят, остаток — датой платежа; итог со сводкой */
+/* свод: сколько новых поводов — один сигнал за прогон, в следующий — только новые */
 (() => {
   ZD.seed();
   pollOn('2026-10-01');
-  const v = crVal();
-  at('2026-10-05');
-  ZD.take(v.id, 'E3');
-  const k108 = crKey('КД-2026/108', '2026-10-26'), k109 = crKey('КД-2026/109', '2026-10-26');
-  ZD.releaseTask(v.id, 'E3', 'в прошлом сезоне платили заранее', [k108, k109]);
-  const again = throws(() => ZD.releaseTask(v.id, 'E3', 'ещё раз', [k108]));
+  const n1 = crSig('E3').length, c1 = crSig('E3')[0].count;
   pollOn('2026-10-07');
-  const live7 = ZD.liveKeys(v).length, released = ZD.povodReleased(ZD.povodByKey(k109));
-  pollOn('2026-10-26');
-  const end = v.journal[v.journal.length - 1];
-  ok(220, ZD.keyStatus(v, k108) === 'вышел' && !!again && live7 === 3 && ZD.outcomeOf(v).outcome === 'исполнено' &&
-       end.note === 'шагов 12: исполнено 7, снято 5' && released,
-    `вал Нурлановой: 05.10 по двум платежам «не требуется» с причиной; 06.10 она уведомила семерых — 07.10 живых три; ` +
-    `26.10 срок наступил — вал «исполнено» со сводкой: исполнено 7, снято 5`);
-})();
-
-/* уведомить выбранных в вале: запись в каждый кредит, чужой — отказ без записи */
-(() => {
-  ZD.seed();
-  pollOn('2026-10-01');
-  const v = crVal(), keys = [crKey('КД-2024/031', '2026-10-26'), crKey('КД-2025/044', '2026-10-26')];
-  at('2026-10-02');
-  const stranger = throws(() => ZD.crNoticeBatch(keys, 'E6'));
-  const clean = !ZD.creditAt(ZD.state.owner.cr.find(o => o.id === 'КД-2024/031'), '2026-10-02').notices['2026-10-26'];
-  const n = ZD.crNoticeBatch(keys, 'E3');
-  pollOn('2026-10-05');
-  ok(221, !!stranger && clean && n === 2 && keys.every(k => ZD.keyStatus(v, k) === 'отпал') && ZD.liveKeys(v).length === 10,
-    `в вале Нурланова уведомила двоих одним действием — запись в карточку каждого кредита, 05.10 оба ключа отпали; ` +
-    `чужой сотрудник — отказ, в карточки ничего не записано`);
+  const e1 = crSig('E1').filter(n => n.t === '2026-10-07');
+  ok(220, n1 === 1 && c1 === 12 && crSig('E3').filter(n => n.t === '2026-10-07').length === 0 && e1.every(n => n.count === n.items.length),
+    `двенадцать платежей Нурлановой 01.10 — одно уведомление; на 07.10 новых её платежей нет — нового уведомления нет; счётчик равен перечню`);
 })();
 
 /* реквизит суммы и чей повод — в строке статистики; молчит кредит — замерзают только его поводы */
@@ -3565,40 +3454,19 @@ const crVal = () => ZD.state.tasks.find(t => t.originKind === 'pk-cr-payment-due
   const rows = ZD.taskRows('2026-10-01').filter(x => x.kind === 'pk-cr-payment-due');
   at('2026-10-02'); const r = ZD.runPoll({ downSources: ['credit'] });
   const frozen = ZD.state.povods.filter(p => p.kind === 'pk-cr-payment-due' && p.status === 'frozen').length;
-  ok(222, rows.length === 4 && rows.every(x => x.owner === 'Кредит' && x.sumAttr === 'сумма платежа по графику') &&
-       !r.complete && r.sources.find(s => s.src === 'credit').answer === 'таймаут' && frozen === 15 &&
+  ok(222, rows.length === 0 && ZD.kindOf('pk-cr-payment-due').sumAttr === 'сумма платежа по графику' &&
+       !r.complete && r.sources.find(s => s.src === 'credit').answer === 'ошибка' && frozen === 15 &&
        ZD.state.povods.filter(p => p.kind !== 'pk-cr-payment-due' && p.status === 'frozen').length === 0,
-    `строка задания несёт «чей повод» — Кредит и реквизит «сумма платежа по графику»; 02.10 кредит не ответил — ` +
+    `сигнал не даёт строки заданий статистике, реквизит суммы остался у вида; 02.10 кредит не ответил — ` +
     `заморожены только его 15 поводов`);
-})();
-
-/* «не требуется» по валу: ничего не выбрано или чужой повод — отказ; выбрано всё — вал снят с основанием */
-(() => {
-  ZD.seed();
-  pollOn('2026-10-01');
-  const v = crVal();
-  at('2026-10-02');
-  ZD.take(v.id, 'E3');
-  const none = throws(() => ZD.releaseTask(v.id, 'E3', 'причина', []));
-  const foreign = throws(() => ZD.releaseTask(v.id, 'E3', 'причина', [crKey('КД-2023/187', '2026-10-20')]));
-  const clean = !v.journal.some(e => e.ev === 'ключ вышел');
-  ZD.releaseTask(v.id, 'E3', 'сезон перенесён решением комитета', ZD.liveKeys(v));
-  const o = ZD.outcomeOf(v);
-  pollOn('2026-10-05');
-  ok(224, /выберите/.test(none) && /нет в вале/.test(foreign) && clean && o.outcome === 'снято' &&
-       o.reason === 'не требуется: сезон перенесён решением комитета' &&
-       v.rollupKeys.every(k => ZD.povodReleased(ZD.povodByKey(k))) &&
-       ZD.state.tasks.filter(t => t.originKind === 'pk-cr-payment-due' && !ZD.isTerminal(t)).every(t => !t.rollupKeys),
-    `в вале «не требуется» без выбранных платежей и с платежом не из вала — отказ, вал не тронут; выбраны все двенадцать — ` +
-    `вал «снято: не требуется» с причиной, каждый повод помечен и на следующих прогонах не переиздаётся`);
 })();
 
 /* демо-карточка кредита: график, кто уведомлён, платёж — бухгалтер */
 (() => {
   ZD.seed();
   pollOn('2026-10-01', '2026-10-05');
-  const t = crLast('КД-2026/022', '2026-10-28'), html = ZD.renderOwnerCard(t, ZD.povodByKey(t.povodKey));
-  const v = ZD.renderOwnerCard(crLast('КД-2023/187', '2026-10-20'), ZD.povodByKey(crKey('КД-2023/187', '2026-10-20')));
+  const html = ZD.renderOwnerCard(null, ZD.povodByKey(crKey('КД-2026/022', '2026-10-28')));
+  const v = ZD.renderOwnerCard(null, ZD.povodByKey(crKey('КД-2023/187', '2026-10-20')));
   const notBook = throws(() => ZD.crStep('КД-2026/022', 'E1', 'платёж', '2026-10-28'));
   ok(223, /Карточка кредита КД-2026\/022/.test(html) && /ОсОО «Талас-Агро»/.test(html) && /через 23 дн\./.test(html) &&
        /Уведомить заёмщика/.test(html) && /640\s000/.test(html) && /заёмщик уведомлён 05\.10\.2026 · Есенова/.test(v) &&
@@ -3621,12 +3489,12 @@ const vzLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind
   const queue = ks.filter(k => k.addrForm === 'очередь').map(k => `${k.tpl}:${ZD.ruleForKind(k.id).addressee.role}`).join();
   const cur = rs.filter(r => r.addressee.by === 'кураторство').map(r => ZD.kindOf(r.kind).tpl).join();
   const notKinds = [2, 3, 4, 6, 8, 15, 17, 18, 19, 20, 25, 35, 36, 37, 38, 44, 48].every(n => !ks.some(k => k.tpl === n));
-  ok(225, ZD.SOURCES.length === 17 && ZD.SOURCES[11] === vz && vz.name === 'Взыскание' && vz.pollEveryMin === 1440 && vz.silenceMin === null &&
+  ok(225, ZD.SOURCES.length === 17 && ZD.SOURCES[11] === vz && vz.name === 'Взыскание' && vz.onSave === false &&
        ZD.VZ_KINDS.length === 9 && tpls === '5,7,14,41,22,45,26,27,47' && queue === '22:vz-dpo,45:vz-opk,26:vz-opk,27:vz-opk' &&
        cur === '5,7,14,41,47' && notKinds &&
        ks.every(k => k.objectType === 'requirement' && k.ownerExec && k.genus === 'надзор' && !k.selfRelease && k.activatedAt === '2026-10-01' &&
          k.sumAttr === 'просроченная сумма требования' && (k.addrForm === 'очередь') === (k.take === 'через очередь')) &&
-       rs.every(r => r.mode === 'авто' && r.dueUnit === 'named' && r.dueN === null && r.dueFrom === 'срок шаблона взыскания' && !r.extendBy &&
+       rs.every(r => !('mode' in r) && r.dueUnit === 'named' && r.dueN === null && r.dueFrom === 'срок шаблона взыскания' && !r.extendBy &&
          /требование/.test(ZD.actionOf(r.action).where)) &&
        rs.filter(r => r.addressee.by === 'кураторство').every(r => r.addressee.role === 'куратор требования') &&
        ZD.VZ_KINDS.every(k => ZD.ownerOfKind(k) === 'Взыскание') && ZD.checkRegistry().length === 0,
@@ -3639,7 +3507,7 @@ const vzLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind
 (() => {
   ZD.seed();
   const r0 = ZD.runPoll(), c0 = r0.sources.find(s => s.src === 'collection');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-vz-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-vz-/.test(r.key)).length;
   at('2026-10-01');
   const c1 = ZD.runPoll().sources.find(s => s.src === 'collection');
   const ps = ZD.state.povods.filter(p => ZD.VZ_KINDS.includes(p.kind));
@@ -3802,7 +3670,7 @@ const vzLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind
   at('2026-10-02'); const r = ZD.runPoll({ downSources: ['collection'] });
   const frozen = ZD.state.povods.filter(p => ZD.VZ_KINDS.includes(p.kind) && p.status === 'frozen').length;
   ok(234, rows.length === 8 && rows.every(x => x.owner === 'Взыскание' && x.sumAttr === 'просроченная сумма требования') &&
-       !r.complete && r.sources.find(s => s.src === 'collection').answer === 'таймаут' && frozen === 8 &&
+       !r.complete && r.sources.find(s => s.src === 'collection').answer === 'ошибка' && frozen === 8 &&
        ZD.state.povods.filter(p => !ZD.VZ_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка требования ТР-2026\/043/.test(html) && /Сроки на контроле/.test(html) && /912\s300/.test(html) &&
        /№41 · Служебная записка в ДПО/.test(html) && /Служебная записка в ДПО<\/button>/.test(html),
@@ -3814,33 +3682,38 @@ const zlKey = (kind, type, id, sub) => `${kind}|${type}:${id}${sub ? '·' + sub 
 const zlLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind === kind && t.povodKey && t.povodKey.indexOf(`:${id}`) !== -1); return a[a.length - 1]; };
 const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-stale','pk-zl-insurance','pk-zl-ban-missing','pk-zl-ban-release',
   'pk-zl-docs','pk-zl-ccy','pk-zl-restore'];
+const ZL_HL = ['pk-zl-reval-overdue','pk-zl-appraisal-stale','pk-zl-ban-release','pk-zl-docs','pk-zl-ccy','pk-zl-lease','pk-zl-surety-repaid'];
+const zlRow = (kind, id, d) => hlRows(kind, d).find(r => r.key.indexOf(`:${id}`) !== -1);
 
-/* тринадцатый источник: пятнадцать видов залога записями трёх реестров */
+/* тринадцатый источник: пятнадцать видов залога — восемь дают задания, семь в подсветке */
 (() => {
   ZD.seed();
   const zl = ZD.SOURCES.find(s => s.id === 'collateral');
-  const ks = ZD.ZL_KINDS.map(id => ZD.kindOf(id)), rs = ZD.ZL_KINDS.map(id => ZD.ruleForKind(id));
+  const ks = ZD.ZL_KINDS.map(id => ZD.kindOf(id));
+  const task = ZD.ZL_KINDS.filter(id => !ZL_HL.includes(id)), rs = task.map(id => ZD.ruleForKind(id));
   const byRole = role => rs.filter(r => r.addressee.role === role).map(r => r.kind);
   const named = rs.filter(r => r.dueUnit === 'named').map(r => r.kind).join();
   const titles = ks.map(k => k.title);
   const notKinds = ['Извещение о восполнении выдано — идёт срок', 'Историческая запись прежней системы',
     'Недостаточность обеспечения → взыскание (обеспечение)'].every(t => titles.indexOf(t) === -1);
   const sum = id => ZD.kindOf(id).sumAttr;
-  ok(236, ZD.SOURCES.length === 17 && ZD.SOURCES[12] === zl && zl.name === 'Залог' && zl.pollEveryMin === 1440 && zl.silenceMin === null &&
-       ZD.ZL_KINDS.length === 15 && byRole('куратор залога').join() === ZL_ITEM.join() &&
-       byRole('куратор кредита').join() === 'pk-zl-coverage,pk-zl-lease,pk-zl-surety-expiring,pk-zl-surety-expired,pk-zl-surety-repaid' &&
+  ok(236, ZD.SOURCES.length === 17 && ZD.SOURCES[12] === zl && zl.name === 'Залог' && zl.onSave === false &&
+       ZD.ZL_KINDS.length === 15 && zl.all.length === 15 && zl.highlights.slice().sort().join() === ZL_HL.slice().sort().join() && ZL_HL.every(k => !ZD.ruleForKind(k)) &&
+       byRole('куратор залога').join() === ZL_ITEM.filter(k => !ZL_HL.includes(k)).join() &&
+       byRole('куратор кредита').join() === 'pk-zl-coverage,pk-zl-surety-expiring,pk-zl-surety-expired' &&
        byRole('zl-committee').join() === 'pk-zl-committee' && ZD.kindOf('pk-zl-committee').take === 'через очередь' &&
        named === 'pk-zl-ban-missing,pk-zl-committee' &&
        rs.filter(r => r.dueUnit !== 'named').every(r => r.dueUnit === 'workday' && r.dueN > 0 && r.dueSource === 'внутренний акт') &&
-       ks.every(k => k.ownerExec && k.genus === 'надзор' && !k.selfRelease && k.activatedAt === '2026-11-02' && k.ownerDept === 'Отдел залогового обеспечения') &&
+       task.every(id => { const k = ZD.kindOf(id); return k.ownerExec && k.genus === 'надзор'; }) &&
+       ks.every(k => !k.selfRelease && k.activatedAt === '2026-11-02' && k.ownerDept === 'Отдел залогового обеспечения') &&
        ZL_ITEM.every(id => ZD.kindOf(id).objectType === 'pledge' && sum(id) === 'залоговая стоимость предмета') &&
        sum('pk-zl-coverage') === 'остаток основного долга' && ZD.kindOf('pk-zl-coverage').objectType === 'credit' &&
        ZD.kindOf('pk-zl-surety-expired').objectType === 'surety' && sum('pk-zl-surety-repaid') === null &&
        ZD.kindOf('pk-zl-committee').objectType === 'pledgeContract' && notKinds &&
        ZD.ZL_KINDS.every(k => ZD.ownerOfKind(k) === 'Залог') && ZD.checkRegistry().length === 0,
-    `Залог — тринадцатый источник, ночной опрос; пятнадцать видов — надзор, работа у залога, решения «не требуется» нет; по ` +
-    `предмету — куратору залога (девять), по кредиту и поручительству — куратору кредита (пять), договор — очереди комитета; срок ` +
-    `называет залог у запрета и комитета, остальные — значение правила; «идёт срок восполнения», историческая запись и трек ` +
+    `Залог — тринадцатый источник, ночной опрос; из пятнадцати видов восемь — надзор с заданием, работа у залога, решения «не требуется» нет: по ` +
+    `предмету — куратору залога (четыре), по кредиту и поручительству — куратору кредита (три), договор — очереди комитета; ` +
+    `семь — подсветка; срок называет залог у запрета и комитета, остальные — значение правила; «идёт срок восполнения», историческая запись и трек ` +
     `взыскания по обеспечению — не виды; реестр сходится`);
 })();
 
@@ -3849,22 +3722,22 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
   ZD.seed();
   const r0 = ZD.runPoll(); at('2026-10-30');
   const c0 = ZD.runPoll().sources.find(s => s.src === 'collateral');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-zl-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-zl-/.test(r.key)).length;
   at('2026-11-02');
   const c1 = ZD.runPoll().sources.find(s => s.src === 'collateral');
   const ps = ZD.state.povods.filter(p => ZD.ZL_KINDS.includes(p.kind));
   const ban = ZD.povodByKey(zlKey('pk-zl-ban-missing', 'pledge', 'З-303'));
   const com = ZD.povodByKey(zlKey('pk-zl-committee', 'pledgeContract', 'ДЗ-501'));
-  const lease = ZD.povodByKey(zlKey('pk-zl-lease', 'credit', 'КД-2025/310', 'предмет:З-301'));
+  const lease = hlRows('pk-zl-lease').find(r => r.key === zlKey('pk-zl-lease', 'credit', 'КД-2025/310', 'предмет:З-301'));
   const sur = ZD.povodByKey(zlKey('pk-zl-surety-expiring', 'surety', 'ДП-401'));
   ok(237, r0.sources.find(s => s.src === 'collateral').new === 0 && c0.new === 0 && c0.answer === 'множество' && inactive === 0 &&
-       c1.new === 15 && ps.length === 15 && new Set(ps.map(p => p.kind)).size === 15 &&
+       c1.new === 8 && ps.length === 8 && new Set(ps.map(p => p.kind)).size === 8 && ZL_HL.every(k => hlRows(k).length === 1 && noWork(k)) &&
        ps.every(p => p.stateDate === '2026-11-02' && /\|$/.test(p.key)) &&
        !!ban && ban.due === '2026-11-04' && ban.traits.орган === 'Госрегистр' && !!com && com.due === '2026-11-08' && com.curObj === null &&
        !!lease && lease.curObj === 'КД-2025/310' && lease.sub === 'З-301' && lease.traits.аренда_до === '2027-06-30' &&
        !!sur && sur.curObj === 'КД-2025/310' && sur.ownerId === 'ДП-401',
-    `до ввода видов (02.11) залог отвечает пустым множеством, «вид не введён» не поднимается; 02.11 — пятнадцать поводов, по ` +
-    `одному на вид, база прижата к 02.11, ключ «вид · объект» без периода; запрет З-303 — срок залога 04.11 (нотариус 28.10 + 5 р.д.), ` +
+    `до ввода видов (02.11) залог отвечает пустым множеством, «вид не введён» не поднимается; 02.11 — восемь поводов, по ` +
+    `одному на вид, и семь строк подсветки; база прижата к 02.11, ключ «вид · объект» без периода; запрет З-303 — срок залога 04.11 (нотариус 28.10 + 5 р.д.), ` +
     `комитет ДЗ-501 — 08.11 (10 к.д. от 29.10); аренда — ключ «кредит · предмет», поручительство — объект кураторства кредит`);
 })();
 
@@ -3875,18 +3748,18 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
   const own = ZD.state.tasks.filter(t => ZD.ZL_KINDS.includes(t.originKind));
   const t = (k, id) => zlLast(k, id);
   const sv = t('pk-zl-survey-overdue', 'З-301'), bn = t('pk-zl-ban-missing', 'З-303'), cv = t('pk-zl-coverage', 'КД-2025/311');
-  const ls = t('pk-zl-lease', 'КД-2025/310'), se = t('pk-zl-surety-expiring', 'ДП-401'), sx = t('pk-zl-surety-expired', 'ДП-403');
+  const se = t('pk-zl-surety-expiring', 'ДП-401'), sx = t('pk-zl-surety-expired', 'ДП-403');
   const cm = t('pk-zl-committee', 'ДЗ-501');
   const cvp = ZD.povodByKey(cv.povodKey);
-  ok(238, own.length === 15 && sv.assignee === 'E33' && sv.addr.role === 'куратор залога' && sv.dueDate === '2026-11-16' &&
+  ok(238, own.length === 8 && sv.assignee === 'E33' && sv.addr.role === 'куратор залога' && sv.dueDate === '2026-11-16' &&
        bn.assignee === 'E34' && bn.dueDate === '2026-11-04' && cv.assignee === 'E3' && cv.addr.role === 'куратор кредита' &&
        cvp.traits.обеспеченность === '108%' && cvp.traits.порог === '120%' && cvp.traits.сумма === 5000000 &&
-       ls.assignee === 'E1' && ls.dueDate === '2026-11-23' && se.assignee === 'E1' && sx.assignee === 'E3' && sx.dueDate === '2026-11-10' &&
+       se.assignee === 'E1' && sx.assignee === 'E3' && sx.dueDate === '2026-11-10' &&
        ZD.inQueue(cm) && cm.queue.role === 'zl-committee' && cm.dueDate === '2026-11-08' &&
        /предмет залога З-301 «Склад, г\. Токмок» · кредит КД-2025\/310/.test(sv.label) &&
        /договор поручительства ДП-401 · Абдыкалыков Т\.С\. · кредит КД-2025\/310/.test(se.label),
     `02.11: обследование склада — Сариевой, 16.11 (10 р.д.); запрет по дому — Акматову к сроку залога 04.11; обеспеченность ` +
-    `КД-2025/311 108% при пороге 120% — куратору кредита Нурлановой, реквизит — остаток 5 000 000; аренда и поручительство ДП-401 — ` +
+    `КД-2025/311 108% при пороге 120% — куратору кредита Нурлановой, реквизит — остаток 5 000 000; поручительство ДП-401 — ` +
     `Есеновой; истёкшее ДП-403 — Нурлановой; договор ДЗ-501 — в очереди комитета, срок 08.11`);
 })();
 
@@ -3942,17 +3815,19 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
     `(122%), 20.11 переоценка — 110%: новый эпизод с 20.11, задание «повтор после», обоснование прошлого эпизода не действует`);
 })();
 
-/* поручительство: «истекает» снимается сроком, поднимается «истёк»; после погашения кредита — снять */
+/* поручительство: «истекает» снимается сроком, поднимается «истёк»; после погашения кредита — подсветка до снятия */
 (() => {
   ZD.seed();
   pollOn('2026-11-02');
-  const te = zlLast('pk-zl-surety-expiring', 'ДП-401'), tr = zlLast('pk-zl-surety-repaid', 'ДП-402');
+  const te = zlLast('pk-zl-surety-expiring', 'ДП-401');
+  const before = !!zlRow('pk-zl-surety-repaid', 'ДП-402');
   at('2026-11-04'); ZD.zlStep('ДП-402', 'E1', 'снять поручительство', 'исполнение обеспеченного обязательства');
+  const after = !!zlRow('pk-zl-surety-repaid', 'ДП-402');
   pollOn('2026-11-04', '2026-12-16');
-  const oe = outc(te), or = outc(tr), tx = zlLast('pk-zl-surety-expired', 'ДП-401');
-  ok(242, oe.outcome === 'снято' && oe.reason === 'срок поручительства истёк 15.12.2026' && or.outcome === 'исполнено' && or.by === 'E1' &&
+  const oe = outc(te), tx = zlLast('pk-zl-surety-expired', 'ДП-401');
+  ok(242, oe.outcome === 'снято' && oe.reason === 'срок поручительства истёк 15.12.2026' && before && !after && noWork('pk-zl-surety-repaid') &&
        !!tx && tx.assignee === 'E1' && tx.dueDate === '2026-12-23' && tx.repeatOf === null,
-    `ДП-402: кредит погашен 15.10 — Есенова сняла поручительство 04.11, «исполнено»; ДП-401 до 15.12: «истекает» 16.12 — «снято» ` +
+    `ДП-402: кредит погашен 15.10 — в подсветке, Есенова сняла поручительство 04.11 — ушло; ДП-401 до 15.12: «истекает» 16.12 — «снято» ` +
     `с причиной залога, тем же днём «истёк» — новым видом Есеновой, срок 23.12`);
 })();
 
@@ -3977,39 +3852,40 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
 (() => {
   ZD.seed();
   pollOn('2026-11-02');
-  const ti = zlLast('pk-zl-insurance', 'З-302'), tb = zlLast('pk-zl-ban-release', 'З-304');
+  const ti = zlLast('pk-zl-insurance', 'З-302');
+  const before = !!zlRow('pk-zl-ban-release', 'З-304') && !zlRow('pk-zl-ban-release', 'З-302');
   ZD.state.owner.zl.find(x => x.id === 'З-302').ev.push({ t:'2026-11-09', released:true, by:'E33', how:'трактор заменён доп. соглашением' });
   at('2026-11-09'); ZD.zlStep('З-304', 'E34', 'снять запрет');
   pollOn('2026-11-09');
-  const oi = outc(ti), ob = outc(tb), nb = zlLast('pk-zl-ban-release', 'З-302');
+  const oi = outc(ti), nb = zlRow('pk-zl-ban-release', 'З-302');
   ok(244, oi.outcome === 'снято' && oi.reason === 'предмет З-302 освобождён: трактор заменён доп. соглашением' &&
-       ob.outcome === 'исполнено' && ob.by === 'E34' && !!nb && nb.assignee === 'E33' &&
-       ZD.povodByKey(nb.povodKey).traits.запрет === 'ГАИ-5521 от 12.03.2025 · ГАИ',
-    `09.11 трактор З-302 заменён — полис больше не нужен: «снято» с причиной залога; запрет ГАИ остался — поднялось «требуется ` +
-    `снятие запрета» Сариевой; по помещению З-304 Акматов снял запрет — «исполнено»`);
+       before && !zlRow('pk-zl-ban-release', 'З-304') && !!nb && nb.traits.запрет === 'ГАИ-5521 от 12.03.2025 · ГАИ' && noWork('pk-zl-ban-release'),
+    `09.11 трактор З-302 заменён — полис больше не нужен: «снято» с причиной залога; запрет ГАИ остался — «требуется ` +
+    `снятие запрета» в подсветке; по помещению З-304 Акматов снял запрет — ушло из подсветки`);
 })();
 
 /* факт гасит только свой повод: переоценка не в той валюте, один документ из двух — повод живёт */
 (() => {
   ZD.seed();
   pollOn('2026-11-02');
-  const tc = zlLast('pk-zl-ccy', 'З-306'), td = zlLast('pk-zl-docs', 'З-307'), tr = zlLast('pk-zl-restore', 'З-308');
+  const tr = zlLast('pk-zl-restore', 'З-308');
+  const had = !!zlRow('pk-zl-ccy', 'З-306') && !!zlRow('pk-zl-docs', 'З-307');
   at('2026-11-05');
   ZD.zlStep('З-306', 'E34', 'переоценка', { report:'отчёт 05.11', ccy:'KGS' });
   ZD.zlStep('З-307', 'E33', 'документ', 'технический паспорт');
   ZD.zlStep('З-308', 'E34', 'извещение', '2026-12-05');
   pollOn('2026-11-05');
-  const live1 = !ZD.isTerminal(tc) && !ZD.isTerminal(td);
-  const dTraits = ZD.povodByKey(td.povodKey).traits.нет_документов;
+  const live1 = !!zlRow('pk-zl-ccy', 'З-306') && !!zlRow('pk-zl-docs', 'З-307');
+  const dTraits = zlRow('pk-zl-docs', 'З-307').traits.нет_документов;
   at('2026-11-06');
   ZD.zlStep('З-306', 'E34', 'переоценка', { report:'отчёт 06.11', ccy:'USD' });
   ZD.zlStep('З-307', 'E33', 'документ', 'справка ГАИ об отсутствии обременений');
   pollOn('2026-11-06');
-  ok(245, live1 && dTraits === 'справка ГАИ об отсутствии обременений' && outc(tr).outcome === 'исполнено' && outc(tr).by === 'E34' &&
-       outc(tc).outcome === 'исполнено' && outc(td).outcome === 'исполнено' &&
+  ok(245, had && live1 && dTraits === 'справка ГАИ об отсутствии обременений' && outc(tr).outcome === 'исполнено' && outc(tr).by === 'E34' &&
+       !zlRow('pk-zl-ccy', 'З-306') && !zlRow('pk-zl-docs', 'З-307') &&
        !ZD.povodByKey(zlKey('pk-zl-restore', 'pledge', 'З-308')).journal.some(e => e.ev === 'вновь-появился'),
-    `оборудование З-306 переоценено 05.11 в сомах — кредит в долларах, повод живёт; 06.11 в долларах — «исполнено»; автомобиль ` +
-    `З-307: первый документ из двух — признак показывает оставшийся, второй — «исполнено»; извещение о восполнении по овцам — ` +
+    `оборудование З-306 переоценено 05.11 в сомах — кредит в долларах, строка подсветки живёт; 06.11 в долларах — ушла; автомобиль ` +
+    `З-307: первый документ из двух — признак показывает оставшийся, второй — ушла; извещение о восполнении по овцам — ` +
     `«исполнено», срок восполнения дальше идёт у залога`);
 })();
 
@@ -4017,13 +3893,12 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
 (() => {
   ZD.seed();
   pollOn('2026-11-02');
-  const t = zlLast('pk-zl-lease', 'КД-2025/310');
+  const row = zlRow('pk-zl-lease', 'КД-2025/310');
   at('2026-11-12'); ZD.zlStep('КД-2025/310', 'E1', 'продлить аренду', { item:'З-301', till:'2030-03-10' });
   pollOn('2026-11-12');
-  const o = outc(t), p = ZD.povodByKey(t.povodKey);
-  ok(246, o.outcome === 'исполнено' && o.by === 'E1' && p.status === 'gone' && p.traits.кредит_до === '2030-03-10' && p.traits.сумма === 4200000,
-    `склад З-301 на арендованной земле до 30.06.2027, кредит КД-2025/310 до 10.03.2030; 12.11 Есенова внесла продление аренды до ` +
-    `10.03.2030 — «исполнено»; реквизит — залоговая стоимость предмета`);
+  ok(246, !!row && row.traits.кредит_до === '2030-03-10' && row.traits.сумма === 4200000 && !zlRow('pk-zl-lease', 'КД-2025/310') && noWork('pk-zl-lease'),
+    `склад З-301 на арендованной земле до 30.06.2027, кредит КД-2025/310 до 10.03.2030 — в подсветке; 12.11 Есенова внесла продление аренды до ` +
+    `10.03.2030 — ушло; реквизит — залоговая стоимость предмета`);
 })();
 
 /* строка статистики, заморозка источника, демо-карточка залога */
@@ -4035,12 +3910,12 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
   const tc = zlLast('pk-zl-coverage', 'КД-2025/311'), hc = ZD.renderOwnerCard(tc, ZD.povodByKey(tc.povodKey));
   at('2026-11-03'); const r = ZD.runPoll({ downSources: ['collateral'] });
   const frozen = ZD.state.povods.filter(p => ZD.ZL_KINDS.includes(p.kind) && p.status === 'frozen').length;
-  ok(247, rows.length === 15 && rows.every(x => x.owner === 'Залог') && rows.filter(x => x.sumAttr === 'залоговая стоимость предмета').length === 10 &&
-       !r.complete && r.sources.find(s => s.src === 'collateral').answer === 'таймаут' && frozen === 15 &&
+  ok(247, rows.length === 8 && rows.every(x => x.owner === 'Залог') && rows.filter(x => x.sumAttr === 'залоговая стоимость предмета').length === 4 &&
+       !r.complete && r.sources.find(s => s.src === 'collateral').answer === 'ошибка' && frozen === 8 &&
        ZD.state.povods.filter(p => !ZD.ZL_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка предмета залога З-301/.test(html) && /Мониторинг: подсветка/.test(html) && /Обследование<\/button>/.test(html) &&
        /108% при пороге 120%/.test(hc) && /Обоснование<\/button>/.test(hc),
-    `строка задания несёт «чей повод» — Залог и реквизит суммы вида; 03.11 залог не ответил — заморожены только его 15 поводов; ` +
+    `строка задания несёт «чей повод» — Залог и реквизит суммы вида; 03.11 залог не ответил — заморожены только его 8 поводов; ` +
     `в карточке предмета — подсветка триггера без исполнителя и факт, который его гасит; в карточке кредита — обеспеченность`);
 })();
 
@@ -4048,48 +3923,50 @@ const ZL_ITEM = ['pk-zl-survey-overdue','pk-zl-reval-overdue','pk-zl-appraisal-s
 (() => {
   ZD.seed();
   pollOn('2026-11-02');
-  const tc = zlLast('pk-zl-coverage', 'КД-2025/311'), tl = zlLast('pk-zl-lease', 'КД-2025/310'), tx = zlLast('pk-zl-surety-expired', 'ДП-403');
+  const tc = zlLast('pk-zl-coverage', 'КД-2025/311'), tx = zlLast('pk-zl-surety-expired', 'ДП-403');
+  const lease = !!zlRow('pk-zl-lease', 'КД-2025/310');
   ZD.state.owner.zl.find(x => x.id === 'КД-2025/311').ev.push({ t:'2026-11-10', od:4400000, by:null, how:'плановое погашение: остаток 4 400 000' });
   ZD.state.owner.zl.find(x => x.id === 'З-301').ev.push({ t:'2026-11-10', released:true, by:'E33', how:'склад заменён доп. соглашением' });
   at('2026-11-10'); ZD.zlStep('ДП-403', 'E3', 'продлить поручительство', '2027-10-31');
   pollOn('2026-11-10');
-  const oc = outc(tc), ol = outc(tl), ox = outc(tx);
+  const oc = outc(tc), ox = outc(tx);
   ok(248, oc.outcome === 'снято' && oc.reason === 'обеспеченность не ниже порога: плановое погашение: остаток 4 400 000' &&
-       ol.outcome === 'снято' && ol.reason === 'предмет З-301 освобождён: склад заменён доп. соглашением' &&
+       lease && !zlRow('pk-zl-lease', 'КД-2025/310') &&
        ox.outcome === 'исполнено' && ox.by === 'E3' && !zlLast('pk-zl-surety-expiring', 'ДП-403'),
     `10.11 остаток КД-2025/311 снизился до 4 400 000 — 123%: обоснования и догрузки нет, задание «снято» с причиной залога, не ` +
-    `«исполнено» чужим событием; склад З-301 заменён — аренда под ним больше не обеспечение, «снято»; истёкшее ДП-403 Нурланова ` +
+    `«исполнено» чужим событием; склад З-301 заменён — аренда под ним больше не обеспечение, строка подсветки ушла; истёкшее ДП-403 Нурланова ` +
     `продлила до 31.10.2027 — «исполнено», «истекает» не поднимается`);
 })();
 
 const plKey = (kind, type, id) => `${kind}|${type}:${id}|`;
 const plLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind === kind && t.povodKey && t.povodKey.indexOf(`:${id}|`) !== -1); return a[a.length - 1]; };
 const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore','pk-pl-unidentified'];
+const PL_TASK = ['pk-pl-await','pk-pl-restore','pk-pl-unidentified'], PL_HL = ['pk-pl-advance','pk-pl-disputed'];
+const plRow = (kind, id, d) => hlRows(kind, d).find(r => r.key.indexOf(`:${id}|`) !== -1);
 
-/* четырнадцатый источник: пять видов платежей записями трёх реестров */
+/* четырнадцатый источник: пять видов платежей — три дают задания, два в подсветке */
 (() => {
   ZD.seed();
   const pl = ZD.SOURCES.find(s => s.id === 'payments');
-  const ks = ZD.PL_KINDS.map(id => ZD.kindOf(id)), rs = ZD.PL_KINDS.map(id => ZD.ruleForKind(id));
-  const byAddr = rs.map(r => r.addressee.by === 'очередь' ? r.addressee.role : r.addressee.role).join();
+  const ks = ZD.PL_KINDS.map(id => ZD.kindOf(id)), rs = PL_TASK.map(id => ZD.ruleForKind(id)), tks = PL_TASK.map(id => ZD.kindOf(id));
+  const byAddr = rs.map(r => r.addressee.role).join();
   const titles = ZD.state.povodKinds.map(k => k.title);
   const notKinds = !titles.some(t => /сторн|опозна|известие|еженедельн/i.test(t));
   const acc = ZD.ROLES.find(r => r.id === 'pl-accountant');
-  ok(249, ZD.SOURCES.length === 17 && ZD.SOURCES[13] === pl && pl.name === 'Платежи' && pl.pollEveryMin === 1440 && pl.silenceMin === null &&
-       ZD.PL_KINDS.join() === PL_ORDER.join() &&
-       byAddr === 'куратор кредита,куратор кредита,куратор кредита,pl-accountant,pl-accountant' &&
+  ok(249, ZD.SOURCES.length === 17 && ZD.SOURCES[13] === pl && pl.name === 'Платежи' && pl.onSave === false &&
+       ZD.PL_KINDS.join() === PL_ORDER.join() && pl.kinds.join() === PL_TASK.join() && pl.highlights.join() === PL_HL.join() && PL_HL.every(k => !ZD.ruleForKind(k)) &&
+       byAddr === 'куратор кредита,pl-accountant,pl-accountant' &&
        ks.map(k => k.objectType).join() === 'payment,credit,credit,payment,receipt' &&
        ks.map(k => k.sumAttr).join() === 'сумма платежа,остаток аванса,сумма спорной пени,сумма платежа,сумма поступления' &&
-       ks.filter(k => k.addrForm === 'очередь').every(k => k.take === 'через очередь') && ks.filter(k => k.addrForm === 'очередь').length === 2 &&
-       rs.map(r => r.dueN).join() === '5,5,15,2,5' && rs.every(r => r.dueUnit === 'workday' && r.dueSource === 'внутренний акт') &&
-       ks.every(k => k.ownerExec && k.genus === 'надзор' && !k.selfRelease && k.activatedAt === '2026-11-10' && k.ownerDept === 'Бухгалтерия') &&
-       rs.every(r => r.author === 'post-buh') && !!acc && acc.dept === 'Бухгалтерия' && acc.holders.join() === 'E25,E38' &&
+       tks.filter(k => k.addrForm === 'очередь').every(k => k.take === 'через очередь') && tks.filter(k => k.addrForm === 'очередь').length === 2 &&
+       rs.map(r => r.dueN).join() === '5,2,5' && rs.every(r => r.dueUnit === 'workday' && r.dueSource === 'внутренний акт' && r.author === 'post-buh') &&
+       tks.every(k => k.ownerExec && k.genus === 'надзор') && ks.every(k => !k.selfRelease && k.activatedAt === '2026-11-10' && k.ownerDept === 'Бухгалтерия') &&
+       !!acc && acc.dept === 'Бухгалтерия' && acc.holders.join() === 'E25,E38' &&
        ZD.deptHead('Бухгалтерия') === 'E37' && notKinds &&
        ZD.PL_KINDS.every(k => ZD.ownerOfKind(k) === 'Платежи') && ZD.checkRegistry().length === 0,
-    `Платежи — четырнадцатый источник, ночной опрос; пять видов — надзор, работа у платежей, решения «не требуется» нет; платёж, ` +
-    `аванс и спорная пеня — куратору кредита, восстановление и невыясненное — очереди «Бухгалтер» (Бекмуратова, Токтобаева; ` +
-    `главный бухгалтер Жумалиева); срок — значение правила 5/5/15/2/5 р.д.; реквизит суммы — платёж, остаток аванса, спорная пеня, ` +
-    `платёж, поступление; сторно, опознание и еженедельное напоминание — не виды; реестр сходится`);
+    `Платежи — четырнадцатый источник, ночной опрос; три вида с заданием — надзор, работа у платежей: платёж — куратору кредита, восстановление и ` +
+    `невыясненное — очереди «Бухгалтер» (Бекмуратова, Токтобаева; главный бухгалтер Жумалиева), срок 5/2/5 р.д.; аванс и спорная пеня — подсветка; ` +
+    `реквизит суммы — платёж, остаток аванса, спорная пеня, платёж, поступление; сторно, опознание и еженедельное напоминание — не виды; реестр сходится`);
 })();
 
 /* рубильник и клэмп: до 10.11 поводов нет; 10.11 — шесть, база прижата; порог «3-й р.д.» — настройка платежей */
@@ -4097,23 +3974,24 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
   ZD.seed();
   const r0 = ZD.runPoll(); at('2026-11-06');
   const c0 = ZD.runPoll().sources.find(s => s.src === 'payments');
-  const inactive = ZD.state.povods.filter(p => p.kind === 'pk-kind-inactive' && /pk-pl-/.test(p.key)).length;
+  const inactive = hlRows('pk-kind-inactive').filter(r => /pk-pl-/.test(r.key)).length;
   at('2026-11-10');
   const c1 = ZD.runPoll().sources.find(s => s.src === 'payments');
   const ps = ZD.state.povods.filter(p => ZD.PL_KINDS.includes(p.kind));
   const aw = ZD.povodByKey(plKey('pk-pl-await', 'payment', 'ПЛ-7101'));
   const no7102 = !ZD.povodByKey(plKey('pk-pl-await', 'payment', 'ПЛ-7102'));
+  const hl = PL_HL.map(k => hlRows(k).length).join();
   at('2026-11-11'); ZD.runPoll();
   const p7102 = ZD.povodByKey(plKey('pk-pl-await', 'payment', 'ПЛ-7102'));
   const none = ['ПЛ-7100', 'ПЛ-7080', 'ПЛ-7090'].every(id => !ZD.povodByKey(plKey('pk-pl-await', 'payment', id))) &&
-               !ZD.povodByKey(plKey('pk-pl-disputed', 'credit', 'КД-2024/343'));
+               !plRow('pk-pl-disputed', 'КД-2024/343');
   ok(250, r0.sources.find(s => s.src === 'payments').new === 0 && c0.new === 0 && c0.answer === 'множество' && inactive === 0 &&
-       c1.new === 6 && ps.length === 6 && ps.every(p => p.stateDate === '2026-11-10' && /\|$/.test(p.key)) &&
+       c1.new === 4 && ps.length === 4 && hl === '1,1' && ps.every(p => p.stateDate === '2026-11-10' && /\|$/.test(p.key)) &&
        ps.filter(p => p.kind === 'pk-pl-unidentified').length === 2 &&
        !!aw && aw.curObj === 'КД-2025/344' && aw.traits.дата_операции === '2026-11-02' && no7102 &&
        !!p7102 && p7102.stateDate === '2026-11-11' && p7102.curObj === 'КД-2025/345' && none,
-    `до ввода видов (10.11) платежи отвечают пустым множеством, «вид не введён» не поднимается; 10.11 — шесть поводов (невыясненных ` +
-    `два), база прижата к 10.11, ключ «вид · объект» без периода; ПЛ-7101 от 02.11 ждёт с 05.11 (3-й р.д.), ПЛ-7102 от 05.11 — с 11.11 ` +
+    `до ввода видов (10.11) платежи отвечают пустым множеством, «вид не введён» не поднимается; 10.11 — четыре повода (невыясненных ` +
+    `два) и две строки подсветки, база прижата к 10.11, ключ «вид · объект» без периода; ПЛ-7101 от 02.11 ждёт с 05.11 (3-й р.д.), ПЛ-7102 от 05.11 — с 11.11 ` +
     `(09.11 праздник); подтверждённый ПЛ-7100 и сторнированные повода «ожидает» не дают; по КД-2024/343 казначейство уже подтвердило ` +
     `платёж — спорной пени на комиссию нет`);
 })();
@@ -4123,19 +4001,19 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
   ZD.seed();
   pollOn('2026-11-10', '2026-11-11');
   const own = ZD.state.tasks.filter(t => ZD.PL_KINDS.includes(t.originKind));
-  const aw = plLast('pk-pl-await', 'ПЛ-7101'), a2 = plLast('pk-pl-await', 'ПЛ-7102'), av = plLast('pk-pl-advance', 'КД-2025/341');
-  const ds = plLast('pk-pl-disputed', 'КД-2025/342'), rs = plLast('pk-pl-restore', 'ПЛ-7080'), un = plLast('pk-pl-unidentified', 'ПС-9050');
-  const dp = ZD.povodByKey(ds.povodKey), ap = ZD.povodByKey(av.povodKey);
-  ok(251, own.length === 7 && aw.assignee === 'E3' && aw.addr.role === 'куратор кредита' && aw.dueDate === '2026-11-16' &&
+  const aw = plLast('pk-pl-await', 'ПЛ-7101'), a2 = plLast('pk-pl-await', 'ПЛ-7102');
+  const rs = plLast('pk-pl-restore', 'ПЛ-7080'), un = plLast('pk-pl-unidentified', 'ПС-9050');
+  const dp = plRow('pk-pl-disputed', 'КД-2025/342'), ap = plRow('pk-pl-advance', 'КД-2025/341');
+  ok(251, own.length === 5 && aw.assignee === 'E3' && aw.addr.role === 'куратор кредита' && aw.dueDate === '2026-11-16' &&
        a2.assignee === 'E1' && a2.dueDate === '2026-11-17' &&
-       av.assignee === 'E1' && av.dueDate === '2026-11-16' && ap.traits.сумма === 150000 && ap.traits.аванс_с === '2026-11-04' &&
-       ds.assignee === 'E3' && ds.dueDate === '2026-11-30' && dp.traits.сумма === 2340 && dp.traits.период === '15.10.2026–28.10.2026' &&
+       ap.traits.сумма === 150000 && ap.traits.аванс_с === '2026-11-04' &&
+       dp.traits.сумма === 2340 && dp.traits.период === '15.10.2026–28.10.2026' &&
        ZD.inQueue(rs) && rs.queue.role === 'pl-accountant' && rs.dueDate === '2026-11-12' &&
        ZD.inQueue(un) && un.queue.role === 'pl-accountant' && un.dueDate === '2026-11-16' &&
        /платёж ПЛ-7101 · 210.000 · кредит КД-2025\/344 · ОсОО «Жайыл-Сүт»/.test(aw.label) &&
        /поступление ПС-9050 · 50.000 · Айтматов Н\.К\./.test(un.label),
     `10.11: ПЛ-7101 — Нурлановой, 16.11 (5 р.д., 14.11 рабочая суббота); 11.11 ПЛ-7102 — Есеновой, 17.11; аванс 150 000 по ` +
-    `КД-2025/341 — Есеновой; спорная пеня 2 340 по КД-2025/342 за 15.10–28.10 — Нурлановой, 30.11 (15 р.д.); восстановление ПЛ-7080 — ` +
+    `КД-2025/341 и спорная пеня 2 340 по КД-2025/342 за 15.10–28.10 — в подсветке; восстановление ПЛ-7080 — ` +
     `в очереди «Бухгалтер», 12.11 (2 р.д.); невыясненное ПС-9050 — в той же очереди, 16.11`);
 })();
 
@@ -4163,7 +4041,7 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
     `Бекмуратова — «исполнено · выполнил другой»; специалист по залогу — отказ, вторая строка — отказ`);
 })();
 
-/* сторно: «ожидает» снято с причиной платежей, спорная пеня — новым видом куратору; известие — строка журнала кредита */
+/* сторно: «ожидает» снято с причиной платежей, спорная пеня — в подсветке; известие — строка журнала кредита */
 (() => {
   ZD.seed();
   pollOn('2026-11-10');
@@ -4173,26 +4051,27 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
   ZD.plStep('ПЛ-7101', 'E25', 'сторно', 'денег в реестре ЦК нет');
   const n0 = ZD.state.tasks.length, nn0 = ZD.state.notifications.length;
   pollOn('2026-11-13');
-  const o = outc(aw), ds = plLast('pk-pl-disputed', 'КД-2025/344'), p = ds && ZD.povodByKey(ds.povodKey);
+  const o = outc(aw), ds = plRow('pk-pl-disputed', 'КД-2025/344');
   const fresh = ZD.state.tasks.slice(n0).filter(t => t.originKind && /^pk-pl-/.test(t.originKind));
   const notes = ZD.plNotices('КД-2025/344', '2026-11-13');
   const plIds = ZD.state.tasks.filter(t => t.originKind && /^pk-pl-/.test(t.originKind)).map(t => t.id);
-  const toCur = ZD.state.notifications.slice(nn0).filter(n => n.to === 'E3' && (!n.taskId || plIds.includes(n.taskId))).map(n => n.kind).sort().join();
-  const noLetter = ZD.state.notifications.slice(nn0).every(n => ZD.NOTIF_KINDS.includes(n.kind)) && toCur === 'закрыто,повод-появился,поручено';
+  const toCur = ZD.state.notifications.slice(nn0).filter(n => n.to === 'E3' && n.items.some(i => plIds.includes(i.taskId))).map(n => n.kind).sort().join();
+  const noLetter = ZD.state.notifications.slice(nn0).every(n => n.kind === 'сигнал' || ZD.NOTIF_KINDS.includes(n.kind)) && toCur === 'закрыто';
   ok(253, byCur === 'факт денег вносит бухгалтер' && o.outcome === 'снято' && o.reason === 'поступление ПС-9001 сторнировано: денег в реестре ЦК нет' &&
-       !!ds && ds.assignee === 'E3' && ds.dueDate === '2026-12-03' && p.traits.сумма === 2310 && p.traits.период === '02.11.2026–13.11.2026' &&
-       fresh.map(t => t.originKind).join() === 'pk-pl-await,pk-pl-disputed' &&
+       !!ds && ds.traits.сумма === 2310 && ds.traits.период === '02.11.2026–13.11.2026' && noWork('pk-pl-disputed') &&
+       fresh.map(t => t.originKind).join() === 'pk-pl-await' &&
        notes.length === 1 && notes[0].how === 'поступление ПС-9001 сторнировано: денег в реестре ЦК нет' && notes[0].by === 'E25' && noLetter,
     `13.11 бухгалтер сторнировала ПС-9001 (куратор — отказ: факт денег): задание «ожидает» — «снято» с причиной платежей; спорная пеня ` +
-    `2 310 за 02.11–13.11 — новым видом Нурлановой, срок 03.12; сторно — строка журнала кредита КД-2025/344, ни задания, ни письма ` +
-    `(новые задания — только ПЛ-7102, дошедший до 3-го р.д., и спорная пеня; куратору — «закрыто» по ожиданию, «повод появился» и «поручено» по спорной пене, письма о сторно нет)`);
+    `2 310 за 02.11–13.11 — в подсветке; сторно — строка журнала кредита КД-2025/344, ни задания, ни письма ` +
+    `(новое задание — только ПЛ-7102, дошедший до 3-го р.д.; куратору — только «закрыто» по ожиданию)`);
 })();
 
-/* позднее подтверждение: восстановление — бухгалтер из очереди; спорная пеня снимается без комиссии */
+/* позднее подтверждение: восстановление — бухгалтер из очереди; спорная пеня уходит из подсветки без комиссии */
 (() => {
   ZD.seed();
   pollOn('2026-11-10');
-  const rs = plLast('pk-pl-restore', 'ПЛ-7080'), ds = plLast('pk-pl-disputed', 'КД-2025/342');
+  const rs = plLast('pk-pl-restore', 'ПЛ-7080');
+  const had = !!plRow('pk-pl-disputed', 'КД-2025/342');
   at('2026-11-12');
   const takeCur = throws(() => ZD.take(rs.id, 'E1'));
   ZD.take(rs.id, 'E38');
@@ -4201,15 +4080,14 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
   ZD.plStep('ПЛ-7080', 'E38', 'восстановить');
   ZD.plStep('ПЛ-7090', 'E25', 'строка ЦК', 'ЦК-1112-09');
   pollOn('2026-11-12');
-  const o1 = outc(rs), o2 = outc(ds), r2 = plLast('pk-pl-restore', 'ПЛ-7090');
+  const o1 = outc(rs), r2 = plLast('pk-pl-restore', 'ПЛ-7090');
   const notes = ZD.plNotices('КД-2024/343', '2026-11-12').map(e => e.how);
   ok(254, !!takeCur && rs.assignee === 'E38' && byCur === 'факт денег вносит бухгалтер' && /восстанавливать нечего/.test(early) &&
-       o1.outcome === 'исполнено' && o1.by === 'E38' &&
-       o2.outcome === 'снято' && o2.reason === 'казначейство подтвердило платёж после сторно: строка реестра ЦК ЦК-1112-09 — спорная пеня снимается без комиссии' &&
+       o1.outcome === 'исполнено' && o1.by === 'E38' && had && !plRow('pk-pl-disputed', 'КД-2025/342') &&
        !!r2 && ZD.inQueue(r2) && r2.dueDate === '2026-11-14' &&
        notes.length === 2 && /восстановлен датой операции 01\.10\.2026/.test(notes[1]),
     `12.11 Токтобаева взяла восстановление ПЛ-7080 из очереди (куратор взять не может) и восстановила — «исполнено»; куратор — отказ; ` +
-    `по ПЛ-7090 казначейство подтвердило платёж после сторно — спорная пеня по КД-2025/342 «снято» без комиссии, восстановление — в ` +
+    `по ПЛ-7090 казначейство подтвердило платёж после сторно — спорная пеня по КД-2025/342 ушла из подсветки без комиссии, восстановление — в ` +
     `очереди, срок 14.11 (рабочая суббота); в журнале КД-2024/343 — сторно и восстановление строками`);
 })();
 
@@ -4231,40 +4109,37 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
 (() => {
   ZD.seed();
   pollOn('2026-11-10');
-  const ds = plLast('pk-pl-disputed', 'КД-2025/342');
+  const had = !!plRow('pk-pl-disputed', 'КД-2025/342');
   at('2026-11-20');
   const byAcc = throws(() => ZD.plStep('КД-2025/342', 'E25', 'решение комиссии', { outcome:'не начислять', protocol:'№ 14' }));
   ZD.plStep('КД-2025/342', 'E2', 'решение комиссии', { outcome:'начислить частично, 1 200', protocol:'№ 14' });
   pollOn('2026-11-20');
-  const o = outc(ds), dec = ZD.plAt(ZD.state.owner.pl.find(x => x.id === 'ПЛ-7090'), '2026-11-20').decision;
-  ok(256, /трактовку вносит куратор кредита/.test(byAcc) && o.outcome === 'исполнено · выполнил другой' && o.by === 'E2' &&
-       !!dec && dec.decision.protocol === '№ 14' && ZD.povodByKey(ds.povodKey).status === 'gone',
+  const dec = ZD.plAt(ZD.state.owner.pl.find(x => x.id === 'ПЛ-7090'), '2026-11-20').decision;
+  ok(256, /трактовку вносит куратор кредита/.test(byAcc) && had && !plRow('pk-pl-disputed', 'КД-2025/342') && noWork('pk-pl-disputed') &&
+       !!dec && dec.decision.protocol === '№ 14',
     `20.11 решение комиссии по спорной пене КД-2025/342 (начислить частично, протокол № 14) внёс руководитель куратора Токтогулов — ` +
-    `«исполнено · выполнил другой», решение — реквизит платежа ПЛ-7090; бухгалтер — отказ: решение — трактовка`);
+    `ушло из подсветки, решение — реквизит платежа ПЛ-7090; бухгалтер — отказ: решение — трактовка`);
 })();
 
-/* аванс: директива куратора гасит; без директивы — израсходован наступившими платежами, «снято» с причиной платежей */
+/* аванс: директива куратора убирает из подсветки; без директивы — до расхода наступившими платежами */
 (() => {
   ZD.seed();
   pollOn('2026-11-10');
-  const a1 = plLast('pk-pl-advance', 'КД-2025/341');
+  const had = !!plRow('pk-pl-advance', 'КД-2025/341');
   at('2026-11-12'); ZD.plStep('КД-2025/341', 'E1', 'директива', { mode:'резерв', text:'резерв под строки 21.12 и 20.01 нового графика' });
   pollOn('2026-11-12');
-  const o1 = outc(a1);
+  const gone1 = !plRow('pk-pl-advance', 'КД-2025/341');
   ZD.seed();
   pollOn('2026-11-10');
-  const a2 = plLast('pk-pl-advance', 'КД-2025/341');
   ZD.state.owner.pl.find(x => x.id === 'КД-2025/341').ev.push(
     { t:'2026-11-20', used:75000, by:null, how:'аванс погасил платёж по графику 20.11: 75 000' },
     { t:'2026-12-21', used:75000, by:null, how:'аванс погасил платёж по графику 21.12: 75 000' });
   pollOn('2026-11-20');
-  const mid = ZD.povodByKey(a2.povodKey).traits.сумма, live = !ZD.isTerminal(a2);
+  const mid = plRow('pk-pl-advance', 'КД-2025/341');
   pollOn('2026-12-21');
-  const o2 = outc(a2);
-  ok(257, o1.outcome === 'исполнено' && o1.by === 'E1' && mid === 75000 && live &&
-       o2.outcome === 'снято' && o2.reason === 'аванс израсходован: аванс погасил платёж по графику 21.12: 75 000',
-    `12.11 Есенова поставила резерв под строки нового графика — «исполнено»; без директивы аванс гасит наступающее: 20.11 остаток ` +
-    `75 000, задание живо; 21.12 израсходован — «снято» с причиной платежей`);
+  ok(257, had && gone1 && mid && mid.traits.сумма === 75000 && !plRow('pk-pl-advance', 'КД-2025/341') && noWork('pk-pl-advance'),
+    `12.11 Есенова поставила резерв под строки нового графика — ушло из подсветки; без директивы аванс гасит наступающее: 20.11 остаток ` +
+    `75 000, строка живёт; 21.12 израсходован — ушла`);
 })();
 
 /* невыясненное: привязку вносит и куратор найденного кредита, возврат — бухгалтер, ошибочный ввод — «снято»; опознание — известие */
@@ -4302,17 +4177,17 @@ const PL_ORDER = ['pk-pl-await','pk-pl-advance','pk-pl-disputed','pk-pl-restore'
   ZD.seed();
   pollOn('2026-11-10');
   const rows = ZD.taskRows('2026-11-10').filter(x => ZD.PL_KINDS.includes(x.kind));
-  const ds = plLast('pk-pl-disputed', 'КД-2025/342'), hd = ZD.renderOwnerCard(ds, ZD.povodByKey(ds.povodKey));
+  const hd = ZD.renderOwnerCard(null, plRow('pk-pl-disputed', 'КД-2025/342'));
   const aw = plLast('pk-pl-await', 'ПЛ-7101'), ha = ZD.renderOwnerCard(aw, ZD.povodByKey(aw.povodKey));
   at('2026-11-11'); const r = ZD.runPoll({ downSources: ['payments'] });
   const frozen = ZD.state.povods.filter(p => ZD.PL_KINDS.includes(p.kind) && p.status === 'frozen').length;
-  ok(259, rows.length === 6 && rows.every(x => x.owner === 'Платежи') && rows.filter(x => x.sumAttr === 'сумма поступления').length === 2 &&
-       !r.complete && r.sources.find(s => s.src === 'payments').answer === 'таймаут' && frozen === 6 &&
+  ok(259, rows.length === 4 && rows.every(x => x.owner === 'Платежи') && rows.filter(x => x.sumAttr === 'сумма поступления').length === 2 &&
+       !r.complete && r.sources.find(s => s.src === 'payments').answer === 'ошибка' && frozen === 4 &&
        ZD.state.povods.filter(p => !ZD.PL_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка кредита КД-2025\/342/.test(hd) && /Журнал кредита КД-2025\/342 — известия платежей/.test(hd) &&
        /ПС-8990 сторнировано: банк заёмщика отозвал перевод/.test(hd) && /Решение комиссии<\/button>/.test(hd) &&
        /Карточка платежа ПЛ-7101/.test(ha) && /Строка ЦК<\/button>/.test(ha) && /Сторно<\/button>/.test(ha) && /ожидает подтверждения/.test(ha),
-    `строка задания несёт «чей повод» — Платежи и реквизит суммы вида; 11.11 платежи не ответили — заморожены только их 6 поводов; ` +
+    `строка задания несёт «чей повод» — Платежи и реквизит суммы вида; 11.11 платежи не ответили — заморожены только их 4 повода; ` +
     `в карточке кредита — спорная пеня с кнопкой решения и известия журнала кредита; в карточке платежа — строка ЦК и сторно`);
 })();
 
@@ -4328,11 +4203,11 @@ const ZM_ORDER = ['pk-zm-fin-package','pk-zm-fhs','pk-zm-recon-act'];
   const ks = ZD.ZM_KINDS.map(id => ZD.kindOf(id)), rs = ZD.ZM_KINDS.map(id => ZD.ruleForKind(id));
   const act = ZD.kindOf('pk-zm-recon-act'), ra = ZD.ruleForKind('pk-zm-recon-act');
   const vzOff = [35, 36, 37, 38].every(n => !ZD.VZ_KINDS.some(k => ZD.kindOf(k).tpl === n));
-  ok(260, ZD.SOURCES.length === 17 && ZD.SOURCES[14] === zm && zm.name === 'Заёмщик' && zm.pollEveryMin === 1440 && zm.silenceMin === null &&
+  ok(260, ZD.SOURCES.length === 17 && ZD.SOURCES[14] === zm && zm.name === 'Заёмщик' && zm.onSave === false &&
        ZD.ZM_KINDS.join() === ZM_ORDER.join() &&
        ks.every(k => k.objectType === 'borrower' && k.ownerExec && k.genus === 'надзор' && !k.selfRelease && k.addrForm === 'формула' &&
          k.take === 'нужно' && k.sumAttr === 'суммарный остаток по кредитам' && k.activatedAt === '2026-11-16' && k.ownerDept === 'Сопровождение') &&
-       rs.every(r => r.mode === 'авто' && r.addressee.by === 'кураторство' && r.addressee.role === 'ведущий куратор заёмщика' && r.author === 'post-escort') &&
+       rs.every(r => !('mode' in r) && r.addressee.by === 'кураторство' && r.addressee.role === 'ведущий куратор заёмщика' && r.author === 'post-escort') &&
        rs[0].dueN === 10 && rs[1].dueN === 14 &&
        rs.slice(0, 2).every(r => r.dueUnit === 'workday' && r.dueBase === 'состояние' && r.dueSource === 'внутренний акт') &&
        !ks[0].periodic && !ks[1].periodic && act.periodic && act.periodAbsorb === 'нет' &&
@@ -4504,7 +4379,7 @@ const ZM_ORDER = ['pk-zm-fin-package','pk-zm-fhs','pk-zm-recon-act'];
   at('2026-11-17'); const r = ZD.runPoll({ downSources: ['borrower'] });
   const frozen = ZD.state.povods.filter(p => ZD.ZM_KINDS.includes(p.kind) && p.status === 'frozen').length;
   ok(267, rows.length === 7 && rows.every(x => x.owner === 'Заёмщик' && x.sumAttr === 'суммарный остаток по кредитам') &&
-       !r.complete && r.sources.find(s => s.src === 'borrower').answer === 'таймаут' && frozen === 7 &&
+       !r.complete && r.sources.find(s => s.src === 'borrower').answer === 'ошибка' && frozen === 7 &&
        ZD.state.povods.filter(p => !ZD.ZM_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка заёмщика ОсОО «Ош-Курулуш»/.test(h) && /высокий риск с 18\.10\.2026/.test(h) && /Пакет в досье<\/button>/.test(h) &&
        (h.match(/Акт подписан<\/button>/g) || []).length === 2 && /уклонение/.test(h) && /Нурланова/.test(h) && !/Анализ в досье/.test(h),
@@ -4524,12 +4399,12 @@ const rsLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind
   const vzOff = [17, 18, 19].every(n => !ZD.VZ_KINDS.some(k => ZD.kindOf(k).tpl === n));
   const notKinds = !ks.some(k => /аванс|резерв|решени[ея] уполномоченного|пауз/i.test(k.title)) &&
     ZD.ownerOfKind('pk-pl-advance') === 'Платежи' && !rs.kinds.includes('pk-pl-advance');
-  ok(268, ZD.SOURCES.length === 17 && ZD.SOURCES[15] === rs && rs.name === 'Реструктуризация' && rs.pollEveryMin === 1440 && rs.silenceMin === null &&
+  ok(268, ZD.SOURCES.length === 17 && ZD.SOURCES[15] === rs && rs.name === 'Реструктуризация' && rs.onSave === false &&
        ZD.RS_KINDS.join() === RS_ORDER.join() &&
        ks.every(k => k.objectType === 'rs-application' && k.ownerExec && k.genus === 'надзор' && !k.selfRelease && !k.periodic &&
          k.addrForm === 'формула' && k.take === 'нужно' && k.sumAttr === 'остаток задолженности по кредитам заявки' &&
          k.activatedAt === '2026-11-23' && k.ownerDept === 'Сопровождение') &&
-       rr.every(r => r.mode === 'авто' && r.addressee.by === 'кураторство' && r.addressee.role === 'куратор кредита' && r.author === 'post-escort' &&
+       rr.every(r => !('mode' in r) && r.addressee.by === 'кураторство' && r.addressee.role === 'куратор кредита' && r.author === 'post-escort' &&
          r.dueUnit === 'named' && r.dueN === null && /норме реструктуризации \(п\. 18\)/.test(r.dueFrom) && !r.extendBy) &&
        acts.every(a => a.importance === 'высокая' && !!a.where) &&
        vzOff && notKinds && ZD.RS_KINDS.every(k => ZD.ownerOfKind(k) === 'Реструктуризация') && ZD.checkRegistry().length === 0,
@@ -4697,7 +4572,7 @@ const rsLast = (kind, id) => { const a = ZD.state.tasks.filter(t => t.originKind
   at('2026-11-24'); const r = ZD.runPoll({ downSources: ['restructuring'] });
   const frozen = ZD.state.povods.filter(p => ZD.RS_KINDS.includes(p.kind) && p.status === 'frozen').length;
   ok(275, rows.length === 5 && rows.every(x => x.owner === 'Реструктуризация' && x.sumAttr === 'остаток задолженности по кредитам заявки') &&
-       !r.complete && r.sources.find(s => s.src === 'restructuring').answer === 'таймаут' && frozen === 5 &&
+       !r.complete && r.sources.find(s => s.src === 'restructuring').answer === 'ошибка' && frozen === 5 &&
        ZD.state.povods.filter(p => !ZD.RS_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка заявки на реструктуризацию RS-2026\/12/.test(h) && /основной — КД-2025\/362/.test(h) && /Нурланова/.test(h) &&
        /Письмо отправлено<\/button>/.test(h) && /до 26\.11\.2026/.test(h) && /5 р\.д\. от решения комитета · п\. 18, Порядок №41/.test(h) && /позиция комитета — «нецелесообразно»/.test(h) &&
@@ -4719,15 +4594,14 @@ const clLast = (credit, fact) => { const a = ZD.state.tasks.filter(t => t.povodK
   const role = ZD.ROLES.find(x => x.id === 'cl-inspector');
   const notKinds = !cl.kinds.some(id => /метк|пересч|защёлк|закрыти|период|п\. 12|отч[её]т/i.test(ZD.kindOf(id).title));
   const fo01 = ZD.ownerOfKind('pk-rep-obligation-due') === 'Отчётность' && !cl.kinds.includes('pk-rep-obligation-due');
-  ok(276, ZD.SOURCES.length === 17 && ZD.SOURCES[16] === cl && cl.name === 'Классификация' && cl.pollEveryMin === 1440 && cl.silenceMin === null &&
-       ZD.silenceThreshold(cl) === 2880 && ZD.CL_KINDS.join() === 'pk-cl-no-decision' &&
+  ok(276, ZD.SOURCES.length === 17 && ZD.SOURCES[16] === cl && cl.name === 'Классификация' && cl.onSave === false && ZD.CL_KINDS.join() === 'pk-cl-no-decision' &&
        k.objectType === 'credit' && k.ownerExec && k.genus === 'надзор' && !k.selfRelease && !k.periodic && k.addrForm === 'очередь' &&
        k.take === 'через очередь' && k.sumAttr === 'остаток основного долга' && k.activatedAt === '2026-11-30' && k.ownerDept === 'Сопровождение' &&
-       r.mode === 'авто' && r.addressee.by === 'очередь' && r.addressee.role === 'cl-inspector' && r.dueN === 15 && r.dueUnit === 'workday' &&
+       !('mode' in r) && r.addressee.by === 'очередь' && r.addressee.role === 'cl-inspector' && r.dueN === 15 && r.dueUnit === 'workday' &&
        r.dueSource === 'внутренний акт' && r.author === 'post-escort' && a.importance === 'средняя' && !!a.where &&
        role.name === 'Кредитный инспектор' && role.dept === 'Сопровождение' && role.holders.join() === 'E3,E39' && ZD.deptHead('Сопровождение') === 'E2' &&
        notKinds && fo01 && ZD.ownerOfKind('pk-cl-no-decision') === 'Классификация' && ZD.checkRegistry().length === 0,
-    `ЗЦ-16, ЗЦ-20: Классификация — семнадцатый источник, ночной опрос, порог молчания по умолчанию; один вид «факт п. 11 без ` +
+    `ЗЦ-16, ЗЦ-20: Классификация — семнадцатый источник, ночной опрос, молчание — две ночи подряд; один вид «факт п. 11 без ` +
     `решения комитета» на кредите — надзор, работа в реестре фактов, «не требуется» нет; адресат — очередь роли «Кредитный ` +
     `инспектор» (Нурланова, Сулайманова), неразобранная — заведующему отделом сопровождения; срок — правило, 15 р.д.; важность ` +
     `средняя; реквизит — остаток основного долга; меток пересчёта, закрытия периода и срока отчёта п. 12 видами нет — вынос ` +
@@ -4892,7 +4766,7 @@ const clLast = (credit, fact) => { const a = ZD.state.tasks.filter(t => t.povodK
   const frozen = ZD.state.povods.filter(p => ZD.CL_KINDS.includes(p.kind) && p.status === 'frozen').length;
   ok(283, rows.length === 5 && rows.every(x => x.owner === 'Классификация' && x.sumAttr === 'остаток основного долга' &&
          x.queueRole === 'cl-inspector' && x.dept === 'Сопровождение') &&
-       !r.complete && r.sources.find(s => s.src === 'classification').answer === 'таймаут' && frozen === 5 &&
+       !r.complete && r.sources.find(s => s.src === 'classification').answer === 'ошибка' && frozen === 5 &&
        ZD.state.povods.filter(p => !ZD.CL_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Факты п\. 11 по кредиту КД-2024\/392/.test(h) && /Нурланова/.test(h) && (h.match(/Внести решение комитета<\/button>/g) || []).length === 2 &&
        (h.match(/Аннулировать<\/button>/g) || []).length === 2 && /в категорию риска не идёт/.test(h) && /61 800 000|61\s800\s000/.test(h) &&
@@ -4913,7 +4787,7 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   const okKinds = kinds.every(k => k.createdAt === '2026-12-07' && k.activatedAt === '2026-12-07' && k.traits.includes('порог') &&
     k.ownerDept === ZD.IM_SECTOR && k.genus === 'надзор' && !!k.sumAttr);
   const okRules = rules.every(r => r.editions[0].from === '2026-12-07' && /Инструкции/.test(r.editions[0].basis) && r.author === 'post-assets' &&
-    r.mode === 'авто' && !('threshold' in r));
+    !('mode' in r) && !('threshold' in r));
   const queues = addr('pk-im-ssi-memo').by === 'очередь' && addr('pk-im-ssi-memo').role === 'im-opk' &&
     ZD.roleOf('im-opk').dept === 'Отдел проблемных кредитов' && ZD.roleOf('im-opk').holders.join() === 'E30,E31' &&
     addr('pk-im-bankruptcy').role === 'im-sector' && ZD.roleOf('im-sector').dept === ZD.IM_SECTOR &&
@@ -5126,6 +5000,446 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
     `близко или просрочено» совпадает с живыми поводами «сдать форму к сроку», дней с непустым множеством — ${seen[7]} и ${seen[3]}; ` +
     `своего порога у вида и правила нет` +
     (bad.length ? ` — расхождения: ${bad.join(', ')}` : ''));
+})();
+
+/* ---------- AG. Решения ЗНП: виды по основаниям, группа в списке, поле состояния, опрос по сохранению, сигнал, первый выпуск ---------- */
+
+/* ЗНП-1, ЗНП-12 — 105 видов: заданий 77, подсветка 25, снято 3; файл оснований сходится с реестром построчно */
+(() => {
+  ZD.seed();
+  const c = ZD.registryCounts();
+  const rows = readFileSync(resolve(__dir, '../../mockups/zadaniya/ASUBK-zadaniya-osnovaniya-vidov.md'), 'utf8').split('\n')
+    .filter(l => l.startsWith('| `')).map(l => l.split('|').map(x => x.trim()))
+    .map(x => ({ id: x[1].replace(/`/g, ''), verdict: x[3], decision: x[4], src: x[5] }));
+  const groupOf = r => r.decision === 'подсветка' ? (r.verdict.startsWith('ТОЛЬКО ТЗ') ? 'только ТЗ' : 'не найдено')
+    : r.decision.includes('угроза') ? 'угроза без документа'
+    : r.src.split(';')[0].includes('Инструкция') ? 'проект Инструкции'
+    : r.verdict.startsWith('ПРЯМО') ? 'прямо в Порядке' : 'косвенно в нормах';
+  const wrong = rows.filter(r => { const k = ZD.kindOf(r.id);
+    return !k || ZD.kindCategory(k) !== (r.decision === 'подсветка' ? 'подсветка' : 'задание') || k.basis.group !== groupOf(r); }).map(r => r.id);
+  const inFile = new Set(rows.map(r => r.id));
+  const rest = {}; ZD.state.povodKinds.filter(k => !inFile.has(k.id)).forEach(k => { rest[k.basis.group] = (rest[k.basis.group] || 0) + 1; });
+  const groups = {}; ZD.state.povodKinds.filter(k => ZD.kindCategory(k) === 'задание').forEach(k => { groups[k.basis.group] = (groups[k.basis.group] || 0) + 1; });
+  const snyato = ZD.state.povodKinds.filter(k => ['сигнал', 'выведен'].includes(ZD.kindCategory(k))).map(k => k.id).sort().join();
+  ok(294, ZD.state.povodKinds.length === 105 && c.задание === 77 && c.подсветка === 25 && c.сигнал === 1 && c.выведен === 2 && c.шаг === 24 && c.надзор === 46 && c.самоопрос === 7 &&
+       rows.length === 68 && inFile.size === 68 && rows.filter(r => r.decision === 'подсветка').length === 23 && wrong.length === 0 &&
+       rest['шаг процесса'] === 24 && rest['про модуль и систему'] === 8 && rest['про реестр'] === 2 &&
+       groups['шаг процесса'] === 24 && groups['про модуль и систему'] === 8 && groups['прямо в Порядке'] === 10 && groups['косвенно в нормах'] === 12 &&
+       groups['проект Инструкции'] === 15 && groups['угроза без документа'] === 8 &&
+       snyato === 'pk-cr-payment-due,pk-im-topup-pending,pk-rep-obligation-overdue' && ZD.checkRegistry().length === 0,
+    `ЗНП-1, ЗНП-12 — 105 видов: заданий 77 (шаг 24, надзор 46, самоопрос 7), подсветка 25, снято 3 (платёж стал сигналом, два выведены); ` +
+    `68 строк файла оснований сошлись с реестром по решению и группе${wrong.length ? ' — расхождения: ' + wrong.join(', ') : ''}; ` +
+    `основание задания: прямо 10, косвенно 12, проект Инструкции 15, угроза 8, шаги 24, про модуль 8`);
+})();
+
+/* ЗНП-2, ЗНП-11 — подсветка не рождает заданий и не считается в просрочках на всём горизонте */
+(() => {
+  ZD.seed();
+  const hl = ZD.HIGHLIGHT_KINDS, days = ['2026-09-02', '2026-09-08', '2026-10-01', '2026-11-02', '2026-12-07'];
+  const seen = days.map(d => { at(d); ZD.runPoll(); return ZD.highlightsOn(d).reduce((a, x) => a + x.count, 0); });
+  const d = ZD.state.today;
+  ok(295, hl.length === 25 && hl.every(k => !ZD.state.rules.some(r => r.kind === k)) && seen.every(n => n > 0) &&
+       !ZD.state.tasks.some(t => hl.includes(t.originKind)) && !ZD.state.povods.some(p => hl.includes(p.kind)) &&
+       !ZD.taskRows(d).some(r => hl.includes(r.kind)) && !ZD.state.notifications.some(n => hl.includes(n.originKind)) &&
+       ZD.SOURCES.every(s => s.kinds.every(k => !hl.includes(k))) && /только выпуском/.test(throws(() => ZD.deactivateKind('lp-expiring', 'E4', 'приказ'))) && /только выпуском/.test(throws(() => ZD.activateKind('lp-expiring', 'E4', 'приказ'))),
+    `ЗНП-2, ЗНП-11 — подсвечено объектов на пяти датах: ${seen.join(' · ')}; заданий, поводов, строк статистике и уведомлений от подсветки нет, опрос её не трогает; ни выключить, ни ввести рубильником нельзя`);
+})();
+
+/* ЗНП-4, ЗНП-11 — подсветка видна отдельной категорией реестра, с основанием и числом объектов */
+(() => {
+  ZD.seed();
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'kinds'; ZD.state.kindCat = 'подсветка';
+  const h = ZD.renderSettings();
+  ZD.state.kindCat = 'задание';
+  const t = ZD.renderSettings();
+  const lp = ZD.highlightsOn(ZD.state.today).find(x => x.kind === 'lp-expiring');
+  ok(296, /<b>77<\/b>Задания/.test(h) && /шаги 24 · надзор 46 · самоопрос 7/.test(h) && /<b>25<\/b>Подсветка/.test(h) && /<b>1<\/b>Сигнал/.test(h) && /<b>2<\/b>Выведены/.test(h) &&
+       ZD.HIGHLIGHT_KINDS.every(k => h.indexOf('mono small">' + k + '<') !== -1) && !/Выключить/.test(h) && /Заданий, просрочек и строк статистики не даёт/.test(h) && lp.count === 2 && h.indexOf(`ZD.toggleHl('lp-expiring')">2 `) !== -1 &&
+       !ZD.HIGHLIGHT_KINDS.some(k => t.indexOf('mono small">' + k + '<') !== -1) && /по сохранению \+ ночной прогон/.test(t) && /<th>Основание<\/th>/.test(t),
+    `ЗНП-4, ЗНП-11 — вкладка «Виды повода»: счётчики 77 · 25 · 1 · 2; подсветка отдельным списком с основанием и числом объектов на дату, без рубильника; в списке заданий её нет; у шагов «по сохранению + ночной прогон»`);
+})();
+
+/* ЗНП-13 — возврат только выпуском: документ нашёлся — вид получает правило или настройку сигнала */
+(() => {
+  ZD.seed();
+  const notHl = throws(() => ZD.releaseSignal('pk-overdue', 2, {})) + throws(() => ZD.releaseTaskKind('pk-overdue', 2, {}));
+  ZD.releaseTaskKind('lp-expiring', 2, { basis: { group: 'прямо в Порядке', source: 'демо выпуска' }, action: { label: 'Разобрать срок программы', where: 'карточка программы' },
+    rule: { addressee: { by: 'кураторство', role: 'куратор кредита' }, dueN: 5, controller: 'post-admin', importance: 'высокая' } });
+  ZD.runPoll();
+  const asTask = ZD.state.tasks.filter(t => t.originKind === 'lp-expiring').length, rel = ZD.state.tasks.find(t => t.originKind === 'lp-expiring');
+  const c1 = ZD.registryCounts();
+  ZD.seed();
+  ZD.releaseSignal('pk-org-acting-expiring', 2, { recipients: [{ by: 'должность', post: 'post-admin' }], text: 'и.о. истекает' });
+  ZD.runPoll();
+  const s = ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.originKind === 'pk-org-acting-expiring');
+  ok(297, (notHl.match(/выпуск делает вид подсветки/g) || []).length === 2 && asTask === 2 && rel.importance === 'высокая' && rel.controller === 'E4' && c1.задание === 78 && c1.подсветка === 24 &&
+       s.length === 1 && s[0].to === 'E4' && s[0].count === 1 && !ZD.state.tasks.some(t => t.originKind === 'pk-org-acting-expiring') && ZD.registryCounts().подсветка === 24 && ZD.registryCounts().сигнал === 2,
+    `ЗНП-13 — выпуск перевёл «срок программы истекает» в задание: ${asTask} задания, реестр 78 · 24; другой вид — в сигнал: одно уведомление, задания нет; выпуск принимает только вид подсветки`);
+})();
+
+/* ЗНП-3 — вала нет: при 11 и при 10 просрочках счёт идёт ровно по числу заданий */
+(() => {
+  ZD.seed();
+  ZD.state.owner.rp.filter(o => o.period === 'июнь 2026').forEach(o => { o.ev = o.ev.filter(e => !e.issue); }); // июнь никто не сдал — все 11 форм просрочены
+  pollOn('2026-09-02', '2026-09-04');
+  const D = '2026-09-04', KIND = 'pk-rep-obligation-overdue';
+  const count = () => {
+    ZD.state.viewer = 'E1';
+    const g = ZD.queueGroups('mine').find(x => x.kind === KIND);
+    const out = { rows: ZD.taskRows(D).filter(r => r.kind === KIND && r.assignee === 'E1' && r.overdue).length, tile: ZD.myTile('E1', D).overdue, late: g.overdue, n: g.count };
+    ZD.state.viewer = 'E4'; return out;
+  };
+  const eleven = count();
+  const t = ZD.state.tasks.find(x => x.originKind === KIND && x.assignee === 'E1');
+  ZD.releaseTask(t.id, t.author, 'форма снята с подразделения');
+  const ten = count();
+  ok(298, eleven.rows === 11 && eleven.late === 11 && eleven.n === 11 && ten.rows === 10 && ten.late === 10 && ten.n === 10 && eleven.tile - ten.tile === 1 &&
+       ZD.state.tasks.filter(x => x.originKind === KIND).every(x => x.povodKey && !('rollupKeys' in x)),
+    `ЗНП-3 — у Есеновой 11 просроченных форм: строк статистики ${eleven.rows}, в группе просрочено ${eleven.late} из ${eleven.n}, в плитке ${eleven.tile}; одну сняли — ${ten.rows}, ${ten.late} из ${ten.n}, плитка ${ten.tile}: разрыва на границе нет, порога нет`);
+})();
+
+/* ЗНП-14, ЗНП-15 — группа только в списке и только от двух: свод заданий, своих реквизитов нет; что доступно группе */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  ZD.state.viewer = 'E1';
+  const all = ZD.queueGroups('mine'), mine = ZD.queueTasks('mine');
+  const flat = all.reduce((a, x) => a + (x.task ? 1 : x.tasks.length), 0);
+  const groups = all.filter(x => !x.task), rep = groups.find(x => x.kind === 'pk-rep-obligation-overdue');
+  const stray = all.filter(x => x.task && x.task.kind === 'rule' && !ZD.isTerminal(x.task) && groups.some(y => y.kind === x.task.originKind && y.assignee === x.task.assignee));
+  const shaped = groups.length > 0 && groups.every(x => x.tasks.length >= 2 && x.tasks.every(t => t.originKind === x.kind && t.assignee === x.assignee));
+  const summed = rep.count === 11 && rep.nearest === rep.tasks[0].dueDate && rep.importance === rep.tasks[0].importance && rep.tasks.every(t => t.dueDate && t.journal.length && t.povodKey);
+  const html = ZD.renderQueue();
+  ZD.state.viewer = 'E9';
+  const q = ZD.queueGroups('role').find(x => x.kind === 'ap-confirm'), qn = ZD.queueTasks('role').filter(t => t.originKind === 'ap-confirm').length;
+  ZD.state.viewer = 'E4';
+  const opsDo = ZD.groupOps(rep, 'E1'), opsAuthor = ZD.groupOps(rep, rep.tasks[0].author);
+  pollOn('2026-10-01');
+  ZD.state.viewer = 'E22';
+  const owned = ZD.queueGroups('mine').find(x => x.kind === 'pk-im-no-inspection'), opsOwned = ZD.groupOps(owned, 'E22'), opsOwnedAuthor = ZD.groupOps(owned, owned.tasks[0].author);
+  ZD.state.viewer = 'E6';
+  const step = ZD.queueGroups('role').find(x => x.kind === 'gd-review'), opsStepAuthor = ZD.groupOps(step, step.tasks[0].author);
+  ZD.state.viewer = 'E4';
+  ok(299, flat === mine.length && shaped && summed && stray.length === 0 &&
+       /<b>[^<]*\(11\)<\/b>/.test(html) && /<span class="pill neutral">группа<\/span>/.test(html) &&
+       q && q.count === qn && qn === 4 && q.assignee === null && q.queueRole === 'ap-gf' &&
+       opsDo.includes('взять') && opsDo.includes('продление') && !opsDo.includes('снять') && opsAuthor.includes('снять') && !opsAuthor.includes('взять') &&
+       opsOwned.join() === 'взять,отметка' && opsOwnedAuthor.includes('снять') && !opsStepAuthor.includes('снять'),
+    `ЗНП-14, ЗНП-15 — строк в группах и отдельно ровно столько, сколько заданий; группа — вид × человек, у очереди — вид × роль (${qn}); число, ближайший срок и важность — свод; ` +
+    `работа у владельца: взять и отметка; автору — «снять», у шага и автору нельзя`);
+})();
+
+/* ЗНП-15 — пакет поштучно: своё событие в свой журнал, отказ по одному не останавливает остальные */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const KIND = 'pk-rep-obligation-overdue';
+  const rep = ZD.state.tasks.filter(t => t.originKind === KIND && t.assignee === 'E1'), ids = rep.map(t => t.id);
+  const stranger = ZD.batchTasks(ids.slice(0, 2), 'взять', 'E5');
+  const clean = rep.every(t => ZD.lastEv(t) === 'поручено');
+  ZD.take(ids[0], 'E1');
+  const jl = rep.map(t => t.journal.length);
+  const r = ZD.batchTasks(ids, 'взять', 'E1');
+  const taken = ZD.state.notifications.filter(n => n.kind === 'принято' && n.to === rep[0].author && n.originKind === KIND);
+  const noted = ZD.batchTasks(ids.slice(0, 3), 'отметка', 'E1', { text: 'разослали письмо' });
+  const noOp = throws(() => ZD.batchTasks(ids, 'закрыть всё', 'E1')), noIds = throws(() => ZD.batchTasks([], 'взять', 'E1'));
+  const noProof = ZD.batchTasks(ids.slice(1, 3), 'заявить', 'E1');
+  const proofed = ZD.batchTasks(ids.slice(1, 3), 'заявить', 'E1', { proof: 'письмо №7' });
+  const noWhy = ZD.batchTasks(ids.slice(5, 6), 'снять', rep[5].author, {});
+  const released = ZD.batchTasks(ids.slice(5, 6), 'снять', rep[5].author, { reason: 'форма снята' });
+  ok(300, stranger.done.length === 0 && stranger.refused.length === 2 && stranger.refused.every(x => /исполнитель/.test(x.why)) && clean &&
+       r.done.length === 10 && r.refused.length === 1 && r.refused[0].id === ids[0] && rep.slice(1).every((t, i) => t.journal[jl[i + 1]].ev === 'принято' && t.journal[jl[i + 1]].by === 'E1') &&
+       taken.length === 2 && taken[1].count === 10 && taken[1].items.length === 10 &&
+       noted.done.length === 3 && !!noOp && !!noIds &&
+       noProof.done.length === 0 && noProof.refused.every(x => /ссылку на подтверждение/.test(x.why)) && proofed.done.length === 2 && rep[1].journal[rep[1].journal.length - 1].proof === 'письмо №7' && rep[2].journal[rep[2].journal.length - 1].proof === 'письмо №7' &&
+       noWhy.refused.length === 1 && released.done.length === 1 && ZD.outcomeOf(rep[5]).outcome === 'снято',
+    `ЗНП-15, ЗНП-16 — «Взять» на 11: взято 10, по уже взятому отказ с причиной; у каждого своя запись, автору одно уведомление на 10; посторонний — 2 отказа, журналы не тронуты; заявить без ссылки отбито поштучно, со ссылкой — у каждого; снять — с основанием`);
+})();
+
+/* ЗНП-3, ЗНП-16 — уведомления и эскалация сводятся в одно за прогон; задания эскалации остаются поштучно */
+(() => {
+  ZD.seed();
+  ZD.state.owner.rp.filter(o => o.period === 'июнь 2026').forEach(o => { o.ev = o.ev.filter(e => !e.issue); }); // июнь никто не сдал — все 11 форм просрочены
+  ZD.runPoll();
+  const KIND = 'pk-rep-obligation-overdue';
+  const rec = (kind, to, origin) => ZD.state.notifications.filter(n => n.kind === kind && n.to === to && n.originKind === origin);
+  const issued = rec('поручено', 'E1', KIND);
+  const reN = ZD.state.notifications.length;
+  ZD.runPoll();
+  const same = ZD.state.notifications.length === reN;
+  at('2026-09-08'); ZD.runPoll();
+  const late = rec('срок-истёк', 'E1', KIND);
+  const lateN = late.length, lateC = late[0].count;
+  ZD.runPoll();
+  const lateAgain = rec('срок-истёк', 'E1', KIND).length;
+  const rep = ZD.state.tasks.filter(t => t.originKind === KIND && t.assignee === 'E1');
+  at('2026-09-15'); ZD.runPoll();
+  const esc = rep.map(t => ZD.state.tasks.find(x => x.originKind === 'pk-overdue' && x.povodKey.indexOf(`task:${t.id}|`) !== -1));
+  const toE2 = ZD.state.notifications.filter(n => n.kind === 'эскалация' && n.to === 'E2' && n.t === '2026-09-15');
+  ZD.state.viewer = 'E2';
+  const g = ZD.queueGroups('mine').find(x => x.kind === 'pk-overdue');
+  ZD.state.viewer = 'E4';
+  ok(301, issued.length === 1 && issued[0].count === 11 && new Set(issued[0].items.map(i => i.taskId)).size === 11 && same &&
+       lateN === 1 && lateC === 11 && lateAgain === 1 &&
+       esc.every(x => !!x && x.assignee === 'E2') && esc.length === 10 && new Set(esc.map(x => x.id)).size === 10 && g && esc.every(x => g.tasks.includes(x)) &&
+       toE2.length === 1 && esc.every(x => toE2[0].items.some(i => i.taskId === x.id)) &&
+       ZD.state.notifications.every(n => n.items.length === 0 || n.count === n.items.length),
+    `ЗНП-3, ЗНП-16 — выдача 11 форм — одно «поручено» с перечнем; повторный прогон — тишина; «срок истёк» — одно на 11; на пятый р.д. — по оставшимся у исполнителя десяти (одна переадресована) десять заданий руководителю поштучно, группой в его списке, и одно уведомление «эскалация» (в нём ${toE2[0] && toE2[0].count} заданий)`);
+})();
+
+/* ЗНП-5, ЗНП-17 — журнал главный: поле пишет одна операция, руками не правится, расхождение ловит ночь */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const t = ZD.state.tasks.find(x => x.originKind === 'pk-org-head-vacant');
+  const synced = () => ZD.state.tasks.every(x => x.current.ev === ZD.lastEv(x));
+  const a = synced() && ZD.checkStateField().length === 0;
+  ZD.take(t.id);
+  const afterTake = t.current.ev === 'принято' && t.current.since === t.journal[t.journal.length - 1].t;
+  const byHand = throws(() => { t.current = { ev: 'закрыто' }; }), byField = throws(() => { t.current.ev = 'закрыто'; });
+  const held = t.current.ev === 'принято';
+  t.journal.push({ t: ZD.state.today, ev: 'возвращено', by: 'E4' }); // запись мимо операции — только так поле и может разойтись
+  const drift = ZD.checkStateField();
+  const r = ZD.runPoll();
+  const rebuilt = t.current.ev === 'возвращено' && ZD.checkStateField().length === 0 && synced();
+  const c = ZD.state.tasks.find(x => x.originKind === 'pk-org-head-vacant' && x !== t);
+  ZD.releaseTask(c.id, c.author, 'подразделение ликвидировано');
+  const r2 = ZD.runPoll();
+  ok(302, a && afterTake && !!byHand && !!byField && held && drift.length === 1 && drift[0].task === t.id && drift[0].журнал === 'возвращено' && drift[0].поле === 'принято' &&
+       r.stateDrift.length === 1 && r.stateDrift[0].task === t.id && rebuilt && c.current.ev === 'закрыто' && c.current.outcome === 'снято' && r2.stateDrift.length === 0,
+    `ЗНП-5, ЗНП-17 — поле равно журналу у всех заданий; переход пишет запись и поле одной операцией; присвоить поле нельзя; запись мимо операции — ночь показала расхождение в журнале прогонов и пересобрала поле из журнала`);
+})();
+
+/* ЗНП-6, ЗНП-18 — опрос по сохранению: у четырёх источников с шагами, закрывает без ночи, сосед ничего не шлёт */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const on = ZD.SOURCES.filter(s => s.onSave).map(s => s.id).join();
+  const stepsOn = ZD.state.povodKinds.filter(k => k.pollOnSave).map(k => k.id), steps = ZD.state.povodKinds.filter(k => k.genus === 'шаг').map(k => k.id);
+  const q = lastOf('gd-review', 'GD-12');
+  at('2026-09-03');
+  const polls = ZD.state.savePolls.length, runs = ZD.state.pollRuns.length;
+  ZD.ownerStep('gd', 'GD-12', 'E8', 'одобрить');
+  const atOnce = ZD.isTerminal(q) && ZD.outcomeOf(q).by === 'E8', sp = ZD.state.savePolls.slice(polls), noNight = ZD.state.pollRuns.length === runs;
+  const refused = throws(() => ZD.ownerStep('gd', 'GD-12', 'E3', 'одобрить'));
+  const refusedNoPoll = ZD.state.savePolls.length === polls + 1;
+  ZD.lpExtend('LP-8', 'E8', '2029-12-31', 'приказ');
+  pollOn('2026-09-04');
+  ZD.apStep('AP-106', 'E3', 'отозвать');
+  const srcs = ZD.state.savePolls.slice(polls).map(x => x.src).join();
+  const k = ZD.kindOf('pk-im-unsold'); k.pollOnSave = true;
+  const err = ZD.checkRegistry();
+  ok(303, on === 'gosresh,programs,apps,docs' && stepsOn.length === 24 && stepsOn.join() === steps.join() && atOnce && sp.length === 1 && sp[0].src === 'gosresh' && sp[0].answer === 'множество' && sp[0].gone >= 1 &&
+       noNight && !!refused && refusedNoPoll && srcs === 'gosresh,programs,apps' && err.some(e => /опрос по сохранению/.test(e)) && ZD.SOURCES.every(s => !('pollEveryMin' in s)),
+    `ЗНП-6, ЗНП-18 — по сохранению опрашиваются Госрешение, программы, заявки, документооборот: 24 шага; одобрение GD-12 закрыло задание сразу, без ночного прогона, одной сверкой источника; отказ в сохранении опроса не запускает; интервала в минутах нет`);
+})();
+
+/* ЗНП-6 — сбой опроса сохранение не ломает, поводы не тронуты, ночь сверяет заново, в счёт ночей не идёт */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const q = lastOf('gd-review', 'GD-12');
+  at('2026-09-03');
+  ZD.state.sourceDown.gosresh = true;
+  const live = () => ZD.state.povods.filter(p => p.status === 'appeared' && /^gd-/.test(p.kind)).length, n0 = live();
+  const err = throws(() => ZD.ownerStep('gd', 'GD-12', 'E8', 'одобрить'));
+  const saved = ZD.ownerAt('gd', 'GD-12', '2026-09-03').status !== 'На рассмотрении';
+  const sp = ZD.state.savePolls[ZD.state.savePolls.length - 1];
+  const open = !ZD.isTerminal(q) && live() === n0 && !ZD.state.povods.some(p => p.status === 'frozen');
+  const noNights = !ZD.silenceOf('gosresh', '2026-09-03');
+  ZD.state.sourceDown.gosresh = false;
+  ZD.runPoll();
+  const done = ZD.isTerminal(q) && ZD.outcomeOf(q).by === 'E8';
+  ZD.seed();
+  ZD.ruleForKind('pk-org-head-vacant').action = 'нет-такого-действия';
+  const crash = throws(() => ZD.runPoll());
+  const cleaned = crash !== '' && ZD.state.runDown === null && ZD.state.digest === null;
+  ok(304, err === '' && saved && sp.src === 'gosresh' && sp.answer === 'ошибка' && sp.new === 0 && sp.gone === 0 && sp.matched === 0 && open && noNights && done && cleaned,
+    `ЗНП-6 — источник не ответил на опрос: решение сохранено, в журнале опросов ошибка, задание и поводы не тронуты, ночь молчания не засчитана; ночью сверилось заново — задание закрыто с атрибуцией`);
+})();
+
+/* ЗНП-6, ЗНП-19 — ошибка не значит пусто, ответ один, порог один — две ночи подряд */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const KIND = 'pk-rep-obligation-overdue', KEY = 'pk-neighbor-silent|source:reports|';
+  const rep = ZD.state.tasks.filter(t => t.originKind === KIND);
+  at('2026-09-08');
+  const r1 = ZD.runPoll({ downSources: ['reports'] });
+  const untouched = rep.every(t => !t.journal.some(e => e.ev === 'отпало')) && ZD.state.povods.filter(p => p.kind === KIND).every(p => p.status === 'frozen');
+  const answer = r1.sources.find(s => s.src === 'reports').answer, night1 = !ZD.povodByKey(KEY);
+  at('2026-09-09'); ZD.runPoll();   // ответила: счёт сброшен
+  const reset = ZD.silenceOf('reports', '2026-09-09');
+  at('2026-09-10'); ZD.runPoll({ downSources: ['reports'] });
+  const notYet = !ZD.povodByKey(KEY);
+  at('2026-09-11'); const r4 = ZD.runPoll({ downSources: ['reports'] });
+  const p = ZD.povodByKey(KEY), fix = p && ZD.state.tasks.find(t => t.povodKey === p.key);
+  ok(305, answer === 'ошибка' && untouched && night1 && (!reset || reset.nights === 0) && notYet && !r4.complete && p && p.status === 'appeared' && p.traits.ночей_подряд === 2 && p.traits.молчит_с === '2026-09-10' && fix && fix.assignee === 'E4',
+    `ЗНП-6, ЗНП-19 — ночь без ответа: поводы заморожены, ни одно задание не отпало, ответ один — «ошибка»; ответил — счёт с нуля; снова две ночи подряд 10.09 и 11.09 — задание администратору в тот же прогон`);
+})();
+
+/* ЗНП-7, ЗНП-20 — сигнал: настройка у администратора, с основанием; новое событие только выпуском */
+(() => {
+  ZD.seed();
+  const S = 'pk-cr-payment-due', c = ZD.state.signals[S], admin = { by: 'E4', basis: 'приказ' };
+  const was = c.text;
+  const refusals = {
+    notAdmin: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E3', basis: 'приказ' })), noBasis: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E4' })),
+    empty: throws(() => ZD.editSignal(S, { text: '  ' }, admin)), badCh: throws(() => ZD.editSignal(S, { channels: ['голубь'] }, admin)), noCh: throws(() => ZD.editSignal(S, { channels: [] }, admin)),
+    badRec: throws(() => ZD.editSignal(S, { recipients: [{ by: 'фамилия', who: 'E3' }] }, admin)), noRec: throws(() => ZD.editSignal(S, { recipients: [] }, admin)),
+    other: throws(() => ZD.editSignal('lp-expiring', { text: 'x' }, admin)), field: throws(() => ZD.editSignal(S, { window: 10 }, admin)), same: throws(() => ZD.editSignal(S, { text: was }, admin)),
+  };
+  ZD.editSignal(S, { text: 'Платёж близко', channels: ['всплывающее', 'SMS'], recipients: [{ by: 'кураторство', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }] }, { by: 'E4', basis: 'приказ №50' });
+  at('2026-10-01'); ZD.runPoll();
+  const e4 = ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.to === 'E4'), e1 = ZD.state.notifications.find(n => n.kind === 'сигнал' && n.to === 'E1');
+  const k = ZD.kindOf(S), noCur = ZD.signalRecipients(k, { curObj: 'нет-такого' }, '2026-10-01');
+  ok(306, /администратор/.test(refusals.notAdmin) && /основание/.test(refusals.noBasis) && /не пустой/.test(refusals.empty) && /способ/.test(refusals.badCh) && /способ/.test(refusals.noCh) &&
+       /получатель/.test(refusals.badRec) && /получатель/.test(refusals.noRec) && /только выпуском/.test(refusals.other) && /выпуском/.test(refusals.field) && /не изменились/.test(refusals.same) &&
+       c.history.length === 1 && c.history[0].basis === 'приказ №50' && c.history[0].was.text === was &&
+       e4.length === 1 && e4[0].count === 15 && e1.text === 'Платёж близко' && e1.channels.join() === 'всплывающее,SMS' && e1.count === 3 &&
+       ZD.signalRecipients(k, { curObj: 'КД-2023/187' }, '2026-10-01').join() === 'E1,E4' && noCur.join() === 'E2,E4',
+    `ЗНП-7, ЗНП-20 — правит администратор с основанием, история хранит прежнее; получатели — роль кураторства и должности, текст, способ; добавили должность — администратор получил свод на ${e4[0] && e4[0].count} объектов, куратор на 3; нет куратора — руководитель владельца вида; новое событие — только выпуском`);
+})();
+
+/* ЗНП-7 — рубильник сигнала, чтение для остальных; двенадцать обычных уведомлений не настраиваются */
+(() => {
+  ZD.seed();
+  at('2026-10-01');
+  const S = 'pk-cr-payment-due', sig = () => ZD.state.notifications.filter(n => n.kind === 'сигнал').length;
+  const noBasis = throws(() => ZD.deactivateKind(S, 'E4', ''));
+  ZD.runPoll();
+  const first = sig() === 2;
+  ZD.runPoll();
+  const noRepeat = sig() === 2;
+  ZD.deactivateKind(S, 'E4', 'приказ №51');
+  ZD.runPoll();
+  const off = sig() === 2 && !ZD.state.povods.some(p => p.kind === S && p.status === 'appeared') &&
+    ZD.state.povods.filter(p => p.kind === S).every(p => p.journal[p.journal.length - 1].reason === 'вид выключен');
+  ZD.activateKind(S, 'E4', 'приказ №52');
+  ZD.runPoll();
+  const on = sig() === 4;
+  const ord = throws(() => ZD.editSignal('поручено', { text: 'x' }, { by: 'E4', basis: 'приказ' })), out = throws(() => ZD.notify(ZD.state.tasks[0], 'сигнал'));
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'signals';
+  const html = ZD.renderSettings();
+  ZD.state.viewer = 'E1';
+  const ro = ZD.renderSettings();
+  ZD.state.viewer = 'E4';
+  ok(307, /основание/.test(noBasis) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 12 && !ZD.NOTIF_KINDS.includes('сигнал') && /выпуском/.test(ord) && /вне закрытого списка/.test(out) &&
+       /Срок платежа по графику близко/.test(html) && /id="sgBasis"/.test(html) && /SMS/.test(html) && /e-mail/.test(html) && (html.match(/<div class="card"><h3>/g) || []).length === 1 &&
+       /Только чтение/.test(ro) && !/id="sgBasis"/.test(ro) && !/Выключить/.test(ro),
+    `ЗНП-7, ЗНП-20 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; на вкладке «Сигналы» один вид, остальным только чтение; закрытый список двенадцати не тронут и здесь не настраивается`);
+})();
+
+/* ЗНП-7, ЗНП-21 — платёж больше не задание: ни срока, ни ответа, ни строки; уведомление заёмщику — действие в карточке */
+(() => {
+  ZD.seed();
+  at('2026-10-01'); ZD.runPoll();
+  const S = 'pk-cr-payment-due', KEY = crKey('КД-2026/015', '2026-10-15');
+  const before = crSig().length;
+  at('2026-10-05'); ZD.crStep('КД-2026/015', 'E1', 'уведомить', '2026-10-15'); ZD.runPoll();
+  ZD.state.viewer = 'E1';
+  const list = ZD.renderNotif();
+  const n = crSig('E1')[0];
+  ZD.openHighlight(S, KEY);
+  const card = ZD.renderHighlightDrawer();
+  ZD.closeCard();
+  ZD.state.viewer = 'E4';
+  ok(308, before === 2 && crSig().length === 2 && noTaskCr() && ZD.povodByKey(KEY).status === 'appeared' && ZD.state.savePolls.length === 0 &&
+       !ZD.taskRows('2026-10-05').some(r => r.kind === S) && n.due === null && n.taskId === null && n.items.some(i => i.key === KEY) &&
+       /без задания/.test(list) && /Срок платежа по графику близко/.test(list) && list.indexOf(`ZD.openHighlight('${S}', '${KEY}')`) !== -1 &&
+       /сигнал — только уведомление/.test(card) && !/подсветка/.test(card) && /Уведомить заёмщика/.test(card),
+    `ЗНП-7, ЗНП-21 — по платежам два уведомления, заданий и строк нет; уведомление заёмщику остаётся действием куратора в карточке и повод не гасит; из списка уведомлений карточка кредита открывается ссылкой`);
+})();
+
+/* ЗНП-8, ЗНП-24 — ручного режима нет; ненужное снимает автор кнопкой «Снять», шаг — нет */
+(() => {
+  ZD.seed();
+  pollOn('2026-10-01');
+  const open = g => ZD.state.tasks.find(t => !ZD.isTerminal(t) && t.originKind && ZD.kindOf(t.originKind).ownerExec && ZD.kindOf(t.originKind).genus === g);
+  const t = open('надзор'), step = open('шаг');
+  const notAuthor = throws(() => ZD.releaseTask(t.id, t.assignee, 'не нужно')), noWhy = throws(() => ZD.releaseTask(t.id, t.author, ''));
+  ZD.releaseTask(t.id, t.author, 'передано другому отделу');
+  const stepRefused = throws(() => ZD.releaseTask(step.id, step.author, 'не нужно'));
+  pollOn('2026-10-02');
+  const free = ZD.createFreeTask({ label: 'проверить дело', assignee: 'E1', controller: 'E4', author: 'E4', dueDate: '2026-10-20' });
+  const noDue = throws(() => ZD.createFreeTask({ label: 'без срока', assignee: 'E1', controller: 'E4', author: 'E4', dueDate: '' }));
+  const after = throws(() => ZD.runPoll());
+  ok(309, !ZD.state.rules.some(r => 'mode' in r) && !ZD.GENERA.includes('решить') && !ZD.GENERA.includes('вал') && !ZD.state.tasks.some(x => x.decide) &&
+       /автор/.test(notAuthor) && /основание/.test(noWhy) && ZD.outcomeOf(t).outcome === 'снято' && ZD.povodReleased(ZD.povodByKey(t.povodKey)) &&
+       ZD.state.tasks.filter(x => x.povodKey === t.povodKey).length === 1 && /судьбу шага решает владелец/.test(stepRefused) && !ZD.isTerminal(step) && free.kind === 'free' && free.controller === 'E4' && /нужен срок/.test(noDue) && after === '',
+    `ЗНП-8, ЗНП-24 — у надзора с работой у владельца автор снял задание с основанием, ключ не переиздан; у шага снять нельзя; «назначает пользователь» — свободное поручение с контролёром; режима и рода «решить» нет`);
+})();
+
+/* ЗНП-10, ЗНП-22 — первый выпуск: порядок подключения, а не отключение */
+(() => {
+  ZD.seed();
+  ZD.state.pollScope = 'первый выпуск';
+  ZD.state.sourceDown.reports = true;   // неподключённый сосед не считается молчащим
+  const r = ZD.runPoll();
+  const asked = r.sources.map(s => s.src).join();
+  const kinds = new Set(ZD.SOURCES.filter(s => s.release === 1).flatMap(s => s.kinds));
+  const onlyThose = ZD.state.povods.every(p => kinds.has(p.kind));
+  const gdOpen = !ZD.state.tasks.some(t => t.originKind === 'gd-review');
+  const skip = ZD.pollSource('gosresh');
+  at('2026-09-03');
+  const err = throws(() => ZD.ownerStep('gd', 'GD-12', 'E8', 'одобрить'));
+  const noPoll = ZD.state.savePolls.length === 0;
+  at('2026-09-04'); ZD.runPoll();
+  const silent = ZD.state.povods.some(p => p.kind === 'pk-neighbor-silent');
+  at('2026-10-05'); const r2 = ZD.runPoll();
+  const coll = r2.sources.find(s => s.src === 'collection');
+  const html = ZD.renderRuns();
+  ZD.state.pollScope = 'все'; ZD.state.sourceDown.reports = false;
+  at('2026-10-06'); const r3 = ZD.runPoll();
+  ok(310, ZD.SOURCES.length === 17 && r.scope === 'первый выпуск' && asked === 'self,collection' && r.complete && onlyThose && gdOpen && skip === null && err === '' && noPoll && !silent &&
+       coll.new > 0 && /не подключён/.test(html) && /первый выпуск — механизм и взыскание/.test(html) &&
+       r3.scope === 'все' && r3.sources.length === 17 && r3.sources.every(s => s.answer === 'множество') && ZD.state.tasks.some(t => t.originKind === 'gd-review') &&
+       !ZD.state.tasks.some(t => t.povodKey === 'gd-review|gosreshenie:GD-12|'),
+    `ЗНП-10, ЗНП-22 — круг первого выпуска: опрашиваются механизм и взыскание (${coll.new} новых поводов 05.10), остальные не опрашиваются и не считаются молчащими, сохранение у них не ломается; ` +
+    `подключили всех — 17 источников ответили, поводы подхватились, сделанное до подключения заданий не дало; соседей из макета не вырезали`);
+})();
+
+/* ЗНП-14, ЗНП-6 — экраны: строка группы с действием, журнал прогонов */
+(() => {
+  ZD.seed();
+  pollOn('2026-10-01');
+  ZD.state.viewer = 'E22';
+  const closed = ZD.renderQueue();
+  ZD.toggleGroup('mine|pk-im-no-inspection|E22');
+  const open = ZD.renderQueue();
+  ZD.toggleGroup('mine|pk-im-no-inspection|E22');
+  ZD.state.viewer = 'E4';
+  ZD.lpExtend('LP-8', 'E8', '2029-12-31', 'приказ');
+  const runs = ZD.renderRuns();
+  ok(311, !/class="gt"/.test(closed) && /▸ показать/.test(closed) && (open.match(/class="gt"/g) || []).length === 12 && /grp-bar/.test(open) && /Взять в работу/.test(open) && !/Заявить исполнение/.test(open) &&
+       /Круг опроса/.test(runs) && /Опросы по сохранению/.test(runs) && /Поле и журнал/.test(runs) && /Ошибка не значит пусто/.test(runs) && /После двух ночей подряд/.test(runs),
+    `ЗНП-14, ЗНП-6 — группа свёрнута одной строкой, разворачивается 12 заданиями с отметками и действием над отмеченными; работа у владельца — без «Заявить»; журнал прогонов показывает круг опроса, опросы по сохранению и сверку поля`);
+})();
+
+/* ЗНП-19 — две ночи считаются датами: повтор той же датой — та же ночь; удачный опрос по сохранению счёт не сбрасывает */
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const KEY = 'pk-neighbor-silent|source:gosresh|', down = { downSources: ['gosresh'] };
+  at('2026-09-03');
+  ZD.runPoll(down); ZD.runPoll(down);
+  const oneNight = !ZD.povodByKey(KEY) && ZD.silenceOf('gosresh', '2026-09-03').nights === 1;
+  at('2026-09-04');
+  const sp = ZD.pollSource('gosresh');
+  const still = ZD.silenceOf('gosresh', '2026-09-03').nights === 1 && !ZD.povodByKey(KEY);
+  ZD.runPoll(down);
+  const p = ZD.povodByKey(KEY);
+  ok(312, oneNight && sp.answer === 'множество' && still && p && p.status === 'appeared' && p.traits.ночей_подряд === 2,
+    `ЗНП-19 — два прогона 03.09 с ошибкой — одна ночь; днём 04.09 опрос по сохранению ответил, счёт не сброшен; ночь 04.09 с ошибкой — вторая подряд, задание администратору`);
+})();
+
+/* снятых механизмов в макете нет; опрос по сохранению не проглотил ни одного исключения движка за весь прогон смоука */
+(() => {
+  collectSavePolls();
+  const words = ['rollup', 'pollEveryMin', 'silenceMin', 'silenceThreshold', 'decidePovods', 'flushDecide', 'crNoticeBatch', 'settleRollup', 'splitRollup', 'selfRelease', '5 мин', 'порог свёртки', 'ручной режим'].filter(w => src.includes(w));
+  ok(313, words.length === 0 && savePollSeen.total > 10 && savePollSeen.swallowed.length === 0,
+    `ЗНП-3, ЗНП-6, ЗНП-8 — снятых механизмов в макете нет${words.length ? ' — нашлись: ' + words.join(', ') : ''}; за весь смоук опросов по сохранению ${savePollSeen.total}, ошибка только от смоделированного отказа источника` +
+    (savePollSeen.swallowed.length ? ` — проглочено: ${[...new Set(savePollSeen.swallowed)].join('; ')}` : ''));
 })();
 
 /* ---------- отчёт ---------- */
