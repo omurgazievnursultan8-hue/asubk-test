@@ -102,7 +102,7 @@
 //      серая фишка «вне вашего охвата» и не сужает; в каталоге при пустом охвате по параметру плитки — «у вас пусто» с подсказкой, строка в конце
 //      секции, «Добавить» на месте; начало эпизода не раньше месяца выдачи кредита у всех эпизодов; «открывали за 90 дней» — открытия плитки, а не
 //      перерисовки. Переписаны под данные волны без ослабления: 189, 192, 236, 249, 319 (у семи кредитов месяц выдачи — месяц начала просрочки: база
-//      «Просрочено» на 30.09, «Освоено с начала года», «Поступило · прошлый месяц», план прошлого месяца, «ушли в 181+»), 347 (исключения «выданных
+//      «Просрочено» на 30.09, «Выдано с начала года», «Поступило · прошлый месяц», план прошлого месяца, «ушли в 181+»), 347 (исключения «выданных
 //      в сентябре» больше нет), 352 (одно открытие снимает метку — счётчик открытий, а не просмотров).
 //   AA волна 14 (17.10.2026), состояния полосы, нагрузка, запуск ДБ-212…ДБ-221, ДБ-Д59, ДБ-Д60: часть вида без ответа — «—» с причиной, остальное как
 //      посчитано (Таблица, Разрез, Карта); нет ответа на дату базы — «без сдвига», «Изменение» и Движение погашены, точка Ряда «—»; снимок открытой
@@ -716,7 +716,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const bal = DB.ask(T('lead-bal'), U('u1'), 'lead', {}).value, pis = DB.view('lead-issued', 'slice', { dim:'program' }, [], 'u1', 'lead', {}), iss = DB.ask(T('lead-issued'), U('u1'), 'lead', {});
   ok(107, DB.IND[T('lead-bal').views.table.cols[0]].obj === 'loan' && T('lead-bal').views.table.dim === 'program' && prTot[0] === ll.value && Math.round(prTot[1]) === Math.round(bal)
     && prRows.length === 6 && pis.total.v === iss.value && T('lead-issued').views.slice.dim === 'program',
-    `Таблица «Остатка» по программам — срез кредита: ${prRows.length} программ, ${prTot[0]} кредитов = второе число, остаток = главное; Разрез «Выдано» по программам ${DB.fmtVal(pis.total.v, 'sum')} = «Освоено с начала года» (ДБ-91, ДБ-98)`);
+    `Таблица «Остатка» по программам — срез кредита: ${prRows.length} программ, ${prTot[0]} кредитов = второе число, остаток = главное; Разрез «Выдано» по программам ${DB.fmtVal(pis.total.v, 'sum')} = «Выдано с начала года» (ДБ-91, ДБ-98)`);
   const mix = DB.rcheck(draft({ title:'смесь', inds:['loan.balance', 'loan.issued'], format:'table', dims:['program'] }));
   const tmix = DB.autocheck(Object.assign(DB.blankDraft('r-programs'), { title:'смесь', second:{ col:'loan.issued' } }));
   DB.newReportDraft(); DB.rInd('loan.balance', true); DB.rInd('loan.issued', true); const kept = DB.rdraft.inds.slice(); DB.newReportDraft();
@@ -1433,7 +1433,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
     `основа «Просрочено»: главное ${DB.fmtVal(b.value, 'sum')}, сдвиг по главному ${DB.fmtVal(b.shift.delta, 'sum')} ${b.shift.label}; мини-ряд — 12 концов месяцев до даты отчёта (на «конец прошлого месяца» — до сентября) (ДБ-115)`);
   // сравнения нет — причина; у неполного периода плана — прогресс к плану
   mk('p-plan', { report:'fo-54', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.paidPlanned' } });
-  mk('p-iss', { report:'fo-56', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.issued' } });
+  mk('p-iss', { report:'fo-53', params:{ curator:'*', period:'curMonth' }, main:{ col:'loan.issued' } });
   mk('p-co', { report:'fo-10', params:{ curator:'*' }, main:{ col:'rsapp.late' } });
   mk('p-form', { report:'r-form', params:{}, main:{ col:'loan.balance' } });
   const pl = DB.base('p-plan', 'u1', 'lead'), is = DB.base('p-iss', 'u1', 'lead'), co = DB.base('p-co', 'u1', 'lead'), fo = DB.base('p-form', 'u1', 'lead'), pp = pl.shift.plan;
@@ -1766,7 +1766,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
     `26 снятых плиток (${REMOVED.slice(0, 4).join(', ')}…) нет ни в списке плиток, ни в раскладках ролей и личных, ни на экранах, ни в тексте страницы; остались: «Многократных обращений» в каталоге, личная плитка Бековой`);
   // числа без намеренных изменений равны прежним: литералы из снимка до слияния, по умолчанию стенда. Волна 13 (ДБ-Д56): у семи кредитов месяц
   // выдачи — не позже начала их просрочки; КД-3190 и КД-2865 стенд выдавал в октябре днём позже сегодняшнего, теперь — в апреле и сентябре:
-  // «Освоено с начала года» 351 146 923 → 360 100 235 (Промышленность 126 624 871 → 129 942 066, Экспорт 15 780 265 → 21 416 382), «Поступило ·
+  // «Выдано с начала года» 351 146 923 → 360 100 235 (Промышленность 126 624 871 → 129 942 066, Экспорт 15 780 265 → 21 416 382), «Поступило ·
   // прошлый месяц» 104 713 529 → 104 852 228 (к графику 86,644 → 86,615 %, ожидалось 120 854 410 → 121 055 422), план прошлого месяца каталога
   // 87,759 → 87,782 % (87 615 586 / 99 836 043 → 87 714 390 / 99 923 468, сдвиг 0,205 → 0,236 п.п.)
   const LIT = {
@@ -1887,7 +1887,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const R = id => DB.reportById(id);
   ok(194, R('r-borrowers').cols.join() === 'borrower.count,borrower.total' && ['bover', 'bodays', 'bdebt', 'bcredits', 'bhist'].every(d => R('r-borrowers').dims.includes(d))
     && ['rsapp.inWork', 'rsapp.late', 'rsapp.multi', 'rsapp.count'].every(c => R('fo-10').cols.includes(c)) && R('fo-10').dims.includes('rstage')
-    && R('fo-56').dims.includes('program') && R('fo-98').dims.includes('pgsource')
+    && R('fo-53').dims.includes('program') && R('fo-98').dims.includes('pgsource')
     && ['lead-borr', 'cur-borod', 'cat-brepsh', 'lead-rs', 'cur-rs', 'cat-rsmulti', 'lead-issued', 'cat-plan', 'cat-progn'].every(id => !DB.reportBroken(T(id)) && DB.ask(T(id), U('u1'), 'lead', {}).state !== 'broken'),
     'отчёты слияния: «Заёмщики» с пятью разрезами и двумя колонками, «Обращения о реструктуризации» с четырьмя колонками и стадией, «Выдано» с программой, «Программы» с источником; плитки на них не сломаны');
   DB.seed();
@@ -2543,7 +2543,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   ok(239, /<span class="shift none" data-tip="[^"]*неполный период[^"]*">без сдвига<\/span>/.test(hiss) && /<span class="shift none" data-tip="[^"]*неполный период[^"]*">без сдвига<\/span>/.test(hcm)
     && pl && txt(hpl).includes(DB.fmtVal(pl.num, 'sum').replace(/ млн$/, '') + ' из ' + DB.fmtVal(pl.den, 'sum') + ' по плану') && /<span class="shift plan"/.test(hpl) && !/без сдвига/.test(hpl)
     && !/class="shift/.test(hts) && !/class="shift/.test(DB.tileHTML('acc-unident', 'u4', 'acc')) && /\.tile \.shift\.none,\.tile \.shift\.plan,\.strip \.shift\{ cursor:help; \}/.test(src),
-    `у незакрытого периода — серое «без сдвига» и причина в подсказке («Освоено с начала года», «Поступило · текущий месяц»); у текущего месяца при плане — прогресс «${txt(hpl).match(/\|([^|]*по плану)/)[1]}» вместо сдвига; у показателя без истории («Мои задания») места под сдвиг нет вовсе (ДБ-143, уточняет ДБ-129)`);
+    `у незакрытого периода — серое «без сдвига» и причина в подсказке («Выдано с начала года», «Поступило · текущий месяц»); у текущего месяца при плане — прогресс «${txt(hpl).match(/\|([^|]*по плану)/)[1]}» вместо сдвига; у показателя без истории («Мои задания») места под сдвиг нет вовсе (ДБ-143, уточняет ДБ-129)`);
 
   // ДБ-144: телефон — «⋯» виден всегда, «☰» первым пунктом меню
   const menu2 = src.slice(src.indexOf('function openMenu('), src.indexOf('function primaryClick('));
@@ -2906,7 +2906,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   ok(276, near(sum(rb.lines.map(l => l.value)), bal) && near(rb.total.v, bal) && rb.lines[0] === rb0 && (rb0?.value || 0) > 0 && near(rbOld + (rb0?.value || 0), bal) && Math.round(rbOld / 1e6) === 852 && Math.round(bal / 1e6) === 3856
     && near(sum(ri.lines.map(l => l.value)), ri.total.v) && ri.lines.at(-1) === emp(ri) && (emp(ri)?.value || 0) > 0 && near(sum(rp.lines.map(l => l.value)), rp.total.v) && rp.lines.at(-1) === emp(rp) && (emp(rp)?.value || 0) > 0
     && ri.lines.every(l => !l.more) && rp.lines.every(l => !l.more),
-    `Руководство → «Остаток задолженности» → «Дни просрочки»: видно все ${mln(bal)} (было ${mln(rbOld)} — без строки «нет просрочки» ${mln(rb0?.value)}, она первая); «Освоено с начала года» по категории — ${mln(ri.total.v)} (было ${mln(ri.total.v - (emp(ri)?.value || 0))}, «нет категории» ${mln(emp(ri)?.value)} последней — закрытые кредиты); «Поступило · прошлый месяц» — ${mln(rp.total.v)} (было ${mln(rp.total.v - (emp(rp)?.value || 0))}) (ДБ-Д39, ДБ-167, ДБ-168, ДБ-170)`);
+    `Руководство → «Остаток задолженности» → «Дни просрочки»: видно все ${mln(bal)} (было ${mln(rbOld)} — без строки «нет просрочки» ${mln(rb0?.value)}, она первая); «Выдано с начала года» по категории — ${mln(ri.total.v)} (было ${mln(ri.total.v - (emp(ri)?.value || 0))}, «нет категории» ${mln(emp(ri)?.value)} последней — закрытые кредиты); «Поступило · прошлый месяц» — ${mln(rp.total.v)} (было ${mln(rp.total.v - (emp(rp)?.value || 0))}) (ДБ-Д39, ДБ-167, ДБ-168, ДБ-170)`);
 
   // ДБ-Д39, счёт: «Заёмщиков» по худшей просрочке, «Подано заявок» Головного офиса по статусу, «Срок сдачи ≤ 7 дн.» по итогу сдачи
   const rw = V('lead-borr', 'slice', { dim:'bodays' }), ug = roleUser('gof'), ur = roleUser('rep');
@@ -3010,7 +3010,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const dE = DB.drill('lead-issued', u1, 'lead', {}, { d:'category', v:'нет категории' }), nE = emp(ri), pE = V('lead-issued', 'slice', { dim:'program' }, [{ dim:'category', v:'нет категории' }]);
   ok(287, !dE.refused && dE.matches && near(dE.sum, nE?.value) && (dE.list || []).length === nE?.cnt && (dE.list || []).every(x => x.r.closed && x.r.category === null) && dE.nodeText === 'нет категории'
     && near(pE.total.v, nE?.value) && pE.path[0]?.v === 'нет категории',
-    `«Освоено с начала года» › «нет категории»: ${(dE.list || []).length} закрытых кредитов, сумма ${mln(dE.sum)} = строке; путь «нет категории» режет и Разрез глубже — ${mln(pE.total.v)} (ДБ-170, ДБ-158)`);
+    `«Выдано с начала года» › «нет категории»: ${(dE.list || []).length} закрытых кредитов, сумма ${mln(dE.sum)} = строке; путь «нет категории» режет и Разрез глубже — ${mln(pE.total.v)} (ДБ-170, ДБ-158)`);
   DB.seed();
 })();
 
@@ -4703,7 +4703,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
     && /^на конец 10\.10 · день закрыт/.test(wD.passport) && near(wD.sum, closed) && closed !== today && wD.conv.matches && /<span class="wp-meta">по ссылке · на конец 10\.10 · день закрыт/.test(pD)
     && /на конец 10\.10 — /.test(kD.plate) && balD === bal0 && relink.snap.day === 10 && reD && reD.day === '10.10'
     && !wT.link && near(wT.sum, today) && !/по ссылке/.test(hT) && wI.sum < isNow && /^01\.01 → конец 10\.10 · не закрыт/.test(wI.passport),
-    `ссылка на следующий день (стенд: скопирована 10.10): полоса и список «на конец 10.10 · по ссылке · на сегодня» — Ошская ${mln(wD.sum)} = ответу закрытого дня, сегодня ${mln(today)}; карточка — «на конец 10.10»; остальной экран — сегодня; ссылка с такой полосы несёт день; «Освоено с начала года» по ссылке — ${mln(wI.sum)} (сегодня ${mln(isNow)}) (ДБ-254, ДБ-253, ДБ-Д67)`);
+    `ссылка на следующий день (стенд: скопирована 10.10): полоса и список «на конец 10.10 · по ссылке · на сегодня» — Ошская ${mln(wD.sum)} = ответу закрытого дня, сегодня ${mln(today)}; карточка — «на конец 10.10»; остальной экран — сегодня; ссылка с такой полосы несёт день; «Выдано с начала года» по ссылке — ${mln(wI.sum)} (сегодня ${mln(isNow)}) (ДБ-254, ДБ-253, ДБ-Д67)`);
 
   // ДБ-255: на окне до 1100 px панель — экран целиком, как на телефоне; шире — рядом с полосой, дашборд сдвигается (сторож, что решение держится)
   const css = src.slice(0, src.indexOf('</style>'));
@@ -4850,7 +4850,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const pAll = DB.CMP_ORDER.map(k => { DB.setCmp(k); const p = DB.base('lead-paid', 'u1', 'lead').shift, i = DB.base('lead-issued', 'u1', 'lead').shift; return p.label === p0.label && p.delta === p0.delta && i.none === i0.none; });
   DB.setCmp('yearStart'); DB.openView('lead-od', 'series'); const sv = DB.view('lead-od', 'series', DB.state.open['lead-od'].sel, [], 'u1', 'lead', {});
   ok(415, p0.label === 'к августу' && /неполный период/.test(i0.none) && pAll.every(Boolean) && sv.baseLabel === 'к прошлому месяцу',
-    `потоки не меняются при любой базе: «Поступило · прошлый месяц» — ${p0.label}, «Освоено с начала года» — без сдвига (неполный период); Ряд сравнивает с прошлой точкой (ДБ-262)`);
+    `потоки не меняются при любой базе: «Поступило · прошлый месяц» — ${p0.label}, «Выдано с начала года» — без сдвига (неполный период); Ряд сравнивает с прошлой точкой (ДБ-262)`);
 
   // ДБ-269, ДБ-278: на плитке — словами, в подсказке — интервал; колонка полосы — словами, список «Изменения» — «на 01.01», закрытие — месяца строки базы
   lead(); DB.setCmp('yearStart'); const ht = DB.tileHTML('lead-od', 'u1', 'lead'), bo = DB.base('lead-od', 'u1', 'lead').shift;
@@ -5382,7 +5382,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const iss = p => Object.assign({}, T('lead-issued'), { id:'x-iss-' + p, params:Object.assign({}, T('lead-issued').params, { period:p }) });
   const pts = r => r.series.points;
 
-  // ДБ-335: «Освоено с начала года» без колонок потоков — плитка пуста по закону, Ряд отвечает своими месяцами; клик — Ряд, не список
+  // ДБ-335: «Выдано с начала года» без колонок потоков — плитка пуста по закону, Ряд отвечает своими месяцами; клик — Ряд, не список
   lead(); const s0 = DB.view('lead-issued', 'series', null, [], 'u1', 'lead', {});
   DB.stand('legacyNoFlows', true);
   const b1 = DB.base('lead-issued', 'u1', 'lead'), v1 = DB.views('lead-issued', 'u1', 'lead', [], {}), s1 = DB.view('lead-issued', 'series', null, [], 'u1', 'lead', {});
@@ -5390,7 +5390,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   ok(466, b1.state === 'mine0' && b1.value == null && on(v1) === 'series' && c1.act === 'view' && c1.kind === 'series' && s1.state === 'ok'
     && pre.length === 4 && pre.every(p => p.vals[0] === null && /в легаси не собиралось: слагаемые за ноябрь 2025 – февраль — перенос без колонок слагаемых$/.test(p.down || ''))
     && own.length === 8 && own.every(p => p.vals[0] !== null && p.vals[0] === pts(s0).find(x => x.m === p.m).vals[0]),
-    `«Освоено с начала года» без колонок потоков — «${b1.noneLabel}», полоса открывается Рядом: март–октябрь своими строками (март ${(own[0].vals[0] / 1e6).toFixed(1)} млн, как без флажка), ноябрь–февраль — точек нет, причина своя: «слагаемые за ноябрь 2025 – февраль» (ДБ-335, ДБ-Д80)`);
+    `«Выдано с начала года» без колонок потоков — «${b1.noneLabel}», полоса открывается Рядом: март–октябрь своими строками (март ${(own[0].vals[0] / 1e6).toFixed(1)} млн, как без флажка), ноябрь–февраль — точек нет, причина своя: «слагаемые за ноябрь 2025 – февраль» (ДБ-335, ДБ-Д80)`);
 
   // ДБ-335: «у вас пусто» и «нет объектов» — Ряд арифметический, признак у каждой точки, на дату плитки тоже; Когорты открыты
   DB.seed(); DB.USERS.push({ id:'c99', name:'Куратор без кредитов', roles:['cur'], dept:'rp-nar' }); asUser('c99'); DB.setTab('role', 'cur'); DB.state.cache.clear();
@@ -5425,7 +5425,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   ok(469, /<span class="sl-num mine0" data-tip="до запуска системы[^"]*перенос без колонок слагаемых">в легаси не собиралось<\/span>/.test(line(h6))
     && !/class="sl-cnt"/.test(line(h6)) && !/data-fit="shift"/.test(line(h6)) && /<div class="rz-chart|sr-b/.test(h6)
     && /<span class="sl-num"/.test(line(h7)) && /class="sl-cnt"/.test(line(h7)) && /\.sl-num\.mine0\{[^}]*color:var\(--text-muted\)/.test(src),
-    `строка полосы «Освоено с начала года» без колонок потоков — серое «в легаси не собиралось» с причиной, без сдвига и «☰ N»; без флажка — число и «☰ N» (ДБ-337)`);
+    `строка полосы «Выдано с начала года» без колонок потоков — серое «в легаси не собиралось» с причиной, без сдвига и «☰ N»; без флажка — число и «☰ N» (ДБ-337)`);
 
   // ДБ-338: Когорты через дату запуска — клетка месяца без потоков «—» с причиной, «☰» нет; свои месяцы — как без флажка; остаток не тронут
   lead(); T('lead-issued').params.period = 'curMonth'; DB.state.cache.clear();   // «Выдано» за текущий месяц: число на свою дату есть
@@ -6166,7 +6166,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   DB.openView('lead-borr', 'cohort'); const hc = DB.stripHTML('lead-borr', 'u1', 'lead');
   ok(738, a38.state === 'mine0' && a38.msg === 'до запуска системы (01.03.2026) в легаси не собиралось: слагаемые за январь–февраль — перенос без колонок слагаемых' && sv38.length === 12 && sv38.slice(0, 4).every(p => p.vals[0] === null && /в легаси не собиралось/.test(p.down))
     && sv38.slice(4, 11).every(p => p.vals[0] !== null) && r38.vol.n === 76 && r38.cells.filter(c => c.m < -7).every(c => c.v === null) && r38.cells[7].v === 47 && !/☰[^<]*<[^>]*>[^<]*в легаси/.test(hc) && /в легаси не собиралось/.test(hc),
-    `стенд с запуском 01.03.2026: «Освоено с начала года» — «${a38.msg}»; Ряд: ноябрь–февраль пусты с той же причиной, март–октябрь нарисованы; Когорты «Заёмщиков»: «4 кв 2024» — ${r38.vol.n} слева, клетка на 24-м месяце ${r38.cells[7].v}, клетки до запуска («${r38.cells.filter(c => c.m < -7).length} шт.») пусты. Упрощено: пусты все клетки с датой до запуска (3–15 мес.), не только 3, 6 и 9`);
+    `стенд с запуском 01.03.2026: «Выдано с начала года» — «${a38.msg}»; Ряд: ноябрь–февраль пусты с той же причиной, март–октябрь нарисованы; Когорты «Заёмщиков»: «4 кв 2024» — ${r38.vol.n} слева, клетка на 24-м месяце ${r38.cells[7].v}, клетки до запуска («${r38.cells.filter(c => c.m < -7).length} шт.») пусты. Упрощено: пусты все клетки с датой до запуска (3–15 мес.), не только 3, 6 и 9`);
   cleanup();
 
   // 739 · две плитки «Остаток» · базы за месяц и за квартал
@@ -6228,7 +6228,7 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
   const SCREENS = {
     lead: [
       ['Картина портфеля', 'lead-bal=Остаток задолженности', 'lead-od=Просрочено', 'lead-borr=Заёмщиков', 'lead-risk=Портфель под риском', 'lead-spin=Вышли в просрочку · прошлый месяц', 'lead-spcure=Вылечены · прошлый месяц'],
-      ['Деньги и план', 'lead-issued=Освоено с начала года', 'lead-paid=Погашено · прошлый месяц'],
+      ['Деньги и план', 'lead-issued=Выдано с начала года', 'lead-paid=Погашено · прошлый месяц'],
       ['Взыскание и реструктуризация', 'lead-claims=Требований взыскания', 'lead-recov=Возвратность по делам', 'lead-rs=Обращений о реструктуризации в работе'],
       ['Имущество', 'lead-ast=На балансе'],
       ['Мои задания', 'tasks=Мои задания']],
@@ -6277,12 +6277,12 @@ const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
     `экраны 11 ролей, плитки и секции по порядку, как в перечне: ${roles.map(r => r + ' ' + CNT[r].join('/')).join(', ')}; ${new Set(rows.map(x => x.id)).size} плитки, ${rows.length} строка; секций без плиток нет`);
 
   // имена: плитка называется как в перечне; прежних имён на плитках нет
-  const OLD = ['Сумма под риском (залог)', 'Выдано с начала года', 'Поступило · прошлый месяц|lead-paid', 'Во взыскании|lead-claims', 'Клиенты с просроченным обязательством', 'Наибольший срок с направления', 'Должник умер или ликвидирован',
+  const OLD = ['Сумма под риском (залог)', 'Поступило · прошлый месяц|lead-paid', 'Во взыскании|lead-claims', 'Клиенты с просроченным обязательством', 'Наибольший срок с направления', 'Должник умер или ликвидирован',
     'Должники без канала связи', 'Возвраты · прошлый месяц', 'Ожидают подтверждения', 'Не закрыто', 'В реализации', 'На рассмотрении', 'В комплектации', 'На учёте'];
   const badNames = rows.filter(x => T(x.id).title !== x.name).map(x => x.id), oldLeft = OLD.filter(o => { const [n, id] = o.split('|'); return DB.TILES.some(t => t.title === n && t.owner === 'catalog' && (!id || t.id === id)); });
   ok(747, badNames.length === 0 && oldLeft.length === 0 && T('acc-prev').title === 'Поступило · прошлый месяц' && T('lead-ast').title === T('ast-count').title && T('lead-paid').title === 'Погашено · прошлый месяц'
-    && DB.IND['loan.risk'].name === 'Портфель под риском' && DB.IND['loan.issued'].name === 'Освоено' && DB.IND['loan.paid'].name === 'Погашено',
-    `имена 81 строки как в перечне; прежних имён на плитках нет; ПЛ-13 и ПЛ-80 под одним именем «${T('ast-count').title}»; колонки отчётов названы как в ФО: «Освоено», «Погашено», «Портфель под риском»`);
+    && DB.IND['loan.risk'].name === 'Портфель под риском' && DB.IND['loan.issued'].name === 'Выдано' && DB.IND['loan.paid'].name === 'Погашено',
+    `имена 81 строки как в перечне; прежних имён на плитках нет; ПЛ-13 и ПЛ-80 под одним именем «${T('ast-count').title}»; колонки отчётов названы как в ФО: «Выдано», «Погашено», «Портфель под риском»`);
 
   // убранное удалено совсем: нет ни плитки, ни отчёта, ни в каталоге, ни на пульте; каталожные шесть — в каталоге и ни на одном экране
   const GONE_T = ['lead-astod', 'cur-rsout', 'prob-exp', 'acc-rev', 'spec-dec', 'spec-filed', 'com-dec', 'gof-conf', 'otd-rev', 'otd-verd', 'rep-sum', 'ast-exp'];

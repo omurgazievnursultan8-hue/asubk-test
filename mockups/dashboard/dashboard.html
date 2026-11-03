@@ -1595,7 +1595,7 @@ ind('loan.risk',      { obj:'loan', name:'Портфель под риском',
 ind('loan.restr',     { obj:'loan', name:'В реструктуризации', where:r=>r.status==='В реструктуризации', dir:'up_bad' });
 ind('loan.coll',      { obj:'loan', name:'Во взыскании', where:r=>r.status==='Во взыскании', dir:'up_bad' });
 ind('loan.noClaim181',{ obj:'loan', name:'Кредиты 181+ дн. без требования', where:r=>r.overdueDays>180 && !r.hasClaim, dir:'up_bad' });
-ind('loan.issued',    { obj:'loan', name:'Освоено', agg:'sum', kind:'event', field:'issued', unit:'sum', dir:'up_good', atField:'from' });
+ind('loan.issued',    { obj:'loan', name:'Выдано', agg:'sum', kind:'event', field:'issued', unit:'sum', dir:'up_good', atField:'from' });
 ind('loan.paid',      { obj:'loan', name:'Погашено', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good' });
 // plan — показатель рода «план»: доля к нему рисует Разрез план-фактом
 ind('loan.expected',  { obj:'loan', name:'Ожидалось по графику', agg:'sum', kind:'flow', field:'expected', unit:'sum', plan:true });
@@ -3306,7 +3306,7 @@ R('fo-54',   { fo:'ФО-54', title:'План-факт погашений за п
 R('fo-55',   { fo:'ФО-55', title:'Заявки на кредит за период', obj:'app', cols:['app.inWork','app.requested','app.complect'], dims:['astatus','program','astage'],
   params:Object.assign(withSpec(pStock(false)), { status:pOpt('astatus', 'Статус заявки') }) });
 R('fo-55-p', { fo:'ФО-55', title:'Заявки на кредит за период', obj:'app', cols:['app.filed'], dims:['afunnel','program','region'], params:withSpec(pFlow(false)) });
-R('fo-56',   { fo:'ФО-56', title:'План-факт освоения кредитов за период', obj:'loan', cols:['loan.issued'], dims:['program'], params:pFlow(true) });
+R('fo-53',   { fo:'ФО-53', title:'Движение основного долга за период', obj:'loan', cols:['loan.issued'], dims:['program'], params:pFlow(true) });
 R('fo-97',   { fo:'ФО-97', title:'Дела взыскания по состоянию на дату', obj:'case', cols:['case.paid','case.base','case.open','case.quar','case.court'], params:pStock(false) });
 R('fo-98',   { fo:'ФО-98', title:'Кредитные программы по состоянию на дату', obj:'program', cols:['program.count'], dims:['pgsource'], filter:[cp(ACT_P)],
   params:Object.assign(pStock(false), { pend:pOpt('pendDays', 'Окончание не позднее', 'le') }) });
@@ -3357,7 +3357,7 @@ T('lead-risk',  { title:'Портфель под риском', report:'fo-02', 
 T('lead-spin',  { title:'Вышли в просрочку · прошлый месяц', report:'fo-27', params:{ curator:'*', period:'prevMonth', layer:'свободный' }, main:{ col:'spell.in' }, second:null, tl:null, shift:'period',
   views:{ series:{ points:12, of:'main' } } });
 T('lead-spcure',{ title:'Вылечены · прошлый месяц', report:'fo-27', params:{ curator:'*', period:'prevMonth' }, main:{ col:'spell.cured' }, second:null, tl:null, shift:'period', views:{ slice:{ dim:'dept' } } });
-T('lead-issued',{ title:'Освоено с начала года', report:'fo-56', params:{ curator:'*', period:'ytd' }, main:{ col:'loan.issued' }, second:null, tl:null, shift:null,
+T('lead-issued',{ title:'Выдано с начала года', report:'fo-53', params:{ curator:'*', period:'ytd' }, main:{ col:'loan.issued' }, second:null, tl:null, shift:null,
   views:{ slice:{ dim:'program', top:6 } } });
 T('lead-paid',  { title:'Погашено · прошлый месяц', report:'fo-54', params:{ curator:'*', period:'prevMonth' }, main:{ col:'loan.paid' }, second:{ share:['loan.paid','loan.expected'], label:'к графику' }, tl:null, shift:'period', views:{} });
 T('lead-claims',{ title:'Требований взыскания', report:'r-claims', params:{}, main:{ col:'claim.count' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });

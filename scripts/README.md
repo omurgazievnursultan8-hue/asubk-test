@@ -125,7 +125,7 @@ never hand-edited.
 
 `build_perechen.py` builds the closed list of reports and print forms of the credit module for
 the final acceptance act, with a card for every row and a sample file for every report (blanks
-have no sample file). One source: `docs/perechen-otchetov/perechen.json` (rules, legend, rows,
+have no sample file). One source: `docs/perechen-otchetov/perechen.json` (rules, legend, groups, rows,
 «вне перечня», control set, cards). Needs `openpyxl`.
 
 ```bash
@@ -136,18 +136,20 @@ python3 scripts/build_perechen.py <perechen.json> <out dir>
 
 Output (default `docs/perechen-otchetov/`):
 
-- `Перечень.xlsx` — sheets «Перечень» (rows: reports, blanks, general requirements; a form
-  variant is its own row under the form's number; link to the sample file), «Приёмка» (check
-  rules of every row, the control-set borrowers it is checked on, result columns with a
-  сдано/не сдано list), «Контрольный набор» (borrowers КЗ-01…КЗ-20 and their cases),
-  «Вне перечня» (what is not in the list and where it is covered);
-- `obrazcy/ФО-NN.xlsx` per report — sheet «Образец», one sheet per variant, sheet «Описание»
-  (the card). Blanks, external-form stubs and general requirements get no file. Stale
-  `ФО-NN.*` files (including old `.docx`) are removed.
+- `Перечень.xlsx` — one sheet, «Отчёты»: groups along the credit lifecycle, a variant right under
+  its report; Номер, Название, Строка, Что показывает, Кому, Образец, ⚠. Blanks, rules, basis,
+  acceptance, the control set and «вне перечня» stay in `perechen.json` and are not written out;
+- `obrazcy/ФО-NN.xlsx` per report — the report sheet, «Параметры», one sheet per variant, sheet
+  «Описание» (the card). Blanks and general requirements get no file. Stale `ФО-NN.*` files
+  (including old `.docx`) are removed.
 
 Language and the «Кыргызский текст» warning are computed from `"ext": true` on a blank; a
-variant's card is the form's card overlaid with the variant's own fields. On any error it fails
-and writes nothing: bad or retired number (ФО-21/22/23), a second main row for a number, a
+variant's card is the form's card overlaid with the variant's own fields; «Строка» on «Отчёты» is
+the card's `razrezy.detail`. A report row's `sample` is internal (which old exports to look at when
+grilling) and is never rendered. On any error it fails and writes nothing: bad or retired number
+(`RETIRED`, also when mentioned in a row or card), a report without a group, `shows` or `old`,
+`shows` longer than two sentences or naming another form, a working note in customer-visible
+fields («решение владельца», a file name, a former name), a second main row for a number, a
 variant before its form or repeated, `ext` outside blanks, a missing required row field, a row
 without a card or a card without a row, a missing card field for its part, a report sample row
 whose cell count differs from the columns, an internal code (ADR-, ИО-, ПВ-…) in card text, a
