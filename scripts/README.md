@@ -136,13 +136,9 @@ python3 scripts/build_perechen.py <perechen.json> <out dir>
 
 Output (default `docs/perechen-otchetov/`):
 
-- `Перечень.xlsx` — sheets «Отчёты» (the obligation for the act: groups along the credit
-  lifecycle, a variant right under its report; Номер, Название, Строка, Что показывает, Кому,
-  Образец, ⚠), «Бланки» (a form variant is its own row under the form's number), «Правила»
-  (rules, legend, general requirements ОТ-N), «Основания» (basis and what the old system had, per
-  report row), «Приёмка» (check rules of every row, the control-set borrowers it is checked on,
-  result columns with a сдано/не сдано list), «Контрольный набор» (borrowers КЗ-NN and their
-  cases), «Вне перечня» (what is not in the list and where it is covered);
+- `Перечень.xlsx` — one sheet, «Отчёты»: groups along the credit lifecycle, a variant right under
+  its report; Номер, Название, Строка, Что показывает, Кому, Образец, ⚠. Blanks, rules, basis,
+  acceptance, the control set and «вне перечня» stay in `perechen.json` and are not written out;
 - `obrazcy/ФО-NN.xlsx` per report — the report sheet, «Параметры», one sheet per variant, sheet
   «Описание» (the card). Blanks and general requirements get no file. Stale `ФО-NN.*` files
   (including old `.docx`) are removed.
