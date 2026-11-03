@@ -116,9 +116,9 @@ python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.ht
 # twice. Rerun after every edit to either file; a new schema column needs a dictionary line.
 python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
 
-# Rebuild the list of reports and print forms for the final act (Перечень.xlsx: sheets Отчёты,
-# Бланки, Правила, Основания, Приёмка, Контрольный набор, Вне перечня; plus a sample xlsx per report
-# in obrazcy/ — blanks have no sample file) from its one source docs/perechen-otchetov/perechen.json.
+# Rebuild the list of reports for the final act (Перечень.xlsx: one sheet, Отчёты; plus a sample xlsx
+# per report in obrazcy/) from its one source docs/perechen-otchetov/perechen.json. Blanks, rules,
+# basis, acceptance, the control set and «вне перечня» stay in the JSON and are not written to the file.
 # Fails and writes nothing on a bad row or card.
 python3 scripts/build_perechen.py         # -> docs/perechen-otchetov/Перечень.xlsx + obrazcy/
 python3 scripts/build_perechen.py --no-samples   # xlsx only
