@@ -4135,7 +4135,7 @@ const asUser = id => { DB.state.userId = id; };
   const h0c = DB.state.cacheHits; DB.cachedAsk(T('lead-paid'), u1, 'lead', {}); const hitPaid = DB.state.cacheHits === h0c + 1;
   const odc = DB.state.cacheMiss; DB.cachedAsk(T('lead-od'), u1, 'lead', {}); const missOd = DB.state.cacheMiss === odc + 1;
   DB.seed(); DB.STAND.nightRunFailed = true; const wf = DB.prewarm(); DB.STAND.nightRunFailed = false;
-  ok(366, P.holders === 12 && P.closed === 176 && P.today === 70 &&   // волна 24: «Срок сдачи близко» без своего параметра — один вопрос с «Просрочено обязательств»
+  ok(366, P.holders === 12 && P.closed === 180 && P.today === 71 &&   // волна 24: «Срок сдачи близко» без своего параметра — один вопрос с «Просрочено обязательств»
  W.n === P.closed && W.m === P.holders && W.at === '02:40'
     && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm
     && warmEntry && warmEntry[1].calcAt === '02:40' && hitPaid && missOd && !keys.some(k => k.startsWith('p-u2-agro§') || /§view§/.test(k)) && keys.length === P.tiles.length
@@ -4913,7 +4913,7 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-268: прогрев — все пять баз у плиток-остатков; базы с одной датой — один вопрос
   lead(); const P = DB.warmPlan(), asks = DB.tileAsks(T('lead-od'), u1, 'lead').map(a => a.key.split('|').pop()), asP = DB.tileAsks(T('lead-paid'), u1, 'lead').map(a => a.key.split('|').pop());
-  ok(420, asks.join(' · ') === 'today · база на 01.10 · база на 01.07 · база на 01.01 · база на 01.10.2025' && asP.length === 2 && P.closed === 176,
+  ok(420, asks.join(' · ') === 'today · база на 01.10 · база на 01.07 · база на 01.01 · база на 01.10.2025' && asP.length === 2 && P.closed === 180,
     `прогрев: у «Просрочено» — ${asks.slice(1).join(', ')} («за месяц» и «за квартал» — одна дата, один вопрос); у потока — одна база периода; всего ${P.closed} вопросов на закрытые даты (ДБ-268)`);
 
   // ДБ-276, ДБ-277: штамп выгрузки несёт базу экрана; в Ряде точка базы отмечена
@@ -5168,8 +5168,8 @@ const asUser = id => { DB.state.userId = id; };
   const hs = DB.registryHTML(), none = DB.pultFind('нет такой плитки'), hn = DB.registryHTML(); DB.pultFind('');
   const vr = DB.pultRole('cur'), vn = DB.pultRole('none'); DB.pultRole('all'); DB.withdrawTile('cat-progn', 'cat-plan');
   const va = DB.pultView(), vg = DB.pultState('gone'); DB.pultSec('Кредитная программа'); const hg = DB.registryHTML(), vall = DB.pultState('all'); DB.pultState('active');
-  ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 5 && sr.rows.every(x => x.report === 'Дела взыскания на дату') && sOpen === 'Взыскание' && dim === 10
-    && /<span class="pl-n" id="pl-n">5 из 91<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 91/.test(hn)
+  ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 4 && sr.rows.every(x => x.report === 'Дела взыскания по состоянию на дату') && sOpen === 'Взыскание' && dim === 10
+    && /<span class="pl-n" id="pl-n">4 из 91<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 91/.test(hn)
     && vr.rows.every(x => x.w.roles.includes('cur')) && vr.n === DB.state.declared.cur.filter(k => !k.startsWith('s:')).length && vn.rows.every(x => !x.w.roles.length) && vn.rows.every(x => x.t.id.startsWith('cat-'))
     && va.n === 90 && va.of === 91 && vg.n === 1 && /data-tile="cat-progn"><td>Программ действует <span class="pill info">снята · замена «Исполнение плана · прошлый месяц»<\/span>/.test(hg) && vall.n === 91
     && /<option value="none">ни в одной<\/option>/.test(hs) && /<option value="active" selected>действующие<\/option><option value="wait">ждёт отчёта<\/option><option value="gone">снятые<\/option><option value="all">все<\/option>/.test(hs),
@@ -5762,9 +5762,9 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u11'); const own0 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length; DB.stand('ownerMoveDown', true);
   const rr = DB.roleOff('u11', 'adm'), own1 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length, hasRole = U('u11').roles.includes('adm'), co1 = DB.reportCoauthors(DB.reportById('fo-02'));
   DB.stand('ownerMoveDown', false); const rr2 = DB.roleOff('u11', 'adm');
-  ok(619, own0 === 63 && rr.refused && /не снята: отчётность не ответила на передачу отчётов каталога — 63 отчёта остаются во владении Шамшиев А\. О\./.test(rr.msg) && own1 === 63 && hasRole && co1.includes('u13')
-    && rr2.ok && rr2.to === 'u13' && rr2.reports.length === 63,
-    'отчётность не передала отчёты каталога: роль «Администратор дашборда» у Шамшиева не снята, 63 отчёта за ним, соавтор — Бейшеналиева; без флага отчёты переходят к другому держателю');
+  ok(619, own0 === 64 && rr.refused && /не снята: отчётность не ответила на передачу отчётов каталога — 64 отчёта остаются во владении Шамшиев А\. О\./.test(rr.msg) && own1 === 64 && hasRole && co1.includes('u13')
+    && rr2.ok && rr2.to === 'u13' && rr2.reports.length === 64,
+    'отчётность не передала отчёты каталога: роль «Администратор дашборда» у Шамшиева не снята, 64 отчёта за ним, соавтор — Бейшеналиева; без флага отчёты переходят к другому держателю');
 
   // отчётность не создаёт копию личного отчёта: публикация и «Принять» отказывают, ничего не меняется
   DB.seed(); DB.roleOn('u1', 'adm'); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('reportCopyDown', true); const jc = DB.state.journal.length, rc = DB.REPORTS.length, tc = DB.TILES.length;
@@ -6115,7 +6115,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u11');
   const h0 = DB.adminHolders().map(u => u.id).join(), n30 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length;
   DB.roleOff('u13', 'adm'); const h1 = DB.adminHolders(), last = DB.roleOff('u11', 'adm');
-  ok(730, h0 === 'u11,u13' && n30 === 63 && h1.length === 1 && h1[0].id === 'u11' && h1[0].name === 'Шамшиев А. О.' && U('u11').roles.join() === 'adm,sys' && last.refused === true && /Последнего держателя роли «Администратор дашборда» снять нельзя/.test(last.msg) && DB.adminHolders().length === 1,
+  ok(730, h0 === 'u11,u13' && n30 === 64 && h1.length === 1 && h1[0].id === 'u11' && h1[0].name === 'Шамшиев А. О.' && U('u11').roles.join() === 'adm,sys' && last.refused === true && /Последнего держателя роли «Администратор дашборда» снять нельзя/.test(last.msg) && DB.adminHolders().length === 1,
     `роль снята у Бейшеналиевой: держатель один — ${h1[0].name} (${n30} отчёта каталога, роли ${U('u11').roles.join(' и ')}); снять у него — отказ «${last.msg.slice(0, 60)}…»`);
   cleanup();
 
@@ -6202,11 +6202,11 @@ const asUser = id => { DB.state.userId = id; };
     const cat = DB.TILES.filter(t => t.owner === 'catalog' && t.kind !== 'link');
     const onFo = cat.filter(t => rp(t.report).fo), onOp = cat.filter(t => !rp(t.report).fo);
     const foSet = new Set(onFo.map(t => rp(t.report).fo)), opSet = new Set(onOp.map(t => t.report));
-    const gone = ['r-issued', 'r-spells', 'r-cases', 'r-rsapps', 'r-rsout', 'r-spopen', 'r-prog', 'r-measures', 'r-bdead', 'r-bnocon', 'r-pkind', 'r-coll', 'r-apps', 'r-appstage', 'r-appfun', 'r-pend'];
+    const gone = ['r-issued', 'r-spells', 'r-rsapps', 'r-rsout', 'r-spopen', 'r-prog', 'r-measures', 'r-bdead', 'r-bnocon', 'r-pkind', 'r-coll', 'r-apps', 'r-appstage', 'r-appfun', 'r-pend'];
     const twins = [['fo-02', 'fo-02-b'], ['fo-10', 'fo-10-p'], ['fo-27', 'fo-27-d'], ['fo-55', 'fo-55-p']];
-    ok(740, cat.length === 72 && onFo.length === 38 && foSet.size === 12 && onOp.length === 34 && opSet.size === 18 && gone.every(id => !rp(id))
+    ok(740, cat.length === 72 && onFo.length === 37 && foSet.size === 12 && onOp.length === 35 && opSet.size === 19 && gone.every(id => !rp(id))
       && twins.every(([a, b]) => rp(a).fo === rp(b).fo && rp(a).title === rp(b).title),
-      `обзорные плитки каталога: ${onFo.length} на ${foSet.size} отчётах перечня (${[...foSet].sort().join(', ')}), ${onOp.length} на ${opSet.size} отчётах плиток; 16 снятых отчётов в каталоге нет; у четырёх ФО по две записи макета (своя форма параметров или объект строки), номер и название общие`);
+      `обзорные плитки каталога: ${onFo.length} на ${foSet.size} отчётах перечня (${[...foSet].sort().join(', ')}), ${onOp.length} на ${opSet.size} отчётах плиток; 15 снятых отчётов в каталоге нет; у четырёх ФО по две записи макета (своя форма параметров или объект строки), номер и название общие`);
 
     const chips = id => DB.paramChips(T(id)).join(' · ');
     const conds = id => Q(id).filter.map(c => c.f);
