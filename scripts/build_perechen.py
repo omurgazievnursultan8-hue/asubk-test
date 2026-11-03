@@ -67,7 +67,7 @@ SRC = ROOT / 'docs/perechen-otchetov/perechen.json'
 OUT_DIR = ROOT / 'docs/perechen-otchetov'
 SAMPLES = 'obrazcy'
 
-RETIRED = {'ФО-03', 'ФО-12', 'ФО-13', 'ФО-21', 'ФО-22', 'ФО-23', 'ФО-25', 'ФО-26', 'ФО-91', 'ФО-92', 'ФО-93', 'ФО-94'}
+RETIRED = {'ФО-03', 'ФО-12', 'ФО-13', 'ФО-21', 'ФО-22', 'ФО-23', 'ФО-25', 'ФО-26', 'ФО-56', 'ФО-91', 'ФО-92', 'ФО-93', 'ФО-94'}
 RETIRED_RE = re.compile(r'(?:' + '|'.join(sorted(RETIRED)) + r')\b')
 PARTS = {'отчёт': 'Отчёт', 'бланк': 'Бланк', 'требование': 'Требование'}
 ID_RE = re.compile(r'^(ФО-\d{2}|ОТ-\d+)$')
