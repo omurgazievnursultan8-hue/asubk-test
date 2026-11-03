@@ -3295,6 +3295,7 @@ R('r-astate',    { title:'Имущество по состоянию', obj:'asse
 R('r-aidle',     { title:'Имущество без попытки продажи дольше 6 месяцев', obj:'asset', cols:['asset.count'], filter:[{ f:'daysOnBook', op:'gt', v:182 },{ f:'attempts', op:'eq', v:0 }], params:pStock(false) });
 R('r-aunsold',   { title:'Имущество с тремя и более несостоявшимися попытками', obj:'asset', cols:['asset.count'], filter:[{ f:'failed', op:'ge', v:3 }], params:pStock(false) });
 R('r-aexp',      { title:'Расходы на содержание имущества', obj:'asset', cols:['asset.exp'], params:pFlow(false) });
+R('r-caseexp',   { title:'Расходы на взыскание', obj:'case', cols:['case.exp'], params:pStock(false) });
 // Отчёты перечня под плитками: одно число считает один отчёт. Отбор плитки — значение параметра отчёта; необязательный параметр (opt) без
 // значения в подписи плитки не показывается. У записи отчёта в макете один объект строки и одна форма параметров (дата или период), поэтому
 // у ФО-02, ФО-10, ФО-27, ФО-55 по две записи: fo — номер в перечне, название то же.
@@ -3315,7 +3316,7 @@ R('fo-55',   { fo:'ФО-55', title:'Заявки на кредит за пери
   params:Object.assign(withSpec(pStock(false)), { status:pOpt('astatus', 'Статус заявки') }) });
 R('fo-55-p', { fo:'ФО-55', title:'Заявки на кредит за период', obj:'app', cols:['app.filed'], dims:['afunnel','program','region'], params:withSpec(pFlow(false)) });
 R('fo-56',   { fo:'ФО-56', title:'План-факт освоения кредитов за период', obj:'loan', cols:['loan.issued'], dims:['program'], params:pFlow(true) });
-R('fo-97',   { fo:'ФО-97', title:'Дела взыскания по состоянию на дату', obj:'case', cols:['case.paid','case.base','case.open','case.quar','case.court','case.exp'], params:pStock(false) });
+R('fo-97',   { fo:'ФО-97', title:'Дела взыскания по состоянию на дату', obj:'case', cols:['case.paid','case.base','case.open','case.quar','case.court'], params:pStock(false) });
 R('fo-98',   { fo:'ФО-98', title:'Кредитные программы на дату', obj:'program', cols:['program.count'], dims:['pgsource'], filter:[cp(ACT_P)],
   params:Object.assign(pStock(false), { pend:pOpt('pendDays', 'Окончание не позднее', 'le') }) });
 // официальная форма: параметра даты нет, дата зашита в отчёт — сдвиг и ряд плитке недоступны
@@ -3408,7 +3409,7 @@ T('prob-meas',  { title:'Меры взыскания · прошлый меся�
 T('prob-recov', { title:'Возвратность по делам', report:'fo-97', params:{}, main:{ share:['case.paid','case.base'] }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
 T('prob-cases', { title:'Дел открыто', report:'fo-97', params:{}, main:{ col:'case.open' }, second:{ col:'case.quar', label:'в карантине' }, tl:null, shift:'prevMonthEnd', views:{} });
 T('prob-court', { title:'Остаток по решениям суда', report:'fo-97', params:{}, main:{ col:'case.court' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
-T('prob-exp',   { title:'Расходы на взыскание по открытым делам', report:'fo-97', params:{}, main:{ col:'case.exp' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
+T('prob-exp',   { title:'Расходы на взыскание по открытым делам', report:'r-caseexp', params:{}, main:{ col:'case.exp' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
 // заёмщика Проблемные кредиты видят через требования, которые ведёт их подразделение
 T('prob-dead',  { title:'Должник умер или ликвидирован', report:'fo-02-b', params:{ pers:['умер','ликвидирован'] }, main:{ col:'borrower.count' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
 T('prob-nocon', { title:'Должники без канала связи', report:'fo-02-b', params:{ contact:'нет' }, main:{ col:'borrower.count' }, second:null, tl:null, shift:'prevMonthEnd', views:{} });
