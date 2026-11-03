@@ -130,13 +130,15 @@ python3 scripts/put_card.py ФО-02 --dump card.json                      # curr
 python3 scripts/put_card.py ФО-02 card.json [--name "…"] [--note "…"]   # file -> card (+ row name/note)
 python3 scripts/put_card.py "ФО-04|Вид" --shows "…" --to "…" --old "…"   # row fields of the form or its view
 
-# Rebuild the dashboard tile list for the final act (appendix to ТЗ 24; sheets «Плитки» ПЛ-NN and
-# «Отчёты плиток» ОП-NN) from its one source docs/perechen-plitok/plitki.json. Reconciles with the
-# mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
-# traffic-light thresholds, shift base, default view kinds, params, role layouts; reads the report
-# cards in perechen.json (read-only): a tile's column and slice must be in the ФО card or in its
-# request; fails and writes nothing on a mismatch. Rerun after editing plitki.json, the mockup's
-# tiles/layouts, or a card that tiles stand on.
+# Rebuild the dashboard tile list for the final act (appendix to ТЗ 24) from its one source
+# docs/perechen-plitok/plitki.json. Sheet «Плитки»: role → section → tiles in four columns (№, Плитка, Что показывает,
+# Откуда); sheet «Отчёты плиток»: the live ОП-NN only. Tile and report numbers are permanent, retired ones are never reused.
+# Reconciles with the mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
+# traffic-light thresholds, shift base, default view kinds, params, role layouts; reads the report cards in perechen.json
+# (read-only): a tile's column and slice must be in the ФО card or in its request. Also checks the totals in `expect`
+# (73 tiles, 81 rows, 12 reports), a non-empty phrase, a threshold in the phrase equal to the tile's. Tiles with catalogOnly
+# (ПЛ-86…91) are reconciled but not printed. Fails and writes nothing on a mismatch. Rerun after editing plitki.json,
+# the mockup's tiles/layouts, or a card that tiles stand on.
 python3 scripts/build_perechen_plitok.py  # -> docs/perechen-plitok/Перечень плиток.xlsx
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.

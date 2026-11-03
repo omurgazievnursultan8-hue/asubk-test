@@ -1,4 +1,4 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–26, 11–20.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–29, 11.10–03.11.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
 // mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-338, ИДБ-1…ИДБ-21):
@@ -207,6 +207,15 @@ const mvDec = mv => mvRow(mv, '−').map(x => -x.v);
 const mvOth = mv => { const o = mv.rows.find(x => x.key === 'other'); return o ? o.v : null; };
 const withParams = (t, p) => Object.assign({}, t, { params:Object.assign({}, t.params, p) });
 const asUser = id => { DB.state.userId = id; };
+// Механизмы, стоявшие на плитках, которые убрал пересмотр перечня (волна 29): доля во втором числе с Рядом по ней и событие с разрезом
+// «Итога сдачи», поток заявок специалиста. Отчётов и плиток в каталоге нет; механизм проверяется на личных плитках из тех же показателей.
+const putSum = () => { if (DB.tileById('p-u10-sum')) return;
+  DB.R('r-u10-sum', { title:'Итог сдачи по состоянию', shelf:'personal', owner:'u10', circle:{ owner:'u10' }, obj:'oblig', cols:['oblig.submitted', 'oblig.onTime'], dims:['ostate'], params:{ period:{ name:'Период' } } });
+  DB.TILES.push({ id:'p-u10-sum', kind:'overview', state:'personal', owner:'u10', version:1, created:'01.06.2026', title:'Итог сдачи · прошлый месяц', report:'r-u10-sum', params:{ period:'prevMonth' }, main:{ col:'oblig.submitted' },
+    second:{ share:['oblig.onTime', 'oblig.submitted'], label:'в срок' }, tl:null, shift:'period', views:{ slice:{ dim:'ostate' }, series:{ points:12, of:'second' } } }); };
+const putFiled = () => { if (DB.tileById('p-u6-filed')) return;
+  DB.TILES.push({ id:'p-u6-filed', kind:'overview', state:'personal', owner:'u6', version:1, created:'01.06.2026', title:'Подано заявок · прошлый месяц', report:'fo-55-p', params:{ specialist:'@me', period:'prevMonth' }, main:{ col:'app.filed' },
+    second:null, tl:null, shift:'period', views:{ series:{ points:12, of:'main' } } }); };
 
 /* ---------- A. Рамка и главная ---------- */
 (() => {
@@ -219,8 +228,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(3, DB.USERS.every(u => u.roles.some(r => DB.composeLayout(u.id, r).length > 0)),
     'у каждого пользователя главная не пуста — пустой главной нет (ДБ-8)');
   const lead = DB.composeLayout('u1', 'lead');
-  ok(4, lead.filter(k => !k.startsWith('s:')).length === 14 && lead.filter(k => k.startsWith('s:')).length === 4 && DB.DECLARED_SEED.lead.filter(k => !k.startsWith('s:')).length === 14,
-    `стартовая раскладка «Руководства» — 14 плиток в четырёх секциях, отвечают все 14: эпизоды просрочки ядро отдаёт, движение клиентов — погашенный вид «Заёмщиков» (ДБ-40, ДБ-60…ДБ-65, ДБ-74, ДБ-295): ${lead.length} элементов`);
+  ok(4, lead.filter(k => !k.startsWith('s:')).length === 13 && lead.filter(k => k.startsWith('s:')).length === 5 && DB.DECLARED_SEED.lead.filter(k => !k.startsWith('s:')).length === 13,
+    `стартовая раскладка «Руководства» — 13 плиток в пяти секциях, отвечают все 13: эпизоды просрочки ядро отдаёт, движение клиентов — погашенный вид «Заёмщиков» (ДБ-40, ДБ-60…ДБ-65, ДБ-74, ДБ-295): ${lead.length} элементов`);
 })();
 
 /* ---------- B. Плитка — ссылка на отчёт, числа от статистики ---------- */
@@ -420,7 +429,7 @@ const asUser = id => { DB.state.userId = id; };
   // волна 14: волны — прогноз порядка; готовность решают соседи (модули, объявившие объекты статистике) и отвечающие плитки (ДБ-218, ДБ-219)
   DB.STAND.down = { 'Отчётность':true, 'Задания':true };   // как прогноз волны 2: обязательства и задания ещё не объявлены
   const L59 = DB.roleLaunch('rep');
-  ok(59, !DB.roleHasLayout('rep') && L59.n === 0 && L59.of === 4 && !DB.tileAnswers(T('rep-od')) && !DB.composeLayout('u2', 'cur').includes('tasks') && DB.roleHasLayout('spec'),
+  ok(59, !DB.roleHasLayout('rep') && L59.n === 0 && L59.of === 3 && !DB.tileAnswers(T('rep-od')) && !DB.composeLayout('u2', 'cur').includes('tasks') && DB.roleHasLayout('spec'),
     `обязательства и задания ещё не объявлены (как прогноз волны 2): у «Отчётности» отвечает ${L59.n} из ${L59.of} плиток — минимальная раскладка, неотвечающая плитка в раскладку не попадает (ДБ-53, ДБ-218, ИДБ-14)`);
   DB.STAND.down = { 'Заявка на кредит':true, 'Комиссия':true, 'Имущество':true, 'Отчётность':true, 'Задания':true };   // как прогноз волны 1
   const L60 = DB.roleLaunch('lead');
@@ -475,11 +484,9 @@ const asUser = id => { DB.state.userId = id; };
     `Руководство: обращений в работе ${lr.value}, срок нарушен ${lr.second.value} — красный на втором числе; из них многократных ${mu.value} (плитка каталога, ${DB.fmtVal(mu.second.value, 'pct')} обращений в работе) (ДБ-60)`);
   const mine = R.filter(r => r.curator === 'u2'); const cr = DB.ask(T('cur-rs'), U('u2'), 'cur', {});
   const cs = DB.at('cur-rs', 'table(rstage;rsapp.count)', 'u2', 'cur', {});
-  const co = DB.ask(T('cur-rsout'), U('u2'), 'cur', {});
   ok(71, cr.value === mine.filter(r => r.inWork).length && cr.value > 0 && cr.second.value === mine.filter(r => r.late).length && cr.tl === 'red'
-    && cs.length === 9 && cs[0][0] === 'регистрация обращения' && cs[8][0] === 'закрыта' && sum(cs.map(x => x[1])) === mine.length
-    && co.state === 'ok' && co.value === mine.filter(r => r.outAt === -1).length,
-    `Куратор: в работе ${cr.value}, срок нарушен ${cr.second.value} (красный на втором), девять стадий по порядку в Таблице, исходы прошлого месяца ${co.value} — только «куратор = я» (ДБ-60)`);
+    && cs.length === 9 && cs[0][0] === 'регистрация обращения' && cs[8][0] === 'закрыта' && sum(cs.map(x => x[1])) === mine.length,
+    `Куратор: в работе ${cr.value}, срок нарушен ${cr.second.value} (красный на втором), девять стадий по порядку в Таблице — только «куратор = я» (ДБ-60)`);
   ok(72, R.filter(r => r.multi || (r.stage === 'закрыта' && /^одобрена/.test(r.outcome || ''))).every(r => DB.DATA.loan.find(l => l.id === r.loan).status === 'В реструктуризации')
     && new Set(R.map(r => r.loan)).size === R.length,
     'демо-числа не спорят: многократная и одобренная заявка — по кредиту «в реструктуризации», один кредит — одна заявка (урок «демо-числа противоречат»)');
@@ -496,7 +503,7 @@ const asUser = id => { DB.state.userId = id; };
   const pc = DB.ask(T('prob-cases'), U('u3'), 'prob', {}); const pr = DB.ask(T('prob-recov'), U('u3'), 'prob', {});
   const lc = DB.ask(T('prob-cases'), U('u1'), 'lead', {});
   ok(75, pc.state === 'ok' && pc.second.value > 0 && pc.second.value <= pc.value && pc.visible < lc.visible && pr.state === 'ok'
-    && ['prob-court', 'prob-exp'].every(id => DB.ask(T(id), U('u3'), 'prob', {}).state === 'ok') && DB.composeLayout('u3', 'prob').includes('prob-recov'),
+    && DB.ask(T('prob-court'), U('u3'), 'prob', {}).state === 'ok' && DB.composeLayout('u3', 'prob').includes('prob-recov'),
     `Проблемные кредиты: дел открыто / в карантине ${pc.value} / ${pc.second.value}; дела видны через требования своего охвата (${pc.visible} из ${lc.visible}) (ДБ-61)`);
   ok(76, /без фильтра/.test(DB.ask(T('prob-cases'), U('u1'), 'lead', { dept:'opk' }).passport),
     'у дела нет подразделения — фильтр панели «Подразделение» к нему неприменим и печатается «без фильтра» (ДБ-61)');
@@ -518,11 +525,11 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-63: объект имущества, роль «Специалист по имуществу»
   const ast = DB.USERS.find(u => u.roles.includes('ast'));
   ok(79, DB.ROLES.find(r => r.id === 'ast' && r.name === 'Специалист по имуществу' && r.scope === 'dept') && ast && DB.state.declared.ast
-    && DB.composeLayout(ast.id, 'ast').filter(k => !k.startsWith('s:')).length === 7,
-    `вкладка «Специалист по имуществу»: системная роль, охват «моё подразделение», 7 плиток (${ast && ast.name}) (ДБ-63, ДБ-38)`);
+    && DB.composeLayout(ast.id, 'ast').filter(k => !k.startsWith('s:')).length === 6,
+    `вкладка «Специалист по имуществу»: системная роль, охват «моё подразделение», 6 плиток (${ast && ast.name}) (ДБ-63, ДБ-38)`);
   const ai = DB.ask(T('ast-idle'), ast, 'ast', {}); const au = DB.ask(T('ast-unsold'), ast, 'ast', {});
   ok(80, ai.tl === 'yellow' && ai.value > 0 && Q('ast-idle').filter.some(c => c.f === 'daysOnBook' && c.v === 182) && Q('ast-unsold').filter.some(c => c.op === 'ge' && c.v === 3)
-    && au.state === 'ok' && ['ast-count', 'ast-kpod', 'ast-claim', 'ast-exp', 'ast-unsold'].every(id => ['ok', 'zero'].includes(DB.ask(T(id), ast, 'ast', {}).state)),
+    && au.state === 'ok' && ['ast-count', 'ast-kpod', 'ast-claim', 'ast-unsold'].every(id => ['ok', 'zero'].includes(DB.ask(T(id), ast, 'ast', {}).state)),
     `пороги «6 мес.» и «3 попытки» — фильтр вопроса, цвет — светофор автора: без попытки ${ai.value} (жёлтый), 3+ попыток ${au.value} (ДБ-63, ДБ-24)`);
   const la = DB.ask(T('lead-ast'), U('u1'), 'lead', {}); const sa = DB.ask(T('ast-count'), ast, 'ast', {});
   ok(81, la.second.value === sa.second.value && la.value === sa.value && sa.second.value === 48,
@@ -775,7 +782,7 @@ const asUser = id => { DB.state.userId = id; };
   const noOwn = leads.every(t => t.report && DB.reportById(t.report) && !own(t) && Q(t.id) && Q(t.id).inds.every(i => DB.reportById(t.report).cols.includes(i))
     && (!t.second || Q2(t.id).inds.every(i => DB.reportById(t.report).cols.includes(i))));
   const repIds = [...new Set(leads.map(t => t.report))];
-  ok(116, leads.length === 13 && noOwn && repIds.every(id => DB.reportById(id)) && repIds.length === 10,
+  ok(116, leads.length === 12 && noOwn && repIds.every(id => DB.reportById(id)) && repIds.length === 9,
     `все ${leads.length} плиток Руководства ссылаются на отчёты (${repIds.length} шт.); ни у одной нет своих показателей, разрезов, фильтра, доли, даты и периода; все отчёты есть в каталоге (ДБ-99, ДБ-100)`);
   // «Заёмщиков с просрочкой» — ячейка «больше 0» разреза, «% от итога группы»; значение, числитель и знаменатель прежние
   const qb = Q2('lead-borr'), bo2 = Object.assign({ state:DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state }, DB.ask(T('lead-borr'), U('u1'), 'lead', {}).second);
@@ -787,10 +794,10 @@ const asUser = id => { DB.state.userId = id; };
   // один отчёт кормит несколько плиток Руководства: колонки у плитки — выбор, а не свой вопрос
   const feed = {}; leads.forEach(t => { (feed[t.report] = feed[t.report] || []).push(t.id); });
   const port = feed['fo-02'] || [], prep = DB.reportById('fo-02');
-  ok(118, Object.values(feed).some(a => a.length >= 2) && port.length === 2 && ['lead-bal', 'lead-od'].every(id => port.includes(id))
-    && prep.title === 'Задолженность по состоянию на дату' && prep.fo === 'ФО-02' && prep.cols.join() === 'loan.balance,loan.count,loan.overdue'
-    && prep.dims.join() === 'bucket,category,program,region,lpsource' && port.every(id => Q(id).filter.length === 1 && Q(id).filter[0].f === 'lact' && Q(id).dims.length === 0)
-    && new Set(port.map(id => Q(id).inds.join())).size === 2,
+  ok(118, Object.values(feed).some(a => a.length >= 2) && port.length === 3 && ['lead-bal', 'lead-od', 'lead-risk'].every(id => port.includes(id))
+    && prep.title === 'Задолженность по состоянию на дату' && prep.fo === 'ФО-02' && prep.cols.join() === 'loan.balance,loan.count,loan.overdue,loan.risk'
+    && prep.dims.join() === 'bucket,category,program,region,lpsource' && ['lead-bal', 'lead-od'].every(id => Q(id).filter.length === 1 && Q(id).filter[0].f === 'lact' && Q(id).dims.length === 0)
+    && Q('lead-risk').filter.map(c => c.f).join() === 'lover,lact' && new Set(port.map(id => Q(id).inds.join())).size === 3,
     `отчёт «${prep.title}» кормит ${port.length} плитки Руководства (${port.join(', ')}) — остаток и просрочено; доля и ряд — второе число и Ряд «Просрочено»; отчёт — действующие кредиты со счётом и пятью разрезами; всего отчётов ${repIds.length} на ${leads.length} плиток (ДБ-114, ДБ-126)`);
   // один отчёт — две роли, разные значения параметра: «Просрочка по сроку неплатежа» у Руководства (куратор — все) и у Куратора (куратор — я)
   const OD0 = { f:'overdueDays', op:'gt', v:0 };
@@ -836,7 +843,7 @@ const asUser = id => { DB.state.userId = id; };
   const pa2 = T('p-u2-agro');
   ok(122, pr && pr.shelf === 'personal' && pr.owner === 'u2' && pr.circle.owner === 'u2' && pa.owner === 'u2' && pa.state === 'personal' && !own(pa) && pa.params.curator === '@me'
     && aa.state === 'ok' && aa.value === oa.value && aa.value > 0 && aa.passport === oa.passport
-    && cc.length === 18 && cc.some(t => t.id === 'cat-appfun') && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 2   // с волны 15 в каталоге и «Подано заявок · с начала года»; с волны 24 — личный отчёт Асанова
+    && cc.length === 17 && cc.some(t => t.id === 'cat-appfun') && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 2   // с волны 15 в каталоге и «Подано заявок · с начала года»; с волны 24 — личный отчёт Асанова
     && DB.reportById('r-u2-agro').title === hold && pa2.report === 'r-u2-agro' && pa2.state === 'personal' && DB.composeLayout('u2', 'cur').includes('p-u2-agro'),
     `«${pa.title}» ссылается на личный отчёт «${hold}» на полке Бековой (круг — она одна), значение «я» даёт плитка: ${aa.value} = прежнему вопросу; все ${cc.length} плиток Куратора и каталога на отчётах (${new Set(cc.map(t => t.report)).size} шт.), своего вопроса нет; отчёт переживает сброс стенда (ДБ-99, ДБ-103)`);
   // ни у одной плитки каталога нет своего вопроса: обзорная ссылается на отчёт, ссылочная — на очередь модуля-владельца
@@ -865,12 +872,11 @@ const asUser = id => { DB.state.userId = id; };
     && !obl[1].params.due && !(obl[0].params || {}).due && Q('rep-soon').filter.length === 0 && Q('rep-od').filter.length === 0 && Q('rep-chg').filter.length === 0 && obl[1].title === 'Срок сдачи близко'
     && no.every((a, i) => a.state === oo[i].state && a.value === oo[i].value && a.passport === oo[i].passport) && no.some(a => a.value > 0)
     && rg.registry === 'Реестр обязательств' && rg.owner === 'Отчётность' && !wh.refused && wh.list.length === no[0].value
-    && DB.reportById(T('rep-sum').report).obj === 'oblig' && !own(T('rep-sum')) && T('rep-sum').kind === 'overview' && T('rep-sum').second.share.join() === 'oblig.onTime,oblig.submitted' && T('rep-sum').views.series.of === 'second'
-    && !DB.tileById('rep-ser'),
+    && !DB.tileById('rep-sum') && !DB.reportById('r-oblsum') && !DB.tileById('rep-ser'),
     `«Просрочено обязательств», «Срок сдачи близко», «Сданные, где числа изменились» — обзорные на отчёте «${orp.title}»; «близко» — признак строки обязательства по настройке отчётности, параметра «${orp.params.due.name}» у плитки нет (волна 24, ДБ-321); числа прежние ${no.map(a => a.value).join(' / ')}; список — «${rg.registry}» модуля «${rg.owner}» (ДБ-108, ДБ-101)`);
   // отчёт со специалистом: параметр «Кредитный специалист», плитка Специалиста даёт «я», плитка Головного офиса на том же отчёте — без значения
   const SPEC = { f:'specialist', op:'eq', v:'@me' }, sp6 = U('u6'), spr = DB.reportById('fo-55');
-  const sw = ['spec-work', 'spec-stage', 'spec-filed'].map(id => T(id));
+  const sw = ['spec-work', 'spec-stage'].map(id => T(id));
   const aw = DB.ask(T('spec-work'), sp6, 'spec', {}), ow = DB.answer({ id:'old-sw', format:'number', inds:['app.inWork'], filter:[SPEC] }, sp6, 'spec', {});
   const ag = DB.ask(withParams(T('spec-work'), { specialist:'*' }), sp6, 'spec', {});
   const at = { state:DB.ask(T('spec-stage'), sp6, 'spec', {}).state, nodes:DB.at('spec-stage', 'slice(astage)', 'u6', 'spec', {}), total:DB.at('spec-stage', 'slice(astage).total', 'u6', 'spec', {}) }, ot = DB.answer({ id:'old-ss', format:'steps', inds:['app.inWork'], dims:['astage'], filter:[SPEC, { f:'status', op:'eq', v:'Новый' }] }, sp6, 'spec', {});
@@ -992,7 +998,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u2'); const p2 = DB.saveTile(Object.assign(DB.blankDraft('r-u2-agro'), { title:'моё', params:{ curator:'@me', date:'today' } }), 'personal'); asUser('u1');
   ok(135, has(srok, 'r-bucket') && srok.find(x => x.r.id === 'r-bucket').r.title === 'Просрочка по сроку неплатежа' && has(all2, 'r-u2-agro') && !has(all1, 'r-u2-agro')
     && port.feeds === DB.TILES.filter(t => t.report === 'fo-02').length && port.feeds >= 5 && has(byCol, 'fo-02') && has(byCol, 'r-balreg') && !has(byCol, 'r-loans')
-    && has(byDim, 'r-odmap') && has(byDim, 'r-balreg') && all10.length === 3 && all10.every(x => x.r.obj === 'oblig') && byObj.length === all10.length && !arch2 && has(all1, 'r-form')
+    && has(byDim, 'r-odmap') && has(byDim, 'r-balreg') && all10.length === 2 && all10.every(x => x.r.obj === 'oblig') && byObj.length === all10.length && !arch2 && has(all1, 'r-form')
     && p1.error && /не открыт/.test(p1.error) && p2.tile && p2.tile.state === 'personal' && p2.tile.owner === 'u2',
     `доступные отчёты: «срок» находит «Просрочка по сроку неплатежа» (всего ${srok.length}); поиск по колонке, разрезу, объекту; личный отчёт Бековой виден ей и не виден Руководству, личная плитка на нём — только у неё; Отчётности открыты ${all10.length} отчёта по обязательствам; «${port.r.title}» кормит ${port.feeds} плиток (ДБ-103, ДБ-104)`);
 })();
@@ -1256,8 +1262,8 @@ const asUser = id => { DB.state.userId = id; };
 
   // снята колонка отчёта: плитки с этой колонкой названы сломанными поимённо, соседи по отчёту отвечают; убран параметр, уровень строк
   DB.seed(); asUser('u1');
-  const ec = DB.standReport('col'), verC = DB.reportById('r-portfolio').version, whatC = DB.reportById('r-portfolio').changed.what, P = 'В отчёте «Портфель кредитов» нет колонки «Сумма под риском (залог)».';
-  const lr = DB.cachedAsk(T('lead-risk'), u1, 'lead', {}), cr = DB.cachedAsk(T('cur-risk'), u2, 'cur', {}), lod = DB.cachedAsk(T('cur-rc'), u2, 'cur', {}), p181 = DB.cachedAsk(T('prob-181'), u3, 'prob', {});
+  const ec = DB.standReport('col'), verC = DB.reportById('fo-02').version, whatC = DB.reportById('fo-02').changed.what, P = 'В отчёте «Задолженность по состоянию на дату» нет колонки «Портфель под риском».';
+  const lr = DB.cachedAsk(T('lead-risk'), u1, 'lead', {}), cr = DB.cachedAsk(T('cur-risk'), u2, 'cur', {}), lod = DB.cachedAsk(T('cur-bal'), u2, 'cur', {}), p181 = DB.cachedAsk(T('lead-od'), u1, 'lead', {});
   const brokenIds = ec.tiles.filter(t => DB.reportBroken(t)).map(t => t.id).sort().join();
   const last = DB.reportEdit('r-loans', { removeCol:'loan.count' }, 'u11'), lay = DB.composeLayout('u1', 'lead').includes('lead-risk');
   DB.arrangeHide('lead', 'lead-risk'); const layH = DB.composeLayout('u1', 'lead').includes('lead-risk');
@@ -1273,7 +1279,7 @@ const asUser = id => { DB.state.userId = id; };
     && tp.state === 'broken' && /нет разреза «Область»/.test(tp.msg) && ts.state === 'broken' && /нет колонки «Остаток задолженности»/.test(ts.msg) && tv.state === 'ok'
     && pb.state === 'broken' && /нет параметра «npay»/.test(pb.msg)
     && ff.state === 'broken' && /В отчёте «Форма: портфель на отчётную дату» нет параметра «Дата»/.test(ff.msg),
-    `снята колонка «Сумма под риском (залог)» из отчёта «Портфель кредитов»: «${lr.msg}» — на плитке Руководства и Куратора; «В реструктуризации» и «Кредиты 181+ дн.» на том же отчёте отвечают; плитка остаётся в раскладке и скрывается кнопкой; убран параметр «Куратор» — «${ll.msg}»; разреза доли, колонки второго числа и параметра, которых отчёт не объявлял, плитка не ждёт, а разрез умолчания вида плитку не ломает (ДБ-110, ДБ-126)`);
+    `снята колонка «Портфель под риском» из отчёта «Задолженность по состоянию на дату»: «${lr.msg}» — на плитке Руководства и Куратора; «Остаток» и «Просрочено» на том же отчёте отвечают; плитка остаётся в раскладке и скрывается кнопкой; убран параметр «Куратор» — «${ll.msg}»; разреза доли, колонки второго числа и параметра, которых отчёт не объявлял, плитка не ждёт, а разрез умолчания вида плитку не ломает (ДБ-110, ДБ-126)`);
 
   // отчёт в архиве: плитки названы, новая плитка на нём не собирается; отчёт с плитками не удаляется, без плиток — удаляется; возврат — стенд и seed
   DB.seed(); asUser('u3');
@@ -1300,7 +1306,7 @@ const asUser = id => { DB.state.userId = id; };
   // вывод показателя из реестра ломает плитки, которые берут эту колонку, и называет отчёт; соседи по отчёту отвечают; пустой охват и отказ в провале не падают
   DB.seed(); asUser('u1');
   DB.standWithdraw('loan.risk', true);
-  const wt = DB.tilesOfReport('r-portfolio'), wm = 'Показатель «Сумма под риском (залог)» выведен из реестра статистики 11.10 — отчёт «Портфель кредитов» сломан, плитка вместе с ним.';
+  const wt = DB.tilesOfReport('fo-02'), wm = 'Показатель «Портфель под риском» выведен из реестра статистики 11.10 — отчёт «Задолженность по состоянию на дату» сломан, плитка вместе с ним.';
   const wr = wt.map(t => ({ id:t.id, r:DB.cachedAsk(t, u1, 'lead', {}), why:DB.reportBroken(t) })), wBad = wr.filter(x => x.r.state === 'broken').map(x => x.id).sort().join();
   const wd = DB.drill('lead-risk', u1, 'lead', {}), wg = DB.registryList(T('lead-risk'), u1, 'lead', {}), wod = DB.cachedAsk(T('lead-od'), u1, 'lead', {}), wodA = DB.answer(DB.questionOf(T('lead-od')), u1, 'lead', {});
   const raw = DB.answer(DB.questionOf(T('lead-risk')), u1, 'lead', {}), other = DB.ask(T('lead-bal'), u1, 'lead', {});
@@ -1308,11 +1314,11 @@ const asUser = id => { DB.state.userId = id; };
   const wb = wt.map(t => DB.cachedAsk(t, u1, 'lead', {}).state);
   const nar = U('c30'), dTasks = DB.drill('tasks', nar, 'cur', {});
   DB.USERS.push({ id:'c96', name:'Куратор без кредитов', roles:['cur'], dept:'rp-nar' }); const dNone = DB.drill('cur-od', U('c96'), 'cur', {}), dNoneB = DB.drill('cur-od', U('c96'), 'cur', {}, { d:'bucket', v:'1–30' }); DB.USERS.pop();
-  ok(152, wt.length === 4 && wBad === 'cur-risk,lead-risk' && wr.filter(x => x.r.state === 'broken').every(x => x.r.msg === wm && x.why === wm)
-    && wd.refused && wd.msg === wm && wg.msg === wm && wod.state === 'ok' && wod.value === wodA.value && wod.second.value > 0 && wr.find(x => x.id === 'cur-rc').why === null
+  ok(152, wt.length === 6 && wBad === 'cur-risk,lead-risk' && wr.filter(x => x.r.state === 'broken').every(x => x.r.msg === wm && x.why === wm)
+    && wd.refused && wd.msg === wm && wg.msg === wm && wod.state === 'ok' && wod.value === wodA.value && wod.second.value > 0 && wr.find(x => x.id === 'cur-bal').why === null
     && raw.state === 'broken' && /отчёт с этим показателем сломан/.test(raw.msg) && other.state === 'ok' && wb.every(s => s !== 'broken')
     && dTasks.number === null && dTasks.matches === false && dNone.number === 0 && dNone.matches && dNoneB.number === 0 && dNoneB.matches,
-    `показатель «Сумма под риском (залог)» выведен из реестра: плитки, которые берут эту колонку (${wBad}), пишут «${wm}»; провал и реестр читают ту же причину; «В реструктуризации» на том же отчёте отвечает, «Просрочено» стоит на другом; вернули — отвечают все; провал по пустому охвату (ссылочная плитка «Мои задания» у куратора без заданий, плитки у куратора без кредитов) не падает: у пустого охвата числа узла нет, у куратора без кредитов это ноль, и список ему равен (ДБ-112)`);
+    `показатель «Портфель под риском» выведен из реестра: плитки, которые берут эту колонку (${wBad}), пишут «${wm}»; провал и реестр читают ту же причину; «Остаток» и «Просрочено» на том же отчёте отвечают; вернули — отвечают все; провал по пустому охвату (ссылочная плитка «Мои задания» у куратора без заданий, плитки у куратора без кредитов) не падает: у пустого охвата числа узла нет, у куратора без кредитов это ноль, и список ему равен (ДБ-112)`);
 
   // выгрузка плитки по правилам отчётности: штамп с отчётом, версией и значениями параметров словами, строка журнала выгрузок
   DB.seed(); asUser('u2');
@@ -1540,8 +1546,8 @@ const asUser = id => { DB.state.userId = id; };
     && !/class="big"[^>]*><span class="chipv/.test(hod) && /class="tile" data-key="lead-od"/.test(hod) && !GONE.test(hod) && !/<rect /.test(hod + hln + htk) && !/sl-views/.test(hod)
     && ko.map(v => v.name).join() === NAMES && ko.every(v => !v.off) && kl.map(v => v.name).join() === NAMES && kl.find(v => v.name === 'Движение').off && /слагаемые/.test(kl.find(v => v.name === 'Движение').tip) && kl.filter(v => v.off).length === 1
     && kt.map(v => v.name).join() === NAMES && kt.every(v => v.off && v.tip) && !/class="big"[^>]*>[^<]*<span class="chipv/.test(htk) && /<div class="second"><span><button type="button" class="num-link"[^>]*><b><span class="chipv red"/.test(htk)
-    && sweep.length > 90 && new Set(sweep.map(x => x.k)).size >= 83 && bare.length === 0 && /class="second"/.test(hbk) && !GONE.test(hbk),   // волна 12: было sweep > 100 — 105 с копией «Руководства» у Аналитика (ДБ-204), различных плиток 83 и было
-    `плитка «Просрочено»: «${(hod.match(/<span class="big"[^>]*>([^<]+)</) || [])[1]}», сдвиг, «${((hod.match(/<b><span class="chipv \w+"[^>]*>([^<]*)<\/span><\/b> ([^<]+) </) || []).slice(1)).join(' ')}» с плашкой светофора на втором; на плитке нет мини-ряда, кнопок видов, строки паспорта и строки порога, края нейтральны (ДБ-130, ДБ-132, ДБ-133); пять видов «${NAMES.replace(/,/g, ' · ')}» — в строке полосы, у «Суммы под риском» «Движение» погашено с причиной, у «Мои задания» погашены все пять; ${sweep.length} плиток всех раскладок — три строки, без размеров и «Развернуть» (ДБ-115, ДБ-118, ДБ-119; волна 7: было — мини-ряд из 12 точек и пять кнопок на плитке)`);
+    && sweep.length > 80 && new Set(sweep.map(x => x.k)).size >= 73 && bare.length === 0 && /class="second"/.test(hbk) && !GONE.test(hbk),   // волна 29: 73 плитки на экранах ролей и личная плитка Бековой
+    `плитка «Просрочено»: «${(hod.match(/<span class="big"[^>]*>([^<]+)</) || [])[1]}», сдвиг, «${((hod.match(/<b><span class="chipv \w+"[^>]*>([^<]*)<\/span><\/b> ([^<]+) </) || []).slice(1)).join(' ')}» с плашкой светофора на втором; на плитке нет мини-ряда, кнопок видов, строки паспорта и строки порога, края нейтральны (ДБ-130, ДБ-132, ДБ-133); пять видов «${NAMES.replace(/,/g, ' · ')}» — в строке полосы, у «Портфеля под риском» «Движение» погашено с причиной, у «Мои задания» погашены все пять; ${sweep.length} плиток всех раскладок — три строки, без размеров и «Развернуть» (ДБ-115, ДБ-118, ДБ-119; волна 7: было — мини-ряд из 12 точек и пять кнопок на плитке)`);
   // раскрытие: в ряду одна плитка, в разных рядах по одной, не хранится; в странице нет «Развернуть», ⤢, размеров плиток главной и фильтра форматов
   DB.openView('lead-od', 'map'); DB.openView('lead-issued', 'table'); const one = Object.keys(DB.state.open).sort().join() + ':' + DB.state.open['lead-issued'].kind;
   DB.closeView('lead-issued'); DB.closeView('lead-od'); const none = Object.keys(DB.state.open).length; DB.openView('lead-od', 'series'); DB.seed();
@@ -1583,7 +1589,7 @@ const asUser = id => { DB.state.userId = id; };
   ok(174, row('lead-od') === row('lead-risk') && row('lead-od') === row('lead-bal') && row('lead-od') !== row('lead-issued') && row('lead-claims') !== row('lead-od') && row('lead-claims') !== row('lead-issued')
     && two === 'lead-issued,lead-od' && same === 'lead-issued,lead-risk' && three === 'lead-claims,lead-issued,lead-risk' && kind2 === 'table' && kept === 1 && closed === 'lead-claims,lead-risk'
     && DB.state.open['lead-claims'].path.length === 0 && DB.openView('lead-claims', 'нет') === null,
-    `одна полоса на ряд: «Просрочено» и «Сумма под риском» в одном ряду — вторая заменила первую; плитки в разных рядах держат по полосе (${three}); кнопка вида меняет вид, путь остаётся (ДБ-117)`);
+    `одна полоса на ряд: «Просрочено» и «Портфель под риском» в одном ряду — вторая заменила первую; плитки в разных рядах держат по полосе (${three}); кнопка вида меняет вид, путь остаётся (ДБ-117)`);
   // вглубь: путь, следующий разрез, шаг назад по крошке
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'slice'); const o = DB.state.open['lead-od'];
   const v0 = V('lead-od', 'slice', o, o.sel), n181 = v0.nodes.find(n => n.v === '181+'), free0 = DB.dimsFor('lead-od', [], {}).map(x => x.dim);
@@ -1737,21 +1743,21 @@ const asUser = id => { DB.state.userId = id; };
   const at = (id, x, uid = 'u1', role = 'lead', panel = {}) => DB.at(id, x, uid, role, panel);
   const tl = L => L.filter(k => !/^s:/.test(k)), sc = L => L.filter(k => /^s:/.test(k)), wait = ['lead-spin', 'lead-spcure'];
   const LEAD = ['s:Картина портфеля', 'lead-bal', 'lead-od', 'lead-borr', 'lead-risk', 'lead-spin', 'lead-spcure', 's:Деньги и план', 'lead-issued', 'lead-paid',
-    's:Взыскание и реструктуризация', 'lead-claims', 'lead-recov', 'lead-rs', 'tasks', 's:Имущество', 'lead-ast', 'lead-astod'];
-  const CUR = ['s:Мой портфель', 'cur-bal', 'cur-od', 'cur-borod', 'cur-risk', 'cur-rc', 'cur-spin', 's:Мои реструктуризации', 'cur-rs', 'cur-rsout',
-    's:Мой план и работа', 'cur-plan0', 'cur-plan1', 'cur-npay', 'cur-obl', 'tasks'];
+    's:Взыскание и реструктуризация', 'lead-claims', 'lead-recov', 'lead-rs', 's:Имущество', 'lead-ast', 's:Мои задания', 'tasks'];
+  const CUR = ['s:Мой портфель', 'cur-bal', 'cur-od', 'cur-borod', 'cur-risk', 'cur-rc', 'cur-spin',
+    's:Мой план и работа', 'cur-rs', 'cur-plan0', 'cur-plan1', 'cur-npay', 'cur-obl', 'tasks'];
   const REMOVED = ['lead-loans', 'lead-borod', 'lead-odsh', 'lead-bucket', 'lead-cat', 'lead-prog', 'lead-progis', 'lead-odser', 'lead-heat', 'lead-bodays', 'lead-bmove', 'lead-bdebt', 'lead-rslate',
     'cur-loans', 'cur-odsh', 'cur-bucket', 'cur-cat', 'cur-rslate', 'cur-rsstage', 'cat-spser', 'cat-byprog', 'cat-byreg', 'cat-brep', 'cat-bhist', 'cat-progsrc', 'cat-balsrc'];
-  // раскладки: 14 плиток в четырёх секциях у Руководства, 13 в трёх у Куратора; у Аналитика своей нет (волна 12); ворота эпизодов выключены — без них
+  // раскладки: 13 плиток в пяти секциях у Руководства, 12 в двух у Куратора; у Аналитика своей нет (волна 12); ворота эпизодов выключены — без них
   DB.STAND.spells = false; const lay0 = DB.composeLayout('u1', 'lead'), cur0 = DB.composeLayout('u2', 'cur');
   DB.STAND.spells = true; const lay1 = DB.composeLayout('u1', 'lead'), cur1 = DB.composeLayout('u2', 'cur');
   const dcl = DB.state.declared, ov = DB.state.overlays['u2|cur'], sc1 = DB.screens('u1')[0];
-  ok(187, DB.DECLARED_SEED.lead.join('|') === LEAD.join('|') && tl(LEAD).length === 14 && sc(LEAD).length === 4 && DB.DECLARED_SEED.cur.join('|') === CUR.join('|') && tl(CUR).length === 13 && sc(CUR).length === 3
+  ok(187, DB.DECLARED_SEED.lead.join('|') === LEAD.join('|') && tl(LEAD).length === 13 && sc(LEAD).length === 5 && DB.DECLARED_SEED.cur.join('|') === CUR.join('|') && tl(CUR).length === 12 && sc(CUR).length === 2
     && dcl.lead.join('|') === LEAD.join('|') && dcl.cur.join('|') === CUR.join('|') && !dcl.an && DB.composeLayout('u1', 'an').join() === 'tasks'
-    && lay0.join('|') === LEAD.filter(k => !wait.includes(k)).join('|') && tl(lay0).length === 12 && lay1.join('|') === LEAD.join('|')
-    && cur0.join('|') === CUR.filter(k => k !== 'cur-spin').concat('p-u2-agro').join('|') && tl(cur0).length === 13 && cur1.join('|') === CUR.concat('p-u2-agro').join('|')
+    && lay0.join('|') === LEAD.filter(k => !wait.includes(k)).join('|') && tl(lay0).length === 11 && lay1.join('|') === LEAD.join('|')
+    && cur0.join('|') === CUR.filter(k => k !== 'cur-spin').concat('p-u2-agro').join('|') && tl(cur0).length === 12 && cur1.join('|') === CUR.concat('p-u2-agro').join('|')
     && ov && ov.added.join() === 'p-u2-agro' && sc1.items.join() === 'lead-od,lead-bal' && sc1.pinned['lead-od'].kind === 'map' && sc1.pinned['lead-od'].sel.dims.join() === 'program,bucket',
-    `раскладки после слияния: Руководство — 14 плиток в четырёх секциях (отвечают все 14; ворота эпизодов на стенде выключены — 12), Куратор — 13 в трёх, у Аналитика своей раскладки нет — минимальная (волна 12, ДБ-204; было — копия Руководства); у Бековой личная плитка в конце; «Совещание по Ошу» — «Просрочено» и «Остаток», «Просрочено» закреплено Картой «программа × срок»`);
+    `раскладки после пересмотра: Руководство — 13 плиток в пяти секциях (отвечают все 13; ворота эпизодов на стенде выключены — 11), Куратор — 12 в двух, у Аналитика своей раскладки нет — минимальная (волна 12, ДБ-204; было — копия Руководства); у Бековой личная плитка в конце; «Совещание по Ошу» — «Просрочено» и «Остаток», «Просрочено» закреплено Картой «программа × срок»`);
   // снятые плитки нигде не остались: ни в плитках, ни в раскладках ролей, личных раскладках и экранах, ни в тексте страницы
   const inLay = [...Object.values(dcl).flat(), ...Object.values(DB.DECLARED_SEED).flat(), ...Object.values(DB.state.overlays).flatMap(o => [...o.order, ...o.hidden, ...o.added]),
     ...Object.values(DB.state.screens).flat().flatMap(s => [...s.items, ...Object.keys(s.pinned)])];
@@ -1773,7 +1779,7 @@ const asUser = id => { DB.state.userId = id; };
     ['lead-od', 'second', 4.636944],
     ['lead-od', 'main', 178778855],
     ['lead-od', 'second.den', 3855532121],
-    ['lead-risk', 'main', 868835772],
+    ['lead-risk', 'main', 813772277],
     ['lead-od', 'table(bucket;loan.count)', [['нет просрочки',961],['1–30',99],['31–90',80],['91–180',56],['181+',52]]],
     ['lead-bal', 'table(category;loan.count)', [['Низкий кредитный риск',877],['Средний кредитный риск',183],['Высокий кредитный риск',80],['Потери',56],['Убыток',52],['нет категории',0]]],
     ['lead-borr', 'slice(bodays)', [['нет просрочки',633],['1–30',93],['31–90',72],['91–180',53],['181+',52],['нет действующих договоров',0]]],
@@ -1793,14 +1799,13 @@ const asUser = id => { DB.state.userId = id; };
     ['lead-rs', 'second', 4],
     ['lead-ast', 'second', 48],
     ['lead-ast', 'main', 179045964],
-    ['lead-astod', 'main', 1081759]
   ],
   'u2|cur': [
     ['cur-bal', 'second', 47],
     ['cur-borod', 'main', 35.897436],
     ['cur-borod', 'second.num', 14],
     ['cur-borod', 'second.den', 39],
-    ['cur-risk', 'main', 40013091],
+    ['cur-risk', 'main', 40089334],
     ['cur-rc', 'main', 1],
     ['cur-rc', 'second', 5],
     ['cur-od', 'second', 5.666567],
@@ -1812,8 +1817,6 @@ const asUser = id => { DB.state.userId = id; };
     ['cur-rs', 'second', 1],
     ['cur-rs', 'table(rstage;rsapp.count)', [['регистрация обращения',0],['анализ',1],['комитет Холдинга',0],['письмо направлено',0],['заключение уполномоченного органа',1],['проект решения КМ и согласование комитета ЖК',0],['постановление КМ',0],['оформление',0],['закрыта',2]]],
     ['cur-rs', 'table(rstage;rsapp.count).total', 4],
-    ['cur-rsout', 'slice(routcome)', [['одобрена',1],['одобрена с изменёнными условиями',0],['отказ',0],['отпала',0],['возвращена без рассмотрения',0],['нет исхода',0]]],
-    ['cur-rsout', 'main', 1],
     ['cur-plan0', 'main', 84.340601],
     ['cur-plan0', 'second.num', 1043036],
     ['cur-plan0', 'second.den', 1236695],
@@ -1850,8 +1853,8 @@ const asUser = id => { DB.state.userId = id; };
   for (const [sel, rows] of Object.entries(LIT)) { const [uid, rl] = sel.split('|');
     for (const [id, ex, want] of rows) { nLit++; let got; try { got = at(id, ex, uid, rl === '-' ? null : rl); } catch (e) { got = 'ERR ' + e.message; }
       if (!eqv(srt(got), srt(want))) miss.push(`${sel} ${id} ${ex} → ${JSON.stringify(got).slice(0, 60)}`); } }
-  ok(189, nLit === 73 && miss.length === 0,
-    `${nLit} чисел новых плиток (Руководство, Куратор, каталог) равны прежним значениям до слияния: главное, второе и его числитель со знаменателем, узлы Разрезов и Таблиц, итоги; у разрезов — прежние строки плюс строки полного списка (волна 9: «нет просрочки», «нет категории», «нет исхода» и другие, нули тоже — ДБ-168…ДБ-170)${miss.length ? '; расходятся: ' + miss.join('; ') : ''}`);
+  ok(189, nLit === 70 && miss.length === 0,
+    `${nLit} чисел новых плиток (Руководство, Куратор, каталог) равны прежним значениям до слияния, кроме «Портфеля под риском» (ППЛ-4): главное, второе и его числитель со знаменателем, узлы Разрезов и Таблиц, итоги; у разрезов — прежние строки плюс строки полного списка (волна 9: «нет просрочки», «нет категории», «нет исхода» и другие, нули тоже — ДБ-168…ДБ-170)${miss.length ? '; расходятся: ' + miss.join('; ') : ''}`);
   // намеренные изменения — с новыми числами
   const BT = 'table(bucket;loan.count).total', bd = DB.base('lead-od', 'u1', 'lead'), cd = DB.base('cur-od', 'u2', 'cur'), pd = DB.base('lead-paid', 'u1', 'lead');
   ok(190, at('lead-od', BT) === 1248 && at('lead-od', BT) === at('lead-bal', 'second') && at('cur-od', BT, 'u2', 'cur') === 47 && at('cur-od', BT, 'u2', 'cur') === at('cur-bal', 'second', 'u2', 'cur')
@@ -1898,32 +1901,32 @@ const asUser = id => { DB.state.userId = id; };
   const tl = L => L.filter(k => !/^s:/.test(k)), sc = L => L.filter(k => /^s:/.test(k));
   const RU = { prob:'u3', acc:'u4', zal:'u5', spec:'u6', com:'u7', gof:'u8', otd:'u9', rep:'u10', ast:'u12' };
   const LAY = {
-    prob: ['s:Требования', 'prob-claims', 'prob-181', 'prob-since', 's:Результат', 'prob-rec', 'prob-real', 'prob-meas', 'tasks', 's:Дела', 'prob-recov', 'prob-cases', 'prob-court', 'prob-exp', 'prob-dead', 'prob-nocon'],
-    acc: ['s:Что мешает закрыть период', 'acc-unident', 'acc-await', 'acc-unm', 's:Деньги', 'acc-today', 'acc-prev', 'acc-refund', 'acc-rev', 'acc-unalloc', 'acc-pkind'],
+    prob: ['s:Требования', 'prob-claims', 'prob-181', 'prob-since', 'prob-real', 's:Результат', 'prob-rec', 'prob-meas', 's:Дела', 'prob-recov', 'prob-cases', 'prob-court', 'prob-dead', 'prob-nocon', 's:Мои задания', 'tasks'],
+    acc: ['s:Что мешает закрыть период', 'acc-unident', 'acc-await', 'acc-unm', 's:Деньги', 'acc-today', 'acc-prev', 'acc-refund', 'acc-unalloc', 'acc-pkind'],
     zal: ['s:Портфель обеспечения', 'zal-value', 's:Что требует действия', 'zal-lowcov', 'zal-reval', 'zal-ins', 'zal-ban', 'zal-reg', 'zal-sale', 'tasks'],
-    spec: ['s:Мои заявки', 'spec-work', 'spec-ready', 'spec-neg', 'tasks', 'spec-stage', 's:Итоги', 'spec-dec', 'spec-pend', 'spec-filed'],
-    com: ['s:Мой голос и сроки', 'com-vote', 'com-late', 'com-soon', 'com-noscan', 's:Обзор', 'com-pend', 'com-max', 'com-dec'],
-    gof: ['s:Подтверждение комплектов', 'gof-wait', 'gof-compl', 'gof-conf', 'tasks'],
-    otd: ['s:Наша очередь', 'otd-pend', 'otd-neg', 'tasks', 's:Итоги', 'otd-rev', 'otd-verd'],
-    rep: ['s:Сдача', 'rep-od', 'rep-soon', 'rep-chg', 'tasks', 's:Итоги', 'rep-sum'],
-    ast: ['s:Имущество на балансе', 'ast-count', 'ast-idle', 'ast-unsold', 'ast-kpod', 'ast-claim', 'ast-exp', 'tasks']
+    spec: ['s:Мои заявки', 'spec-work', 'spec-stage', 'spec-ready', 'spec-neg', 'spec-pend', 's:Мои задания', 'tasks'],
+    com: ['s:Мой голос и сроки', 'com-vote', 'com-late', 'com-soon', 'com-noscan', 's:Обзор', 'com-pend', 'com-max'],
+    gof: ['s:Подтверждение комплектов', 'gof-wait', 'gof-compl', 's:Мои задания', 'tasks'],
+    otd: ['s:Наша очередь', 'otd-pend', 'otd-neg', 'tasks'],
+    rep: ['s:Сдача', 'rep-od', 'rep-soon', 'rep-chg', 's:Мои задания', 'tasks'],
+    ast: ['s:Имущество на балансе', 'ast-count', 'ast-idle', 'ast-unsold', 'ast-kpod', 'ast-claim', 's:Мои задания', 'tasks']
   };
-  const CNT = { prob:[13, 3], acc:[9, 2], zal:[8, 2], spec:[8, 2], com:[7, 2], gof:[4, 1], otd:[5, 2], rep:[5, 2], ast:[7, 1] };
+  const CNT = { prob:[12, 4], acc:[8, 2], zal:[8, 2], spec:[6, 2], com:[6, 2], gof:[3, 2], otd:[3, 1], rep:[4, 2], ast:[6, 2] };
   const REMOVED = ['prob-amount', 'prob-phase', 'prob-lead', 'prob-recser', 'acc-ser', 'acc-src', 'zal-count', 'zal-kind', 'spec-req', 'spec-status', 'spec-prog', 'com-sum', 'com-by', 'com-ser',
     'gof-max', 'gof-rp', 'otd-max', 'rep-ser', 'ast-state'];
   // раскладки девяти ролей: число плиток и секций по канону, порядок, личной перекладки нет; «Мои задания» — в семи из девяти
   const rl = Object.keys(LAY), dcl = DB.state.declared;
   const goodLay = rl.every(r => DB.DECLARED_SEED[r].join('|') === LAY[r].join('|') && dcl[r].join('|') === LAY[r].join('|') && tl(LAY[r]).length === CNT[r][0] && sc(LAY[r]).length === CNT[r][1]
     && DB.composeLayout(RU[r], r).join('|') === LAY[r].join('|') && DB.roleHasLayout(r));
-  ok(195, goodLay && sum(rl.map(r => tl(LAY[r]).length)) === 66 && sum(rl.map(r => sc(LAY[r]).length)) === 17 && rl.filter(r => LAY[r].includes('tasks')).join() === 'prob,zal,spec,gof,otd,rep,ast'
+  ok(195, goodLay && sum(rl.map(r => tl(LAY[r]).length)) === 56 && sum(rl.map(r => sc(LAY[r]).length)) === 19 && rl.filter(r => LAY[r].includes('tasks')).join() === 'prob,zal,spec,gof,otd,rep,ast'
     && rl.every(r => tl(LAY[r]).every(k => DB.tileById(k) && DB.tileAnswers(DB.tileById(k)))),
-    `раскладки девяти ролей по канону: Проблемные 13 плиток в трёх секциях, Бухгалтерия 9 в двух, Залог 8 в двух, Кредитный специалист 8 в двух, Комиссия 7 в двух, Головной офис 4 в одной, Отдел 5 в двух, Отчётность 5 в двух, Имущество 7 в одной — всего 66 в 17 секциях, порядок как в каноне; «Мои задания» стоит в семи (в Бухгалтерии и Комиссии его нет)`);
+    `раскладки девяти ролей по канону: Проблемные 12 плиток в четырёх секциях, Бухгалтерия 8 в двух, Залог 8 в двух, Кредитный специалист 6 в двух, Комиссия 6 в двух, Головной офис 3 в двух, Отдел 3 в одной, Отчётность 4 в двух, Имущество 6 в двух — всего 56 в 19 секциях, порядок как в каноне; «Мои задания» стоит в семи (в Бухгалтерии и Комиссии его нет)`);
   // снятые плитки нигде не остались: ни в плитках, ни в раскладках, личных раскладках и экранах, ни в тексте страницы; все плитки каталога — на основе
   const inLay = [...Object.values(dcl).flat(), ...Object.values(DB.DECLARED_SEED).flat(), ...Object.values(DB.state.overlays).flatMap(o => [...o.order, ...o.hidden, ...o.added]),
     ...Object.values(DB.state.screens).flat().flatMap(s => [...s.items, ...Object.keys(s.pinned)])];
   const left = REMOVED.filter(id => DB.tileById(id) || DB.TILES.some(t => t.id === id) || inLay.includes(id) || new RegExp('[\'"`]' + id + '[\'"`]').test(src));
   ok(196, REMOVED.length === 19 && new Set(REMOVED).size === 19 && left.length === 0 && !DB.catalogFor(U('u1')).some(x => REMOVED.includes(x.t.id))
-    && DB.TILES.length === 93 && DB.tileById('cat-appfun') && DB.tileById('p-u1-rem') && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
+    && DB.TILES.length === 81 && DB.tileById('cat-appfun') && DB.tileById('p-u1-rem') && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
     `19 снятых плиток (${REMOVED.slice(0, 4).join(', ')}…) нет ни в списке плиток, ни в раскладках, личных перекладках и экранах, ни в тексте страницы; плиток в каталоге ${DB.TILES.length} (было 135), у каждой главное число и умолчания видов, прежних «выбор из ответа» и «формат» нет ни у одной`);
   // числа без намеренных изменений равны прежним: литералы из снимка до слияния, по умолчанию стенда, по одному пользователю на роль
   // Ряд плитки за прошлый месяц кончается её периодом: прежние 11 точек те же, неполный текущий месяц ушёл, слева — месяц годом раньше
@@ -1939,7 +1942,7 @@ const asUser = id => { DB.state.userId = id; };
     ['prob-claims', 'slice(leadDept)', [['opk',35],['rp-chu',8],['rp-tal',4],['rp-osh',3],['rp-bat',1],['rp-nar',1],['rp-ik',1]]],
     ['prob-rec', 'main', 1699839],
     ['prob-rec', 'shift', 27645],
-    ['prob-real', 'main', 4],
+    ['prob-real', 'main', 4726918],
     ['prob-rec', 'series(12)', prevEnd([447664], [[558828],[627250],[740471],[888860],[1089736],[1076549],[1427879],[1557582],[1542647],[1672194],[1699839],[619565]])],
     ['prob-meas', 'slice(mkind)', [['Претензия',21],['Исполнительный лист',10],['Арест имущества',8],['Иск',7],['Торги',6],['Мировое соглашение',3],['Заявление о банкротстве',2]]],
     ['prob-meas', 'main', 57],
@@ -1950,7 +1953,6 @@ const asUser = id => { DB.state.userId = id; };
     ['prob-cases', 'main', 54],
     ['prob-cases', 'second', 3],
     ['prob-court', 'main', 27447480],
-    ['prob-exp', 'main', 6648555],
     ['prob-dead', 'main', 4],
     ['prob-nocon', 'main', 6]
   ],
@@ -1964,7 +1966,6 @@ const asUser = id => { DB.state.userId = id; };
     ['acc-prev', 'main', 142890222],
     ['acc-prev', 'shift', 17929534],
     ['acc-refund', 'main', 3108293],
-    ['acc-rev', 'main', 1],
     // волна 16: пять поступлений, ждавших на 30.09, в октябре распределены частично — конец +1 863 406 (их остатки), «распределено» −1 863 406;
     // начало, «поступило» и «возвращено» прежние, «прочее» — 0, как было (потоки записи «Поступления», ДБ-248)
     ['acc-unalloc', 'move(0)', [25616606,14921370,[12740493],[22334837,1100892],0]],
@@ -1996,12 +1997,9 @@ const asUser = id => { DB.state.userId = id; };
     ['spec-work', 'slice(astatus)', [['Новый',8],['Требуется доп. информация',5],['На рассмотрении',8],['Ожидает решения/программы',2],['На оформлении',1],['Закрыта',0]]],
     ['spec-stage', 'slice(astage)', [['1 Комплектация',5],['2 Подтверждение ГО',2],['3 Заключения отделов',1],['не новая',0]]],
     ['spec-stage', 'main', 8],
-    ['spec-dec', 'slice(decision)', [['Одобрено',18],['Доп. информация',5],['Отклонено',4],['нет решения',0]]],
-    ['spec-dec', 'main', 27],
     ['spec-work', 'slice(program)', [['prom',8],['agro',8],['none',4],['tur',2],['mb',1],['per',1],['eko',0]]],
     ['spec-pend', 'main', 1],
     ['spec-pend', 'tl', 'yellow'],
-    ['spec-filed', 'series(12)', prevEnd([2], [[3],[2],[1],[1],[1],[0],[5],[3],[2],[2],[2],[0]])]
   ],
   'u7|com': [
     ['com-vote', 'main', 5],
@@ -2014,17 +2012,12 @@ const asUser = id => { DB.state.userId = id; };
     ['com-pend', 'second', 119834325],
     ['com-max', 'main', 27],
     ['com-pend', 'slice(commission)', [['Кредитный комитет',10],['Комиссия по реструктуризации',4],['Комиссия по программам',4]]],
-    ['com-dec', 'slice(decision)', [['Одобрено',18],['Доп. информация',5],['Отклонено',4],['нет решения',0]]],
-    ['com-dec', 'main', 27],
-    ['com-dec', 'series(12)', prevEnd([25], [[35],[31],[28],[32],[24],[30],[33],[28],[31],[29],[27],[13]])]
   ],
   'u8|gof': [
     ['gof-wait', 'main', 13],
     ['gof-wait', 'second', 8],
     ['gof-wait', 'tl', 'yellow'],
     ['gof-compl', 'main', 34],
-    ['gof-conf', 'main', 22],
-    ['gof-conf', 'shift', 16],
     ['gof-wait', 'slice(region)', [['Чуйская',5],['Ошская',3],['Иссык-Кульская',2],['Джалал-Абадская',1],['Таласская',1],['Баткенская',1],['Нарынская',0]]]
   ],
   'u9|otd': [
@@ -2033,9 +2026,6 @@ const asUser = id => { DB.state.userId = id; };
     ['otd-pend', 'tl', 'yellow'],
     ['otd-neg', 'main', 1],
     ['otd-neg', 'tl', 'red'],
-    ['otd-rev', 'main', 0],
-    ['otd-verd', 'slice(verdict)', [['Положительное',20],['С условиями',4],['Отрицательное',2],['нет вердикта',0]]],
-    ['otd-verd', 'main', 26]
   ],
   'u10|rep': [
     ['rep-od', 'main', 2],   // волна 24: ОБ-512 со сроком в прошлом — «просрочено», не «ожидается» (было 1)
@@ -2043,9 +2033,6 @@ const asUser = id => { DB.state.userId = id; };
     ['rep-soon', 'main', 3],   // волна 24: ОБ-512 ушла в «просрочено» (было 4)
     ['rep-soon', 'tl', 'yellow'],
     ['rep-chg', 'main', 0],
-    ['rep-sum', 'slice(ostate)', [['ожидается',0],['сдано в срок',4],['сдано с опозданием',2],['просрочено',0]]],
-    ['rep-sum', 'main', 6],
-    ['rep-sum', 'series(12,second)', prevEnd([null], [[null],[null],[80],[75],[100],[100],[100],[85.714286],[85.714286],[60],[66.666667],[null]])]
   ],
   'u12|ast': [
     ['ast-count', 'second', 48],
@@ -2056,7 +2043,6 @@ const asUser = id => { DB.state.userId = id; };
     ['ast-unsold', 'main', 5],
     ['ast-kpod', 'main', 1081759],
     ['ast-claim', 'main', 1045208],
-    ['ast-exp', 'main', 2119518]
   ],
   };
   const eqv = (a, b) => typeof b === 'number' ? typeof a === 'number' && Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b)) : Array.isArray(b) ? Array.isArray(a) && a.length === b.length && b.every((y, i) => eqv(a[i], y)) : a === b;
@@ -2066,7 +2052,7 @@ const asUser = id => { DB.state.userId = id; };
     for (const [id, ex, want] of rows) { nLit++; let got; try { got = at(id, ex, uid, rl2); } catch (e) { got = 'ERR ' + e.message; }
       if (/^move\(/.test(ex) && got && typeof got === 'object') got = [got.start, got.end, mvInc(got), mvDec(got), mvOth(got)];
       if (!eqv(srt(got), srt(want))) miss.push(`${sel} ${id} ${ex} → ${JSON.stringify(got).slice(0, 60)}`); } }
-  ok(197, nLit === 109 && miss.length === 0,
+  ok(197, nLit === 92 && miss.length === 0,
     `${nLit} чисел новых плиток девяти ролей равны прежним значениям до слияния: главное, второе и его числитель со знаменателем, светофор, сдвиг, узлы Разрезов и Таблиц, Ряды, Движение; у разрезов — прежние строки плюс строки полного списка (волна 9: «Закрыта», «ожидается», «не новая», «нет решения», значения поля без вклада — нулём, ДБ-168…ДБ-170)${miss.length ? '; расходятся: ' + miss.join('; ') : ''}`);
   // намеренное изменение — с новыми числами: Разрез «На учёте» по состоянию — стоимость в сомах, счёт — в Таблице и втором числе
   const rI = at('ast-count', 'slice(imstate)', 'u12', 'ast'), mI = at('ast-count', 'main', 'u12', 'ast');
@@ -2076,14 +2062,14 @@ const asUser = id => { DB.state.userId = id; };
     'Разрез «На учёте» по состоянию считает главное число плитки: учётная стоимость в сомах (9,8 · 122,3 · 21,8 · 25,2 млн, сумма = 179 млн), а не счёт объектов 4 · 30 · 8 · 6; счёт остался в Таблице «по состоянию · объектов» и во втором числе: 48');
   // отчёты после слияния: колонки и разрезы, на которых стоят виды новых плиток; плитки на правленых отчётах
   const R = id => DB.reportById(id), ids = r => DB.tilesOfReport(r).map(t => t.id).join();
-  const RS = ['r-claims', 'r-assets', 'fo-47', 'r-receipts', 'fo-14', 'fo-55', 'r-commwait', 'r-oblsum'], ORPH = ['r-claimphase', 'r-claimlead', 'r-rcsrc', 'r-collkind', 'r-appstat', 'r-appprog', 'r-appreg', 'r-commby', 'r-commser', 'r-concl', 'r-oblser', 'r-astate'];
+  const RS = ['r-claims', 'r-assets', 'fo-47', 'r-receipts', 'fo-14', 'fo-55', 'r-commwait'], ORPH = ['r-claimphase', 'r-claimlead', 'r-rcsrc', 'r-collkind', 'r-appstat', 'r-appprog', 'r-appreg', 'r-commby', 'r-commser', 'r-concl', 'r-oblser', 'r-astate'];
   ok(199, R('r-claims').dims.join() === 'phase,leadDept' && R('r-assets').dims.join() === 'imstate' && R('r-receipts').dims.join() === 'source' && R('fo-14').cols.join() === 'coll.value,coll.count' && R('fo-14').dims.join() === 'ckind'
-    && R('fo-55').dims.join() === 'astatus,program,astage' && R('r-commwait').dims.join() === 'commission' && R('r-oblsum').cols.join() === 'oblig.submitted,oblig.onTime' && R('r-oblsum').dims.join() === 'ostate'
-    && ids('r-claims') === 'lead-claims,prob-claims,prob-since,prob-real' && ids('r-assets') === 'ast-claim' && ids('fo-47') === 'lead-ast,lead-astod,ast-count,ast-kpod' && ids('r-receipts') === 'acc-today,acc-prev,acc-refund,acc-rev'
-    && ids('fo-14') === 'zal-value' && ids('fo-55') === 'spec-work,spec-stage,gof-compl' && ids('r-commwait') === 'com-pend,com-max' && ids('r-oblsum') === 'rep-sum'
+    && R('fo-55').dims.join() === 'astatus,program,astage' && R('r-commwait').dims.join() === 'commission'
+    && ids('r-claims') === 'lead-claims,prob-claims,prob-since,prob-real' && ids('r-assets') === 'ast-claim' && ids('fo-47') === 'lead-ast,ast-count,ast-kpod' && ids('r-receipts') === 'acc-today,acc-prev,acc-refund'
+    && ids('fo-14') === 'zal-value' && ids('fo-55') === 'spec-work,spec-stage,gof-compl' && ids('r-commwait') === 'com-pend,com-max'
     && RS.every(r => DB.tilesOfReport(r).every(t => !DB.reportBroken(t) && DB.ask(t, U(t.id.startsWith('lead') ? 'u1' : RU[t.id.split('-')[0]]), t.id.startsWith('lead') ? 'lead' : t.id.split('-')[0], {}).state !== 'broken'))
     && ORPH.every(r => R(r) && DB.tilesOfReport(r).length === 0),
-    'отчёты слияния: «Требования» с фазой и подразделением, «Имущество» с состоянием, «Поступления» с источником, «Предметы залога» со стоимостью первой и видом, «Заявки» со статусом и программой, «Комиссия» с комиссиями, «Итог сдачи» с долей «в срок»; плитки на них не сломаны (на «Требованиях» четыре вместо пяти); 12 отчётов бывших плиток остаются в каталоге без плиток');
+    'отчёты слияния: «Требования» с фазой и подразделением, «Имущество» с состоянием, «Поступления» с источником, «Предметы залога» со стоимостью первой и видом, «Заявки» со статусом и программой, «Комиссия» с комиссиями; плитки на них не сломаны (на «Требованиях» четыре вместо пяти); 12 отчётов бывших плиток остаются в каталоге без плиток');
   // ссылочные плитки: второе число — показатель очереди, светофор на нём; очереди объявили показатель и разрез
   const qw = DB.queueById('q-waitgo'), qc = DB.queueById('q-conclpend'), qt = DB.queueById('q-tasks'), u8 = U('u8'), u9 = U('u9');
   const gw = DB.base('gof-wait', 'u8', 'gof'), op = DB.base('otd-pend', 'u9', 'otd');
@@ -2113,10 +2099,10 @@ const asUser = id => { DB.state.userId = id; };
   ok(202, vsel('prob-claims', 'slice', 'u3', 'prob').dim === 'phase' && vsel('prob-claims', 'map', 'u3', 'prob').dims.join() === 'leadDept,phase' && DB.dimsFor('prob-claims').map(d => d.dim + (d.temp ? '*' : '')).join() === 'phase,leadDept,region*'
     && vsel('spec-work', 'slice', 'u6', 'spec').dim === 'astatus' && DB.dimsFor('spec-work').slice(0, 2).every(d => !d.temp) && DB.dimsFor('spec-work').slice(0, 2).map(d => d.dim).join() === 'astatus,program'
     && vsel('zal-value', 'slice', 'u5', 'zal').dim === 'ckind' && at('zal-value', 'move(0)', 'u5', 'zal').end === at('zal-value', 'main', 'u5', 'zal')
-    && vsel('acc-prev', 'series', 'u4', 'acc').of === 'main' && vsel('acc-prev', 'slice', 'u4', 'acc').dim === 'source' && vsel('com-pend', 'slice', 'u7', 'com').dim === 'commission' && vsel('com-dec', 'slice', 'u7', 'com').dim === 'decision'
-    && vsel('rep-sum', 'series', 'u10', 'rep').of === 'second' && vsel('rep-sum', 'slice', 'u10', 'rep').dim === 'ostate' && vsel('ast-count', 'slice', 'u12', 'ast').top === 5 && vsel('prob-rec', 'series', 'u3', 'prob').points === 12
-    && at('prob-claims', 'map(leadDept,phase).total', 'u3', 'prob') === 53 && at('rep-sum', 'second.num', 'u10', 'rep') === 4 && at('rep-sum', 'second.den', 'u10', 'rep') === 6 && near(at('rep-sum', 'second', 'u10', 'rep'), 66.67),
-    'умолчания видов объединённых плиток: «Требований» — Разрез по фазам и Карта подразделение × фаза (53), «Заявок в работе» — Разрез по статусу и по программам (оба объявлены отчётом), «Залоговая стоимость» — Разрез по видам и Движение, «Поступило» — Ряд и Разрез по источнику, «Итог сдачи» — Ряд доли «в срок» и Разрез по состоянию (4 из 6), «На учёте» — Разрез по состоянию, топ 5');
+    && vsel('acc-prev', 'series', 'u4', 'acc').of === 'main' && vsel('acc-prev', 'slice', 'u4', 'acc').dim === 'source' && vsel('com-pend', 'slice', 'u7', 'com').dim === 'commission'
+    && vsel('ast-count', 'slice', 'u12', 'ast').top === 5 && vsel('prob-rec', 'series', 'u3', 'prob').points === 12
+    && at('prob-claims', 'map(leadDept,phase).total', 'u3', 'prob') === 53,
+    'умолчания видов объединённых плиток: «Требований» — Разрез по фазам и Карта подразделение × фаза (53), «Заявок в работе» — Разрез по статусу и по программам (оба объявлены отчётом), «Залоговая стоимость» — Разрез по видам и Движение, «Поступило» — Ряд и Разрез по источнику, «На балансе» — Разрез по состоянию, топ 5');
   DB.seed();
 })();
 
@@ -2287,7 +2273,7 @@ const asUser = id => { DB.state.userId = id; };
   ok(215, tb.table.cols.map(c => c.name).join() === 'Просрочено,Кредитов,Остаток задолженности,доля портфеля' && tb.table.cols[ci(tb, 'share')].unit === 'pct' && T('lead-od').views.table.cols.join() === 'loan.count,loan.balance,loan.overdue,share'
     && tb.table.rows.length === 6 && tb.table.rows.every(r => near(cell(r, tb, 'share'), cell(r, tb, 'loan.overdue') / cell(r, tb, 'loan.balance') * 100)) && near(tb.total[ci(tb, 'share')], sec.value) && near(tb.total[ci(tb, 'share')], tb.total[ci(tb, 'loan.overdue')] / tb.total[ci(tb, 'loan.balance')] * 100)
     && near(tb.total[ci(tb, 'share')], at('lead-od', 'second')) && at('lead-od', 'table(program;loan.count,loan.balance,loan.overdue).total').join() === ['loan.count', 'loan.balance', 'loan.overdue'].map(id => tb.total[ci(tb, id)]).join() && tb.total[0] === at('lead-od', 'main')
-    && cs.slice(0, 4).map(c => c.id).join() === 'loan.balance,loan.count,loan.overdue,share' && cs.find(c => c.id === 'share').name === 'доля портфеля' && !cs.find(c => c.id === 'share').temp
+    && cs.slice(0, 5).map(c => c.id).join() === 'loan.balance,loan.count,loan.overdue,loan.risk,share' && cs.find(c => c.id === 'share').name === 'доля портфеля' && !cs.find(c => c.id === 'share').temp
     && !DB.colsFor('lead-bal').some(c => c.id === 'share') && DB.colsFor('lead-recov').find(c => c.id === 'share').name === 'доля' && DB.colsFor('lead-paid').find(c => c.id === 'share').name === 'доля к графику'
     && tp.table.cols.map(c => c.id).join() === 'loan.overdue,share' && near(tp.total[1], spv) && tp.table.rows.every(r => r.cells.length === 2 && r.cells[1] !== undefined) && near(at('lead-od', 'table(program;share).total>region=Ошская'), spv) && spv !== sec.value
     && eFive.error === 'Не больше четырёх колонок' && eTwo.ok && t2c.table.cols.map(c => c.name).join() === 'Просрочено,Кредитов,доля портфеля' && eNo.error && /нет доли/.test(eNo.error)
@@ -2328,10 +2314,10 @@ const asUser = id => { DB.state.userId = id; };
   const at = (id, x, uid = 'u1', role = 'lead', panel = {}) => DB.at(id, x, uid, role, panel), u1 = U('u1');
   const mk = (id, o) => DB.TILES.push(Object.assign({ id, title:id, kind:'overview', state:'published', owner:'catalog', version:1, second:null, tl:null, views:{} }, o));
   // Ряд по второму числу: точка и «☰ N» ведут в строки второго числа, не главного; сумма списка = числу точки
-  DB.seed(); asUser('u10'); DB.setTab('role', 'rep'); const u10 = U('u10');
-  const rs = DB.view('rep-sum', 'series', null, [], 'u10', 'rep', {}), rm = DB.view('rep-sum', 'series', { of:'main' }, [], 'u10', 'rep', {});
-  const s2 = DB.drill('rep-sum', u10, 'rep', {}, { m:-2, of:'second' }), s1 = DB.drill('rep-sum', u10, 'rep', {}, { m:-2 }), fm = DB.drill('rep-sum', u10, 'rep', {}, null);
-  DB.openView('rep-sum', 'series'); const wm = DB.whoMonthAt('rep-sum', -2), wf = DB.whoAt('rep-sum');
+  DB.seed(); putSum(); asUser('u10'); DB.setTab('role', 'rep'); const u10 = U('u10');
+  const rs = DB.view('p-u10-sum', 'series', null, [], 'u10', 'rep', {}), rm = DB.view('p-u10-sum', 'series', { of:'main' }, [], 'u10', 'rep', {});
+  const s2 = DB.drill('p-u10-sum', u10, 'rep', {}, { m:-2, of:'second' }), s1 = DB.drill('p-u10-sum', u10, 'rep', {}, { m:-2 }), fm = DB.drill('p-u10-sum', u10, 'rep', {}, null);
+  DB.openView('p-u10-sum', 'series'); const wm = DB.whoMonthAt('p-u10-sum', -2), wf = DB.whoAt('p-u10-sum');
   asUser('u1'); const PP = [{ dim:'program', v:'per' }], lv = DB.view('lead-bal', 'series', { of:'second' }, PP, 'u1', 'lead', {});
   const l2 = DB.drill('lead-bal', u1, 'lead', {}, { m:-2, of:'second' }, PP), l1 = DB.drill('lead-bal', u1, 'lead', {}, { m:-2 }, PP);
   ok(217, rs.sel.of === 'second' && !s2.refused && s2.matches && s2.list.length > 0 && s2.list.every(x => x.r.state === 'сдано в срок') && s1.matches && s2.list.length < s1.list.length
@@ -2767,16 +2753,16 @@ const asUser = id => { DB.state.userId = id; };
     `ревью волны 7: «% от группы» «Заёмщики с кредитами» по своему разрезу «Кредитов у заёмщика»: «☰» итога ${rv3.cnt} = сумма «☰» строк ${sum(rv3.nodes.map(n => n.cnt))} (был числитель ${rv3.nodeCnt}), список итога той же длины (${len3(wl3)}); в Таблице итог ${tv3.table.total.cnt} = сумма строк, по чужому разрезу (регион) числитель ${tv3o.table.total.cnt} = сумма строк; в Карте суммы итогов строк и столбцов равны «☰» итога; «☰» в строке полосы — число главного числа (${rv3.nodeCnt})`);
 
   // находка 4: «Сумма» не теряет узел с нулём и ненулевой разницей — сумма разниц строк (с «ещё N») = разнице итога
-  const rv4 = V('spec-filed', 'slice', { dim:'program', mode:'sum' }, [], 'u6', 'spec'), rv4t = V('spec-filed', 'slice', { dim:'program', mode:'sum', top:1 }, [], 'u6', 'spec'), rv4c = V('spec-filed', 'slice', { dim:'program', mode:'change', top:1 }, [], 'u6', 'spec');
+  putFiled(); const rv4 = V('p-u6-filed', 'slice', { dim:'program', mode:'sum' }, [], 'u6', 'spec'), rv4t = V('p-u6-filed', 'slice', { dim:'program', mode:'sum', top:1 }, [], 'u6', 'spec'), rv4c = V('p-u6-filed', 'slice', { dim:'program', mode:'change', top:1 }, [], 'u6', 'spec');
   const dsum = r => sum(r.lines.map(n => n.delta || 0)), gone4 = rv4.nodes.find(n => !n.value && n.delta < 0);
   ok(261, gone4 && rv4.lines.includes(gone4) && near(dsum(rv4), rv4.total.delta, 1e-9) && rv4t.more >= 1 && rv4t.lines.some(n => n.more && n.vs.includes(gone4.v)) && near(dsum(rv4t), rv4t.total.delta, 1e-9) && near(dsum(rv4c), rv4c.total.delta, 1e-9)
     && rv4.nodes.every(n => !n.delta || rv4.lines.some(l => l === n || (l.more && l.vs.includes(n.v)))),
     `ревью волны 7: «Сумма» Разреза «Заявки подано» по программам: «${gone4 && gone4.label}» (сейчас ${gone4 && gone4.value}, разница ${gone4 && gone4.delta}) остаётся в строках, а при «Топ 1» — в «ещё N»; сумма разниц строк = разнице итога (${rv4.total.delta}) и в «Сумме», и в «Изменении»`);
 
   // находка 5: «☰ N» в строке полосы — всегда кто в главном числе узла (как число рядом), а не второе число Ряда / конец прошлого месяца Движения
-  asUser('u10'); DB.state.open = {}; DB.openView('rep-sum', 'series'); Object.assign(DB.state.open['rep-sum'].sel, { of:'second' });
-  const rv5 = DB.view('rep-sum', 'series', DB.state.open['rep-sum'].sel, [], 'u10', 'rep', {}), hv5 = tab(DB.stripHTML('rep-sum', 'u10', 'rep')), base5 = DB.base('rep-sum', 'u10', 'rep'), wn5 = DB.whoNode('rep-sum'), wp5 = DB.drill('rep-sum', U('u10'), 'rep', {}, null, []); DB.state.open = {}; asUser('u1');
-  const sl5 = /<button class="sl-cnt"[^>]*onclick="DB\.whoNode\('rep-sum'\)"><span>([\d\s]+)<\/span><\/button>/.exec(hv5);
+  putSum(); asUser('u10'); DB.state.open = {}; DB.openView('p-u10-sum', 'series'); Object.assign(DB.state.open['p-u10-sum'].sel, { of:'second' });
+  const rv5 = DB.view('p-u10-sum', 'series', DB.state.open['p-u10-sum'].sel, [], 'u10', 'rep', {}), hv5 = tab(DB.stripHTML('p-u10-sum', 'u10', 'rep')), base5 = DB.base('p-u10-sum', 'u10', 'rep'), wn5 = DB.whoNode('p-u10-sum'), wp5 = DB.drill('p-u10-sum', U('u10'), 'rep', {}, null, []); DB.state.open = {}; asUser('u1');
+  const sl5 = /<button class="sl-cnt"[^>]*onclick="DB\.whoNode\('p-u10-sum'\)"><span>([\d\s]+)<\/span><\/button>/.exec(hv5);
   DB.openView('lead-od', 'move'); Object.assign(DB.state.open['lead-od'].sel, { month:-1 }); const rm5 = V('lead-od', 'move', DB.state.open['lead-od'].sel), hm5 = tab(DB.stripHTML('lead-od', 'u1', 'lead')), wm5 = DB.whoNode('lead-od'); DB.state.open = {};
   const slm5 = /<button class="sl-cnt"[^>]*onclick="DB\.whoNode\('lead-od'\)"><span>([\d\s]+)<\/span><\/button>/.exec(hm5);
   ok(262, rv5.cnt !== rv5.nodeCnt && sl5 && num(sl5[1]) === rv5.nodeCnt && rv5.nodeCnt === wp5.list.length && wn5.list.length === rv5.nodeCnt && base5.value === sum(wn5.list.map(x => x.v)) && rm5.cnt !== rm5.nodeCnt && rm5.nodeCnt === rt.cnt && slm5 && num(slm5[1]) === rt.cnt && len3(wm5) === rt.cnt
@@ -2784,7 +2770,7 @@ const asUser = id => { DB.state.userId = id; };
     `ревью волны 7: «Итог сдачи» в Ряде «второе число»: «☰» в строке полосы ${sl5 && sl5[1]} = число главного числа ${base5.value} (а не ${rv5.cnt} — второе число), клик открывает список из ${wn5.list.length} строк; «Просрочено» в Движении «прошлый месяц»: «☰» в строке ${slm5 && slm5[1]} = как в Разрезе ${rt.cnt} (а не ${rm5.cnt} — конец прошлого месяца), список ${len3(wm5)}; счёт по второму числу и месяцу остаётся у точек и строк вида`);
 
   // находка 6: цвет долевой колонки Таблицы — по числителю доли, как «доля» в Ряде второго числа
-  const hv6 = stripSel('rep-sum', 'table', { cols:['oblig.submitted', 'share'] }, 'change', 'u10', 'rep'), tr6 = tot2(hv6), rv6 = V('rep-sum', 'table', { cols:['oblig.submitted', 'share'], mode:'change' }, [], 'u10', 'rep');
+  const hv6 = stripSel('p-u10-sum', 'table', { cols:['oblig.submitted', 'share'] }, 'change', 'u10', 'rep'), tr6 = tot2(hv6), rv6 = V('p-u10-sum', 'table', { cols:['oblig.submitted', 'share'], mode:'change' }, [], 'u10', 'rep');
   const rowTones6 = [...hv6.matchAll(/<tr class="rowlink"[^>]*>(?:(?!<\/tr>)[\s\S])*?<\/tr>/g)].map(x => [...x[0].matchAll(/<td class="d (good|bad|flat)(?: key)?"[^>]*>/g)].map(y => y[1]));
   ok(263, !['up_good', 'up_bad'].includes(DB.IND['oblig.submitted'].dir) && DB.IND['oblig.onTime'].dir === 'up_good' && rv6.table.total.deltas[1] > 0 && /<td><span class="good"[^>]*>▲ [\d,]+ п\.п\.<\/span><span class="s2">/.test(tr6) && /<td class="key"><span class="flat"/.test(tr6)
     && rowTones6.length === rv6.table.rows.length && rowTones6.every((t, i) => t[1] === (rv6.table.rows[i].deltas[1] > 0 ? 'good' : rv6.table.rows[i].deltas[1] < 0 ? 'bad' : 'flat')),
@@ -2898,8 +2884,8 @@ const asUser = id => { DB.state.userId = id; };
     const okV = pct ? near(sum(L.map(n => n.num)), t.num) && near(sum(L.map(n => n.den)), t.den) : mx ? near(Math.max(0, ...v.nodes.map(n => n.value || 0)), t.v) : near(sum(L.map(n => n.value)), t.v);
     const okD = pct || mx || t.delta === undefined || t.delta === null || near(sum(L.map(n => n.delta)), t.delta);
     if (!(okV && okD && sum(L.map(n => n.cnt)) === v.cnt && sum(v.nodes.map(n => n.cnt)) === v.cnt)) bad1.push(`${c.role} ${c.id} ${d}`); }));
-  // волна 12: было n1 ≥ 450 — 483 пары, из них 86 повторов раскладки «Руководства» у Аналитика (ДБ-204); различных пар 397 и было
-  ok(274, n1 >= 390 && new Set(cases.filter(c => c.ok('slice')).flatMap(c => c.dims.map(d => c.id + '|' + d))).size >= 397 && bad1.length === 0,
+  // волна 29: убранные плитки унесли свои пары, различных пар 387
+  ok(274, n1 >= 380 && new Set(cases.filter(c => c.ok('slice')).flatMap(c => c.dims.map(d => c.id + '|' + d))).size >= 387 && bad1.length === 0,
     `Разрез: итог = сумме строк (с «ещё N»), «☰» строк = «☰» итога, разница строк = разнице итога — проверено ${n1} пар «плитка раскладки × разрез объекта» по всем ролям (из них долей ${nPct} — по числителю и знаменателю, максимумов ${nMax} — итог равен наибольшей строке); не сходится ${bad1.length}${bad1.length ? ': ' + bad1.slice(0, 5).join('; ') : ''} (ДБ-167; ДБ-Д39 в волне 7: 25 несходящихся из 518)`);
 
   // ДБ-167: то же у Таблицы (каждая складываемая колонка и «☰») и у Карты (ячейки, итоги строк и столбцов, «☰» по обеим осям)
@@ -2911,7 +2897,7 @@ const asUser = id => { DB.state.userId = id; };
       const okS = v.unit === 'pct' ? near(sum(H.rowTot.map(x => x.num)), v.total.num) && near(sum(H.colTot.map(x => x.den)), v.total.den) : c.ind.agg === 'max'
         || (near(sum(H.cells.flat()), v.total.v) && near(sum(H.rowTot.map(x => x.value)), v.total.v) && near(sum(H.colTot.map(x => x.value)), v.total.v));
       if (!okS || sum(H.rowTot.map(x => x.cnt)) !== v.cnt || sum(H.colTot.map(x => x.cnt)) !== v.cnt || sum(H.cnt.flat()) !== v.cnt) bad2.push(`Карта ${c.id} ${d}×${d2}`); }); });
-  ok(275, nT >= 390 && nM >= 370 && bad2.length === 0,   // волна 12: было nT ≥ 450, nM ≥ 400 — с повторами раскладки «Руководства» у Аналитика (483 и 463; различных 397 и 377)
+  ok(275, nT >= 380 && nM >= 370 && bad2.length === 0,   // волна 29: различных 387 и 372
     `Таблица и Карта: итог = сумме строк (каждая складываемая колонка), у Карты ячейки, итоги строк и итоги столбцов = общему итогу, «☰» сходится по обеим осям — ${nT} Таблиц и ${nM} Карт по всем ролям; не сходится ${bad2.length}${bad2.length ? ': ' + bad2.slice(0, 5).join('; ') : ''} (ДБ-167)`);
 
   // ДБ-Д39, деньги: «Остаток» по сроку, «Выдано» и «Поступило» по категории
@@ -2922,14 +2908,14 @@ const asUser = id => { DB.state.userId = id; };
     && ri.lines.every(l => !l.more) && rp.lines.every(l => !l.more),
     `Руководство → «Остаток задолженности» → «Дни просрочки»: видно все ${mln(bal)} (было ${mln(rbOld)} — без строки «нет просрочки» ${mln(rb0?.value)}, она первая); «Выдано с начала года» по категории — ${mln(ri.total.v)} (было ${mln(ri.total.v - (emp(ri)?.value || 0))}, «нет категории» ${mln(emp(ri)?.value)} последней — закрытые кредиты); «Поступило · прошлый месяц» — ${mln(rp.total.v)} (было ${mln(rp.total.v - (emp(rp)?.value || 0))}) (ДБ-Д39, ДБ-167, ДБ-168, ДБ-170)`);
 
-  // ДБ-Д39, счёт: «Заёмщиков» по худшей просрочке, «Подтверждено» Головного офиса по статусу, «Срок сдачи ≤ 7 дн.» по итогу сдачи
+  // ДБ-Д39, счёт: «Заёмщиков» по худшей просрочке, «Подано заявок» Головного офиса по статусу, «Срок сдачи ≤ 7 дн.» по итогу сдачи
   const rw = V('lead-borr', 'slice', { dim:'bodays' }), ug = roleUser('gof'), ur = roleUser('rep');
-  const rg = V('gof-conf', 'slice', { dim:'astatus' }, [], ug, 'gof'), rs = V('rep-soon', 'slice', { dim:'ostate' }, [], ur, 'rep');
+  const rg = V('cat-appfun', 'slice', { dim:'astatus' }, [], ug, 'gof'), rs = V('rep-soon', 'slice', { dim:'ostate' }, [], ur, 'rep');
   const named = (v, x) => (v.lines.find(l => l.v === x) || {}).value, without = (v, x) => sum(v.nodes.filter(n => n.v !== x).map(n => n.value || 0));   // сумма строк движка без одной
   ok(277, sum(rw.lines.map(l => l.value)) === 903 && rw.total.v === 903 && rw.lines.map(l => l.v).join() === [...DB.DIMS.bodays.values, DB.DIMS.bodays.empty].join() && sum(rw.lines.slice(1, 5).map(l => l.value)) === 270 && named(rw, DB.DIMS.bodays.empty) === 0
-    && rg.total.v === 22 && sum(rg.lines.map(l => l.value)) === 22 && rg.lines.at(-1)?.v === 'Закрыта' && named(rg, 'Закрыта') === 12 && without(rg, 'Закрыта') === 10
+    && rg.total.v > 0 && sum(rg.lines.map(l => l.value)) === rg.total.v && rg.lines.at(-1)?.v === 'Закрыта' && named(rg, 'Закрыта') > 0 && without(rg, 'Закрыта') + named(rg, 'Закрыта') === rg.total.v
     && rs.total.v === 3 && sum(rs.lines.map(l => l.value)) === 3 && rs.lines[0].v === 'ожидается' && named(rs, 'ожидается') === 3,   // волна 24: ОБ-512 — «просрочено» (было 4)
-    `«Заёмщиков» → «Худшая просрочка по портфелю»: все ${rw.total.v} (было ${sum(rw.lines.slice(1, 5).map(l => l.value))}; «нет просрочки» ${named(rw, 'нет просрочки')}, «${DB.DIMS.bodays.empty}» ${named(rw, DB.DIMS.bodays.empty)}); Головной офис → «Подтверждено · прошлый месяц» → «Статус заявки»: ${rg.total.v} (было 10 — столько и в строках без «Закрыта»: ${without(rg, 'Закрыта')}; «Закрыта» ${named(rg, 'Закрыта')} — последней в справочнике); Отчётность → «Срок сдачи ≤ 7 дн.» → «Итог сдачи»: ${rs.total.v} (было 0, «ожидается» ${named(rs, 'ожидается')}) (ДБ-Д39, ДБ-168)`);
+    `«Заёмщиков» → «Худшая просрочка по портфелю»: все ${rw.total.v} (было ${sum(rw.lines.slice(1, 5).map(l => l.value))}; «нет просрочки» ${named(rw, 'нет просрочки')}, «${DB.DIMS.bodays.empty}» ${named(rw, DB.DIMS.bodays.empty)}); Головной офис → «Подано заявок · с начала года» → «Статус заявки»: ${rg.total.v} (без «Закрыта» ${without(rg, 'Закрыта')}; «Закрыта» ${named(rg, 'Закрыта')} — последней в справочнике); Отчётность → «Срок сдачи ≤ 7 дн.» → «Итог сдачи»: ${rs.total.v} (было 0, «ожидается» ${named(rs, 'ожидается')}) (ДБ-Д39, ДБ-168)`);
 
   // ДБ-170 и эталон канона: «На рассмотрении · Решение» — три нуля и «нет решения 18»; «не новая» и «нет исхода»
   const uc = roleUser('com'), rc = V('com-pend', 'slice', { dim:'decision' }, [], uc, 'com');
@@ -2957,9 +2943,9 @@ const asUser = id => { DB.state.userId = id; };
     if (vs.some(x => x === null || x === undefined || x === '')) bad6.push(`${c.id} ${d}: строка без имени`);
     if (E) { seen[d] = (seen[d] || 0) + 1; if (vs.filter(x => x === E).length !== 1 || (D.ordered && vs.at(-1) !== E) || v.nodes.find(n => n.v === E)?.label !== E) bad6.push(`${c.id} ${d}: «${E}» не последней`); } }));
   const rr = V('lead-bal', 'slice', { dim:'region' }), hi = strip('u1', 'lead', 'lead-issued', 'slice', [() => DB.viewSet('lead-issued', 'dim', 'category')]);
-  ok(280, EMP.length >= 10 && EMP.every(d => seen[d] > 0) && bad6.length === 0 && !DB.DIMS.region.empty && rr.nodes.map(n => n.v).sort().join() === [...DB.DIMS.region.values].sort().join()
+  ok(280, EMP.length >= 10 && EMP.filter(d => d !== 'verdict').every(d => seen[d] > 0) && !seen.verdict && bad6.length === 0 && !DB.DIMS.region.empty && rr.nodes.map(n => n.v).sort().join() === [...DB.DIMS.region.values].sort().join()
     && rzNames(hi).at(-2) === 'нет категории' && rzNames(hi).at(-1) === 'итог',
-    `«пусто» у ${EMP.length} разрезов (${EMP.map(d => '«' + DB.DIMS[d].empty + '»').join(', ')}) — одно, со своим именем, у упорядоченного последним; ${n6} Разрезов без строки без имени; у «Области» кредита пустого значения нет — ${rr.nodes.length} строк, ровно список областей; в полосе «Выдано» по категории предпоследняя строка — «нет категории», затем итог (ДБ-170)`);
+    `«пусто» у ${EMP.length} разрезов (${EMP.map(d => '«' + DB.DIMS[d].empty + '»').join(', ')}) — одно, со своим именем, у упорядоченного последним (разрез «Вердикт» остался у объекта заключений, плиток на нём после волны 29 нет); ${n6} Разрезов без строки без имени; у «Области» кредита пустого значения нет — ${rr.nodes.length} строк, ровно список областей; в полосе «Выдано» по категории предпоследняя строка — «нет категории», затем итог (ДБ-170)`);
 
   // ДБ-168: список полный — у стенда нет значения разреза вне объявленного списка (с «пусто»), ни у одного объекта и ни на одну дату истории
   const raw = (d, r, m) => { const D = DB.DIMS[d]; const x = D.at && m !== undefined ? D.at(r, m) : D.get ? D.get(r) : r[D.field]; return x === null || x === undefined ? D.empty : x; };
@@ -3037,7 +3023,7 @@ const asUser = id => { DB.state.userId = id; };
   const u4 = U('u4'), acc = DB.composeLayout('u4', 'acc').filter(k => !k.startsWith('s:'));
   const snap = () => { DB.state.cache.clear(); return Object.fromEntries(acc.map(id => [id, DB.tileHTML(id, 'u4', 'acc')])); };
   // волна 12 (ДБ-205): «Поступило сегодня» — поток «сегодня» на ночном источнике — отвечает отказом с причиной, метки у него нет (было — в live)
-  const live = ['acc-unident', 'acc-await', 'acc-unm', 'acc-unalloc'], past = ['acc-prev', 'acc-refund', 'acc-rev'];
+  const live = ['acc-unident', 'acc-await', 'acc-unm', 'acc-unalloc'], past = ['acc-prev', 'acc-refund'];
   const MONTH = Object.assign(withParams(T('acc-today'), { period:'curMonth' }), { id:'acc-today-month' });   // поток за текущий месяц на ночном источнике — паспорт про 02:00
   const NIGHT_TIP = 'на 02:00, источник «Платежи» обновляется ночью';
   const h0 = snap();
@@ -3145,8 +3131,8 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-174 уточняет ДБ-149: у не-доли строка полосы — прежнее «☰ N»; доля во втором числе не делает плитку долей (Ряд второго числа тоже)
   const plain = v => { const c = cntOf(v.h), a = /<button class="sl-cnt" aria-label="Кто в этом числе: ([\d\s]+)" data-tip="Кто в этом числе: только объекты с вкладом в число"/.exec(v.h);
     return c.length === 1 && /^[\d\s]+$/.test(c[0]) && num(c[0]) === v.r.nodeCnt && v.r.nodeOf === undefined && v.w.list.length === v.r.nodeCnt && !!a && num(a[1]) === v.r.nodeCnt; };
-  const np = [strip('lead-borr', 'slice'), strip('lead-od', 'table'), strip('lead-od', 'series', { of:'second' }), strip('rep-sum', 'series', { of:'second' }, 'u10', 'rep')];
-  ok(298, np.every(plain) && T('lead-borr').second.pct && T('lead-od').second.share && T('rep-sum').second.share && np[2].r.nodeCnt === rod.r.nodeCnt && !/ из /.test(np.map(v => cntOf(v.h)[0]).join()),
+  const np = [strip('lead-borr', 'slice'), strip('lead-od', 'table'), strip('lead-od', 'series', { of:'second' }), (putSum(), strip('p-u10-sum', 'series', { of:'second' }, 'u10', 'rep'))];
+  ok(298, np.every(plain) && T('lead-borr').second.pct && T('lead-od').second.share && T('p-u10-sum').second.share && np[2].r.nodeCnt === rod.r.nodeCnt && !/ из /.test(np.map(v => cntOf(v.h)[0]).join()),
     `не доля — «☰ N» без «из»: «Заёмщиков» ${cntOf(np[0].h)[0]}, «Просрочено» в Таблице ${cntOf(np[1].h)[0]} и в Ряде второго числа (доля портфеля) ${cntOf(np[2].h)[0]}, «Итог сдачи» в Ряде второго числа ${cntOf(np[3].h)[0]}; клик открывает список той же длины; aria-label — «Кто в этом числе: N» (ДБ-174, ДБ-149)`);
 
   // мелочи волны 8: окно ввода держит фокус, Escape — как «Отмена», фокус возвращается на кнопку, пустое не сохраняется
@@ -3493,7 +3479,7 @@ const asUser = id => { DB.state.userId = id; };
   bb.nodes.forEach(n => { const mv = V('lead-bal', 'move', { month:0 }, [{ dim:'bucket', v:n.v }]).move, pr = mv.rows.filter(x => /^(in|out):/.test(x.key)), want = [...n.moves.from, ...n.moves.to].filter(x => !x.scope);
     nParts += want.length; if (pr.length !== want.length || pr.some((x, i) => x.cnt !== want[i].cnt || !near(x.v, want[i].sum)) || !near(sum(mv.rows.map(x => x.v)), n.delta) || !near(mv.start, n.base) || !near(mv.end, n.value)) bad5.push(n.v); });
   const n0 = bb.nodes.find(n => n.v === 'нет просрочки'), f181 = n0.moves.from.find(x => x.v === '181+'), d181 = DB.drill('lead-bal', u1, 'lead', {}, { d:'bucket', v:'нет просрочки', from:'181+' });
-  ok(325, !bad5.length && nParts > 10 && f181 && d181.matches && near(f181.sum, sum((d181.list || []).map(x => DB.loanAt(x.r, -1).balance))) && near(f181.sum, 21725705),
+  ok(325, !bad5.length && nParts > 10 && f181 && d181.matches && near(f181.sum, sum((d181.list || []).map(x => DB.loanAt(x.r, -1).balance))) && near(f181.sum, 21728327),
     `«Остаток» по сроку: ${nParts} частей «пришли из / ушли в» у ${bb.nodes.length} узлов — каждая = строке Движения в пути того же узла (☰ и сумма), разница узла = сумме строк Движения; «нет просрочки» «пришли из 181+ ☰ ${f181 && f181.cnt} ${fm(f181 ? f181.sum : 0)}» — остатком на 30.09 (было 15 573 624 — остатком сегодня)${bad5.length ? '; расходятся: ' + bad5.join(', ') : ''} (ДБ-183, ДБ-181)`);
 
   // «☰ N» конца Движения прошлого месяца и точки Ряда с панелью подразделения — списки на ту дату
@@ -3642,10 +3628,10 @@ const asUser = id => { DB.state.userId = id; };
   const want = DB.composeLayout('u1', 'lead').filter(k => !k.startsWith('x:')); DB.newScreen(); const nsc = DB.screens('u1').at(-1), nTab = Object.assign({}, DB.state.tab), nP = DB.state.panel.region.join(', ');
   DB.setTab('role', 'lead'); DB.resetDeclaredFor('lead'); asUser('u11'); DB.declaredEdit('lead', 'remove', 'lead-od'); asUser('u1');
   const empty = DB.createScreen('Пустой'), ns = src.slice(src.indexOf('  newScreen:()=>{'), src.indexOf('  renameScreen:'));
-  ok(338, nsc.name === 'Мой экран' && nsc.items.join() === want.join() && !nsc.items.includes('lead-risk') && nsc.items.filter(k => k.startsWith('s:')).length === 4 && nsc.filter.region.join(', ') === `${OSH}, ${JA}`
+  ok(338, nsc.name === 'Мой экран' && nsc.items.join() === want.join() && !nsc.items.includes('lead-risk') && nsc.items.filter(k => k.startsWith('s:')).length === 5 && nsc.filter.region.join(', ') === `${OSH}, ${JA}`
     && nTab.kind === 'screen' && nTab.id === nsc.id && nP === `${OSH}, ${JA}` && nsc.items.includes('lead-od') && empty.items.length === 0 && empty.filter === null
     && /'копия «'\+snap\.name\+'» '\+fl/.test(ns) && /\['empty', 'пустой'/.test(ns) && /'с фильтром «'\+panelLabel\(f, Object\.keys\(f\)\)\+'»'/.test(ns) && /if\(screens\(user\(\)\.id\)\.length>=5\) return toast\('Своих экранов не больше пяти'\)/.test(ns),
-    `«+ экран» без страницы — копия «Руководства» с фильтром «${OSH}, ${JA}»: ${nsc.items.filter(k => !k.startsWith('s:')).length} плиток и ${nsc.items.filter(k => k.startsWith('s:')).length} секции с личной перекладкой (без скрытой «Суммы под риском»), фильтр открыт на новой вкладке; снимок: «Вернуть как объявлено» и снятие «Просрочено» из раскладки роли экран не тронули; «пустой» — без плиток и фильтра; лимит пять — до окна (ДБ-192)`);
+    `«+ экран» без страницы — копия «Руководства» с фильтром «${OSH}, ${JA}»: ${nsc.items.filter(k => !k.startsWith('s:')).length} плиток и ${nsc.items.filter(k => k.startsWith('s:')).length} секции с личной перекладкой (без скрытой «Портфеля под риском»), фильтр открыт на новой вкладке; снимок: «Вернуть как объявлено» и снятие «Просрочено» из раскладки роли экран не тронули; «пустой» — без плиток и фильтра; лимит пять — до окна (ДБ-192)`);
 
   // ДБ-193: фильтр своего экрана меняется только явно — «изменён · Сохранить в экран · Вернуть»
   DB.seed(); asUser('u1'); DB.setTab('screen', 'sc1'); const c0 = home();
@@ -3726,7 +3712,7 @@ const asUser = id => { DB.state.userId = id; };
     && !/каталог/.test(bAn) && /<button class="add-cell" onclick="DB\.openCatalogFor\(\)" aria-label="Добавить плитку из каталога во вкладку «Аналитик»">\+ плитка<\/button>/.test(hAn) && />\+ экран — копия «Руководства»<\/button>/.test(bAn) && !/копия/.test(bAdm) && /onclick="DB\.copyRoleScreen\('an'\)"/.test(hAn)
     && c1.source === 'tab' && sc1.name === 'Копия «Руководства»' && sc1.items.join() === leadMine.join() && !sc1.items.includes('lead-risk') && !sc1.filter && DB.screens('u1').length === n0 + 1 && onIt
     && c2.source === 'declared' && c2.screen.items.join() === decl.join() && decl.includes('lead-risk') && s13.value === l13.value && c3.error === 'Своих экранов не больше пяти',
-    `у «Аналитика» своей раскладки нет: минимальная «Мои задания», сообщение «своей раскладки нет», ячейка «+ плитка» в сетке и «+ экран — копия «Руководства»» (у роли без образца — без копии); у Асанова (есть «Руководство») экран «${sc1.name}» — его вкладка с личной перекладкой (${sc1.items.length} элементов, скрытая «Сумма под риском» не скопирована), фильтра нет, вкладка открыта; у ${u13.name} (без «Руководства») — объявленная раскладка «Руководства» (${c2.screen.items.length} элементов), «Просрочено» на экране — ${fm(s13.value)}, как у «Руководства»; шестой экран — «${c3.error}» (ДБ-204, ДБ-50, ДБ-192)`);
+    `у «Аналитика» своей раскладки нет: минимальная «Мои задания», сообщение «своей раскладки нет», ячейка «+ плитка» в сетке и «+ экран — копия «Руководства»» (у роли без образца — без копии); у Асанова (есть «Руководство») экран «${sc1.name}» — его вкладка с личной перекладкой (${sc1.items.length} элементов, скрытая «Портфель под риском» не скопирована), фильтра нет, вкладка открыта; у ${u13.name} (без «Руководства») — объявленная раскладка «Руководства» (${c2.screen.items.length} элементов), «Просрочено» на экране — ${fm(s13.value)}, как у «Руководства»; шестой экран — «${c3.error}» (ДБ-204, ДБ-50, ДБ-192)`);
 
   // ДБ-205: поток «сегодня» на ночном источнике — отказ с причиной и вчерашним числом серой подсказкой; остаток — число на 02:00 с «◷ только ночью»
   DB.seed(); asUser('u4'); DB.setTab('role', 'acc'); const u4 = U('u4');
@@ -3806,7 +3792,7 @@ const asUser = id => { DB.state.userId = id; };
 /* ---------- Y. Волна 12, часть Б (17.10.2026): экраны — каталог-витрина, мастерская с показателя, очередь предложений, снятие с заменой, правка раскладки роли, телефон ---------- */
 (() => {
   const u1 = U('u1'), u2 = U('u2'), strip = h => String(h).replace(/<[^>]+>/g, '');
-  // после «Показать» плашка копит новые правки заново; «+» и «−» одной плитки до «Показать» гасятся: остаются +«Сумма под риском», −«Многократных»
+  // после «Показать» плашка копит новые правки заново; «+» и «−» одной плитки до «Показать» гасятся: остаются +«Портфель под риском», −«Многократных»
   const newsOk = N => !!N && N.add.join() === 'lead-risk' && N.rem.join() === 'cat-rsmulti' && !N.moved;
   const cell = (html, id) => (new RegExp('data-tile="' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"><div class="cat-m">[\\s\\S]*?<span class="cat-v"[^>]*>(.*?)</span><div class="cat-a">').exec(html) || [])[1];
   const rowOf = (html, id) => { const i = html.indexOf('data-tile="' + id + '"'); return i < 0 ? '' : html.slice(i, html.indexOf('</div></div>', html.indexOf('class="cat-a"', i)) + 12); };
@@ -3830,8 +3816,8 @@ const asUser = id => { DB.state.userId = id; };
   const objs = Object.keys(DB.OBJECTS), cover = objs.every(o => DB.CAT_SECTIONS.filter(([, os]) => os.includes(o)).length === 1);
   const secOk = vL.rows.every(x => { const q = DB.questionOf(x.t); return DB.CAT_SECTIONS.find(([, os]) => os.includes(DB.IND[q.inds[0]].obj))[0] === x.section; });
   asUser('u2'); DB.setTab('role', 'cur'); const vB = DB.catalogView(u2, { target:{ kind:'role', id:'cur' } }), hB = DB.catalogHTML();
-  const pair = t => vB.rows.filter(x => x.t.title === t), twins = ['Остаток задолженности', 'Просрочено', 'Сумма под риском (залог)'].map(pair);
-  const tw = twins.every(p => p.length === 2 && p.map(x => x.params.join(' · ')).sort().join(' | ') === 'куратор: все · на сегодня | куратор: я · на сегодня' && p[0].num !== p[1].num);
+  const pair = t => vB.rows.filter(x => x.t.title === t), twins = ['Остаток задолженности', 'Просрочено'].map(pair), twRisk = pair('Портфель под риском');
+  const tw = twins.every(p => p.length === 2 && p.map(x => x.params.join(' · ')).sort().join(' | ') === 'куратор: все · на сегодня | куратор: я · на сегодня' && p[0].num !== p[1].num) && twRisk.length === 2 && twRisk.map(x => x.params.join(' · ')).sort().join(' | ') === 'куратор: все · на сегодня · только с просрочкой: да | куратор: я · на сегодня · только с просрочкой: да' && twRisk[0].num !== twRisk[1].num;
   const balAll = twins[0].find(x => x.t.id === 'lead-bal'), balMe = twins[0].find(x => x.t.id === 'cur-bal');
   let live = 0, same = 0, html = 0;
   for (const [u, rid, v, hh] of [[u2, 'cur', vB, hB]]) v.rows.filter(x => x.num !== null).forEach(x => { live++; const b = DB.base(x.t.id, u.id, rid, {}), q = DB.questionOf(x.t);
@@ -3843,8 +3829,8 @@ const asUser = id => { DB.state.userId = id; };
     && /<div class="cat-p">куратор: все · на сегодня<\/div>/.test(rowOf(hB, 'lead-bal')) && /<div class="cat-p">куратор: я · на сегодня<\/div>/.test(rowOf(hB, 'cur-bal'))
     && live > 30 && same === live && html === live && sMe.rows.length > 5 && sMe.rows.every(x => x.params.includes('куратор: я')) && sCol.sections.some(x => x.name === 'Взыскание')
     && only10.n < all10.n && only10.rows.every(x => x.status === 'has' || x.status === 'add') && all10.rows.some(x => x.status === 'no' && /^Нельзя: /.test(x.why))
-    && !vL.rows.some(x => x.status === 'wait' && x.owner === 'Ядро расчёта') && (DB.STAND.spells = false, DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }).rows.some(x => x.status === 'wait' && x.owner === 'Ядро расчёта')) && (DB.STAND.spells = true) && /role="switch"/.test(DB.catalogHTML()) && sysNo > 80 && !sys.rows.some(x => x.status === 'add'),
-    `секции по объекту: ${names.join(', ')} (каждый из ${objs.length} объектов — ровно в одной); ДБ-Д55 снят: у Бековой две «Остаток задолженности» — «${balAll.params.join(' · ')}» ${balAll.num} · Добавить и «${balMe.params.join(' · ')}» ${balMe.num} · Есть, так же «Просрочено» и «Сумма под риском»; живое число = главному числу плитки у всех ${live} строк (и в разметке — то же, что на плитке); поиск «куратор: я» — ${sMe.rows.length} строк, «взыскан» — секция «Взыскание»; «только доступные мне» у Усеновой — ${only10.n} из ${all10.n}, «Нельзя: …» и «ждёт соседа» — без него; у Шамшиева на вкладке «Системный администратор» — «Нельзя на вкладке …» у ${sysNo} плиток, а не «Добавить» с «нет доступа» на плитке (ДБ-198, ДБ-Д55)`);
+    && !vL.rows.some(x => x.status === 'wait' && x.owner === 'Ядро расчёта') && (DB.STAND.spells = false, DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }).rows.some(x => x.status === 'wait' && x.owner === 'Ядро расчёта')) && (DB.STAND.spells = true) && /role="switch"/.test(DB.catalogHTML()) && sysNo > 70 && !sys.rows.some(x => x.status === 'add'),
+    `секции по объекту: ${names.join(', ')} (каждый из ${objs.length} объектов — ровно в одной); ДБ-Д55 снят: у Бековой две «Остаток задолженности» — «${balAll.params.join(' · ')}» ${balAll.num} · Добавить и «${balMe.params.join(' · ')}» ${balMe.num} · Есть, так же «Просрочено» и «Портфель под риском»; живое число = главному числу плитки у всех ${live} строк (и в разметке — то же, что на плитке); поиск «куратор: я» — ${sMe.rows.length} строк, «взыскан» — секция «Взыскание»; «только доступные мне» у Усеновой — ${only10.n} из ${all10.n}, «Нельзя: …» и «ждёт соседа» — без него; у Шамшиева на вкладке «Системный администратор» — «Нельзя на вкладке …» у ${sysNo} плиток, а не «Добавить» с «нет доступа» на плитке (ДБ-198, ДБ-Д55)`);
 
   // ДБ-279 (переигран ДБ-199): страницы «+ Плитка» нет — ни пункта меню, ни раздела, ни шага «что хотите видеть»; своя плитка — «📌» из окна
   // отчёта: встаёт сразу в конец открытой вкладки, со значениями параметров плитки, из которой отчёт открыли
@@ -3915,13 +3901,13 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u11'); DB.declaredEdit('lead', 'add', 'lead-risk'); DB.declaredEdit('lead', 'remove', 'cat-rsmulti'); DB.declaredEdit('lead', 'add', 'cat-brepsh'); DB.declaredEdit('lead', 'remove', 'cat-brepsh');
   asUser('u1'); const N2 = DB.state.roleNews['u1|lead'], hN = DB.homeHTML(), cl = DB.newsClose(), hc = DB.homeHTML(), allGone = !DB.isNewTile('u1', 'lead', 'lead-risk') && !/class="pill new"/.test(hc) && !/Раскладка роли обновлена/.test(hc);
   asUser('u11'); DB.declaredEdit('cur', 'remove', 'cur-risk'); const curH = DB.roleHolders('cur').map(x => x.id), curN = curH.every(id => DB.state.roleNews[id + '|cur'] && DB.state.roleNews[id + '|cur'].rem.join() === 'cur-risk');
-  ok(353, unsaved && /Не сохранено: \+2, −1/.test(lh) && /Затронет 1 держателя роли «Руководство»: Асанов Б\. К\. · уберётся «Сумма под риском \(залог\)»/.test(lh) && /onclick="DB\.ldSave\(\)">Сохранить</.test(lh)
+  ok(353, unsaved && /Не сохранено: \+2, −1/.test(lh) && /Затронет 1 держателя роли «Руководство»: Асанов Б\. К\. · уберётся «Портфель под риском»/.test(lh) && /onclick="DB\.ldSave\(\)">Сохранить</.test(lh)
     && /Не сохранено: порядок/.test(lc) && /Затронет 2 держателей роли «Куратор кредита»: Бекова А\. Т\., /.test(lc) && lsv.ok && lsv.add.join() === 'cat-plan,cat-rsmulti' && lsv.rem.join() === 'lead-risk' && lsv.holders.join() === 'u1'
     && jl.action === 'изменил раскладку роли' && jl.detail === '«Руководство» · +2, −1' && N.at === '11.10' && /Раскладка роли обновлена 11\.10: \+2, −1<\/span><button class="linky" onclick="DB\.newsShow\(\)">Показать<\/button>/.test(hh)
     && /<span class="pill new"[^>]*>новая<\/span>/.test(tn) && !/pill new/.test(told) && !/Раскладка роли обновлена/.test(ha) && show && !/Раскладка роли обновлена/.test(hS)
-    && /убраны из раскладки: «Сумма под риском \(залог\)»/.test(hS) && (hS.match(/class="tile flash"/g) || []).length === 2 && keep && gone1 && noNote
+    && /убраны из раскладки: «Портфель под риском»/.test(hS) && (hS.match(/class="tile flash"/g) || []).length === 2 && keep && gone1 && noNote
     && newsOk(N2) && /Раскладка роли обновлена 11\.10: \+1, −1/.test(hN) && cl === true && allGone && curH.length === 2 && curN,
-    `правка «Руководства» в редакторе — черновиком: «Не сохранено: +2, −1 · Затронет 1 держателя роли «Руководство»: Асанов Б. К.», у «Куратора кредита» — 2 держателя; «Сохранить» — сразу, журнал «${jl.detail}»; у Асанова на вкладке роли — «Раскладка роли обновлена 11.10: +2, −1 · Показать ✕», у новых плиток «новая», на вкладке «Аналитик» плашки нет; «Показать» — плашка закрыта, новые подсвечены, «убраны из раскладки: «Сумма под риском (залог)»»; «новая» уходит при первом открытии полосы и вместе с плашкой, рамка и строка «убраны» — до ухода с вкладки; после «Показать» правки копятся заново (+1 и −1 одной плитки гасятся — «+1, −1»), «✕» снимает плашку и метки; правка «Куратора кредита» — у обоих держателей (ДБ-203, §9.2)`);
+    `правка «Руководства» в редакторе — черновиком: «Не сохранено: +2, −1 · Затронет 1 держателя роли «Руководство»: Асанов Б. К.», у «Куратора кредита» — 2 держателя; «Сохранить» — сразу, журнал «${jl.detail}»; у Асанова на вкладке роли — «Раскладка роли обновлена 11.10: +2, −1 · Показать ✕», у новых плиток «новая», на вкладке «Аналитик» плашки нет; «Показать» — плашка закрыта, новые подсвечены, «убраны из раскладки: «Портфель под риском»»; «новая» уходит при первом открытии полосы и вместе с плашкой, рамка и строка «убраны» — до ухода с вкладки; после «Показать» правки копятся заново (+1 и −1 одной плитки гасятся — «+1, −1»), «✕» снимает плашку и метки; правка «Куратора кредита» — у обоих держателей (ДБ-203, §9.2)`);
 
   // ДБ-208, ДБ-283: на телефоне каталог — просмотр и «Добавить»; реестр плиток, «Настроить» и «Опубликовать в каталог» — только на компьютере; разделы — списком в шапке
   DB.seed(); asUser('u11');
@@ -4024,7 +4010,7 @@ const asUser = id => { DB.state.userId = id; };
   const u1 = U('u1'), nb = n => Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' '), mln = n => (n / 1e6).toFixed(1).replace('.', ',');
   const TB = 'table(program;loan.overdue,loan.balance,loan.risk)';
 
-  // ДБ-212: Таблица — колонка «Сумма под риском (залог)» не ответила: в каждой строке и в итоге «—» с причиной, остальные колонки — как посчитано,
+  // ДБ-212: Таблица — колонка «Портфель под риском» не ответила: в каждой строке и в итоге «—» с причиной, остальные колонки — как посчитано,
   // ноль и прошлое значение не подставляются, вид не гаснет
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
   const t0 = DB.at('lead-od', TB, 'u1', 'lead', {}), tt0 = DB.at('lead-od', TB + '.total', 'u1', 'lead', {});
@@ -4034,9 +4020,9 @@ const asUser = id => { DB.state.userId = id; };
   const tdRisk = [...hT.matchAll(/<td class="dn" data-tip="([^"]*)">—<\/td>/g)].map(x => x[1]);
   ok(360, vt.state === 'ok' && t1.length === t0.length && t1.every((r, i) => r[1][2] === null && r[1][0] === t0[i][1][0] && r[1][1] === t0[i][1][1]) && t0.every(r => r[1][2] > 0)
     && tt1[2] === null && tt1[0] === tt0[0] && tt1[1] === tt0[1] && tt1[0] === DB.base('lead-od', 'u1', 'lead', {}).value
-    && tdRisk.length === t1.length + 1 && tdRisk.every(x => x === 'Статистика не ответила по колонке «Сумма под риском (залог)» — на её месте «—»: ни ноль, ни прошлое значение; остальное посчитано')
-    && /<th class="dn" data-tip="Статистика не ответила по колонке[^"]*">Сумма под риском \(залог\)<span class="dn-tag">нет ответа<\/span><\/th>/.test(hT) && !/>0<\/td>/.test(hT.slice(hT.indexOf('<table class="tb"'))),
-    `Таблица «Просрочено» по программам, колонки «Просрочено · Остаток · Сумма под риском»: статистика не ответила по колонке «Сумма под риском» — в ${t1.length} строках и в итоге «—» с причиной в подсказке (было ${mln(tt0[2])} млн — не подставлено), заголовок с «нет ответа»; «Просрочено» ${nb(tt1[0])} и «Остаток» ${nb(tt1[1])} — как без сбоя, итог «Просрочено» = числу плитки; вид не гас (ДБ-212)`);
+    && tdRisk.length === t1.length + 1 && tdRisk.every(x => x === 'Статистика не ответила по колонке «Портфель под риском» — на её месте «—»: ни ноль, ни прошлое значение; остальное посчитано')
+    && /<th class="dn" data-tip="Статистика не ответила по колонке[^"]*">Портфель под риском<span class="dn-tag">нет ответа<\/span><\/th>/.test(hT) && !/>0<\/td>/.test(hT.slice(hT.indexOf('<table class="tb"'))),
+    `Таблица «Просрочено» по программам, колонки «Просрочено · Остаток · Портфель под риском»: статистика не ответила по колонке «Портфель под риском» — в ${t1.length} строках и в итоге «—» с причиной в подсказке (было ${mln(tt0[2])} млн — не подставлено), заголовок с «нет ответа»; «Просрочено» ${nb(tt1[0])} и «Остаток» ${nb(tt1[1])} — как без сбоя, итог «Просрочено» = числу плитки; вид не гас (ДБ-212)`);
 
   // ДБ-212: Разрез — самый крупный узел «—», Карта — самая крупная строка «—» (и её итог), итоги остальных и общий — как есть; узел без ответа
   // своей строкой, не в «ещё N»; в «Изменении» — тоже «—», не ноль
@@ -4135,7 +4121,7 @@ const asUser = id => { DB.state.userId = id; };
   const h0c = DB.state.cacheHits; DB.cachedAsk(T('lead-paid'), u1, 'lead', {}); const hitPaid = DB.state.cacheHits === h0c + 1;
   const odc = DB.state.cacheMiss; DB.cachedAsk(T('lead-od'), u1, 'lead', {}); const missOd = DB.state.cacheMiss === odc + 1;
   DB.seed(); DB.STAND.nightRunFailed = true; const wf = DB.prewarm(); DB.STAND.nightRunFailed = false;
-  ok(366, P.holders === 12 && P.closed === 180 && P.today === 71 &&   // волна 24: «Срок сдачи близко» без своего параметра — один вопрос с «Просрочено обязательств»
+  ok(366, P.holders === 12 && P.closed === 166 && P.today === 72 &&   // волна 24: «Срок сдачи близко» без своего параметра — один вопрос с «Просрочено обязательств»
  W.n === P.closed && W.m === P.holders && W.at === '02:40'
     && dawn0.requests === P.today + P.closed && !dawn0.warm && dawn1.requests === P.today && dawn1.warm
     && warmEntry && warmEntry[1].calcAt === '02:40' && hitPaid && missOd && !keys.some(k => k.startsWith('p-u2-agro§') || /§view§/.test(k)) && keys.length === P.tiles.length
@@ -4170,8 +4156,8 @@ const asUser = id => { DB.state.userId = id; };
   const rr = ['lead', 'cur', 'prob', 'acc', 'zal', 'spec', 'com', 'gof', 'otd', 'rep', 'ast'].map(r => DB.roleLaunch(r)), hR = DB.homeHTML(), aR = DB.ask(T('lead-bal'), u1, 'lead', {}), tR = DB.ask(T('tasks'), U('u2'), 'cur', {});
   const cR = DB.catalogView(u1, { target:{ kind:'role', id:'lead' } }).rows.filter(x => x.t.kind !== 'link'), lR = DB.composeLayout('u1', 'lead');
   DB.stand('reportsReady', true);
-  ok(368, !less.ok && less.n === 0 && lessL.join() === 'tasks,p-u2-agro' && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 0 из 12(?! —)/.test(lessB)
-    && !pr.ok && pr.n === 3 && pr.of === 12 && ld.ok && ld.n === 11 && ld.of === 13
+  ok(368, !less.ok && less.n === 0 && lessL.join() === 'tasks,p-u2-agro' && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 0 из 11(?! —)/.test(lessB)
+    && !pr.ok && pr.n === 3 && pr.of === 11 && ld.ok && ld.n === 10 && ld.of === 12
     && rr.every(x => !x.ok && x.why === 'reports') && /Модуль отчётности и отчёты каталога ещё не готовы — у всех ролей минимальная раскладка/.test(hR) && !/Добавить плитки из каталога/.test(hR)
     && lR.join() === 'tasks' && aR.state === 'refusal' && /модуль отчётности и отчёты каталога ещё не готовы/.test(aR.msg) && /владелец — модуль «Отчётность»/.test(aR.msg) && tR.state === 'ok'
     && cR.length > 50 && cR.every(x => x.status === 'wait' || x.status === 'no') && cR.filter(x => x.status === 'wait').every(x => x.owner === 'Отчётность')
@@ -4184,8 +4170,8 @@ const asUser = id => { DB.state.userId = id; };
   T('cur-risk').state = 'draft'; const under = DB.roleLaunch('cur'), underL = DB.composeLayout('u2', 'cur'); T('cur-risk').state = 'published';
   DB.seed(); const zl = DB.roleLaunch('zal'), zlLinks = DB.DECLARED_SEED.zal.filter(k => !k.startsWith('s:') && T(k).kind === 'link').length;
   DB.standDown('Залог', false); const zl0 = DB.roleLaunch('zal');
-  ok(369, half.ok && half.n === 6 && half.of === 12 && halfL.filter(k => !k.startsWith('s:') && T(k).owner === 'catalog' && T(k).kind !== 'link').length === 6
-    && !under.ok && under.n === 5 && under.of === 12 && underL.join() === 'tasks,p-u2-agro'
+  ok(369, half.ok && half.n === 6 && half.of === 11 && halfL.filter(k => !k.startsWith('s:') && T(k).owner === 'catalog' && T(k).kind !== 'link').length === 6
+    && !under.ok && under.n === 5 && under.of === 11 && underL.join() === 'tasks,p-u2-agro'
     && zl.ok && zl.n === 1 && zl.of === 1 && zlLinks === 7 && !zl0.ok && zl0.n === 0 && /n\*2 >= of && n>0/.test(src),
     `Куратор без заёмщиков и реструктуризации: отвечает ${half.n} из ${half.of} — ровно половина, своя раскладка (${half.n} плиток и «Мои задания»); ещё одна плитка черновиком — ${under.n} из ${under.of}, минимальная; у Залога в счёте одна плитка из восьми (семь «ждёт меня», с «Моими заданиями», не считаются): отвечает — своя, залог не объявлен — 0 из 1, минимальная (ДБ-219, ДБ-218)`);
 
@@ -4913,7 +4899,7 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-268: прогрев — все пять баз у плиток-остатков; базы с одной датой — один вопрос
   lead(); const P = DB.warmPlan(), asks = DB.tileAsks(T('lead-od'), u1, 'lead').map(a => a.key.split('|').pop()), asP = DB.tileAsks(T('lead-paid'), u1, 'lead').map(a => a.key.split('|').pop());
-  ok(420, asks.join(' · ') === 'today · база на 01.10 · база на 01.07 · база на 01.01 · база на 01.10.2025' && asP.length === 2 && P.closed === 180,
+  ok(420, asks.join(' · ') === 'today · база на 01.10 · база на 01.07 · база на 01.01 · база на 01.10.2025' && asP.length === 2 && P.closed === 166,
     `прогрев: у «Просрочено» — ${asks.slice(1).join(', ')} («за месяц» и «за квартал» — одна дата, один вопрос); у потока — одна база периода; всего ${P.closed} вопросов на закрытые даты (ДБ-268)`);
 
   // ДБ-276, ДБ-277: штамп выгрузки несёт базу экрана; в Ряде точка базы отмечена
@@ -5130,7 +5116,7 @@ const asUser = id => { DB.state.userId = id; };
   const h0 = DB.registryHTML(), v0 = DB.pultView(), iD = h0.indexOf('Требует действия'), iT = h0.indexOf('class="pl-tools"'), iC = h0.indexOf('id="pl-cat-h"');
   const secs = (h0.match(/<button class="pl-sec/g) || []).length, names = v0.sections.map(s => s.name).join();
   ok(442, iD > 0 && iT > iD && iC > iT && secs === 11 && names === DB.CAT_SECTIONS.map(x => x[0]).join() && !/<table class="pl-t"/.test(h0) && v0.sections.every(s => !s.open)
-    && sum(v0.sections.map(s => s.rows.length)) === 91 && v0.of === 91 && /<span class="pl-n" id="pl-n">91 из 91<\/span>/.test(h0) && /grid-template-columns:18px minmax\(0,1fr\) 100px 230px/.test(src),
+    && sum(v0.sections.map(s => s.rows.length)) === 79 && v0.of === 79 && /<span class="pl-n" id="pl-n">79 из 79<\/span>/.test(h0) && /grid-template-columns:18px minmax\(0,1fr\) 100px 230px/.test(src),
     `пульт одной колонкой: «Требует действия» → фильтры → «Каталог»; ${secs} секций (${v0.sections.map(s => s.name + ' ' + s.rows.length).join(' · ')}), все свёрнуты, «91 из 91» (ДБ-298, ДБ-301, ДБ-308)`);
 
   // ДБ-299, ДБ-300, ДБ-307: дела — предложение карточкой, поломка строкой на причину, второе число и кандидат — строкой на плитку; число в меню без кандидатов
@@ -5146,7 +5132,7 @@ const asUser = id => { DB.state.userId = id; };
     && /onclick="DB\.openReport\('lead-claims'\)">Открыть отчёт ↗<\/button>/.test(rows) && (rows.match(/onclick="DB\.withdrawAsk\('(lead-claims|prob-claims|prob-since|prob-real)'\)">Снять…/g) || []).length === 4
     && /выведен показатель «Регламентный срок нарушен»/.test(rows) && /onclick="DB\.configure\('lead-rs'\)">Настроить<\/button>/.test(rows) && /второе число «—», главное отвечает/.test(rows)
     && /onclick="DB\.keep\('cat-brepsh'\)">Оставить<\/button>/.test(rows) && /nWait = isAdmin\(u\) \? pultWaiting\(\) : 0;/.test(nh) && /ждут вас: /.test(nh),
-    `на стенде дел ${d0.n} — два кандидата, число у пункта меню ${n0}; архив «Требований», выведены «Сумма под риском» и «Регламентный срок нарушен», предложение Бековой — строк поломок ${brk} (архив — одна на 4 плитки, перечень по раскрытию, «Снять…» у каждой), второе число ${sec}, число у меню ${n1} = предложение + 2 поломки + 2 вторых числа, кандидаты не в счёте (ДБ-299, ДБ-300, ДБ-307)`);
+    `на стенде дел ${d0.n} — два кандидата, число у пункта меню ${n0}; архив «Требований», выведены «Портфель под риском» и «Регламентный срок нарушен», предложение Бековой — строк поломок ${brk} (архив — одна на 4 плитки, перечень по раскрытию, «Снять…» у каждой), второе число ${sec}, число у меню ${n1} = предложение + 2 поломки + 2 вторых числа, кандидаты не в счёте (ДБ-299, ДБ-300, ДБ-307)`);
 
   // ДБ-299, ДБ-309: дел нет — одна строка «Всё в порядке»; черновик «ждёт отчёта» — не дело
   DB.seed(); asUser('u11'); DB.keepCandidate('cat-brepsh'); DB.keepCandidate('cat-progn'); const he = DB.registryHTML(), de = DB.pultDeals();
@@ -5169,9 +5155,9 @@ const asUser = id => { DB.state.userId = id; };
   const vr = DB.pultRole('cur'), vn = DB.pultRole('none'); DB.pultRole('all'); DB.withdrawTile('cat-progn', 'cat-plan');
   const va = DB.pultView(), vg = DB.pultState('gone'); DB.pultSec('Кредитная программа'); const hg = DB.registryHTML(), vall = DB.pultState('all'); DB.pultState('active');
   ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 4 && sr.rows.every(x => x.report === 'Дела взыскания по состоянию на дату') && sOpen === 'Взыскание' && dim === 10
-    && /<span class="pl-n" id="pl-n">4 из 91<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 91/.test(hn)
+    && /<span class="pl-n" id="pl-n">4 из 79<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 79/.test(hn)
     && vr.rows.every(x => x.w.roles.includes('cur')) && vr.n === DB.state.declared.cur.filter(k => !k.startsWith('s:')).length && vn.rows.every(x => !x.w.roles.length) && vn.rows.every(x => x.t.id.startsWith('cat-'))
-    && va.n === 90 && va.of === 91 && vg.n === 1 && /data-tile="cat-progn"><td>Программ действует <span class="pill info">снята · замена «Исполнение плана · прошлый месяц»<\/span>/.test(hg) && vall.n === 91
+    && va.n === 78 && va.of === 79 && vg.n === 1 && /data-tile="cat-progn"><td>Программ действует <span class="pill info">снята · замена «Исполнение плана · прошлый месяц»<\/span>/.test(hg) && vall.n === 79
     && /<option value="none">ни в одной<\/option>/.test(hs) && /<option value="active" selected>действующие<\/option><option value="wait">ждёт отчёта<\/option><option value="gone">снятые<\/option><option value="all">все<\/option>/.test(hs),
     `поиск «куратор: я» — ${sq.n}, «Дела взыскания» (отчёт) — ${sr.n}, раскрыта «${sOpen}», 10 секций серые; «Роль: Куратор кредита» — ${vr.n}, «ни в одной» — ${vn.n}; после снятия «Программ действует» действующих ${va.n} из 91, «снятые» — 1 с меткой «снята · замена …», «все» — ${vall.n} (ДБ-302)`);
 
@@ -5185,7 +5171,7 @@ const asUser = id => { DB.state.userId = id; };
   ok(447, ths === 6 && /Плитка<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('report'\)">Отчёт<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('base'\)">Основа<\/button><\/th><th><button data-sort="\w+" onclick="DB\.pultSort\('where'\)">Где стоит<\/button><\/th><th class="n" aria-sort="descending">/.test(head)
     && !/Вопрос|Кликов|>Состояние<|>Версия</.test(head) && sorted && byT && kd === ka[ka.length - 1] && /<span class="pill info"[^>]*>в\. 2<\/span>/.test(odRow) && !/class="pill/.test(balRow)
     && /<div class="p">куратор: все · на сегодня<\/div>/.test(balRow) && kr.opens === sum(kr.rows.map(x => DB.opens90(x.t))) && vz.flags.broken === 4
-    && /<span class="nm">Взыскание<\/span><span class="flag crit">сломана 4<\/span><\/span>\s*<span class="ct">11 плиток<\/span><span class="op">открывали за 90 дн\. [\d\s]+<\/span>/.test(hk)
+    && /<span class="nm">Взыскание<\/span><span class="flag crit">сломана 4<\/span><\/span>\s*<span class="ct">10 плиток<\/span><span class="op">открывали за 90 дн\. [\d\s]+<\/span>/.test(hk)
     && /<span class="nm">Заёмщик<\/span><span class="flag idle">кандидат 1<\/span>/.test(hk) && /<div class="bad">Отчёт «Требования» в архиве<\/div>/.test(DB.pultCatalogHTML((DB.pultSec('Взыскание'), DB.pultView()))),
     `раскрытый «Кредит» (${kr.rows.length}): пять колонок и «⋯» — без «Вопрос», «Состояние», «Версия», «Кликов»; по «открывали» убыванием, щелчок по «Плитка» — по алфавиту и обратно; у «Просрочено» после «Настроить» — «в. 2», у «Остатка» меток нет; у «Взыскания» — «сломана 4», у «Заёмщика» — «кандидат 1» (ДБ-303, ДБ-310, ДБ-Д77, ДБ-Д78)`);
 
@@ -5537,7 +5523,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.standReport('archive'); const dR = DB.pultDeals(), hR = DB.registryHTML(); DB.seed(); asUser('u11'); const hOk = DB.registryHTML();
   const dealsSrc = src.slice(src.indexOf('function brokenRow('), src.indexOf('function dealsHTML('));
   const menuRowSrc = src.slice(src.indexOf('function openPultMenu('), src.indexOf('function openPultMenu(') + 1400);
-  ok(482, dW.broken.length === 1 && dW.broken[0].cause === 'Показатель «Сумма под риском (залог)» выведен' && /<b>Показатель «Сумма под риском \(залог\)» выведен<\/b> — сломаны 2:/.test(hW)
+  ok(482, dW.broken.length === 1 && dW.broken[0].cause === 'Показатель «Портфель под риском» выведен' && /<b>Показатель «Портфель под риском» выведен<\/b> — сломаны 2:/.test(hW)
     && dR.broken.length === 1 && dR.broken[0].cause === 'Отчёт «Требования» в архиве' && /<b>Отчёт «Требования» в архиве<\/b> — сломаны 4:/.test(hR) && !/<p[ >]/.test(hOk) && /<b>Всё в порядке<\/b> <span class="muted">· предложений, поломок и кандидатов на снятие нет<\/span>/.test(src)
     && /aria-disabled="true" data-tip="Отчёта плитки в каталоге нет">Открыть отчёт ↗/.test(dealsSrc) && /aria-disabled="true" data-tip="Эту плитку вам не настроить">Настроить<\/button>/.test(src)
     && /' aria-disabled="true" data-tip="'\+esc\('Автопроверка не пройдена: '/.test(src) && /items\.push\(\['Снять…', gone \? '' :/.test(menuRowSrc) && /items\.push\(\['Настроить', cfg && !gone \?/.test(menuRowSrc) && /if\(t\.kind!=='link'\) items\.push\(\['Открыть отчёт ↗'/.test(menuRowSrc),
@@ -5591,7 +5577,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.stand('tilesDown', true); const d1 = DB.reportDelete('fo-02'), n8b = DB.tilesOfReport('fo-02').length, here = !!DB.reportById('fo-02');
   const arc = DB.standReport('archive'), brk = DB.reportBroken(DB.tilesOfReport('r-claims')[0]);
   DB.stand('tilesDown', false); const d2 = DB.reportDelete('fo-02');
-  ok(600, n8 === 4 && d1.refused && d1.msg === 'удалить нельзя — не получены сведения о плитках дашборда' && here && n8b === 4 && arc.ok && DB.reportById('r-claims').state === 'archived'
+  ok(600, n8 === 6 && d1.refused && d1.msg === 'удалить нельзя — не получены сведения о плитках дашборда' && here && n8b === 6 && arc.ok && DB.reportById('r-claims').state === 'archived'
     && /Отчёт «Требования» в архиве — плитка сломана/.test(brk) && !/не получены сведения/.test(d2.msg || d2.error || ''),
     'дашборд не ответил о плитках отчёта: удаление «Задолженность по состоянию на дату» (4 плитки) отказывает «удалить нельзя — не получены сведения о плитках дашборда», отчёт остаётся, плитки считают как прежде; архив «Требований» выполняется, плитки пишут «в архиве — плитка сломана»; без флага отказ прежний — у отчёта есть плитки');
 
@@ -5636,10 +5622,10 @@ const asUser = id => { DB.state.userId = id; };
   ok(604, chu.vals.length === 12 && chu.vals.every(x => x === null) && chu.change === null && sr.lines.filter(l => l.v !== 'Чуйская').every(l => l.vals.every(x => x !== null))
     && c2.vol.n === 124 && c2.vol.sum === 443811418 && c2.down && c2.cells.filter(Boolean).every(x => x.v === null) && co.rows.filter(r => r !== c2).every(r => !r.down)
     && tr.down && tr.down[i181] && tr.rowTot[i181].value === null && Object.keys(tr.down).length === 1 && tr.rowTot.filter((x, i) => i !== i181).every(x => x.value !== null)
-    && tb.table.downCol && tb.table.downCol[2] && tb.total[2] === null && tb.total[0] === 178778855 && tb.total[1] === 3855532121 && Math.round(tb0.total[2] / 1e5) / 10 === 868.8 && tb.table.rows.every(r => r.cells[2] === null)
+    && tb.table.downCol && tb.table.downCol[2] && tb.total[2] === null && tb.total[0] === 178778855 && tb.total[1] === 3855532121 && Math.round(tb0.total[2] / 1e5) / 10 === 813.8 && tb.table.rows.every(r => r.cells[2] === null)
     && fnd.length === 1 && fnd[0].v === 'отказ комиссии' && fn0.value === 16 && fnd[0].value === null && ['Комплектация', 'Подтверждение ГО', 'Заключения отделов', 'Комиссия'].every(n => new RegExp('\\|' + n + '\\|нет ответа\\|—\\|').test(hfn))
     && /\|Оформление\|73\|/.test(hfn) && /\|Выдача\|47\|/.test(hfn) && !/\|Выдача\|47\|нет ответа/.test(hfn),
-    'статистика ответила не целиком: Ряд по областям — «Чуйская» все 12 точек и разница «—», остальные шесть как есть; Когорты — «2 кв 2025» (124 кредита, 443 811 418) без клеток, объём остаётся; Переходы — строка «181+» «—»; Таблица — колонка «Сумма под риском (залог)» «—» в строках и итоге (при ответе 868,8 млн), две другие отвечают; воронка заявок — не ответил «отказ комиссии» (16): четыре этапа «—», «Оформление» 73 и «Выдача» 47 как есть');
+    'статистика ответила не целиком: Ряд по областям — «Чуйская» все 12 точек и разница «—», остальные шесть как есть; Когорты — «2 кв 2025» (124 кредита, 443 811 418) без клеток, объём остаётся; Переходы — строка «181+» «—»; Таблица — колонка «Портфель под риском» «—» в строках и итоге (при ответе 813,8 млн), две другие отвечают; воронка заявок — не ответил «отказ комиссии» (16): четыре этапа «—», «Оформление» 73 и «Выдача» 47 как есть');
 
   // запись «Кредит» не объявила причины ухода из просрочки: «ушли» одной строкой с одним списком
   lead(); const mv0 = V('lead-od', 'move', {}).move; DB.stand('noExitReasons', true);
@@ -5656,10 +5642,10 @@ const asUser = id => { DB.state.userId = id; };
   DB.setCmp('yearStart'); const y1 = V('lead-bal', 'move', {}).move, fy = y1.rows.find(x => x.key === 'fx'), oy = y1.rows.find(x => x.key === 'other');
   DB.state.open = {}; DB.openView('lead-bal', 'move'); const hy = DB.stripHTML('lead-bal'); DB.state.open = {}; DB.setCmp(null);
   DB.stand('fxTerm', false); DB.setCmp('yearStart'); const y0 = V('lead-bal', 'move', {}).move; DB.state.open = {}; DB.openView('lead-bal', 'move'); const hy0 = DB.stripHTML('lead-bal'); DB.state.open = {}; DB.setCmp(null);
-  ok(606, !b0.rows.some(x => x.key === 'fx') && fx1.v === 154628 && fx1.cnt === 86 && /по курсу 30\.09 \(87,40\), число — по курсу 11\.10 \(87,45\)/.test(fx1.tip) && ot1.v === 774819 && ot0.v === 929447 && ot0.v === ot1.v + fx1.v
-    && b1.rows.reduce((a, x) => a + x.v, 0) === 24128942 && fy.v === 18044117 && fy.cnt === 86 && oy.v === 4159553 && y1.rows.reduce((a, x) => a + x.v, 0) === -69538774
-    && /в т\. ч\. переоценка курса \+18 млн \(курс 01\.01 → 11\.10\)/.test(hy) && !/переоценка курса/.test(hy0) && y0.rows.find(x => x.key === 'other').v === 22203670,
-    'слагаемое «курсовая разница» вписано: за октябрь +154 628 (86 кредитов в долларах), «прочее» 774 819 вместо 929 447, сумма строк +24 128 942; за год +18 044 117 и «прочее» +4 159 553, сумма строк равна изменению −69 538 774; в подсказке сдвига «в т. ч. переоценка курса +18 млн (курс 01.01 → 11.10)»; без флага вся сумма в «прочем», подсказки нет');
+  ok(606, !b0.rows.some(x => x.key === 'fx') && fx1.v === 154628 && fx1.cnt === 86 && /по курсу 30\.09 \(87,40\), число — по курсу 11\.10 \(87,45\)/.test(fx1.tip) && ot1.v === -154628 && ot0.v === 0 && ot0.v === ot1.v + fx1.v
+    && b1.rows.reduce((a, x) => a + x.v, 0) === 24020513 && fy.v === 18044117 && fy.cnt === 86 && oy.v === -18044117 && y1.rows.reduce((a, x) => a + x.v, 0) === -70949358
+    && /в т\. ч\. переоценка курса \+18 млн \(курс 01\.01 → 11\.10\)/.test(hy) && !/переоценка курса/.test(hy0) && y0.rows.find(x => x.key === 'other').v === 0,
+    'слагаемое «курсовая разница» вписано: за октябрь +154 628 (86 кредитов в долларах), «прочее» −154 628 вместо 0 (без комиссий и расходов взыскания прочего в остатке стенда нет, его переоценку история не держит), сумма строк +24 020 513; за год +18 044 117 и «прочее» −18 044 117, сумма строк равна изменению −70 949 358; в подсказке сдвига «в т. ч. переоценка курса +18 млн (курс 01.01 → 11.10)»; без флага вся сумма в «прочем», подсказки нет');
 
   // курсов на 30.09 нет: строка «курсовая разница» стоит с «—» и причиной, остальные как в обычном октябре
   lead(); DB.stand('fxTerm', true); DB.stand('noRate', true);
@@ -5667,10 +5653,10 @@ const asUser = id => { DB.state.userId = id; };
   DB.state.open = {}; DB.openView('lead-bal', 'move'); const hn = DB.stripHTML('lead-bal'); DB.state.open = {}; const mvn = k => n1.rows.find(x => x.key === k);
   DB.setCmp('yearStart'); const ny = V('lead-bal', 'move', {}).move.rows.find(x => x.key === 'fx'); DB.setCmp(null);
   ok(607, nf && nf.v === null && nf.none === true && /нет курса на 30\.09/.test(nf.tip) && n1.rows.map(x => x.key).join() === 'issued,accrued,paid,written,fx,other'
-    && mvn('issued').v === 48844313 && mvn('accrued').v === 15048794 && mvn('paid').v === -39900701 && mvn('written').v === -792911
+    && mvn('issued').v === 48844313 && mvn('accrued').v === 15048794 && mvn('paid').v === -39079683 && mvn('written').v === -792911
     && /data-flow="fx"[^>]*data-tip="[^"]*нет курса на 30\.09[^"]*"[^>]*><span class="rz-nm"><span class="mv-sg">\+<\/span>курсовая разница<span class="dn-tag">нет курса<\/span><\/span><span class="rz-v dn">—<\/span>/.test(hn)
     && ny.v === 18044117,
-    'курсов на 30.09 нет: у Движения «Остатка» за октябрь «курсовая разница» стоит на месте с «—» и причиной «нет курса на 30.09», не с нулём; выдано +48 844 313, начислено % +15 048 794, погашено −39 900 701, списано −792 911 как обычно; за год курс есть — строка считается');
+    'курсов на 30.09 нет: у Движения «Остатка» за октябрь «курсовая разница» стоит на месте с «—» и причиной «нет курса на 30.09», не с нулём; выдано +48 844 313, начислено % +15 048 794, погашено −39 079 683, списано −792 911 как обычно; за год курс есть — строка считается');
 
   // статистика не приняла задание на выгрузку: отказ порога и сообщение; плитка прежняя
   lead(); DB.stand('exportRefuse', true); DB.whoNode('lead-od'); const wm = DB.whoPanel(), ex = DB.whoExit('task');
@@ -5699,8 +5685,8 @@ const asUser = id => { DB.state.userId = id; };
   const ch = DB.catalogHTML(); const ri = ch.indexOf('data-tile="com-vote"'), rowh = txt(ch.slice(ri, ri + 700)); DB.layoutRole('com'); const lt = txt(DB.layoutsHTML());
   DB.standQueue('Комиссия', false);
   ok(611, L0.includes('com-vote') && row6.status === 'wait' && row6.owner === 'Комиссия' && /ждёт отчёта/.test(rowh) && /ждёт (?:соседа|модуля): Комиссия/.test(rowh) && !/Добавить/.test(rowh)
-    && !L1.includes('com-vote') && L1.includes('com-pend') && lc.ok && lc.n === 3 && lc.of === 3 && /отвечают 3 из 3 плиток \(ссылочные не в счёте\)/.test(lt) && DB.composeLayout('u7', 'com').includes('com-vote'),
-    'очередь комиссии не объявлена: плитка «Ждут моего голоса» в каталоге «ждёт отчёта» с действием «ждёт модуля: Комиссия» и без «Добавить», в раскладку роли не встаёт; у роли «отвечают 3 из 3 плиток (ссылочные не в счёте)»; объявлена — плитка на месте');
+    && !L1.includes('com-vote') && L1.includes('com-pend') && lc.ok && lc.n === 2 && lc.of === 2 && /отвечают 2 из 2 плиток \(ссылочные не в счёте\)/.test(lt) && DB.composeLayout('u7', 'com').includes('com-vote'),
+    'очередь комиссии не объявлена: плитка «Ждут моего голоса» в каталоге «ждёт отчёта» с действием «ждёт модуля: Комиссия» и без «Добавить», в раскладку роли не встаёт; у роли «отвечают 2 из 2 плиток (ссылочные не в счёте)»; объявлена — плитка на месте');
 
   // часть узла не ответила: список «91–180» — «—» с причиной, число строки остаётся; соседние узлы открываются
   lead(); DB.stand('nodeListDown', true);
@@ -5762,9 +5748,9 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u11'); const own0 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length; DB.stand('ownerMoveDown', true);
   const rr = DB.roleOff('u11', 'adm'), own1 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length, hasRole = U('u11').roles.includes('adm'), co1 = DB.reportCoauthors(DB.reportById('fo-02'));
   DB.stand('ownerMoveDown', false); const rr2 = DB.roleOff('u11', 'adm');
-  ok(619, own0 === 64 && rr.refused && /не снята: отчётность не ответила на передачу отчётов каталога — 64 отчёта остаются во владении Шамшиев А\. О\./.test(rr.msg) && own1 === 64 && hasRole && co1.includes('u13')
-    && rr2.ok && rr2.to === 'u13' && rr2.reports.length === 64,
-    'отчётность не передала отчёты каталога: роль «Администратор дашборда» у Шамшиева не снята, 64 отчёта за ним, соавтор — Бейшеналиева; без флага отчёты переходят к другому держателю');
+  ok(619, own0 === 56 && rr.refused && /не снята: отчётность не ответила на передачу отчётов каталога — 56 отчётов остаются во владении Шамшиев А\. О\./.test(rr.msg) && own1 === 56 && hasRole && co1.includes('u13')
+    && rr2.ok && rr2.to === 'u13' && rr2.reports.length === 56,
+    'отчётность не передала отчёты каталога: роль «Администратор дашборда» у Шамшиева не снята, 56 отчётов за ним, соавтор — Бейшеналиева; без флага отчёты переходят к другому держателю');
 
   // отчётность не создаёт копию личного отчёта: публикация и «Принять» отказывают, ничего не меняется
   DB.seed(); DB.roleOn('u1', 'adm'); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('reportCopyDown', true); const jc = DB.state.journal.length, rc = DB.REPORTS.length, tc = DB.TILES.length;
@@ -5787,13 +5773,13 @@ const asUser = id => { DB.state.userId = id; };
   cur(); const full = DB.composeLayout('u2', 'cur'); DB.standRoleWait('cur', 6);
   const w6 = DB.composeLayout('u2', 'cur'), l6 = DB.roleLaunch('cur'), h6 = home(); DB.standWaitReady(); const l6b = DB.roleLaunch('cur'), w6b = DB.composeLayout('u2', 'cur'); DB.nightCheck();
   const w12 = DB.composeLayout('u2', 'cur'), l12 = DB.roleLaunch('cur');
-  ok(622, tiles(full).length === 14 && l6.ok && l6.n === 6 && l6.of === 12 && tiles(w6).length === 8 && w6.includes('tasks') && w6.includes('p-u2-agro') && tiles(w6).filter(k => !['tasks', 'p-u2-agro'].includes(k)).length === 6
-    && !/не отвечается/.test(h6) && w6b.length === w6.length && l6b.n === 6 && l12.ok && l12.n === 12 && tiles(w12).length === 14 && secs(w12).join() === 's:Мой портфель,s:Мои реструктуризации,s:Мой план и работа',
-    '«ждёт отчёта» · Куратор кредита, 6 из 12: своя раскладка — 6 плиток отчётов и «Мои задания», шести «ждёт отчёта» на экране нет и текста «не отвечается» нет; после того как отчёты ответили, плитки встают сами только ночным прогоном — 12 из 12, секции «Мой портфель», «Мои реструктуризации», «Мой план и работа»');
+  ok(622, tiles(full).length === 13 && l6.ok && l6.n === 6 && l6.of === 11 && tiles(w6).length === 8 && w6.includes('tasks') && w6.includes('p-u2-agro') && tiles(w6).filter(k => !['tasks', 'p-u2-agro'].includes(k)).length === 6
+    && !/не отвечается/.test(h6) && w6b.length === w6.length && l6b.n === 6 && l12.ok && l12.n === 11 && tiles(w12).length === 13 && secs(w12).join() === 's:Мой портфель,s:Мой план и работа',
+    '«ждёт отчёта» · Куратор кредита, 6 из 11: своя раскладка — 6 плиток отчётов и «Мои задания», пяти «ждёт отчёта» на экране нет и текста «не отвечается» нет; после того как отчёты ответили, плитки встают сами только ночным прогоном — 11 из 11, секции «Мой портфель», «Мой план и работа»');
   cur(); DB.standRoleWait('cur', 5); const w5 = DB.composeLayout('u2', 'cur'), l5 = DB.roleLaunch('cur'), h5 = txt(home()), t5 = DB.ask(T('tasks'), U('u2'), 'cur', {});
-  ok(623, !l5.ok && l5.why === 'tiles' && l5.n === 5 && l5.of === 12 && w5.join() === 'tasks,p-u2-agro' && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 5 из 12(?! —)/.test(h5)
+  ok(623, !l5.ok && l5.why === 'tiles' && l5.n === 5 && l5.of === 11 && w5.join() === 'tasks,p-u2-agro' && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 5 из 11(?! —)/.test(h5)
     && t5.value === 5 && t5.second.value === 2 && !/ — показана минимальная/.test(h5),
-    '«ждёт отчёта» · Куратор кредита, 5 из 12: минимальная раскладка с сообщением «Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 5 из 12», «Мои задания» 5 · просрочено 2, личная плитка «Мои кредиты Агрокредит с просрочкой > 30 дн.» на месте');
+    '«ждёт отчёта» · Куратор кредита, 5 из 11: минимальная раскладка с сообщением «Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 5 из 11», «Мои задания» 5 · просрочено 2, личная плитка «Мои кредиты Агрокредит с просрочкой > 30 дн.» на месте');
 
   // модуль Задания не запущен: плитка «Мои задания» не встаёт ни в одну раскладку, в каталоге «ждёт отчёта» и «ждёт модуля: Задания»
   lead(); const lb = DB.composeLayout('u1', 'lead'); DB.standDown('Задания', false);
@@ -5804,19 +5790,19 @@ const asUser = id => { DB.state.userId = id; };
     && /class="add-cell"/.test(han) && !leadNow.includes('tasks') && DB.composeLayout('u1', 'lead').includes('tasks'),
     'модуль Задания не запущен: «Мои задания» не встаёт ни в одну раскладку; в каталоге у строки вместо числа «ждёт отчёта», действие «ждёт модуля: Задания», кнопки «Добавить» нет; в минимальной раскладке («Аналитик») одна ячейка «+ плитка»');
 
-  // объект имущества не запущен: плитки имущества «ждёт отчёта», у Руководства 11 из 13 — своя раскладка без секции «Имущество», у Специалиста по имуществу 0 из 6 — минимальная
+  // объект имущества не запущен: плитки имущества «ждёт отчёта», у Руководства 11 из 12 — своя раскладка без секции «Имущество», у Специалиста по имуществу 0 из 5 — минимальная
   lead(); DB.standDown('Имущество', false); const ll = DB.composeLayout('u1', 'lead'), ld = DB.roleLaunch('lead'), la = DB.roleLaunch('ast');
-  const wa = DB.catalogView(U('u11'), {}).rows.filter(x => x.status === 'wait' && ['lead-ast', 'lead-astod'].includes(x.t.id)), ban = DB.minimalBanner('ast'), astL = DB.composeLayout('u12', 'ast').join();
+  const wa = DB.catalogView(U('u11'), {}).rows.filter(x => x.status === 'wait' && ['lead-ast', 'ast-kpod'].includes(x.t.id)), ban = DB.minimalBanner('ast'), astL = DB.composeLayout('u12', 'ast').join();
   DB.standDown('Имущество', true);
-  ok(625, ld.ok && ld.n === 11 && ld.of === 13 && tiles(ll).length === 12 && secs(ll).length === 3 && !secs(ll).includes('s:Имущество') && wa.length === 2 && wa.every(x => x.t.state !== 'withdrawn')
-    && !la.ok && la.n === 0 && la.of === 6 && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 0 из 6/.test(ban) && astL === 'tasks' && DB.composeLayout('u12', 'ast').length > 1,
-    'объект имущества не запущен: у Руководства 11 из 13 — своя раскладка, 12 плиток в трёх секциях без «Имущество»; «На балансе» и «Просрочено по договорам купли-продажи» — «ждёт отчёта»; у Специалиста по имуществу 0 из 6 — минимальная с сообщением «сейчас отвечают 0 из 6»');
+  ok(625, ld.ok && ld.n === 11 && ld.of === 12 && tiles(ll).length === 12 && secs(ll).length === 4 && !secs(ll).includes('s:Имущество') && wa.length === 2 && wa.every(x => x.t.state !== 'withdrawn')
+    && !la.ok && la.n === 0 && la.of === 5 && /Раскладка роли встанет, когда ответит не меньше половины её плиток: сейчас отвечают 0 из 5/.test(ban) && astL === 'tasks' && DB.composeLayout('u12', 'ast').length > 1,
+    'объект имущества не запущен: у Руководства 11 из 12 — своя раскладка, 12 плиток в четырёх секциях без «Имущество»; «На балансе» и «Просрочено по договорам купли-продажи» — «ждёт отчёта»; у Специалиста по имуществу 0 из 5 — минимальная с сообщением «сейчас отвечают 0 из 5»');
 
   // ядро не отдаёт эпизоды просрочки: плитки эпизодов «ждёт отчёта», у Руководства 11 из 13 и 12 плиток из 14, у Куратора кредита 11 из 12
   lead(); DB.stand('spells', false); const le = DB.composeLayout('u1', 'lead'), lel = DB.roleLaunch('lead'), cel = DB.roleLaunch('cur');
   DB.stand('spells', true);
-  ok(626, lel.ok && lel.n === 11 && lel.of === 13 && cel.ok && cel.n === 11 && cel.of === 12 && tiles(le).length === 12 && !le.includes('lead-spin') && !le.includes('lead-spcure') && DB.composeLayout('u1', 'lead').includes('lead-spin') && tiles(DB.composeLayout('u1', 'lead')).length === 14,
-    'ядро не отдаёт эпизоды: «Вышли в просрочку · прошлый месяц» и «Вылечены · прошлый месяц» стоят «ждёт отчёта», у Руководства 11 из 13 и 12 плиток из 14 — своя раскладка, у Куратора кредита 11 из 12');
+  ok(626, lel.ok && lel.n === 10 && lel.of === 12 && cel.ok && cel.n === 10 && cel.of === 11 && tiles(le).length === 11 && !le.includes('lead-spin') && !le.includes('lead-spcure') && DB.composeLayout('u1', 'lead').includes('lead-spin') && tiles(DB.composeLayout('u1', 'lead')).length === 13,
+    'ядро не отдаёт эпизоды: «Вышли в просрочку · прошлый месяц» и «Вылечены · прошлый месяц» стоят «ждёт отчёта», у Руководства 10 из 12 и 11 плиток из 13 — своя раскладка, у Куратора кредита 10 из 11');
 
   // медленная отчётность: части полосы «Просрочено» приходят по очереди — сумма, база, строки; после 10 с — «считается дольше обычного»
   lead(); DB.stand('slow', true); DB.openView('lead-od', 'slice'); const s0 = DB.stripHTML('lead-od'); DB.loadTick(1500); const s1 = DB.stripHTML('lead-od'); DB.loadTick(1500); const s2 = DB.stripHTML('lead-od');
@@ -5825,14 +5811,14 @@ const asUser = id => { DB.state.userId = id; };
   ok(627, /class="sk"/.test(s0) && />считается…</.test(s0) && !/class="sk"/.test(s2) && bd.join() === '-199302,5447768,-2055588,2643869' && /считается дольше обычного/.test(m10) && !/считается/.test(m12) && /на 01\.10\|173 млн/.test(txt(m12)),
     'медленная отчётность: «Сумма» через 1,5 с, база через 3 с, строки Движения через 12 с, после 10 с — «считается дольше обычного · Отменить»; разница по узлам 1–30 −199 302, 31–90 +5 447 768, 91–180 −2 055 588, 181+ +2 643 869');
 
-  // отчётность не готова: минимальная раскладка у всех ролей, одна плитка «Мои задания», 72 плитки отчётов «ждёт отчёта», без «+ плитка»; «Залог» 0 из 1
+  // отчётность не готова: минимальная раскладка у всех ролей, одна плитка «Мои задания», 60 плиток отчётов «ждёт отчёта», без «+ плитка»; «Залог» 0 из 1
   lead(); DB.stand('reportsReady', false);
   const allMin = DB.ROLES.filter(r => DB.state.declared[r.id]).every(r => !DB.roleLaunch(r.id).ok && DB.roleLaunch(r.id).why === 'reports'), hn0 = home(), tk = DB.ask(T('tasks'), U('u1'), 'lead', {});
   const waitN = DB.catalogView(U('u11'), {}).rows.filter(x => x.status === 'wait' && x.t.kind !== 'link').length, zl = DB.roleLaunch('zal'), leadMin = DB.composeLayout('u1', 'lead').join();
   DB.stand('reportsReady', true);
   ok(628, allMin && leadMin === 'tasks' && /Модуль отчётности и отчёты каталога ещё не готовы — у всех ролей минимальная раскладка: плитка дашборда ссылается на отчёт\./.test(txt(hn0)) && !/class="add-cell"/.test(hn0)
-    && tk.value === 2 && tk.second.value === 1 && waitN === 72 && zl.n === 0 && zl.of === 1 && DB.composeLayout('u1', 'lead').length > 10,
-    'отчётность не готова: у всех ролей минимальная раскладка с пояснением, на вкладке одна плитка «Мои задания» (у Асанова 2 · просрочено 1), ячейки «+ плитка» нет; 72 плитки отчётов «ждёт отчёта»; у «Залога» отвечают 0 из 1; без флага раскладки на месте');
+    && tk.value === 2 && tk.second.value === 1 && waitN === 60 && zl.n === 0 && zl.of === 1 && DB.composeLayout('u1', 'lead').length > 10,
+    'отчётность не готова: у всех ролей минимальная раскладка с пояснением, на вкладке одна плитка «Мои задания» (у Асанова 2 · просрочено 1), ячейки «+ плитка» нет; 60 плиток отчётов «ждёт отчёта»; у «Залога» отвечают 0 из 1; без флага раскладки на месте');
   DB.seed();
 })();
 
@@ -5877,8 +5863,8 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('fxNoShift', true);
   const ns0 = DB.base('p-u1-bal0', 'u1', 'lead'); DB.setCmp('yearStart'); const ns1 = DB.base('p-u1-bal0', 'u1', 'lead'); DB.setCmp('prevMonthEnd'); const ns2 = DB.base('p-u1-bal0', 'u1', 'lead'); DB.setCmp(null);
   const nsh = html('p-u1-bal0', 'u1', 'lead'), orig = DB.base('lead-bal', 'u1', 'lead');
-  ok(703, ns0.shift === null && !/class="shift/.test(nsh) && ns1.shift.delta === -69538774 && ns1.shift.base === 3925070895 && ns2.shift.delta === 24128942 && ns2.shift.base === 3831403179
-    && ns0.value === 3855532121 && ns0.second.value === 1248 && orig.value === ns0.value && orig.shift && orig.shift.delta === 24128942,
+  ok(703, ns0.shift === null && !/class="shift/.test(nsh) && ns1.shift.delta === -70949358 && ns1.shift.base === 3926481479 && ns2.shift.delta === 24020513 && ns2.shift.base === 3831511608
+    && ns0.value === 3855532121 && ns0.second.value === 1248 && orig.value === ns0.value && orig.shift && orig.shift.delta === 24020513,
     `у копии «Остаток задолженности» без базы автора: «как задано» — место сдвига пусто; «за год» ▼ ${mln(Math.abs(ns1.shift.delta))} млн (${ns1.value} против ${ns1.shift.base}); «за месяц» ▲ ${mln(ns2.shift.delta)} млн (база ${ns2.shift.base}); число 3 856 млн и 1 248 кредитов как у оригинала`);
   DB.seed();
 
@@ -5901,7 +5887,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u1'); DB.setTab('role', 'lead'); DB.stand('fxForm0101', true);
   const rp = DB.reportById('r-form0101'), f0 = DB.base('p-u1-form0101', 'u1', 'lead'), fv = DB.views('p-u1-form0101', 'u1', 'lead', [], {}), fh = html('p-u1-form0101', 'u1', 'lead');
   const why = k => (fv.find(v => v.kind === k) || {}).why;
-  ok(706, rp.shelf === 'official' && rp.owner === 'u10' && U('u10').name === 'Усенова К. Ж.' && rp.obj === 'loan' && !Object.keys(rp.params).length && f0.value === 3925070895 && /видно 2.149/.test(f0.passport) && /на 01\.01\.2026/.test(f0.passport) && /3.925<span class="u">млн/.test(fh)
+  ok(706, rp.shelf === 'official' && rp.owner === 'u10' && U('u10').name === 'Усенова К. Ж.' && rp.obj === 'loan' && !Object.keys(rp.params).length && f0.value === 3926481479 && /видно 2.149/.test(f0.passport) && /на 01\.01\.2026/.test(f0.passport) && /3.926<span class="u">млн/.test(fh)
     && /^отчёт не объявил дату/.test(f0.shift.none) && /^отчёт не объявил дату/.test(why('series')) && /^отчёт не объявил дату/.test(why('move')) && !/class="shift/.test(fh),
     `официальный отчёт «${rp.title}» (владелец ${U(rp.owner).name}), параметра даты нет; личная плитка Асанова — остаток ${f0.value} («3 925 млн»), видно 2 149; сдвиг «${f0.shift.none}», Ряд «${why('series')}», Движение «${why('move')}»`);
   DB.seed();
@@ -5966,8 +5952,8 @@ const asUser = id => { DB.state.userId = id; };
     `упрощено: «Просрочено» по куратору — ${DB.DATA.loan.reduce((s, l) => s.add(l.curator), new Set()).size} кураторов на стенде вместо 52 и суммы строк иные; сошлось: итог ${cu.total.v}, восемь строк и «${moreL && moreL.label}» вместе дают итог`);
 
   // 714 · «Наибольшая просрочка» · Разрез по куратору — плитки нет в каталоге
-  ok(714, !DB.TILES.some(t => t.title === 'Наибольшая просрочка') && DB.TILES.filter(t => t.owner === 'catalog').length === 91,
-    `не сделано: каталожной плитки «Наибольшая просрочка» (показатель «наибольший», дней) нет — каталог остаётся из 91 плитки; наибольшие дни кредитов на стенде ${Math.max(...DB.DATA.loan.filter(l => !l.closed).map(l => l.overdueDays || 0))}`);
+  ok(714, !DB.TILES.some(t => t.title === 'Наибольшая просрочка') && DB.TILES.filter(t => t.owner === 'catalog').length === 79,
+    `не сделано: каталожной плитки «Наибольшая просрочка» (показатель «наибольший», дней) нет — каталог остаётся из 79 плиток; наибольшие дни кредитов на стенде ${Math.max(...DB.DATA.loan.filter(l => !l.closed).map(l => l.overdueDays || 0))}`);
 
   // 715 · очередь «Задания» · без разрезов
   asUser('u2'); DB.setTab('role', 'cur');
@@ -6105,7 +6091,7 @@ const asUser = id => { DB.state.userId = id; };
   const w29 = DB.publishOwn('p-u13-od', []), nt29 = w29.tile, n29 = DB.TILES.filter(t => t.owner === 'catalog').length, j29 = DB.state.journal[0];
   const nightDown = DB.nightCheck().published.length, still = DB.tileById(nt29.id).state;
   DB.standDown(DB.OBJECTS.loan.owner, true); const nightUp = DB.nightCheck().published, now = DB.tileById(nt29.id);
-  ok(729, w29.waits === true && nt29.title === 'Просрочено · мой срез' && nt29.version === 1 && n29 === 92 && j29.action === 'опубликовал плитку — ждёт отчёта' && !DB.declaredItems('lead').includes(nt29.id) && !DB.declaredItems('an').includes(nt29.id)
+  ok(729, w29.waits === true && nt29.title === 'Просрочено · мой срез' && nt29.version === 1 && n29 === 80 && j29.action === 'опубликовал плитку — ждёт отчёта' && !DB.declaredItems('lead').includes(nt29.id) && !DB.declaredItems('an').includes(nt29.id)
     && /условий публикации 3 из 4\|✓ отчёт общий или официальный\|✓ круг отчёта покрывает держателей ролей\|✓ выбор из ответа пригоден\|✗ предпросмотр без отказа/.test(h29)
     && /Отчёт ещё не отвечает\. Плитка встанет в каталог в состоянии «ждёт отчёта»: в раскладки ролей её ставить можно, держатели её не видят\. Выйдет сама после ночного прогона, когда отчёт ответит\./.test(h29) && !/черновик/.test(h29) && />Опубликовать — ждёт отчёта</.test(raw29) && nightDown === 0 && still === 'draft' && nightUp.join() === nt29.id && now.state === 'published' && now.version === 1,
     `«Опубликовать — ждёт отчёта»: «${nt29.title}», версия ${nt29.version}, в каталоге ${n29} плиток, в раскладки не поставлена; ночь при молчащем отчёте — «${still}», когда отчёт ответил — «${now.state}»`);
@@ -6115,7 +6101,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u11');
   const h0 = DB.adminHolders().map(u => u.id).join(), n30 = DB.REPORTS.filter(r => r.shelf === 'catalog' && r.owner === 'u11').length;
   DB.roleOff('u13', 'adm'); const h1 = DB.adminHolders(), last = DB.roleOff('u11', 'adm');
-  ok(730, h0 === 'u11,u13' && n30 === 64 && h1.length === 1 && h1[0].id === 'u11' && h1[0].name === 'Шамшиев А. О.' && U('u11').roles.join() === 'adm,sys' && last.refused === true && /Последнего держателя роли «Администратор дашборда» снять нельзя/.test(last.msg) && DB.adminHolders().length === 1,
+  ok(730, h0 === 'u11,u13' && n30 === 56 && h1.length === 1 && h1[0].id === 'u11' && h1[0].name === 'Шамшиев А. О.' && U('u11').roles.join() === 'adm,sys' && last.refused === true && /Последнего держателя роли «Администратор дашборда» снять нельзя/.test(last.msg) && DB.adminHolders().length === 1,
     `роль снята у Бейшеналиевой: держатель один — ${h1[0].name} (${n30} отчёта каталога, роли ${U('u11').roles.join(' и ')}); снять у него — отказ «${last.msg.slice(0, 60)}…»`);
   cleanup();
 
@@ -6139,7 +6125,7 @@ const asUser = id => { DB.state.userId = id; };
   // 733 · дел нет
   asUser('u11'); DB.keepCandidate('cat-brepsh'); DB.keepCandidate('cat-progn');
   const d33 = DB.pultDeals(), cat33 = DB.TILES.filter(t => t.owner === 'catalog'), h33 = DB.registryHTML();
-  ok(733, d33.n === 0 && d33.cands.length === 0 && d33.broken.length === 0 && (d33.proposals || []).length === 0 && cat33.length === 91 && cat33.every(t => t.state === 'published') && /<b>Всё в порядке<\/b>/.test(h33)
+  ok(733, d33.n === 0 && d33.cands.length === 0 && d33.broken.length === 0 && (d33.proposals || []).length === 0 && cat33.length === 79 && cat33.every(t => t.state === 'published') && /<b>Всё в порядке<\/b>/.test(h33)
     && !!DB.state.kept['cat-brepsh'] && !!DB.state.kept['cat-progn'],
     `«Требует действия» пуст: оба кандидата («Доля повторных клиентов», «Программ действует») оставлены 11.10.2026; в каталоге ${cat33.length} плитки, все действующие; на месте списка — «Всё в порядке»`);
   cleanup();
@@ -6189,8 +6175,8 @@ const asUser = id => { DB.state.userId = id; };
   const fh0 = plain(DB.fixturesHTML());
   DB.stand('fxTwoBalHalf', true); const c1 = DB.fxCalcs('u1', 'sc-cmp'), bh = DB.base('p-u1-bq', 'u1', null);
   const fh1 = plain(DB.fixturesHTML());
-  ok(739, DB.screens('u1').find(s => s.id === 'sc-cmp').items.join() === 'p-u1-bm,p-u1-bq' && bm.shift.base === 3831403179 && bq.shift.base === 3831403179 && Math.round(bm.shift.delta / 1e5) / 10 === 24.1 && c0 === 1
-    && bh.shift.at === 'на 01.07' && Math.round(bh.shift.base / 1e6) === 3886 && Math.round(bh.shift.delta / 1e5) / 10 === -30 && c1 === 2
+  ok(739, DB.screens('u1').find(s => s.id === 'sc-cmp').items.join() === 'p-u1-bm,p-u1-bq' && bm.shift.base === 3831511608 && bq.shift.base === 3831511608 && Math.round(bm.shift.delta / 1e5) / 10 === 24 && c0 === 1
+    && bh.shift.at === 'на 01.07' && Math.round(bh.shift.base / 1e6) === 3886 && Math.round(bh.shift.delta / 1e5) / 10 === -30.9 && c1 === 2
     && /Экран «Две базы»: новых расчётов при открытии — 1 /.test(fh0) && /Экран «Две базы»: новых расчётов при открытии — 2 /.test(fh1),
     `экран из двух плиток «Остаток»: база у обеих 01.10 (${Math.round(bm.shift.base / 1e6)} млн), сдвиг +${(bm.shift.delta / 1e6).toFixed(1)} млн, расчётов ${c0}; второй поставили «за полугодие» (01.07, ${Math.round(bh.shift.base / 1e6)} млн) — сдвиг ${(bh.shift.delta / 1e6).toFixed(1)} млн, расчётов ${c1}`);
   cleanup();
@@ -6203,10 +6189,10 @@ const asUser = id => { DB.state.userId = id; };
     const onFo = cat.filter(t => rp(t.report).fo), onOp = cat.filter(t => !rp(t.report).fo);
     const foSet = new Set(onFo.map(t => rp(t.report).fo)), opSet = new Set(onOp.map(t => t.report));
     const gone = ['r-issued', 'r-spells', 'r-rsapps', 'r-rsout', 'r-spopen', 'r-prog', 'r-measures', 'r-bdead', 'r-bnocon', 'r-pkind', 'r-coll', 'r-apps', 'r-appstage', 'r-appfun', 'r-pend'];
-    const twins = [['fo-02', 'fo-02-b'], ['fo-10', 'fo-10-p'], ['fo-27', 'fo-27-d'], ['fo-55', 'fo-55-p']];
-    ok(740, cat.length === 72 && onFo.length === 37 && foSet.size === 12 && onOp.length === 35 && opSet.size === 19 && gone.every(id => !rp(id))
+    const twins = [['fo-02', 'fo-02-b'], ['fo-27', 'fo-27-d'], ['fo-55', 'fo-55-p']];
+    ok(740, cat.length === 60 && onFo.length === 36 && foSet.size === 12 && onOp.length === 24 && opSet.size === 12 && gone.every(id => !rp(id))
       && twins.every(([a, b]) => rp(a).fo === rp(b).fo && rp(a).title === rp(b).title),
-      `обзорные плитки каталога: ${onFo.length} на ${foSet.size} отчётах перечня (${[...foSet].sort().join(', ')}), ${onOp.length} на ${opSet.size} отчётах плиток; 15 снятых отчётов в каталоге нет; у четырёх ФО по две записи макета (своя форма параметров или объект строки), номер и название общие`);
+      `обзорные плитки каталога: ${onFo.length} на ${foSet.size} отчётах перечня (${[...foSet].sort().join(', ')}), ${onOp.length} на ${opSet.size} отчётах плиток; 15 снятых отчётов в каталоге нет; у трёх ФО по две записи макета (своя форма параметров или объект строки), номер и название общие`);
 
     const chips = id => DB.paramChips(T(id)).join(' · ');
     const conds = id => Q(id).filter.map(c => c.f);
@@ -6215,11 +6201,10 @@ const asUser = id => { DB.state.userId = id; };
       && chips('prob-dead') === 'куратор: все · на сегодня · состояние лица: умер, ликвидирован' && chips('prob-nocon') === 'куратор: все · на сегодня · канал связи: нет' && chips('spec-stage') === 'на сегодня · кредитный специалист: я · статус заявки: Новый',
       `отбор плитки — значение параметра отчёта, своего фильтра нет: «${chips('prob-dead')}», «${chips('prob-nocon')}», «${chips('spec-stage')}»`);
 
-    ok(742, rp('r-portfolio').cols.join() === 'loan.risk,loan.restr,loan.coll,loan.noClaim181' && ids('r-portfolio') === 'lead-risk,cur-risk,cur-rc,prob-181'
+    ok(742, rp('r-portfolio').cols.join() === 'loan.restr,loan.coll,loan.noClaim181' && ids('r-portfolio') === 'cur-rc,prob-181'
       && rp('r-assets').cols.join() === 'asset.claimRest' && ids('r-assets') === 'ast-claim' && rp('r-assets').title === 'Требования к отчуждателю'
-      && rp('r-appflow').cols.join() === 'app.confirmed' && ids('r-appflow') === 'gof-conf' && rp('r-appflow').title === 'Подтверждённые заявки'
-      && rp('fo-02').cols.join() === 'loan.balance,loan.count,loan.overdue' && ids('fo-02') === 'lead-bal,lead-od,cur-bal,cur-od' && ids('r-portfull') === '',
-      'отчёты плиток сокращены до чисел, которых в ФО нет: «Портфель кредитов» — четыре показателя и четыре плитки, «Требования к отчуждателю» и «Подтверждённые заявки» — по одному; у ФО-02 плитки «Остаток» и «Просрочено»; «Портфель кредитов: все показатели» — для черновиков, плиток на нём нет');
+      && rp('fo-02').cols.join() === 'loan.balance,loan.count,loan.overdue,loan.risk' && ids('fo-02') === 'lead-bal,lead-od,lead-risk,cur-bal,cur-od,cur-risk' && ids('r-portfull') === '',
+      'отчёты плиток сокращены до чисел, которых в ФО нет: «Портфель кредитов» — три показателя и две плитки, «Требования к отчуждателю» — один; у ФО-02 плитки «Остаток», «Просрочено» и «Портфель под риском»; «Портфель кредитов: все показатели» — для черновиков, плиток на нём нет');
 
     ok(743, chips('gof-compl') === 'на сегодня · кредитный специалист: все' && chips('cat-progn') === 'на сегодня' && chips('spec-pend') === 'на сегодня · окончание не позднее: сегодня + 90 дн.'
       && !/статус заявки/.test(chips('spec-work')) && !/канал связи/.test(chips('prob-dead')) && !/состояние лица/.test(chips('prob-nocon')),
@@ -6230,12 +6215,123 @@ const asUser = id => { DB.state.userId = id; };
       && rp('fo-47').params.date && DB.at('ast-count', 'second', 'u12', 'ast', {}) === 48,
       `«На учёте» считает пять активных состояний ФО-47: ${st.slice(0, 5).join(' · ')}; продажа разово и в рассрочку — разные строки`);
 
-    const w = DB.IND['rsapp.outcomes'].where;
-    ok(745, w({ outcome:'Отказ', inWork:false }) === true && w({ outcome:'Отказ', inWork:true }) === false && w({ inWork:false }) === false
-      && rp('fo-54').dims.join() === 'region,dept' && !rp('fo-54').dims.includes('program') && rp('fo-55').dims.join() === 'astatus,program,astage',
-      'определения как в карточках: исход обращения — только у закрытых (у обращения в работе исхода нет), разрезы ФО-54 — область и подразделение, программы в нём нет; у ФО-55 порядок статус, программа, стадия');
+    ok(745, !DB.IND['rsapp.outcomes'] && rp('fo-54').dims.join() === 'region,dept' && !rp('fo-54').dims.includes('program') && rp('fo-55').dims.join() === 'astatus,program,astage',
+      'определения как в карточках: показателя исходов обращений больше нет (его плитка убрана), разрезы ФО-54 — область и подразделение, программы в нём нет; у ФО-55 порядок статус, программа, стадия');
     cleanup();
   }
+})();
+
+/* ---------- Волна 29. Перечень плиток по ролям: 73 плитки на экранах 11 ролей, 81 строка, 12 отчётов плиток ---------- */
+(() => {
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const RU = { lead:'u1', cur:'u2', prob:'u3', acc:'u4', zal:'u5', spec:'u6', com:'u7', gof:'u8', otd:'u9', rep:'u10', ast:'u12' };
+  const SCREENS = {
+    lead: [
+      ['Картина портфеля', 'lead-bal=Остаток задолженности', 'lead-od=Просрочено', 'lead-borr=Заёмщиков', 'lead-risk=Портфель под риском', 'lead-spin=Вышли в просрочку · прошлый месяц', 'lead-spcure=Вылечены · прошлый месяц'],
+      ['Деньги и план', 'lead-issued=Выдано с начала года', 'lead-paid=Погашено · прошлый месяц'],
+      ['Взыскание и реструктуризация', 'lead-claims=Требований взыскания', 'lead-recov=Возвратность по делам', 'lead-rs=Обращений о реструктуризации в работе'],
+      ['Имущество', 'lead-ast=На балансе'],
+      ['Мои задания', 'tasks=Мои задания']],
+    cur: [
+      ['Мой портфель', 'cur-bal=Остаток задолженности', 'cur-od=Просрочено', 'cur-borod=Заёмщиков с просрочкой', 'cur-risk=Портфель под риском', 'cur-rc=В реструктуризации и взыскании', 'cur-spin=Вышли в просрочку · текущий месяц'],
+      ['Мой план и работа', 'cur-rs=Обращений в работе', 'cur-plan0=Исполнение плана · текущий месяц', 'cur-plan1=Исполнение плана · прошлый месяц', 'cur-npay=Заёмщиков с платежом в ближайшие 3 дня', 'cur-obl=Заёмщиков с просроченным обязательством Порядка', 'tasks=Мои задания']],
+    prob: [
+      ['Требования', 'prob-claims=Требований открыто', 'prob-181=Кредиты 181+ дн. без требования', 'prob-since=Наибольший срок с направления требования', 'prob-real=Под реализацией залога'],
+      ['Результат', 'prob-rec=Взыскано · прошлый месяц', 'prob-meas=Меры взыскания · прошлый месяц'],
+      ['Дела', 'prob-recov=Возвратность по делам', 'prob-cases=Дел открыто', 'prob-court=Остаток по решениям суда', 'prob-dead=Заёмщик умер или ликвидирован', 'prob-nocon=Заёмщики без канала связи'],
+      ['Мои задания', 'tasks=Мои задания']],
+    acc: [
+      ['Что мешает закрыть период', 'acc-unident=Невыясненные поступления', 'acc-await=Поступления ждут подтверждения', 'acc-unm=Незакрытые поступления'],
+      ['Деньги', 'acc-today=Поступило сегодня', 'acc-prev=Поступило · прошлый месяц', 'acc-refund=Возвраты и сторно · прошлый месяц', 'acc-unalloc=Нераспределённый остаток', 'acc-pkind=Платежи · прошлый месяц']],
+    zal: [
+      ['Портфель обеспечения', 'zal-value=Залоговая стоимость'],
+      ['Что требует действия', 'zal-lowcov=Обеспеченность ниже 120 %', 'zal-reval=Переоценка просрочена', 'zal-ins=Страховка не оформлена или истекла', 'zal-ban=Нет запрета на отчуждение', 'zal-reg=Договоров на регистрации', 'zal-sale=Предметов в реализации', 'tasks=Мои задания']],
+    spec: [
+      ['Мои заявки', 'spec-work=Заявок в работе', 'spec-stage=Новые заявки', 'spec-ready=Готовы к отправке', 'spec-neg=Есть отрицательное заключение', 'spec-pend=Программы, истекающие в ближайшие 90 дней'],
+      ['Мои задания', 'tasks=Мои задания']],
+    com: [
+      ['Мой голос и сроки', 'com-vote=Ждут моего голоса', 'com-late=Крайний срок прошёл', 'com-soon=Срок истекает в ближайшие 7 дней', 'com-noscan=Решения без скана протокола'],
+      ['Обзор', 'com-pend=Заявок на рассмотрении', 'com-max=Наибольший срок на рассмотрении']],
+    gof: [
+      ['Подтверждение комплектов', 'gof-wait=Ждут подтверждения комплекта', 'gof-compl=Заявок в комплектации'],
+      ['Мои задания', 'tasks=Мои задания']],
+    otd: [
+      ['Наша очередь', 'otd-pend=Ждут нашего заключения', 'otd-neg=Наше отрицательное — заявка стоит', 'tasks=Мои задания']],
+    rep: [
+      ['Сдача', 'rep-od=Просрочено обязательств', 'rep-soon=Срок сдачи близко', 'rep-chg=Сданные, где числа изменились'],
+      ['Мои задания', 'tasks=Мои задания']],
+    ast: [
+      ['Имущество на балансе', 'ast-count=На балансе', 'ast-idle=Объектов дольше 6 месяцев без попытки продажи', 'ast-unsold=Объектов с тремя и более несостоявшимися попытками', 'ast-kpod=Просрочено по договорам купли-продажи', 'ast-claim=Требования к отчуждателю — остаток'],
+      ['Мои задания', 'tasks=Мои задания']]
+  };
+  const roles = Object.keys(SCREENS), flat = r => SCREENS[r].flatMap(([s, ...ts]) => ['s:' + s, ...ts.map(x => x.split('=')[0])]);
+  const rows = roles.flatMap(r => SCREENS[r].flatMap(([s, ...ts]) => ts.map(x => { const [id, name] = x.split('='); return { r, s, id, name }; })));
+  const CNT = { lead:[13, 5], cur:[12, 2], prob:[12, 4], acc:[8, 2], zal:[8, 2], spec:[6, 2], com:[6, 2], gof:[3, 2], otd:[3, 1], rep:[4, 2], ast:[6, 2] };
+
+  // состав и порядок каждого экрана, секции; у Куратора в раскладке ещё его личная плитка, у других личных нет
+  const badLay = roles.filter(r => { const L = flat(r), c = DB.composeLayout(RU[r], r).filter(k => !k.startsWith('p-'));
+    return DB.DECLARED_SEED[r].join('|') !== L.join('|') || DB.state.declared[r].join('|') !== L.join('|') || c.join('|') !== L.join('|') || !DB.roleHasLayout(r)
+      || L.filter(k => !k.startsWith('s:')).length !== CNT[r][0] || L.filter(k => k.startsWith('s:')).length !== CNT[r][1]
+      || L.some((k, i) => k.startsWith('s:') && (i + 1 === L.length || L[i + 1].startsWith('s:'))); });
+  ok(746, roles.length === 11 && DB.ROLES.filter(r => DB.DECLARED_SEED[r.id]).length === 11 && badLay.length === 0 && rows.length === 81 && new Set(rows.map(x => x.id)).size === 73,
+    `экраны 11 ролей, плитки и секции по порядку, как в перечне: ${roles.map(r => r + ' ' + CNT[r].join('/')).join(', ')}; ${new Set(rows.map(x => x.id)).size} плитки, ${rows.length} строка; секций без плиток нет`);
+
+  // имена: плитка называется как в перечне; прежних имён на плитках нет
+  const OLD = ['Сумма под риском (залог)', 'Поступило · прошлый месяц|lead-paid', 'Во взыскании|lead-claims', 'Клиенты с просроченным обязательством', 'Наибольший срок с направления', 'Должник умер или ликвидирован',
+    'Должники без канала связи', 'Возвраты · прошлый месяц', 'Ожидают подтверждения', 'Не закрыто', 'В реализации', 'На рассмотрении', 'В комплектации', 'На учёте'];
+  const badNames = rows.filter(x => T(x.id).title !== x.name).map(x => x.id), oldLeft = OLD.filter(o => { const [n, id] = o.split('|'); return DB.TILES.some(t => t.title === n && t.owner === 'catalog' && (!id || t.id === id)); });
+  ok(747, badNames.length === 0 && oldLeft.length === 0 && T('acc-prev').title === 'Поступило · прошлый месяц' && T('lead-ast').title === T('ast-count').title && T('lead-paid').title === 'Погашено · прошлый месяц'
+    && DB.IND['loan.risk'].name === 'Портфель под риском' && DB.IND['loan.issued'].name === 'Выдано' && DB.IND['loan.paid'].name === 'Погашено',
+    `имена 81 строки как в перечне; прежних имён на плитках нет; ПЛ-13 и ПЛ-80 под одним именем «${T('ast-count').title}»; колонки отчётов названы как в ФО: «Выдано», «Погашено», «Портфель под риском»`);
+
+  // убранное удалено совсем: нет ни плитки, ни отчёта, ни в каталоге, ни на пульте; каталожные шесть — в каталоге и ни на одном экране
+  const GONE_T = ['lead-astod', 'cur-rsout', 'prob-exp', 'acc-rev', 'spec-dec', 'spec-filed', 'com-dec', 'gof-conf', 'otd-rev', 'otd-verd', 'rep-sum', 'ast-exp'];
+  const GONE_R = ['r-caseexp', 'r-commdec', 'r-appflow', 'r-conclrev', 'r-conclverd', 'r-oblsum', 'r-aexp', 'fo-10-p'];
+  const GONE_I = ['app.confirmed', 'concl.revoked', 'concl.given', 'case.exp', 'rsapp.outcomes', 'asset.exp'];
+  asUser('u11'); const pult = DB.pultView(), pultIds = pult.sections.flatMap(s => s.rows.map(x => x.t.id)), catIds = DB.catalogView(U('u11'), {}).rows.map(x => x.t.id); asUser('u1');
+  const CATALOG = DB.TILES.filter(t => t.owner === 'catalog'), onlyCat = CATALOG.filter(t => !rows.some(x => x.id === t.id)).map(t => t.id);
+  ok(748, GONE_T.every(id => !T(id) && !pultIds.includes(id) && !catIds.includes(id) && !new RegExp("['\"]" + id + "['\"]").test(src)) && GONE_R.every(id => !DB.reportById(id) && !new RegExp("['\"]" + id + "['\"]").test(src)) && GONE_I.every(id => !DB.IND[id])
+    && CATALOG.length === 79 && pult.of === 79 && onlyCat.length === 6 && onlyCat.every(id => T(id).report && DB.reportById(T(id).report) && Object.values(DB.DECLARED_SEED).every(L => !L.includes(id))),
+    `12 убранных плиток, 8 их отчётов и 6 показателей удалены совсем: нет ни в каталоге, ни на пульте, ни в тексте макета; в каталоге 79 плиток: 73 на экранах и 6 только в каталоге (${onlyCat.join(', ')}), каждая на живом отчёте`);
+
+  // ПЛ-44: главное — сумма возвратов, второе — штуки сторнированных
+  asUser('u4'); DB.setTab('role', 'acc');
+  const a44 = DB.ask(T('acc-refund'), U('u4'), 'acc', {}), h44 = DB.tileHTML('acc-refund', 'u4', 'acc'); asUser('u1'); DB.setTab('role', 'lead');
+  ok(749, a44.state === 'ok' && a44.unit === 'sum' && T('acc-refund').main.col === 'receipt.refund' && T('acc-refund').second.col === 'receipt.reversed' && DB.IND['receipt.reversed'].agg === 'count' && a44.second.unit === 'pcs' && a44.second.value === 1
+    && /<b>1<\/b>[^<]*шт\. сторнировано/.test(h44.replace(/<\/?button[^>]*>/g, '')) && !DB.tileById('acc-rev'),
+    `«Возвраты и сторно · прошлый месяц»: ${DB.fmtVal(a44.value, a44.unit)} — сумма возвратов, ниже ${a44.second.value} ${a44.second.label}: штуки подписаны`);
+
+  // переход с плитки на каждой из 81 строк: ссылочная — в очередь перечня, обзорная — в свой отчёт (ФО или ОП перечня); номер и экран строки — как в plitki.json
+  const LIST = JSON.parse(readFileSync(resolve(__dir, '../../docs/perechen-plitok/plitki.json'), 'utf8')), byMaket = Object.fromEntries(LIST.tiles.map(t => [t.maket, t])), repOf = Object.fromEntries(LIST.reports.map(r => [r.id, r.maket]));
+  const NAME = Object.fromEntries(DB.ROLES.map(r => [r.id, r.name])), badGo = []; let nGo = 0, nQ = 0, nR = 0;
+  for (const x of rows) { asUser(RU[x.r]); DB.setTab('role', x.r); DB.state.open = {}; nGo++; const t = T(x.id), p = byMaket[x.id], w = p && p.where.find(y => y.role === NAME[x.r] && y.section === x.s);
+    if (!p || !w || p.name !== x.name) { badGo.push(x.id + ': нет в перечне'); continue; }
+    const c = DB.primary(x.id);
+    if (t.kind === 'link') { nQ++; if (c.act !== 'queue' || DB.queueOf(t).name !== p.source.queue) badGo.push(x.id + ': очередь'); }
+    else { nR++; const v = DB.openReport(x.id), want = p.source.fo ? LIST.fo[p.source.fo] : [repOf[p.source.report]], R = DB.reportById(t.report);
+      if (!['view', 'list'].includes(c.act) || !want.includes(t.report) || !v || v.noaccess || v.refused || !v.report || v.report.title !== R.title || (p.source.fo && R.fo !== p.source.fo)) badGo.push(x.id + ': отчёт ' + t.report); }
+    DB.state.open = {}; }
+  asUser('u1'); DB.setTab('role', 'lead');
+  ok(750, nGo === 81 && badGo.length === 0 && LIST.tiles.filter(t => t.where.length).length === 73 && LIST.tiles.flatMap(t => t.where).length === 81 && LIST.reports.length === 12,
+    `переход с плитки: ${nGo} строк — ${nQ} в свою очередь, ${nR} в свой отчёт; не сходится ${badGo.length}${badGo.length ? ': ' + badGo.slice(0, 5).join('; ') : ''}`);
+
+  // ППЛ: остаток без комиссий, Движение «Заёмщиков» на текущем месяце, портфель под риском — основной долг кредитов с просрочкой, слой, разрез
+  const mvB = DB.view('lead-bal', 'move', {}, [], 'u1', 'lead', {}).move, bBal = DB.base('lead-bal', 'u1', 'lead');
+  const mvC = DB.view('lead-borr', 'move', null, [], 'u1', 'lead', {}).move, bC = DB.base('lead-borr', 'u1', 'lead'), rsk = DB.base('lead-risk', 'u1', 'lead');
+  const qr = Q('lead-risk'), spQ = Q('lead-spin'), d = DB.drill('cur-risk', U('u2'), 'cur', {}), listOver = d.list || [], cRisk = DB.base('cur-risk', 'u2', 'cur');
+  ok(751, mvOth(mvB) === 0 && mvB.rows.reduce((a, x) => a + x.v, 0) === bBal.shift.delta
+    && T('lead-borr').views.move.month === 0 && mvC.end - mvC.start === bC.shift.delta && T('lead-risk').report === 'fo-02' && T('cur-risk').report === 'fo-02' && !DB.reportById('r-portfolio').cols.includes('loan.risk')
+    && qr.filter.some(c => c.f === 'lover') && d.matches && listOver.length === 13 && listOver.every(x => x.r.overdueDays > 0) && cRisk.value === d.number && cRisk.value === sum(listOver.map(x => x.r.risk)) && rsk.value === 813772277 && rsk.value < bBal.value
+    && spQ.filter.some(c => c.f === 'layer') && T('cur-spin').params.layer === 'свободный' && !('layer' in T('lead-spcure').params) && T('lead-spcure').views.slice.dim === 'dept',
+    `остаток — три статьи: «прочее» Движения ${mvOth(mvB)}, строки равны сдвигу ${DB.fmtVal(bBal.shift.delta, 'sum')}; Движение «Заёмщиков» — текущий месяц, ${mvC.end - mvC.start} = сдвигу плитки; «Портфель под риском» на ФО-02: ${DB.fmtVal(rsk.value, 'sum')}, у куратора ${DB.fmtVal(cRisk.value, 'sum')} — только его ${listOver.length} кредитов с просрочкой; «Вышли в просрочку» — свободный слой; «Вылечены» — все слои, первым разрез по подразделению`);
+
+  // роль только из очередей: у «Отдела» свой экран, счёт — по очередям; очереди не ответили — минимальная
+  const lo = DB.roleLaunch('otd'), layO = DB.composeLayout('u9', 'otd'), txtO = DB.launchText ? DB.launchText('otd') : '';
+  DB.standQueue('Заявка на кредит', true); const lo0 = DB.roleLaunch('otd'), layO0 = DB.composeLayout('u9', 'otd'); DB.standQueue('Заявка на кредит', false);
+  const lz = DB.roleLaunch('zal');
+  ok(752, lo.ok && lo.links === true && lo.n === 3 && lo.of === 3 && layO.join() === 's:Наша очередь,otd-pend,otd-neg,tasks' && !lo0.ok && lo0.n === 1 && lo0.of === 3 && layO0.join() === 'tasks' && lz.ok && lz.links === false && lz.of === 1,
+    `роль только из очередей: у «Отдела · заключения» отвечают ${lo.n} из ${lo.of} — свой экран; очереди заявки не объявлены — ${lo0.n} из ${lo0.of}, минимальная раскладка; у других ролей ссылочные по-прежнему не в счёте (Залог ${lz.n} из ${lz.of})`);
+  DB.seed();
 })();
 
 const fail = results.filter(r => !r.pass);
