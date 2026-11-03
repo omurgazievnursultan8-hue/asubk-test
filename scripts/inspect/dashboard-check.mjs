@@ -5168,7 +5168,7 @@ const asUser = id => { DB.state.userId = id; };
   const hs = DB.registryHTML(), none = DB.pultFind('нет такой плитки'), hn = DB.registryHTML(); DB.pultFind('');
   const vr = DB.pultRole('cur'), vn = DB.pultRole('none'); DB.pultRole('all'); DB.withdrawTile('cat-progn', 'cat-plan');
   const va = DB.pultView(), vg = DB.pultState('gone'); DB.pultSec('Кредитная программа'); const hg = DB.registryHTML(), vall = DB.pultState('all'); DB.pultState('active');
-  ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 5 && sr.rows.every(x => x.report === 'Дела взыскания на дату') && sOpen === 'Взыскание' && dim === 10
+  ok(446, sq.n > 0 && sq.rows.every(x => x.params.some(p => p === 'куратор: я')) && sr.n === 5 && sr.rows.every(x => x.report === 'Дела взыскания по состоянию на дату') && sOpen === 'Взыскание' && dim === 10
     && /<span class="pl-n" id="pl-n">5 из 91<\/span>/.test(hs) && (hs.match(/<button class="pl-sec dim" aria-expanded="false" disabled/g) || []).length === 10 && none.n === 0 && /0 из 91/.test(hn)
     && vr.rows.every(x => x.w.roles.includes('cur')) && vr.n === DB.state.declared.cur.filter(k => !k.startsWith('s:')).length && vn.rows.every(x => !x.w.roles.length) && vn.rows.every(x => x.t.id.startsWith('cat-'))
     && va.n === 90 && va.of === 91 && vg.n === 1 && /data-tile="cat-progn"><td>Программ действует <span class="pill info">снята · замена «Исполнение плана · прошлый месяц»<\/span>/.test(hg) && vall.n === 91
