@@ -71,7 +71,7 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
   background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
 .content{ flex:1; overflow:auto; }
-.panel-wrap{ padding:18px 24px 60px; max-width:1180px; }
+.panel-wrap{ padding:14px 24px 60px; }
 @media (max-width:720px){ /* узкий экран: меню над содержимым, широкие таблицы листаются внутри панели */
   .app{ flex-direction:column; height:auto; min-height:100vh; }
   .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--border-default); }
@@ -188,6 +188,39 @@ table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px soli
 .toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
   font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
 .toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+.stand{ flex:none; display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding:6px 20px; background:var(--status-warning-bg);
+  border-bottom:1px dashed var(--asubk-amber); font:var(--font-label); color:var(--text-muted); }
+.stand b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
+.stand label{ display:inline-flex; align-items:center; gap:6px; }
+.stand select{ height:28px; max-width:340px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
+.stand details{ position:relative; }
+.stand summary{ cursor:pointer; color:var(--text-body); }
+.stand-down{ position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:640px; padding:12px 14px; columns:2;
+  background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md); box-shadow:0 6px 20px rgba(24,39,57,0.18); }
+.stand-down label{ display:flex; margin-bottom:5px; color:var(--text-body); }
+.tabs button .n{ margin-left:6px; color:var(--text-muted); font-weight:var(--weight-regular); }
+.tabs button.on .n{ color:var(--asubk-blue); }
+.q-tools{ display:flex; align-items:center; gap:12px; margin:0 0 10px; min-height:32px; }
+.q-tools input[type="search"]{ height:32px; width:380px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; }
+.q-tools .push{ margin-left:auto; }
+table.qgrid{ table-layout:fixed; }
+table.qgrid thead th{ padding:7px 10px; cursor:pointer; user-select:none; overflow:hidden; text-overflow:ellipsis; }
+table.qgrid tbody td{ padding:6px 10px; line-height:19px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
+table.qgrid tbody tr[data-t], table.qgrid tbody tr[data-g], table.qgrid tbody tr[data-s]{ cursor:pointer; }
+table.qgrid tbody tr[data-t]:not(.over):hover td, table.qgrid tbody tr[data-s]:hover td{ background:var(--surface-hover); }
+table.qgrid tbody tr.band td{ background:var(--surface-panel); color:var(--text-heading); font-weight:var(--weight-semibold); padding:5px 10px; }
+table.qgrid tbody td.wrap{ white-space:normal; overflow:visible; }
+table.qgrid tbody tr.grp-item td:first-child{ padding-left:22px; }
+table.qgrid tbody td.nest{ padding:0 0 0 24px; background:var(--surface-panel); }
+table.qgrid table.qgrid{ border:none; border-left:1px solid var(--border-default); }
+table.qgrid table.qgrid thead th{ cursor:default; background:var(--asubk-gray-50); }
+.q-late{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.q-attn{ color:var(--asubk-amber); font-weight:var(--weight-medium); }
+a.q-case, button.q-case{ color:var(--text-link); text-decoration:none; }
+a.q-case:hover, button.q-case:hover{ text-decoration:underline; }
+.btn-xs{ height:22px; margin:-2px 0; padding:0 8px; font-size:12.5px; font-weight:var(--weight-medium); }
 </style>
 </head>
 <body>
@@ -195,21 +228,14 @@ table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px soli
 <div class="app">
   <aside class="sidebar">
     <div class="brand">АСУБК<small>Задания</small></div>
-    <div class="nav">
-      <div class="nav-sec">Работа</div>
-      <button class="nav-item" data-v="queue" onclick="ZD.go('queue')">Очередь заданий<span class="cnt" id="qCnt"></span></button>
-      <div class="nav-sec">Настройка</div>
-      <button class="nav-item" data-v="settings" onclick="ZD.go('settings')">Виды повода · действия · правила</button>
-      <button class="nav-item" data-v="runs" onclick="ZD.go('runs')">Журнал прогонов<span class="cnt" id="rCnt"></span></button>
-    </div>
+    <div class="nav" id="nav"></div>
   </aside>
 
   <div class="main">
+    <div class="stand" id="stand"></div>
     <div class="topbar">
-      <div class="crumb-title" id="title">Очередь заданий</div>
+      <div class="crumb-title" id="title">Задания</div>
       <div class="right">
-        <span><label>Дата среза</label><select id="asOf" onchange="ZD.goToDate(this.value)"></select></span>
-        <span><label>Смотрю как</label><select id="viewer" onchange="ZD.setViewer(this.value)"></select></span>
         <span><button class="btn btn-secondary btn-sm" onclick="ZD.go('notif')">🔔 Уведомления <span id="nCnt"></span></button></span>
       </div>
     </div>
@@ -3414,6 +3440,8 @@ function seedState(){
     today: '2026-09-02',
     viewer: 'E4',
     view: 'queue',
+    ruleRead: false,   // правило открыто на чтение по ссылке из карточки: пункта меню нет
+    qTab: 'work', qSearch: '', qSort: {}, closedFilter: 'mine', // очередь: вкладка, поиск, сортировка, отбор закрытых
     settingsTab: 'kinds',
     povodKinds: seedPovodKinds(),
     actions: seedActions(),
@@ -4195,7 +4223,7 @@ function describePovod(p){
   if(p.objectType==='povodKind'){ return `вид «${kindOf(p.objectId).title}»`; }
   if(p.objectType==='source'){ const src=SOURCES.find(x=>x.id===p.objectId); return `источник «${src ? src.name : p.objectId}»`; }
   if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
-  if(p.objectType==='employee'){ return `сотрудник ${p.objectId}`; }
+  if(p.objectType==='employee'){ return `сотрудник ${emp(p.objectId) ? emp(p.objectId).name : p.objectId}`; }
   if(p.objectType==='territory'){ return `территория подразделения «${p.objectId}»`; }
   if(p.objectType==='module'){ return `сосед-модуль «${p.objectId}» (по данным статистики)`; }
   if(p.objectType==='povod'){ const q=povodByKey(p.objectId); return q ? `повод «${kindOf(q.kind).title}» · ${q.key}` : p.objectId; }
@@ -4466,29 +4494,73 @@ function decisionsOf(t){
   return out;
 }
 /* решение просрочено: приёмка дольше 3 р.д., запрос продления без ответа дольше 1 р.д. Отдельное правило, не просрочка исполнения */
-function decisionOverdue(t, d){
+function decisionOverdue(t, d, by){
   d = d||state.today;
-  return decisionsOf(t).some(x=>workdaysBetween(x.since, d) > (x.type==='приёмка' ? AWAIT_THRESHOLD_WD : EXT_PENDING_WD));
+  return decisionsOf(t).some(x=>(!by || x.by===by) && workdaysBetween(x.since, d) > (x.type==='приёмка' ? AWAIT_THRESHOLD_WD : EXT_PENDING_WD));
 }
+/* закрытое: своё — был исполнителем или закрыл сам; очередь без исполнителя закрывает тот, кто сделал работу */
+function closerOf(t){ const by = stateEntry(t).by; return emp(by) ? by : null; }
+function workerOf(t){ return t.assignee || closerOf(t); }
+function closedMine(t, v){ return t.assignee===v || closerOf(t)===v; }
+function closedOfSubs(t, v){ const w = workerOf(t); return !!w && chiefChainIncludes(w, v); }
+function closedGiven(t, v){ return t.kind==='free' && t.author===v; }
+/* отборы вкладки «Закрытые»: чужой отбор виден, только если в нём что-то есть */
+function closedFilters(v){
+  const all = state.tasks.filter(closedNow);
+  return [{id:'mine', title:'Мои', tasks:all.filter(t=>closedMine(t, v))},
+    {id:'subs', title:'Подчинённых', tasks:all.filter(t=>closedOfSubs(t, v))},
+    {id:'gave', title:'Я поручил', tasks:all.filter(t=>closedGiven(t, v))}].filter(x=>x.tasks.length);
+}
+function closedPick(v){ const f = closedFilters(v); return f.find(x=>x.id===state.closedFilter) || f[0] || {id:'mine', tasks:[]}; }
+/* неразобранную очередь назначает автор, руководитель подразделения роли или администратор владельца */
+function canAssignQueue(t, v){ return inQueue(t) && (v===t.author || v===deptHead(roleOf(t.queue.role).dept) || v===ownerAdminOf(t)); }
+/* куда задание идёт у зрителя: одна вкладка на задание. Ход за мной считает плитка и стоит первым, дальше решение, потом основания видимости;
+   то, что видно, но ни в одну вкладку не вошло, находится поиском */
+function bucketOf(t, v, d){
+  d = d||state.today;
+  if(closedNow(t)){
+    if(closedMine(t, v)) return 'closed';
+    return closedOfSubs(t, v) || closedGiven(t, v) ? 'closed-more' : visibleTo(t, v) ? 'other' : null;
+  }
+  if(moveIsMine(t, v, d)) return 'mine';
+  if(inQueue(t) && queueHolders(t).indexOf(v)!==-1) return 'role';
+  if(decisionsOf(t).some(x=>x.by===v)) return 'decide';
+  if(isMine(t, v, d)) return 'wait';
+  if(closedGiven(t, v)) return 'gave';
+  if(canAssignQueue(t, v)) return 'unassigned';
+  if(t.assignee && (chiefChainIncludes(t.assignee, v) || responsibleNow(t)===v)) return 'sub';
+  return visibleTo(t, v) ? 'other' : null;
+}
+function bucketsOf(v){
+  const out = {mine:[], role:[], wait:[], decide:[], gave:[], unassigned:[], sub:[], closed:[], 'closed-more':[], other:[]};
+  state.tasks.forEach(t=>{ const b = bucketOf(t, v); if(b) out[b].push(t); });
+  return out;
+}
+const closedAt = t=>stateEntry(t).t;
 function queueTasks(scope){
-  const v = state.viewer;
-  return state.tasks.filter(t=>{
-    const closed = closedNow(t);
-    if(scope==='role') return !closed && inQueue(t) && queueHolders(t).indexOf(v)!==-1;
-    if(scope==='mine') return !closed && moveIsMine(t, v);
-    if(scope==='wait') return !closed && isMine(t, v) && !moveOnAssignee(t);
-    if(scope==='closed') return closed && !!t.assignee && t.assignee===v;
-    if(!closed && inQueue(t) && queueHolders(t).indexOf(v)!==-1) return false; // показано в очереди роли
-    if((!closed && isMine(t, v)) || (closed && t.assignee===v)) return false; // показано в «Мои», «Жду ответа» или «Мои закрытые»
-    return visibleTo(t, v);
-  }).sort((a,b)=> (closedNow(a)-closedNow(b)) || (dueOf(a)<dueOf(b)?-1:1));
+  const v = state.viewer, list = state.tasks.filter(t=>bucketOf(t, v)===scope);
+  return scope==='closed' ? list.sort((a,b)=>closedAt(a)<closedAt(b) ? 1 : closedAt(a)>closedAt(b) ? -1 : 0) : list.sort((a,b)=>dueOf(a)<dueOf(b) ? -1 : 1);
+}
+/* вкладки зрителя: «Моя работа» есть всегда, пустые скрыты. Счётчик «Моей работы» — ход за мной, то же число у плитки и пункта меню */
+const Q_TABS = [{id:'work', title:'Моя работа'}, {id:'decide', title:'Ждут моего решения'}, {id:'sub', title:'Подчинённые'}, {id:'gave', title:'Я поручил'}, {id:'closed', title:'Закрытые'}];
+function tabsOf(v){
+  const b = bucketsOf(v);
+  const n = {work:b.mine.length, decide:b.decide.length, sub:b.sub.length+b.unassigned.length, gave:b.gave.length, closed:closedPick(v).tasks.length};
+  const filled = b.mine.length+b.role.length+b.wait.length>0;
+  return Q_TABS.map(x=>({id:x.id, title:x.title, n:n[x.id], filled:x.id==='work' ? filled : n[x.id]>0})).filter(x=>x.id==='work' || x.filled);
+}
+/* открытая вкладка опустела при смене зрителя — первая непустая */
+function currentTab(v){
+  const tabs = tabsOf(v);
+  if(tabs.some(x=>x.id===state.qTab)) return state.qTab;
+  const first = tabs.find(x=>x.filled);
+  return first ? first.id : 'work';
 }
 /* группа в списке: открытые задания одного вида у одного человека (в очереди роли — вида и роли), от двух.
-   Своих реквизитов у группы нет: число, просрочки, ближайший срок и важность — свод заданий; срок и журнал у каждого свои */
-const IMPORTANCE_RANK = ['высокая','средняя','низкая'];
-function queueGroups(scope){
+   Своих реквизитов у группы нет: число, просрочки и ближайший срок — свод заданий; срок и журнал у каждого свои */
+function groupsOf(tasks){
   const out = [], seen = {};
-  queueTasks(scope).forEach(t=>{
+  tasks.forEach(t=>{
     if(closedNow(t) || t.kind!=='rule' || !t.originKind){ out.push({task:t}); return; }
     const key = t.originKind+'|'+(t.assignee || 'q:'+t.queue.role);
     if(seen[key]) seen[key].tasks.push(t);
@@ -4499,10 +4571,62 @@ function queueGroups(scope){
     if(x.task) return x;
     if(x.tasks.length<2) return {task:x.tasks[0]};
     const t0 = x.tasks[0], dues = x.tasks.map(dueOf).sort();
-    return Object.assign(x, {title:kindOf(x.kind).title, count:x.tasks.length, assignee:t0.assignee||null, queueRole:t0.assignee ? null : t0.queue.role,
-      overdue:x.tasks.filter(t=>isOverdue(t, d)).length, nearest:dues[0],
-      importance:IMPORTANCE_RANK.find(i=>x.tasks.some(t=>t.importance===i))});
+    return Object.assign(x, {title:whatToDo(t0), count:x.tasks.length, assignee:t0.assignee||null, queueRole:t0.assignee ? null : t0.queue.role,
+      overdue:x.tasks.filter(t=>isOverdue(t, d)).length, nearest:dues[0]});
   });
+}
+function queueGroups(scope){ return groupsOf(queueTasks(scope)); }
+/* что сделать: у задания по правилу — действие, у поручения — формулировка автора */
+function whatToDo(t){ return t.kind==='rule' && t.action ? actionOf(t.action).label : t.label; }
+/* дело задания: у поручения — первое дело и «ещё N», у задания по правилу — объект, у надзора за заданием — то задание */
+const CASE_PAGE = {заёмщик:'borrower/borrower.html', заявка:'loan-application/loan-application.html', кредит:'loan-credit/credit.html', залог:'collateral/zalog.html', взыскание:'collection/collection.html'};
+const SRC_PAGE = {gd:'decision/decisions.html', lp:'loan-program/loan-program.html', ap:CASE_PAGE.заявка, doc:'docflow/docflow.html', imo:'assets/assets.html', ima:'assets/assets.html', imb:'assets/assets.html',
+  an:'analysis/analysis.html', ant:'analysis/analysis.html', rp:'reports/reports.html', cr:CASE_PAGE.кредит, vz:CASE_PAGE.взыскание, zl:CASE_PAGE.залог, pl:'payments/payments.html', zm:CASE_PAGE.заёмщик, rs:'restructuring/restructuring.html', cl:'classification/classification.html'};
+const TYPE_PAGE = {unit:'org-structure/org-structure.html', territory:'org-structure/org-structure.html', employee:'employee/employee.html', obligation:SRC_PAGE.rp};
+function caseOf(t){
+  if(t.kind!=='rule'){
+    const c = t.cases||[];
+    return c.length ? {text:`${c[0].type} ${c[0].id}`, more:c.length-1, page:CASE_PAGE[c[0].type], all:c.map(x=>`${x.type} ${x.id}`).join(', ')} : null;
+  }
+  const p = t.povodKey && povodByKey(t.povodKey);
+  if(!p) return null;
+  if(p.objectType==='task'){ const x = taskOf(p.objectId); return {text:`${p.objectId} · ${x ? whatToDo(x) : ''}`, more:0, task:p.objectId}; }
+  const cfg = OWNER_CFG[p.kind];
+  return {text:describePovod(p), more:0, page:(cfg && SRC_PAGE[cfg.src]) || TYPE_PAGE[p.objectType] || null};
+}
+const caseText = t=>{ const c = caseOf(t); return c ? c.all||c.text : ''; };
+/* кнопка «Взять»: только там, где принятие что-то значит */
+function canTake(t, v){
+  if(isTerminal(t)) return false;
+  if(inQueue(t)) return queueHolders(t).indexOf(v)!==-1;
+  return lastEv(t)==='поручено' && kindTake(t)!=='не нужно' && canActFor(t, v);
+}
+/* внимание у исполнителя: только то, на что надо реагировать; пусто — работа идёт */
+function attentionOf(t, v){
+  const out = [];
+  if(canTake(t, v)) out.push('Взять');
+  if(lastEv(t)==='возвращено') out.push('возвращено');
+  if(pendingExtension(t)) out.push('запрошено продление');
+  return out;
+}
+/* внимание у того, кто поручил или руководит: то же словами; ход не за исполнителем — кто и что ждёт */
+const WATCH_WORDS = {'поручено':'не взято', 'возвращено':'возвращено', 'отказано':'отказано', 'заявлено':'заявлено', 'ожидает приёмки':'ждёт приёмки'};
+function watchOf(t){
+  const out = [], w = WATCH_WORDS[lastEv(t)];
+  if(w) out.push(w);
+  if(pendingExtension(t)) out.push('запрошено продление');
+  return out;
+}
+/* что решить зрителю и с какого дня ждёт */
+function decisionText(t, v){ return decisionsOf(t).filter(x=>x.by===v).map(x=>x.type==='приёмка' ? 'Приёмка' : 'Продление до '+fmt(x.newDue)).join(' · '); }
+function decisionSince(t, v){ return decisionsOf(t).filter(x=>x.by===v).map(x=>x.since).sort()[0]; }
+/* итог закрытого словами */
+function closedResult(t){
+  const o = outcomeOf(t), e = stateEntry(t);
+  if(o.outcome==='отпало') return 'Отпало';
+  if(o.outcome==='снято') return 'Снято'+(o.reason ? ' · '+o.reason : '');
+  const head = o.outcome==='исполнено' ? 'Исполнено' : 'Исполнено · выполнил другой';
+  return head+(e.how ? ' · '+e.how : '');
 }
 /* пакетное действие: каждое задание проверяется своими правилами и пишет событие в свой журнал; отказ по одному не останавливает остальные */
 const BATCH_OPS = {
@@ -4510,7 +4634,6 @@ const BATCH_OPS = {
   'заявить':t=>(by, x)=>claim(t.id, x.proof||null, by),
   'отметка':t=>(by, x)=>addProgress(t.id, by, x.text, {link:x.link||null}),
   'продление':t=>(by, x)=>requestExtension(t.id, by, x.newDue, x.reason),
-  'снять':t=>(by, x)=>releaseTask(t.id, by, x.reason),
 };
 function batchTasks(ids, op, by, arg){
   if(!BATCH_OPS[op]) throw new Error('такого пакетного действия нет');
@@ -4522,14 +4645,19 @@ function batchTasks(ids, op, by, arg){
   }));
   return res;
 }
-/* что доступно группе: работа у владельца — взять и отметка; автору — снять, кроме шага */
+/* тип группы: очередь роли, подпись, работа в самом задании или в карточке дела */
+function groupType(g){ return !g.assignee ? 'очередь' : g.kind==='doc-sign' ? 'подпись' : kindOf(g.kind).ownerExec ? 'в деле' : 'в задании'; }
+/* что доступно группе: панель по типу. В деле панели нет: в строках ссылки на дела, отметка по одной в карточке */
 function groupOps(g, v){
-  const k = kindOf(g.kind), owned = !!k.ownerExec, any = f=>g.tasks.some(f), ops = [];
-  if(any(t=>inQueue(t) ? queueHolders(t).indexOf(v)!==-1 : lastEv(t)==='поручено' && canActFor(t, v))) ops.push('взять');
-  if(!owned && any(t=>['принято','возвращено'].indexOf(lastEv(t))!==-1 && canActFor(t, v))) ops.push('заявить');
+  const type = groupType(g), any = f=>g.tasks.some(f);
+  if(type==='очередь') return any(t=>queueHolders(t).indexOf(v)!==-1) ? ['взять'] : [];
+  if(type==='подпись') return any(t=>t.assignee===v) ? ['подписать'] : [];
+  if(type==='в деле') return [];
+  const ops = [];
+  if(any(t=>lastEv(t)==='поручено' && canActFor(t, v))) ops.push('взять');
+  if(any(t=>['принято','возвращено'].indexOf(lastEv(t))!==-1 && canActFor(t, v))) ops.push('заявить');
+  if(any(t=>canActFor(t, v) && !namedDue(t) && !pendingExtension(t))) ops.push('продление');
   if(any(t=>visibleTo(t, v))) ops.push('отметка');
-  if(!owned && any(t=>canActFor(t, v) && !namedDue(t) && !pendingExtension(t))) ops.push('продление');
-  if(!(owned && k.genus==='шаг') && any(t=>t.author===v)) ops.push('снять');
   return ops;
 }
 
@@ -4631,56 +4759,107 @@ function ui(fn){ // действие из интерфейса: отказ дв�
   try{ fn(); }catch(e){ toast(e.message,'err'); }
   renderCardDrawer(); render();
 }
-function go(view){ state.view=view; render(); }
+const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; правило на чтение — по ссылке из карточки
+function go(view){ state.view=view; state.ruleRead=false; render(); }
 function setAsOf(v){ state.today=v; applyEditions(v); render(); }
-function setViewer(v){ state.viewer=v; render(); }
+function setViewer(v){ state.viewer=v; state.ruleRead=false; groupOpen = {}; groupPick = {}; groupOff = {}; render(); }
 /* стенд: ночи подряд от старта до выбранной даты включительно. Срез зависит только от даты и настроек полосы, клики зрителя
    не переживают смену даты. Настройки полосы — имитация недоступности, круг опроса, зритель — сохраняются; недоступность и
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
 const STAND_START = '2026-09-01';   // первый день с соседями и всеми четырьмя демо-поручениями
 const STAND_OPEN = '2026-10-01';    // на этой дате страница открывается
+const STAND_DATES = ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-03-01'];
 function standDates(d){ const out = []; for(let x=STAND_START; x<=d; x=addDays(x, 1)) out.push(x); return out; }
+/* поручения стенда со своей историей: сданные и с запросом продления. Каждое событие — в свою дату, до даты среза его нет.
+   Сценарии смоука на seed и опросе их не видят; решения ждут Токтогулов, Эсенгулов, Мамбетов, Орозбаева, Абдразакова */
+const STAND_SCENES = [
+  {by:'E2',  to:'E1',  label:'Подготовить справку по остатку долга', cases:[{type:'кредит', id:'КД-2024/207'}], given:'2026-09-14', due:'2026-09-30', taken:'2026-09-15', claimed:'2026-09-22'},
+  {by:'E32', to:'E30', label:'Собрать пакет к служебной записке в ДПО', cases:[{type:'взыскание', id:'ТР-2026/043'}, {type:'кредит', id:'КД-2022/155'}], given:'2026-09-15', due:'2026-09-28', taken:'2026-09-15', claimed:'2026-09-23'},
+  {by:'E7',  to:'E8',  label:'Сверить условия программы с госрешением', cases:[{type:'заявка', id:'AP-105'}], given:'2026-09-16', due:'2026-10-12', taken:'2026-09-17', ext:{on:'2026-09-28', to:'2026-10-26', why:'ждём ответ Минфина'}},
+  {by:'E35', to:'E33', label:'Уточнить отчёт об оценке предмета залога', cases:[{type:'залог', id:'З-301'}], given:'2026-09-17', due:'2026-10-09', taken:'2026-09-18', ext:{on:'2026-09-29', to:'2026-10-23', why:'оценщик в отъезде'}},
+  {by:'E2',  to:'E3',  label:'Проверить комплект документов по заявке', cases:[{type:'заявка', id:'AP-102'}], given:'2026-09-24', due:'2026-10-05', taken:'2026-09-24', claimed:'2026-09-30'},
+  {by:'E2',  to:'E39', label:'Уточнить график платежей по кредиту', cases:[{type:'кредит', id:'КД-2023/411'}], given:'2026-09-24', due:'2026-10-07', taken:'2026-09-25', ext:{on:'2026-09-30', to:'2026-10-21', why:'заёмщик подал заявление о переносе'}},
+  {by:'E4',  to:'E5',  label:'Подготовить сводку по претензиям за сентябрь', cases:[{type:'взыскание', id:'ТР-2026/041'}], given:'2026-09-21', due:'2026-10-02', taken:'2026-09-22', claimed:'2026-09-29'},
+  {by:'E4',  to:'E14', label:'Обновить заключение отдела рисков', cases:[{type:'заявка', id:'AP-102'}], given:'2026-09-23', due:'2026-10-08', taken:'2026-09-24', ext:{on:'2026-09-30', to:'2026-10-22', why:'нет отчётности заёмщика за квартал'}},
+  {by:'E2',  to:'E1',  label:'Подготовить ответ заёмщику о реструктуризации', cases:[{type:'заёмщик', id:'00807200210033'}], given:'2026-10-19', due:'2026-11-10', taken:'2026-10-20', claimed:'2026-10-29'},
+  {by:'E2',  to:'E3',  label:'Сверить платежи по кредиту с выпиской', cases:[{type:'кредит', id:'КД-2024/031'}], given:'2026-10-19', due:'2026-11-12', taken:'2026-10-20', ext:{on:'2026-10-30', to:'2026-11-27', why:'выписка банка придёт после 15.11'}},
+  {by:'E4',  to:'E10', label:'Подготовить план выездов на ноябрь', cases:[{type:'заявка', id:'AP-106'}], given:'2026-10-20', due:'2026-11-06', taken:'2026-10-21', claimed:'2026-10-30'},
+  {by:'E32', to:'E31', label:'Уточнить адрес должника для претензии', cases:[{type:'взыскание', id:'ТР-2026/042'}], given:'2026-10-20', due:'2026-11-09', taken:'2026-10-21', ext:{on:'2026-10-30', to:'2026-11-23', why:'ждём ответ адресного бюро'}},
+];
+function playStandScenes(d, ids){
+  STAND_SCENES.forEach((s, i)=>{
+    if(s.given===d) ids[i] = createFreeTask({label:s.label, assignee:s.to, author:s.by, dueDate:s.due, cases:s.cases}).id;
+    if(!ids[i]) return;
+    if(s.taken===d) take(ids[i], s.to);
+    if(s.claimed===d) claim(ids[i], null, s.to);
+    if(s.ext && s.ext.on===d) requestExtension(ids[i], s.to, s.ext.to, s.ext.why);
+  });
+}
+/* след действий на стенде: что изменилось после сбора среза, смена даты сбросит */
+function standMark(){
+  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals]).length].join('/');
+}
 function goToDate(d){
   if(!state) seedState();
-  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, kindCat:state.kindCat, ruleOpen:state.ruleOpen,
+  const touched = !!state.standMark && standMark()!==state.standMark;
+  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, kindCat:state.kindCat, ruleOpen:state.ruleOpen, ruleRead:state.ruleRead,
+    qTab:state.qTab, qSearch:state.qSearch, qSort:state.qSort, closedFilter:state.closedFilter,
     pollScope:state.pollScope, sourceDown:state.sourceDown, statCleared:state.statCleared};
   seedState();
   Object.assign(state, keep, {statCleared:false});
   state.today = d;
+  const scenes = {};
   standDates(d).forEach(x=>{
     state.today = x;
+    playStandScenes(x, scenes);
     if(x===d){ state.statCleared = keep.statCleared; runPoll(); }
     else runPoll({down:false});
   });
   applyEditions(d);
   state.statCleared = keep.statCleared;
-  cardOpenId = null; hlCard = null;
+  state.standMark = standMark();
+  cardOpenId = null; hlCard = null; groupPick = {}; groupOff = {};
   renderCardDrawer();
   render();
+  if(touched) toast(`Действия на стенде сброшены: срез заново собран на ${fmt(d)}`);
+  return touched;
 }
 function toggleDown(sourceId, v){ state.sourceDown[sourceId]=v; goToDate(state.today); }
 function setPollScope(v){ state.pollScope=v; goToDate(state.today); }
 function setStatCleared(v){ state.statCleared=v; goToDate(state.today); }
 
+/* пункты меню: настройка и журнал прогонов — только у администратора заданий */
+function menuItems(){
+  const out = [{sec:'Работа'}, {view:'queue', label:'Задания', n:queueTasks('mine').length}];
+  if(isTasksAdmin(state.viewer)) out.push({sec:'Настройка'}, {view:'settings', label:'Настройка'}, {view:'runs', label:'Журнал прогонов', n:state.pollRuns.length});
+  return out;
+}
+function renderNav(){
+  return menuItems().map(x=>x.sec ? `<div class="nav-sec">${esc(x.sec)}</div>`
+    : `<button class="nav-item${x.view===state.view ? ' active' : ''}" data-v="${x.view}" onclick="ZD.go('${x.view}')">${esc(x.label)}<span class="cnt">${x.n||''}</span></button>`).join('');
+}
+/* полоса стенда: дата среза, зритель, круг опроса, имитация недоступности; в продукт не входит */
+let standDownOpen = false;
+function standToggle(open){ standDownOpen = open; }
+function renderStand(){
+  const down = SOURCES.filter(x=>state.sourceDown[x.id]);
+  const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
+  return `<span><b>Демо-стенд</b> · в продукт не входит</span>
+    <label>Дата среза <select id="asOf" onchange="ZD.goToDate(this.value)">${STAND_DATES.map(d=>opt(d, fmt(d), state.today)).join('')}</select></label>
+    <label>Смотрю как <select id="viewer" onchange="ZD.setViewer(this.value)">${EMP.map(e=>opt(e.id, `${e.name} — ${e.role}`, state.viewer)).join('')}</select></label>
+    <label>Круг опроса <select onchange="ZD.setPollScope(this.value)">${[['все','все подключённые'],['первый выпуск','первый выпуск — механизм и взыскание'],['механизм','только механизм']].map(([v,l])=>opt(v, l, state.pollScope)).join('')}</select></label>
+    <details${standDownOpen ? ' open' : ''}><summary onclick="ZD.standToggle(!this.parentNode.open)">Имитация недоступности${down.length ? ': '+esc(down.map(x=>x.name).join(', ')) : ''}</summary>
+      <div class="stand-down">${SOURCES.map(x=>`<label><input type="checkbox" ${state.sourceDown[x.id] ? 'checked' : ''} onchange="ZD.toggleDown('${x.id}', this.checked)"> ${esc(x.name)}</label>`).join('')}
+        <label><input type="checkbox" ${state.statCleared ? 'checked' : ''} onchange="ZD.setStatCleared(this.checked)"> сосед «взыскание» у Статистики перестал молчать</label></div>
+    </details>`;
+}
 function render(){
+  if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer) && !state.ruleRead) state.view = 'queue'; // зритель сменился на этих экранах
   if(typeof document==='undefined') return;
-  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.v===state.view));
-  const titles = {queue:'Очередь заданий', settings:'Настройка', runs:'Журнал прогонов', notif:'Уведомления'};
+  const titles = {queue:'Задания', settings:'Настройка', runs:'Журнал прогонов', notif:'Уведомления'};
   document.getElementById('title').textContent = titles[state.view] || '';
-  const asOfSel = document.getElementById('asOf');
-  if(!asOfSel.options.length){
-    ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-03-01'].forEach(d=>{
-      const o=document.createElement('option'); o.value=d; o.textContent=fmt(d); asOfSel.appendChild(o);
-    });
-  }
-  asOfSel.value = state.today;
-  const viewerSel = document.getElementById('viewer');
-  if(!viewerSel.options.length){
-    EMP.forEach(e=>{ const o=document.createElement('option'); o.value=e.id; o.textContent=`${e.name} — ${e.role}`; viewerSel.appendChild(o); });
-  }
-  viewerSel.value = state.viewer;
-  document.getElementById('qCnt').textContent = queueTasks('mine').length || '';
-  document.getElementById('rCnt').textContent = state.pollRuns.length || '';
+  document.getElementById('nav').innerHTML = renderNav();
+  document.getElementById('stand').innerHTML = renderStand();
   document.getElementById('nCnt').textContent = state.notifications.filter(n=>n.to===state.viewer).length || '';
 
   const panel = document.getElementById('panel');
@@ -4690,88 +4869,222 @@ function render(){
   else if(state.view==='notif') panel.innerHTML = renderNotif();
 }
 
-function renderQueue(){
-  const downSrc = SOURCES.filter(s=>state.sourceDown[s.id]);
-  const banner = downSrc.length
-    ? `<div class="banner warn"><b>Источник недоступен: ${esc(downSrc.map(s=>s.name).join(', '))}.</b> Тумблер «имитировать недоступность» включён в настройке — журнал прогонов. Поводы этого источника замораживаются, не отпадают.</div>` : '';
-  const HEAD = '<thead><tr><th>№</th><th>Что сделать</th><th>Исполнитель</th><th>Состояние</th><th>Срок</th><th>Важность</th><th>Род</th></tr></thead>';
-  const rows = (scope)=> queueGroups(scope).map(x=>x.task ? taskRowHtml(x.task) : groupRowHtml(x, scope)).join('') || '<tr><td colspan="7" class="muted">пусто</td></tr>';
-  return `
-    ${banner}
-    <div class="section-h">Мои задания (${esc(emp(state.viewer)?.name)}) — ${queueTasks('mine').length}${queueTasks('mine').filter(t=>isOverdue(t, state.today)).length ? ', просрочено '+queueTasks('mine').filter(t=>isOverdue(t, state.today)).length : ''}</div>
-    <table class="cgrid">${HEAD}<tbody>${rows('mine')}</tbody></table>
-    ${queueTasks('role').length ? `
-    <div class="section-h">Очередь моих ролей — никто не взял — ${queueTasks('role').length}</div>
-    <table class="cgrid">${HEAD}<tbody>${rows('role')}</tbody></table>` : ''}
-    ${queueTasks('wait').length ? `
-    <div class="section-h">Жду ответа — ${queueTasks('wait').length}</div>
-    <table class="cgrid">${HEAD}<tbody>${queueTasks('wait').map(t=>taskRowHtml(t)).join('')}</tbody></table>` : ''}
-    ${queueTasks('closed').length ? `<details class="closed-mine"><summary class="section-h">Мои закрытые (${queueTasks('closed').length})</summary>
-    <table class="cgrid">${HEAD}<tbody>${rows('closed')}</tbody></table></details>` : ''}
-    <div class="section-h">Видимые мне (подчинённые, контроль, авторство, кураторство)</div>
-    <table class="cgrid">${HEAD}<tbody>${rows('dept')}</tbody></table>
-    ${assignableBy(state.viewer).length ? `<div class="btn-row">
-      <button class="btn btn-secondary btn-sm" onclick="ZD.openFreeForm()">+ Свободное поручение</button>
-    </div>
-    ${renderFreeForm()}` : ''}
-  `;
+/* ---------- очередь: одна таблица на вкладку ---------- */
+function setQueueTab(id){ state.qTab=id; render(); }
+function setClosedFilter(id){ state.closedFilter=id; render(); }
+function setSearch(v){
+  state.qSearch=v; render();
+  if(typeof document==='undefined') return;
+  const el = document.getElementById('qSearch');
+  if(el){ el.focus(); el.setSelectionRange(v.length, v.length); }
 }
-const impPill = x=>`<span class="pill ${x==='высокая'?'err':x==='средняя'?'warn':'neutral'}">${x}</span>`;
-function taskRowHtml(t, gid){
-  const closed = closedNow(t);
-  return `<tr class="${gid?'grp-item ':''}${closed?'hole':(isOverdue(t, state.today) ? 'over':'')}">
-      <td>${gid ? `<input type="checkbox" class="gt" data-g="${esc(gid)}" value="${t.id}" checked> ` : ''}<button class="linky" onclick="ZD.openCard('${t.id}')">${t.id}</button></td>
-      <td>${esc(t.label)}</td>
-      <td>${t.assignee ? esc(emp(t.assignee)?.name||t.assignee) : `<span class="muted">очередь «${esc(roleTitle(t.queue.role))}»</span>`}${t.assignee && !closed && actingOn(t, state.today)!==t.assignee ? `<div class="small">действует ${esc(emp(actingOn(t, state.today))?.name)}</div>` : ''}</td>
-      <td>${esc(displayState(t))}${pendingExtension(t)?' <span class="pill warn">запрошено продление</span>':''}</td>
-      <td>${fmt(dueOf(t))}${extensionsOf(t)?' <span class="small">(продлён)</span>':''}</td>
-      <td>${impPill(t.importance)}</td>
-      <td>${t.kind==='rule'?'<span class="pill info">по правилу</span>':`<span class="pill neutral">свободное${t.basis ? ' · по '+esc(t.basis) : ''}</span>`}${t.repeatOf?' <span class="pill warn">повтор</span>':''}${t.mark?` <span class="pill neutral">${esc(t.mark)}</span>`:''}</td>
-    </tr>`;
+const Q_SORT = {work:{key:'due', dir:1}, decide:{key:'since', dir:1}, sub:{key:'over', dir:-1}, gave:{key:'due', dir:1}, closed:{key:'closedAt', dir:-1}};
+const sortOf = tab=>state.qSort[tab] || Q_SORT[tab];
+function setSort(tab, key){
+  const c = sortOf(tab);
+  state.qSort[tab] = c.key===key ? {key, dir:-c.dir} : {key, dir:1};
+  render();
 }
-let groupOpen = {};
+const taskNo = id=>+String(id).replace(/\D/g, '');
+const empName = id=>emp(id) ? emp(id).name : '';
+function cmpVal(a, b){ return typeof a==='number' && typeof b==='number' ? a-b : String(a==null ? '' : a).localeCompare(String(b==null ? '' : b), 'ru'); }
+const SORT_VAL = {
+  due:t=>dueOf(t), what:whatToDo, case:caseText, id:t=>taskNo(t.id), closedAt, result:closedResult,
+  attn:(t, v)=>attentionOf(t, v).concat(watchOf(t)).join(' '), who:t=>empName(workerOf(t)),
+  ask:(t, v)=>decisionText(t, v), since:(t, v)=>decisionSince(t, v), place:t=>t.queue ? roleTitle(t.queue.role) : '',
+};
+function sortTasks(list, tab, v){
+  const s = sortOf(tab), val = SORT_VAL[s.key];
+  return list.slice().sort((a, b)=>s.dir*cmpVal(val(a, v), val(b, v)) || taskNo(a.id)-taskNo(b.id));
+}
+function sortItems(items, tab, v){ // задания и группы одной вкладки
+  const s = sortOf(tab), val = SORT_VAL[s.key];
+  const of = x=>val(x.task || x.tasks[0], v);
+  return items.slice().sort((a, b)=>s.dir*cmpVal(of(a), of(b)));
+}
+function matches(t, q){
+  if(!q) return true;
+  const hay = [t.id, whatToDo(t), t.label, caseText(t), empName(workerOf(t)), t.queue ? roleTitle(t.queue.role) : ''].join(' ').toLowerCase();
+  return hay.indexOf(q)!==-1;
+}
+function qHead(tab, cols){
+  const s = sortOf(tab);
+  return '<thead><tr>'+cols.map(c=>`<th onclick="ZD.setSort('${tab}','${c[0]}')">${esc(c[1])}${s.key===c[0] ? (s.dir>0 ? ' ▲' : ' ▼') : ''}</th>`).join('')+'</tr></thead>';
+}
+const qCols = list=>'<colgroup>'+list.map(w=>w ? `<col style="width:${w}px">` : '<col>').join('')+'</colgroup>';
+const tip = s=>esc(String(s).replace(/\s+/g, ' '));
+/* срок: дата и остаток в календарных днях; красный только у просрочки; ход не за исполнителем — только дата */
+function dueLeft(due, counts){
+  if(!counts) return fmt(due);
+  const n = daysBetween(state.today, due);
+  if(n<0) return `<span class="q-late">${fmt(due)} · просрочено ${-n} дн.</span>`;
+  return `${fmt(due)} · ${n===0 ? 'сегодня' : 'ещё '+n+' дн.'}`;
+}
+const dueCell = t=>dueLeft(dueOf(t), moveOnAssignee(t));
+function caseHtml(t){
+  const c = caseOf(t);
+  if(!c) return '';
+  const more = c.more ? ` <span class="small">ещё ${c.more}</span>` : '', title = tip(c.all||c.text);
+  if(c.task) return `<button class="linky q-case" title="${title}" onclick="event.stopPropagation();ZD.openCard('${c.task}')">${esc(c.text)}</button>`;
+  if(c.page) return `<a class="q-case" href="../${c.page}" target="_blank" title="${title}" onclick="event.stopPropagation()">${esc(c.text)}</a>${more}`;
+  return `<span title="${title}">${esc(c.text)}</span>${more}`;
+}
+function whatCell(t, v){ // замещающему видно, за кого он работает
+  const forWhom = t.assignee && t.assignee!==v && isMine(t, v) ? ` <span class="small">за ${esc(empName(t.assignee))}</span>` : '';
+  return `<span title="${tip(whatToDo(t))}">${esc(whatToDo(t))}</span>${forWhom}`;
+}
+const words = list=>list.map(x=>`<span class="q-attn">${esc(x)}</span>`).join(' · ');
+function attnCell(t, v){
+  return attentionOf(t, v).map(x=>x==='Взять'
+    ? `<button class="btn btn-primary btn-xs" onclick="event.stopPropagation();ZD.ui(()=>ZD.take('${t.id}', ZD.state.viewer))">Взять</button>`
+    : `<span class="q-attn">${esc(x)}</span>`).join(' ');
+}
+function waitCell(t){ const h = moveHolder(t); return h ? `<span title="${tip(h.what)}">${h.who ? esc(empName(h.who))+' · ' : ''}${esc(h.what)}</span>` : ''; }
+const rowTag = (t, cls)=>`<tr class="${cls||''}" data-t="${t.id}" onclick="ZD.openCard('${t.id}')">`;
+/* строка в колонках «Моей работы»: срок · что сделать · дело · внимание · № */
+function workRow(t, v, attn, gid){
+  const box = gid ? `<input type="checkbox" class="gt" data-g="${esc(gid)}" value="${t.id}"${groupOff[t.id] ? '' : ' checked'} onclick="event.stopPropagation()" onchange="ZD.groupTick('${t.id}', this.checked)"> ` : '';
+  return `${rowTag(t, (gid!==undefined ? 'grp-item ' : '')+(isOverdue(t, state.today) ? 'over' : ''))}
+    <td>${box}${dueCell(t)}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td><td>${attn(t, v)}</td><td>${t.id}</td></tr>`;
+}
+let groupOpen = {}, groupPick = {}, groupOff = {};
 function toggleGroup(id){ groupOpen[id] = !groupOpen[id]; render(); }
-function groupRowHtml(g, scope){
-  const id = scope+'|'+g.key, open = !!groupOpen[id];
-  const who = g.assignee ? esc(emp(g.assignee)?.name) : `<span class="muted">очередь «${esc(roleTitle(g.queueRole))}»</span>`;
-  return `<tr class="grp${g.overdue ? ' over' : ''}">
-      <td><button class="linky" onclick="ZD.toggleGroup('${esc(id)}')">${open ? '▾ свернуть' : '▸ показать'}</button></td>
-      <td><b>${esc(g.title)} (${g.count})</b></td>
-      <td>${who}</td>
-      <td>${g.overdue ? `<span class="pill err">просрочено ${g.overdue} из ${g.count}</span>` : `<span class="small">просрочек нет</span>`}</td>
-      <td>${fmt(g.nearest)} <span class="small">ближайший</span></td>
-      <td>${impPill(g.importance)}</td>
-      <td><span class="pill neutral">группа</span></td>
-    </tr>${open ? g.tasks.map(t=>taskRowHtml(t, id)).join('')+groupBarHtml(g, id) : ''}`;
+function groupTick(id, on){ groupOff[id] = !on; }
+function groupChoose(id, op){ groupPick[id] = groupPick[id]===op ? null : op; render(); }
+function groupRowHtml(g, scope, v, q){
+  const id = scope+'|'+g.key, open = !!groupOpen[id] || !!q, boxes = groupOps(g, v).length>0;
+  return `<tr class="grp${g.overdue ? ' over' : ''}" data-g="${esc(id)}" onclick="ZD.toggleGroup('${esc(id)}')">
+      <td>${dueLeft(g.nearest, true)}</td>
+      <td><b>${open ? '▾' : '▸'} ${esc(g.title)} — ${g.count}</b></td>
+      <td></td>
+      <td>${g.overdue ? `<span class="q-late">просрочено ${g.overdue} из ${g.count}</span>` : ''}</td>
+      <td></td>
+    </tr>${open ? g.tasks.map(t=>workRow(t, v, attnCell, boxes ? id : '')).join('')+groupBarHtml(g, id) : ''}`;
+}
+const GROUP_OP = {'взять':'Взять отмеченные', 'подписать':'Подписать отмеченные', 'заявить':'Заявить исполнение', 'продление':'Запросить продление', 'отметка':'Отметка о ходе'};
+/* поле на всю пачку: одно на отмеченные, не по форме на задание */
+function groupFields(op, g){
+  if(op==='заявить') return g.tasks.some(t=>t.action && actionOf(t.action).needsProof) ? [{f:'proof', label:'Ссылка на подтверждение'}] : [];
+  if(op==='продление') return [{f:'due', label:'Новый срок', type:'date'}, {f:'ext', label:'Основание продления'}];
+  if(op==='отметка') return [{f:'text', label:'Что сделано'}];
+  return [];
 }
 function groupBarHtml(g, id){
-  const ops = groupOps(g, state.viewer), d = esc(id), k = kindOf(g.kind);
-  const b = (op, label, primary)=>`<button class="btn ${primary?'btn-primary':'btn-secondary'} btn-sm" onclick="ZD.batchUI('${d}', '${op}')">${label}</button>`;
-  const inp = (f, label, type)=>`<div class="fld"><label>${label}</label><input id="gb-${d}-${f}"${type ? ` type="${type}"` : ''}></div>`;
-  const parts = [];
-  if(ops.indexOf('взять')!==-1) parts.push(b('взять', 'Взять в работу', true));
-  if(g.kind==='doc-sign') parts.push(`<button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.signGroup('${d}', ZD.state.viewer))">Подписать пачкой</button>`);
-  if(ops.indexOf('заявить')!==-1) parts.push(b('заявить', 'Заявить исполнение', true));
-  if(ops.indexOf('отметка')!==-1) parts.push(`<div class="form-row">${inp('text', 'Отметка о ходе')}${b('отметка', 'Отметить')}</div>`);
-  if(ops.indexOf('продление')!==-1) parts.push(`<div class="form-row">${inp('due', 'Новый срок', 'date')}${inp('ext', 'Основание продления')}${b('продление', 'Запросить продление')}</div>`);
-  if(ops.indexOf('снять')!==-1) parts.push(`<div class="form-row">${inp('why', 'Основание снятия')}${b('снять', 'Снять')}</div>`);
-  const note = k.ownerExec ? `<div class="small">Работа делается у владельца — ${esc(actionOf(k.id==='doc-sign' ? 'act-doc-sign' : ruleForKind(k.id).action).where||'')}. Задания закроются сами.</div>` : '';
-  return `<tr class="grp-bar"><td colspan="7"><div class="small" style="margin-bottom:6px">Действие над отмеченными: каждое задание проверяется своими правилами и пишет событие в свой журнал.</div>
-    <div class="btn-row" style="align-items:flex-end;flex-wrap:wrap;gap:12px">${parts.join('') || '<span class="small">доступных действий нет</span>'}</div>${note}</td></tr>`;
+  const ops = groupOps(g, state.viewer);
+  if(!ops.length) return '';
+  const d = esc(id), pick = ops.indexOf(groupPick[id])!==-1 ? groupPick[id] : null, fields = pick ? groupFields(pick, g) : [];
+  const btn = (op, i)=>{
+    const call = groupFields(op, g).length ? `ZD.groupChoose('${d}','${op}')` : `ZD.batchUI('${d}','${op}')`;
+    return `<button class="btn ${i===0 ? 'btn-primary' : 'btn-secondary'} btn-sm${pick===op ? ' on' : ''}" onclick="event.stopPropagation();${call}">${GROUP_OP[op]}</button>`;
+  };
+  const form = fields.length ? `<div class="form-row" style="margin:8px 0 0">${fields.map(x=>`<div class="fld"><label>${x.label}</label><input id="gb-${d}-${x.f}"${x.type ? ` type="${x.type}"` : ''} onclick="event.stopPropagation()"></div>`).join('')}
+      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();ZD.batchUI('${d}','${pick}')">Применить к отмеченным</button></div>` : '';
+  return `<tr class="grp-bar"><td colspan="5" class="wrap"><div class="btn-row" style="margin-top:0">${ops.map(btn).join('')}</div>${form}</td></tr>`;
 }
 function groupChecked(id){ return Array.from(document.querySelectorAll('.gt')).filter(x=>x.dataset.g===id && x.checked).map(x=>x.value); }
 function batchUI(id, op){
+  if(op==='подписать'){ ui(()=>{ signGroup(id, state.viewer); toast('Подпись внесена','ok'); }); return; }
   const val = f=>{ const x = document.getElementById(`gb-${id}-${f}`); return x ? x.value.trim() : ''; };
-  const arg = op==='отметка' ? {text:val('text')} : op==='продление' ? {newDue:val('due'), reason:val('ext')} : op==='снять' ? {reason:val('why')} : {};
+  const arg = op==='отметка' ? {text:val('text')} : op==='продление' ? {newDue:val('due'), reason:val('ext')} : op==='заявить' ? {proof:val('proof')} : {};
   ui(()=>{
     const r = batchTasks(groupChecked(id), op, state.viewer, arg);
+    groupPick[id] = null;
     toast(`Сделано ${r.done.length}, отказов ${r.refused.length}`+(r.refused.length ? ': '+r.refused.map(x=>`${x.id} — ${x.why}`).join('; ') : ''), r.refused.length ? 'err' : 'ok');
   });
 }
-function signGroup(id, by){ // «Подписать пачкой»: подпись пишется в журнал каждого документа, задания закрывает опрос по сохранению
+function signGroup(id, by){ // подпись пишется в журнал каждого документа, задания закрывает опрос по сохранению
   const docs = groupChecked(id).map(t=>povodByKey(taskOf(t).povodKey)).filter(Boolean).map(p=>p.ownerId||p.objectId);
   if(!docs.length) throw new Error('выберите задания');
   return savedDocSignBatch(docs, by);
+}
+const WORK_COLS = [['due','Срок'], ['what','Что сделать'], ['case','Дело'], ['attn','Внимание'], ['id','№']];
+const WORK_W = [284, 600, 0, 190, 72];
+function renderWork(b, q, v){
+  const band = text=>`<tr class="band"><td colspan="5">${esc(text)}</td></tr>`;
+  const mine = b.mine.filter(t=>matches(t, q)), role = b.role.filter(t=>matches(t, q)), wait = b.wait.filter(t=>matches(t, q));
+  const over = mine.filter(t=>isOverdue(t, state.today)).length;
+  const byDue = list=>list.slice().sort((x, y)=>cmpVal(dueOf(x), dueOf(y)) || taskNo(x.id)-taskNo(y.id));
+  const rows = (tasks, scope)=>sortItems(groupsOf(byDue(tasks)), 'work', v).map(x=>x.task ? workRow(x.task, v, attnCell) : groupRowHtml(x, scope, v, q)).join('');
+  const body = (mine.length ? band(`Мои задания — ${mine.length}${over ? ', просрочено '+over : ''}`)+rows(mine, 'mine') : '')+
+    (role.length ? band(`Очередь ролей — ${role.length}`)+rows(role, 'role') : '')+
+    (wait.length ? band(`Жду ответа — ${wait.length}`)+sortTasks(wait, 'work', v).map(t=>workRow(t, v, waitCell)).join('') : '');
+  return `<table class="cgrid qgrid">${qCols(WORK_W)}${qHead('work', WORK_COLS)}<tbody>${body || `<tr><td colspan="5" class="muted">${q ? 'В этой вкладке ничего не найдено' : 'Заданий нет'}</td></tr>`}</tbody></table>`;
+}
+function renderDecide(b, q, v){
+  const list = sortTasks(b.decide.filter(t=>matches(t, q)), 'decide', v);
+  const rows = list.map(t=>{ const since = decisionSince(t, v), wd = workdaysBetween(since, state.today);
+    return `${rowTag(t, decisionOverdue(t, state.today, v) ? 'over' : '')}<td>${esc(decisionText(t, v))}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td>
+      <td>${esc(empName(t.assignee))}</td><td>${fmt(since)} · ${wd} р.д.</td><td>${t.id}</td></tr>`; }).join('');
+  return `<table class="cgrid qgrid">${qCols([230, 540, 0, 180, 170, 72])}${qHead('decide', [['ask','Что решить'], ['what','Что сделать'], ['case','Дело'], ['who','Кто просит'], ['since','Ждёт с'], ['id','№']])}
+    <tbody>${rows || '<tr><td colspan="6" class="muted">В этой вкладке ничего не найдено</td></tr>'}</tbody></table>`;
+}
+/* свод подчинённых: те же «просрочено» и срок, что у самого задания; новых чисел нет */
+function subSummary(tasks){
+  const by = {};
+  tasks.forEach(t=>{ (by[t.assignee] = by[t.assignee] || []).push(t); });
+  return Object.keys(by).map(who=>({who, tasks:by[who], n:by[who].length, over:by[who].filter(t=>isOverdue(t, state.today)).length, near:by[who].map(dueOf).sort()[0]}));
+}
+function sortSummary(rows){
+  const s = sortOf('sub'), of = {who:r=>empName(r.who), n:r=>r.n, over:r=>r.over, near:r=>r.near}[s.key] || (r=>r.over);
+  return rows.slice().sort((a, b)=>s.dir*cmpVal(of(a), of(b)) || cmpVal(a.near, b.near));
+}
+function renderSub(b, q, v){
+  const rows = sortSummary(subSummary(b.sub.filter(t=>matches(t, q)))).map(r=>{
+    const id = 'sub|'+r.who, open = !!groupOpen[id] || !!q;
+    const nested = open ? `<tr class="sub"><td colspan="4" class="nest wrap"><table class="cgrid qgrid">${qCols(WORK_W)}
+      <thead><tr>${WORK_COLS.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead>
+      <tbody>${r.tasks.slice().sort((x, y)=>cmpVal(dueOf(x), dueOf(y))).map(t=>workRow(t, v, x=>words(watchOf(x)))).join('')}</tbody></table></td></tr>` : '';
+    return `<tr data-s="${r.who}" onclick="ZD.toggleGroup('${id}')">
+      <td><b>${open ? '▾' : '▸'} ${esc(empName(r.who))}</b></td><td>${r.n}</td><td>${r.over ? `<span class="q-late">${r.over}</span>` : '0'}</td><td>${dueLeft(r.near, r.tasks.some(t=>dueOf(t)===r.near && moveOnAssignee(t)))}</td></tr>${nested}`;
+  }).join('');
+  const none = b.unassigned.filter(t=>matches(t, q));
+  const free = none.length ? `<div class="section-h">Никто не взял — ${none.length}</div>
+    <table class="cgrid qgrid">${qCols([252, 540, 0, 300, 110, 72])}<thead><tr><th>Срок</th><th>Что сделать</th><th>Дело</th><th>Очередь</th><th></th><th>№</th></tr></thead>
+    <tbody>${none.slice().sort((x, y)=>cmpVal(dueOf(x), dueOf(y))).map(t=>`${rowTag(t, isOverdue(t, state.today) ? 'over' : '')}<td>${dueCell(t)}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td>
+      <td title="${tip(roleTitle(t.queue.role))}">${esc(roleTitle(t.queue.role))}</td><td><button class="btn btn-secondary btn-xs" onclick="event.stopPropagation();ZD.openCard('${t.id}')">Назначить</button></td><td>${t.id}</td></tr>`).join('')}</tbody></table>` : '';
+  const table = rows ? `<table class="cgrid qgrid">${qCols([0, 130, 130, 300])}${qHead('sub', [['who','Исполнитель'], ['n','Заданий'], ['over','Просрочено'], ['near','Ближайший срок']])}<tbody>${rows}</tbody></table>` : '';
+  return table+free || '<div class="muted small">В этой вкладке ничего не найдено</div>';
+}
+function renderGave(b, q, v){
+  const rows = sortTasks(b.gave.filter(t=>matches(t, q)), 'gave', v).map(t=>`${rowTag(t, isOverdue(t, state.today) ? 'over' : '')}<td>${dueCell(t)}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td>
+      <td>${esc(empName(t.assignee))}</td><td>${words(watchOf(t))}</td><td>${t.id}</td></tr>`).join('');
+  return `<table class="cgrid qgrid">${qCols([252, 540, 0, 180, 190, 72])}${qHead('gave', [['due','Срок'], ['what','Что сделать'], ['case','Дело'], ['who','Исполнитель'], ['attn','Внимание'], ['id','№']])}
+    <tbody>${rows || '<tr><td colspan="6" class="muted">В этой вкладке ничего не найдено</td></tr>'}</tbody></table>`;
+}
+function renderClosed(filter, q, v){
+  const wide = filter.id!=='mine';
+  const cols = [['closedAt','Закрыто'], ['what','Что сделать'], ['case','Дело']].concat(wide ? [['who','Исполнитель']] : [], [['result','Итог'], ['id','№']]);
+  const rows = sortTasks(filter.tasks.filter(t=>matches(t, q)), 'closed', v).map(t=>`<tr data-t="${t.id}" onclick="ZD.openCard('${t.id}')"><td>${fmt(closedAt(t))}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td>
+      ${wide ? `<td>${esc(empName(workerOf(t)))}</td>` : ''}<td title="${tip(closedResult(t))}">${esc(closedResult(t))}</td><td>${t.id}</td></tr>`).join('');
+  return `<table class="cgrid qgrid">${qCols(wide ? [110, 440, 340, 180, 0, 72] : [110, 460, 380, 0, 72])}${qHead('closed', cols)}
+    <tbody>${rows || `<tr><td colspan="${cols.length}" class="muted">В этой вкладке ничего не найдено</td></tr>`}</tbody></table>`;
+}
+/* поиск находит всё видимое: что не в открытой таблице, стоит под ней; без поиска этого блока нет */
+const BUCKET_TAB = {mine:'Моя работа', role:'Моя работа', wait:'Моя работа', decide:'Ждут моего решения', sub:'Подчинённые', unassigned:'Подчинённые', gave:'Я поручил', closed:'Закрытые', 'closed-more':'Закрытые', other:'—'};
+function renderMore(q, shown, v){
+  if(!q) return '';
+  const more = state.tasks.filter(t=>shown.indexOf(t)===-1 && bucketOf(t, v) && matches(t, q)).sort((a, b)=>closedNow(a)-closedNow(b) || cmpVal(dueOf(a), dueOf(b)));
+  if(!more.length) return '';
+  return `<div class="section-h">Ещё найдено — ${more.length}</div>
+    <table class="cgrid qgrid">${qCols([252, 500, 0, 180, 180, 72])}<thead><tr><th>Срок</th><th>Что сделать</th><th>Дело</th><th>Исполнитель</th><th>Вкладка</th><th>№</th></tr></thead>
+    <tbody>${more.map(t=>`${rowTag(t, isOverdue(t, state.today) ? 'over' : '')}<td>${closedNow(t) ? fmt(dueOf(t)) : dueCell(t)}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td>
+      <td>${esc(empName(workerOf(t))||'никто не взял')}</td><td>${esc(BUCKET_TAB[bucketOf(t, v)])}</td><td>${t.id}</td></tr>`).join('')}</tbody></table>`;
+}
+function renderQueue(){
+  const v = state.viewer, q = (state.qSearch||'').trim().toLowerCase(), b = bucketsOf(v), tabs = tabsOf(v), tab = currentTab(v);
+  state.qTab = tab;
+  const filters = closedFilters(v), filter = closedPick(v);
+  const shown = {work:b.mine.concat(b.role, b.wait), decide:b.decide, sub:b.sub.concat(b.unassigned), gave:b.gave, closed:filter.tasks}[tab];
+  const body = tab==='decide' ? renderDecide(b, q, v) : tab==='sub' ? renderSub(b, q, v) : tab==='gave' ? renderGave(b, q, v) : tab==='closed' ? renderClosed(filter, q, v) : renderWork(b, q, v);
+  return `<div class="tabs">${tabs.map(x=>`<button class="${x.id===tab ? 'on' : ''}" data-tab="${x.id}" onclick="ZD.setQueueTab('${x.id}')">${esc(x.title)}${x.n ? `<span class="n">${x.n}</span>` : ''}</button>`).join('')}</div>
+    <div class="q-tools">
+      <input type="search" id="qSearch" placeholder="Поиск: что сделать, дело, исполнитель, №" value="${esc(state.qSearch||'')}" oninput="ZD.setSearch(this.value)">
+      ${tab==='closed' && filters.length>1 ? filters.map(x=>`<button class="btn btn-secondary btn-sm${x.id===filter.id ? ' on' : ''}" data-filter="${x.id}" onclick="ZD.setClosedFilter('${x.id}')">${esc(x.title)} ${x.tasks.length}</button>`).join('') : ''}
+      ${assignableBy(v).length ? `<button class="btn btn-primary btn-sm push" onclick="ZD.openFreeForm()">Поручить</button>` : ''}
+    </div>
+    ${renderFreeForm()}
+    ${body}
+    ${renderMore(q, shown, v)}`;
 }
 let freeFormOpen=false;
 let ff = {basis:'', object:'', label:''}; // основание и объект меняют подстановку исполнителя и контролёра
@@ -4910,7 +5223,8 @@ function renderOrigin(t, povod){
       <div class="k"></div><div class="v"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило в реестре</button></div>
     </div>`;
 }
-function showRule(ruleId){ cardOpenId=null; renderCardDrawer(); state.view='settings'; state.settingsTab='rules'; state.ruleOpen=ruleId; render();
+function showRule(ruleId){ cardOpenId=null; renderCardDrawer(); state.view='settings'; state.settingsTab='rules'; state.ruleOpen=ruleId; state.ruleRead=!isTasksAdmin(state.viewer); render();
+  if(typeof document==='undefined') return;
   const row = document.getElementById('rule-'+ruleId); if(row) row.scrollIntoView({block:'center'}); }
 function renderTaskActions(t){
   if(isTerminal(t)) return '<div class="muted small">задание закрыто, действий нет</div>';
@@ -4920,10 +5234,9 @@ function renderTaskActions(t){
   const mine = canActFor(t, v), owned = ownerExecOf(t);
   let html = '';
   if(inQueue(t)){
-    const r = roleOf(t.queue.role);
     if(queueHolders(t).indexOf(v)!==-1) html += `<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.take('${id}', ZD.state.viewer))">Взять в работу</button></div>`;
     else if((t.queue.exclude||[]).indexOf(v)!==-1) html += '<div class="banner info">Объект ваш — по нему задание рассматривает другой носитель роли.</div>';
-    if(v===t.author || v===deptHead(r.dept) || v===ownerAdminOf(t)){
+    if(canAssignQueue(t, v)){
       html += `<div class="card"><h3>Назначить из очереди</h3><div class="form-row">
         <div class="fld"><label>Носитель роли</label><select id="queueSel">${queueHolders(t).map(h=>`<option value="${h}">${esc(emp(h).name)}</option>`).join('')}</select></div>
         <div class="fld"><label>Основание</label><input id="queueReason"></div>
@@ -5713,12 +6026,6 @@ function renderRuns(){
       <td>${r.stateDrift.length ? `<span class="pill err">поле разошлось с журналом: ${r.stateDrift.length}</span><div class="small">${esc(r.stateDrift.map(x=>x.task).join(', '))} — пересобрано из журнала</div>` : '<span class="small">сходится</span>'}</td>
     </tr>`).join('') || '<tr><td colspan="9" class="muted">прогонов ещё не было</td></tr>';
   return `
-  ${SOURCES.map(s=>`<label><input type="checkbox" ${state.sourceDown[s.id]?'checked':''} onchange="ZD.toggleDown('${s.id}', this.checked)"> имитировать недоступность источника «${esc(s.name)}»</label>`).join('<br>')}
-  <br><label><input type="checkbox" ${state.statCleared?'checked':''} onchange="ZD.setStatCleared(this.checked)"> сосед «взыскание» у Статистики перестал молчать</label>
-  <div class="form-row" style="margin-top:10px"><div class="fld"><label>Круг опроса</label><select onchange="ZD.setPollScope(this.value)">
-    ${[['все','все подключённые'],['первый выпуск','первый выпуск — механизм и взыскание'],['механизм','только механизм']].map(([v,l])=>`<option value="${v}" ${state.pollScope===v?'selected':''}>${l}</option>`).join('')}
-  </select></div>
-  </div>
   <div class="section-h">Источники</div>
   <div class="small" style="margin-bottom:6px">Ошибка не значит пусто: поводы источника не трогаются, прогон неполный. После двух ночей подряд — задание администратору.</div>
   <table class="cgrid"><thead><tr><th>Источник</th><th>Опрос</th><th>Выпуск</th><th>В круге опроса</th><th>Не отвечает</th></tr></thead>
@@ -5785,6 +6092,9 @@ return {
   addWorkdays, workdaysBetween, isWork, calNote, SOURCES, SILENT_NIGHTS, POLL_SCOPES,
   SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns, renderNotif,
+  renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES,
+  bucketOf, bucketsOf, tabsOf, currentTab, setQueueTab, setClosedFilter, setSearch, setSort, closedFilters, closedMine, closedResult, subSummary,
+  whatToDo, caseOf, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupChoose,
   openFreeForm, cancelFree, submitFree, setSettingsTab, setKindCat, toggleHl, deactivateKind, activateKind,
   toggleDown, toggleStatCleared, setPollScope, ui,
   ROLES, roleOf, queueHolders, inQueue, queueTasks, queueGroups, batchTasks, groupOps, toggleGroup, batchUI, signGroup,
