@@ -1,46 +1,44 @@
-"""Собирает перечень отчётов и бланков кредитного модуля к финальному акту.
+"""Собирает перечень отчётов кредитного модуля к финальному акту.
 
 Источник один: docs/perechen-otchetov/perechen.json. Руками правится только он, всё остальное
 пересобирается этим скриптом.
 
     python3 scripts/build_perechen.py                      # пути по умолчанию
     python3 scripts/build_perechen.py --no-samples         # только Перечень.xlsx
-    python3 scripts/build_perechen.py --reports            # только Перечень-отчётов.xlsx
     python3 scripts/build_perechen.py --only=ФО-01,ФО-02   # Перечень.xlsx и образцы только этих отчётов
     python3 scripts/build_perechen.py <perechen.json> <папка вывода>
 
 Что собирается (в папке вывода, по умолчанию docs/perechen-otchetov/):
-- Перечень.xlsx, листы:
-  «Перечень» — правила, обозначения и строки: отчёты, бланки, общие требования. Вид формы —
-  отдельная строка с номером своей формы;
-  «Приёмка» — правила проверки каждой строки и заёмщики контрольного набора, на которых она
-  проверяется; графы результата заполняются на приёмке;
-  «Контрольный набор» — заёмщики набора: подразделение, куратор, кредиты с остатком на дату
-  состояния, случай и формы, которые на нём проверяются; по этому листу набор заводится на стенде;
-  «Вне перечня» — что в перечень не входит и где оно учтено;
+- Перечень.xlsx — один лист «Отчёты»: группы по ходу кредита, вид сразу под своим отчётом; колонки: Номер,
+  Название, Строка, Что показывает, Кому, Образец, ⚠. Строка вычисляется из карточки (razrezy.detail).
+  Бланки, правила, основания, приёмка, контрольный набор и «вне перечня» остаются в JSON и в файл не выводятся;
 - obrazcy/ФО-NN.xlsx на отчёт: лист «Образец», по листу на каждый вид, лист «Описание»
-  (карточка). Образцы только у отчётов: у бланков, заготовок и требований файла нет.
+  (карточка). Образцы только у отчётов: у бланков и требований файла нет.
   Файлы ФО-NN.* в obrazcy/, не принадлежащие отчёту перечня, удаляются (кроме сборки с --only).
   Карточка с "style": "стандарт" собирается по стандарту оформления: лист «ФО-NN» (шапка формы,
   таблица с номерами граф, строки групп с итогом над их кредитами, ширина по типу колонки "type",
   печать в одну страницу по ширине, колонтитул) и лист «Параметры» из "sheet_params".
   Строка образца с "fmt" печатает свои числа этим форматом вместо формата колонки — в сводке
   показателей (ФО-59) единица своя у каждой строки: шт., тыс. сом, %, дн.
-- с --reports вместо всего этого — Перечень-отчётов.xlsx: один лист, только отчёты и их виды
-  (без бланков, требований, приёмки и контрольного набора); обозначения — только те, что
-  встречаются в строках.
 
 Вычисляется, а не пишется в JSON:
 - язык: отчёт — язык интерфейса; бланк с "ext": true (получатель вне ОАО) — русский и
   кыргызский, без него — русский;
 - ⚠ «кыргызский текст» у каждой внешней строки бланка (тексты даёт заказчик);
-- карточка вида = карточка формы, поверх которой лежат поля вида.
+- карточка вида = карточка формы, поверх которой лежат поля вида;
+- «Строка» листа «Отчёты» = razrezy.detail карточки;
+- порядок листа «Отчёты»: группы по списку "groups", внутри группы — порядок строк в "rows".
 
 Проверки (не сошлось — ничего не пишется):
-- номер вида ФО-NN или ОТ-N; снятые номера (ФО-21, ФО-22, ФО-23) не встречаются;
+- номер вида ФО-NN или ОТ-N; снятые номера (RETIRED) не встречаются ни в строках, ни в карточках;
 - у формы одна главная строка; вид идёт после главной строки своей формы и не повторяется;
 - часть — отчёт, бланк или требование; "ext" только у бланков;
 - у каждой строки есть название (или вид), модуль, получатель, основание, образец;
+- у отчёта есть группа из "groups" (вид наследует группу отчёта), "shows" и "old"; получатель настоящий, не
+  «внутренний»; "shows" — до двух предложений, без номеров других форм и старой системы;
+- в том, что читает заказчик ("basis", "old", "note", "to", у бланка ещё "sample", «Вне перечня»), нет рабочих
+  записей: «решение владельца», «образец практики», имён файлов, прежних названий. Поле "sample" отчёта —
+  внутреннее, для разбора (какие выгрузки смотреть), в пакет не выводится;
 - у каждой строки есть карточка с обязательными для её части полями, у каждой карточки — строка;
   в образце отчёта у каждой строки столько ячеек, сколько колонок;
 - в тексте карточек нет внутренних кодов (ADR-, ИО-, ПВ-…, пунктов ТЗ 20 гл. 13);
@@ -63,21 +61,25 @@ from openpyxl.cell.rich_text import CellRichText, TextBlock
 from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.datavalidation import DataValidation
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / 'docs/perechen-otchetov/perechen.json'
 OUT_DIR = ROOT / 'docs/perechen-otchetov'
 SAMPLES = 'obrazcy'
 
-RETIRED = {'ФО-03', 'ФО-12', 'ФО-13', 'ФО-21', 'ФО-22', 'ФО-23'}
+RETIRED = {'ФО-03', 'ФО-12', 'ФО-13', 'ФО-21', 'ФО-22', 'ФО-23', 'ФО-25', 'ФО-26', 'ФО-56', 'ФО-91', 'ФО-92', 'ФО-93', 'ФО-94'}
+RETIRED_RE = re.compile(r'(?:' + '|'.join(sorted(RETIRED)) + r')\b')
 PARTS = {'отчёт': 'Отчёт', 'бланк': 'Бланк', 'требование': 'Требование'}
 ID_RE = re.compile(r'^(ФО-\d{2}|ОТ-\d+)$')
 SAMPLE_RE = re.compile(r'^(ФО|ОТ)-\d+\.(xlsx|docx)$')
 REQUIRED = ('module', 'to', 'basis', 'sample')
+REPORT_REQ = ('shows', 'old')
+# рабочие записи, которые нельзя показывать заказчику
+WORK_NOTES = re.compile(r'решени\w+ владельца|образ\w+ практики|\.(?:xlsx?|docx?|pdf)\b|прежнее название', re.I)
+# конец предложения: знак и за ним заглавная буква или конец текста; «тыс. сом», «п. 12» не считаются
+SENTENCE_END = re.compile(r'[.!?…](?=\s+[А-ЯЁ«]|\s*$)')
 CARD_REQ = {
     'отчёт': ('purpose', 'when', 'params', 'layout', 'columns', 'checks', 'sample'),
-    'заготовка': ('purpose', 'when', 'checks'),
     'бланк': ('purpose', 'when', 'recipient_rule', 'text_source', 'fields', 'regnum', 'format',
               'checks', 'sample'),
     'требование': ('purpose', 'checks'),
@@ -88,31 +90,12 @@ FORBID = re.compile(r'\b(?:ADR|ИО|ПВ|ОЧ|КВ|СС|РЯ|ДБ|ИМ|ГП|КН
 # «Заёмщиков» не складывается: заёмщик с кредитами в двух валютах считается в каждой, в ИТОГО — один раз (ФО-07)
 NOT_ADDITIVE = re.compile(r'%|ставк|курс|\bдн|дней|\bдат|срок|№|номер|групп|заёмщиков', re.I)
 
-# Колонки листа «Перечень»: заголовок, ширина.
-COLS = [
-    ('№', 5), ('Номер', 8), ('Название', 50), ('Часть', 11), ('Модуль', 18),
-    ('Получатель', 24), ('Язык', 16), ('Основание', 58), ('Образец-основа', 40),
-    ('Файл образца', 18), ('⚠ Нужно от заказчика', 28), ('Примечание', 44),
-]
-# Колонки «Перечня отчётов»: часть и язык у всех строк одни, файла образца нет.
+# Колонки листа «Отчёты» — обязательство к акту.
 REPORT_COLS = [
-    ('№', 5), ('Номер', 8), ('Название', 50), ('Модуль', 18), ('Получатель', 24),
-    ('Основание', 58), ('Образец-основа', 40), ('⚠ Нужно от заказчика', 28), ('Примечание', 44),
+    ('Номер', 8), ('Название', 44), ('Строка', 16), ('Что показывает', 74), ('Кому', 32), ('Образец', 25), ('⚠', 26),
 ]
 REPORTS_TITLE = 'Перечень отчётов кредитного модуля АСУБК'
-REPORTS_FILE = 'Перечень-отчётов.xlsx'
-ACC_COLS = [
-    ('№', 5), ('Номер', 8), ('Название', 44), ('Правила проверки', 80), ('Контрольный набор', 26),
-    ('Результат', 14), ('Дата', 11), ('Сдал (разработчик)', 18), ('Принял (заказчик)', 18),
-    ('Замечание', 36),
-]
-SET_COLS = [('Код', 8), ('Заёмщик', 26), ('Район', 26), ('Подразделение', 24), ('Куратор', 16),
-            ('Кредитный договор', 22), ('Валюта', 8), ('Сумма по договору', 15),
-            ('Остаток основного долга на 01.10.2026', 16), ('Группа', 8), ('О кредите', 40),
-            ('Случай', 50), ('Формы', 44)]
 LOAN_REQ = ('no', 'date', 'cur', 'amount', 'rest')
-OUT_COLS = [('№', 5), ('Что', 90), ('Где учтено', 46), ('Основание', 52)]
-RESULTS = '"сдано,сдано с замечанием,не сдано"'
 
 BLUE = '006AF5'
 HEAD_FILL = PatternFill('solid', fgColor=BLUE)
@@ -154,7 +137,7 @@ RAZREZ_FILLS = {
     'Слой': 'E4DFEC', 'Чем закрыт': 'E4DFEC', 'Месяц начала': 'E4DFEC',
     'Вид имущества': 'E4DFEC', 'Класс имущества': 'E4DFEC', 'Источник': 'E4DFEC', 'Вид долга': 'E4DFEC',
     'Состояние доплаты': 'E4DFEC', 'Обременение': 'E4DFEC', 'Путь выбытия': 'E4DFEC', 'Итог позиции': 'E4DFEC',
-    'Орган': 'E4DFEC', 'Подразделение куратора': '9BC2E6', 'Месяц': 'E4DFEC',
+    'Орган': 'E4DFEC', 'Подразделение куратора': '9BC2E6', 'Месяц': 'E4DFEC', 'Месяц погашения': 'E4DFEC',
     'Кредитная программа': 'E4DFEC', 'Статус заявки': 'E4DFEC', 'Месяц подачи': 'E4DFEC',
     'Кредитный специалист': 'EAF2FA', 'Изменение': 'E4DFEC', 'Срок просрочки': 'E4DFEC', 'Итог акта': 'E4DFEC',
     'Состояние дела': 'E4DFEC', 'Решение правительства': 'E4DFEC',
@@ -196,10 +179,6 @@ def key(r):
     return r['id'] + ('|' + r['vid'] if r.get('vid') else '')
 
 
-def is_stub(r):
-    return r.get('name', '').endswith('(заготовка)')
-
-
 def strings(x):
     if isinstance(x, str):
         yield x
@@ -220,6 +199,8 @@ def check_rows(data, errors):
             errors.append(f'{where}: номер не ФО-NN / ОТ-N')
         if rid in RETIRED:
             errors.append(f'{where}: номер снят и не переиспользуется')
+        if 'vid' in r and 'group' in r:
+            errors.append(f'{where}: у вида нет своей группы — она от формы')
         if 'vid' in r:
             if rid not in mains:
                 errors.append(f'{where}: вид раньше главной строки формы')
@@ -236,17 +217,40 @@ def check_rows(data, errors):
                 errors.append(f'{where}: часть не из {sorted(PARTS)}')
             if not r.get('name'):
                 errors.append(f'{where}: нет названия')
+            if r.get('part') == 'отчёт' and r.get('group') not in data['groups']:
+                errors.append(f'{where}: группа не из "groups"')
         for k in REQUIRED:
             if not r.get(k):
                 errors.append(f'{where}: нет поля "{k}"')
     part = {r['id']: r.get('part') for r in data['rows'] if 'vid' not in r}
     for i, r in enumerate(data['rows'], 1):
-        if r.get('ext') and part.get(r['id']) != 'бланк':
-            errors.append(f'строка {i} ({r["id"]}): "ext" бывает только у бланка')
+        where = f'строка {i} ({r["id"]}{", вид «" + r["vid"] + "»" if r.get("vid") else ""})'
+        p = part.get(r['id'])
+        if r.get('ext') and p != 'бланк':
+            errors.append(f'{where}: "ext" бывает только у бланка')
+        if p == 'отчёт':
+            for k in REPORT_REQ:
+                if not r.get(k):
+                    errors.append(f'{where}: нет поля "{k}"')
+            if r.get('to') == 'внутренний':
+                errors.append(f'{where}: «Кому» — настоящие получатели, не «внутренний»')
+            shows = r.get('shows', '')
+            if len(SENTENCE_END.findall(shows)) > 2:
+                errors.append(f'{where}: «Что показывает» длиннее двух предложений')
+            if re.search(r'\b(?:ФО|ОТ)-\d|старой системе', shows):
+                errors.append(f'{where}: в «Что показывает» ссылка на другую форму или на старую систему')
+        # у отчёта "sample" внутренний и в пакет не выводится
+        for k in ('basis', 'old', 'note', 'to') + (('sample',) if p != 'отчёт' else ()):
+            mt = WORK_NOTES.search(r.get(k) or '')
+            if mt:
+                errors.append(f'{where}: рабочая запись в "{k}": «{mt.group(0)}»')
     for i, o in enumerate(data.get('outside', []), 1):
         for k in ('what', 'where', 'basis'):
             if not o.get(k):
                 errors.append(f'«Вне перечня» {i}: нет поля "{k}"')
+            mt = WORK_NOTES.search(o.get(k) or '')
+            if mt:
+                errors.append(f'«Вне перечня» {i}: рабочая запись в "{k}": «{mt.group(0)}»')
 
 
 def check_cards(data, errors):
@@ -262,13 +266,18 @@ def check_cards(data, errors):
             errors.append(f'{k}: нет карточки')
             continue
         m = main[r['id']]
-        kind = 'вид' if r.get('vid') else ('заготовка' if is_stub(m) else m['part'])
+        kind = 'вид' if r.get('vid') else m['part']
         for f in CARD_REQ[kind]:
             if not c.get(f):
                 errors.append(f'{k}: в карточке нет "{f}"')
         bad = sorted({mt.group(0) for s in strings(c) for mt in [FORBID.search(s)] if mt})
         if bad:
             errors.append(f'{k}: внутренние коды в тексте карточки: {", ".join(bad)}')
+        gone = sorted({mt.group(0) for s in strings(c) for mt in RETIRED_RE.finditer(s)})
+        if gone:
+            errors.append(f'{k}: в карточке снятый номер: {", ".join(gone)}')
+        if m['part'] == 'отчёт' and not (c.get('razrezy') or cards[r['id']].get('razrezy') or {}).get('detail'):
+            errors.append(f'{k}: в карточке нет razrezy.detail — из него берётся колонка «Строка»')
         s = c.get('sample')
         if not s:
             continue
@@ -350,18 +359,24 @@ def control_for(data, k):
 
 
 def expand(data):
-    """Строки в порядке листа: часть → номер; вид сразу за своей формой."""
+    """Строки в порядке листов: отчёты — по группам, затем бланки и требования по номеру; вид сразу за формой."""
     order = list(PARTS)
     cards = data['cards']
     forms = {}
     for r in data['rows']:
         forms.setdefault(r['id'], []).append(r)
-    num = lambda rid: int(rid.split('-')[1])
-    ids = sorted(forms, key=lambda rid: (order.index(forms[rid][0]['part']), num(rid)))
+    pos = {rid: i for i, rid in enumerate(forms)}
+
+    def place(rid):
+        m = forms[rid][0]
+        if m['part'] == 'отчёт':
+            return order.index('отчёт'), data['groups'].index(m['group']), pos[rid]
+        return order.index(m['part']), 0, int(rid.split('-')[1])
+
     out = []
-    for rid in ids:
+    for rid in sorted(forms, key=place):
         main = forms[rid][0]
-        for r in forms[rid]:
+        for n, r in enumerate(forms[rid]):
             vid = r.get('vid')
             p = main['part']
             if p == 'отчёт':
@@ -376,13 +391,13 @@ def expand(data):
             # вид наследует поля формы, кроме стиля: вид по стандарту объявляет его сам
             card = {k: v for k, v in cards[rid].items() if k != 'style'} if vid else {}
             card.update(cards[key(r)])
-            has_file = p == 'отчёт' and not is_stub(main)
             out.append(dict(
-                id=rid, vid=vid, key=key(r), part=p, stub=is_stub(main),
+                id=rid, vid=vid, key=key(r), part=p, n=n, group=main.get('group', ''),
                 name=f'вид «{vid}»' if vid else r['name'], title=main['name'],
                 module=r['module'], to=r['to'], lang=lang, basis=r['basis'],
+                shows=r.get('shows', ''), old=r.get('old', ''), detail=card.get('razrezy', {}).get('detail', ''),
                 sample=r['sample'], warn='; '.join(warn), note=r.get('note', ''),
-                card=card, file=f'{rid}.xlsx' if has_file else '',
+                card=card, file=f'{rid}.xlsx' if p == 'отчёт' else '',
                 control=control_for(data, key(r)),
             ))
     return out
@@ -436,7 +451,6 @@ def counts(rows):
         c[k] = c.get(k, 0) + 1
     return dict(
         reports=c.get(('отчёт', False), 0), report_vids=c.get(('отчёт', True), 0),
-        stub=sum(1 for r in rows if r['stub'] and not r['vid']),
         blanks=c.get(('бланк', False), 0), blank_vids=c.get(('бланк', True), 0),
         reqs=c.get(('требование', False), 0),
         warn=sum(1 for r in rows if r['warn']),
@@ -472,7 +486,8 @@ def header(ws, row, cols):
     ws.row_dimensions[row].height = 30
 
 
-def table_row(ws, r, vals, vid=False):
+def table_row(ws, r, vals, vid=False, num_col=2):
+    """Строка таблицы; num_col — колонка номера, название стоит сразу за ней."""
     for i, v in enumerate(vals, 1):
         c = ws.cell(row=r, column=i, value=v)
         c.alignment = WRAP
@@ -480,10 +495,23 @@ def table_row(ws, r, vals, vid=False):
         if vid:
             c.fill = VID_FILL
     if vid:
-        ws.cell(row=r, column=3).alignment = Alignment(wrap_text=True, vertical='top', indent=2)
-        ws.cell(row=r, column=3).font = Font(italic=True)
+        ws.cell(row=r, column=num_col + 1).alignment = Alignment(wrap_text=True, vertical='top', indent=2)
+        ws.cell(row=r, column=num_col + 1).font = Font(italic=True)
     else:
-        ws.cell(row=r, column=2).font = Font(bold=True)
+        ws.cell(row=r, column=num_col).font = Font(bold=True)
+
+
+def group_row(ws, r, title, ncols):
+    """Строка группы: на всю ширину, без объединения ячеек — фильтр и сортировка не ломаются."""
+    edge = Border(top=THIN, bottom=THIN)
+    for i in range(1, ncols + 1):
+        c = ws.cell(row=r, column=i)
+        c.fill = SAMPLE_HEAD_FILL
+        c.border = edge
+    c = ws.cell(row=r, column=1, value=title)
+    c.font = Font(bold=True)
+    c.alignment = Alignment(vertical='center')
+    ws.row_dimensions[r].height = 18
 
 
 def page_setup(ws, head=None):
@@ -496,149 +524,35 @@ def page_setup(ws, head=None):
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
 
-def sheet_list(wb, data, rows, n):
-    ws = wb.active
-    ws.title = 'Перечень'
-    nc = len(COLS)
-    set_widths(ws, COLS)
-    r = 1
-    text_row(ws, r, data['title'], nc, Font(bold=True, size=14), 22)
-    r += 1
-    text_row(ws, r, f'{data["date"]}. {data["stage"]}', nc, Font(italic=True, color='555555'))
-    r += 1
-    total = (f'Отчётов: {n["reports"]} (из них заготовок: {n["stub"]}), видов отчётов: '
-             f'{n["report_vids"]}. Бланков: {n["blanks"]}, видов бланков: {n["blank_vids"]}. '
-             f'Общих требований: {n["reqs"]}. Строк с ⚠: {n["warn"]} (кыргызский текст: {n["kg"]}).')
-    text_row(ws, r, total, nc, Font(bold=True))
-    r += 2
-    for rule in data['rules']:
-        text_row(ws, r, rule, nc, height=30)
-        r += 1
-    r += 1
-    text_row(ws, r, 'Обозначения: ' + '; '.join(data['legend']) + '.', nc,
-             Font(color='555555', size=9), 42)
-    r += 2
-    header(ws, r, COLS)
-    head = r
-    for k, row in enumerate(rows, 1):
-        r += 1
-        path = f'{SAMPLES}/{row["file"]}' if row['file'] else '—'
-        table_row(ws, r, [k, row['id'], row['name'], PARTS[row['part']], row['module'], row['to'],
-                          row['lang'], row['basis'], row['sample'], path, row['warn'], row['note']],
-                  bool(row['vid']))
-        if row['file']:
-            c = ws.cell(row=r, column=10)
-            c.hyperlink = path
-            c.font = Font(color=BLUE, underline='single')
-        if row['warn']:
-            ws.cell(row=r, column=11).fill = WARN_FILL
-    ws.freeze_panes = ws.cell(row=head + 1, column=4)
-    ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
-    page_setup(ws, head)
-
-
 def sheet_reports(wb, data, rows, n):
-    """Перечень отчётов: только отчёты и их виды; rows — уже отобранные строки отчётов."""
+    """Лист «Отчёты»: над таблицей только заголовок и итог; rows — строки отчётов в порядке групп."""
     ws = wb.active
-    ws.title = 'Перечень отчётов'
+    ws.title = 'Отчёты'
     nc = len(REPORT_COLS)
     set_widths(ws, REPORT_COLS)
-    used = ' '.join(f'{x["basis"]} {x["sample"]} {x["note"]}' for x in rows)
-    legend = [l for l in data['legend'] if re.sub(r' (¶N|NN)$', '', l.split(' — ')[0]) in used]
-    scope = next(x for x in data['rules'] if x.startswith('Охват'))
-    r = 1
-    text_row(ws, r, REPORTS_TITLE, nc, Font(bold=True, size=14), 22)
-    r += 1
-    text_row(ws, r, data['date'], nc, Font(italic=True, color='555555'))
-    r += 1
-    total = (f'Отчётов: {n["reports"]} (из них заготовок: {n["stub"]}), видов отчётов: '
-             f'{n["report_vids"]}. Строк с ⚠: {n["warn"]}.')
-    text_row(ws, r, total, nc, Font(bold=True))
-    r += 2
-    text_row(ws, r, scope, nc, height=30)
-    r += 2
-    text_row(ws, r, 'Обозначения: ' + '; '.join(legend) + '.', nc, Font(color='555555', size=9), 42)
-    r += 2
-    header(ws, r, REPORT_COLS)
-    head = r
-    for k, row in enumerate(rows, 1):
-        r += 1
-        table_row(ws, r, [k, row['id'], row['name'], row['module'], row['to'], row['basis'],
-                          row['sample'], row['warn'], row['note']], bool(row['vid']))
-        if row['warn']:
-            ws.cell(row=r, column=8).fill = WARN_FILL
-    ws.freeze_panes = ws.cell(row=head + 1, column=4)
-    ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
-    page_setup(ws, head)
-
-
-def sheet_acceptance(wb, data, rows):
-    ws = wb.create_sheet('Приёмка')
-    nc = len(ACC_COLS)
-    set_widths(ws, ACC_COLS)
-    text_row(ws, 1, 'Лист приёмки отчётов и бланков', nc, Font(bold=True, size=14), 22)
-    text_row(ws, 2, 'Перечень на дату заморозки: ____________. Проверка — на контрольном наборе '
-                    '(лист «Контрольный набор»). Строка сдана, если готовая форма совпадает с '
-                    'карточкой (у отчёта — файл образца, лист «Описание») и выполнены все правила '
-                    'проверки. Числа образцов — для иллюстрации.', nc, height=44)
-    header(ws, 4, ACC_COLS)
-    dv = DataValidation(type='list', formula1=RESULTS, allow_blank=True)
-    ws.add_data_validation(dv)
+    text_row(ws, 1, f'{REPORTS_TITLE} на {data["date"]}', nc, Font(bold=True, size=14), 22)
+    text_row(ws, 2, f'Отчётов: {n["reports"]}, видов: {n["report_vids"]}, всего строк: {len(rows)}. '
+                    f'Строк с ⚠: {n["warn"]}.', nc, Font(bold=True))
+    header(ws, 4, REPORT_COLS)
     r = 4
-    for k, row in enumerate(rows, 1):
-        r += 1
-        checks = '\n'.join(f'{i}. {t}' for i, t in enumerate(row['card'].get('checks', []), 1))
-        table_row(ws, r, [k, row['id'], row['name'], checks, row['control'], '', '', '', '', ''],
-                  bool(row['vid']))
-        dv.add(f'F{r}')
-    ws.freeze_panes = 'D5'
-    ws.auto_filter.ref = f'A4:{get_column_letter(nc)}{r}'
-    r += 2
-    text_row(ws, r, 'Сдал: ____________________ (разработчик)          Принял: ____________________ '
-                    '(заказчик)          Дата: ____________', nc)
-    page_setup(ws, 4)
-
-
-def sheet_control(wb, data):
-    ws = wb.create_sheet('Контрольный набор')
-    ctl = data['control']
-    nc = len(SET_COLS)
-    set_widths(ws, SET_COLS)
-    text_row(ws, 1, 'Контрольный набор', nc, Font(bold=True, size=14), 22)
-    text_row(ws, 2, ctl['note'], nc, height=58)
-    header(ws, 4, SET_COLS)
-    r = 4
-    for b in ctl['set']:
-        first = r + 1
-        for i, ln in enumerate(b['loans']):
+    group = None
+    for row in rows:
+        if row['group'] != group:
+            group = row['group']
             r += 1
-            head = [b['id'], b['name'], b['region'], b['unit'], b['curator']] if i == 0 else [''] * 5
-            tail = [b['case'], ', '.join(b['forms'])] if i == 0 else ['', '']
-            table_row(ws, r, head + [f'№ {ln["no"]} от {ln["date"]}', ln['cur'], ln['amount'], ln['rest'],
-                                     ln.get('group', ''), ln.get('note', '')] + tail)
-            for ci in (8, 9):
-                ws.cell(row=r, column=ci).number_format = '#,##0.00'
-        if r > first:
-            for ci in (1, 2, 3, 4, 5, 12, 13):
-                ws.merge_cells(start_row=first, start_column=ci, end_row=r, end_column=ci)
-    r += 2
-    text_row(ws, r, 'На всём наборе проверяются: ' + ', '.join(ctl['all']) + '.', nc)
-    ws.freeze_panes = 'A5'
+            group_row(ws, r, group, nc)
+        r += 1
+        shown = f'{row["file"]}, лист «Вид {row["n"]}»' if row['vid'] else row['file']
+        table_row(ws, r, [row['id'], row['name'], row['detail'], row['shows'], row['to'], shown, row['warn']],
+                  bool(row['vid']), num_col=1)
+        c = ws.cell(row=r, column=6)
+        c.hyperlink = f'{SAMPLES}/{row["file"]}'
+        c.font = Font(color=BLUE, underline='single')
+        if row['warn']:
+            ws.cell(row=r, column=7).fill = WARN_FILL
+    ws.freeze_panes = ws.cell(row=5, column=3)
+    ws.auto_filter.ref = f'A4:{get_column_letter(nc)}{r}'
     page_setup(ws, 4)
-
-
-def sheet_outside(wb, data):
-    ws = wb.create_sheet('Вне перечня')
-    set_widths(ws, OUT_COLS)
-    text_row(ws, 1, 'Не входит в перечень — и где учтено', len(OUT_COLS), Font(bold=True, size=14), 22)
-    header(ws, 3, OUT_COLS)
-    for k, o in enumerate(data['outside'], 1):
-        for i, v in enumerate([k, o['what'], o['where'], o['basis']], 1):
-            c = ws.cell(row=3 + k, column=i, value=v)
-            c.alignment = WRAP
-            c.border = BORDER
-    ws.freeze_panes = 'A4'
-    page_setup(ws)
 
 
 # --- Образцы отчётов (xlsx) --------------------------------------------------------------
@@ -907,7 +821,7 @@ def describe_rows(row):
     yield 'Получатель', row['to']
     yield 'Язык', row['lang']
     yield 'Основание', row['basis']
-    yield 'Образец-основа', row['sample']
+    yield 'В старой системе', row['old']
     yield 'Кому и зачем', c.get('purpose', '')
     yield 'Когда', c.get('when', '')
     yield 'Параметры', '\n'.join('• ' + p for p in c.get('params', []))
@@ -937,7 +851,7 @@ def vid_rows(row, vrow):
         yield 'Разрезы', (f'по умолчанию: {" → ".join(z["default"])} → {z["detail"].lower()}; '
                           f'можно выбрать: {", ".join(z["available"])}')
     yield 'Основание', vrow['basis']
-    yield 'Образец-основа', vrow['sample']
+    yield 'В старой системе', vrow['old']
 
 
 def describe_sheet(ws, row, vids):
@@ -1042,24 +956,12 @@ def main():
     data = json.loads(src.read_text(encoding='utf-8'))
     check(data)
     rows = expand(data)
-    if '--reports' in sys.argv:
-        reports = [r for r in rows if r['part'] == 'отчёт']
-        n = counts(reports)
-        wb = Workbook()
-        sheet_reports(wb, data, reports, n)
-        out.mkdir(parents=True, exist_ok=True)
-        wb.save(out / REPORTS_FILE)
-        print(f'{REPORTS_FILE}: {len(reports)} строк — отчётов {n["reports"]} (заготовок {n["stub"]}) '
-              f'+ видов {n["report_vids"]}; ⚠ {n["warn"]}')
-        return
-    n = counts(rows)
-    warns =[(r['key'], w) for r in rows if r['part'] == 'отчёт' and not r['stub'] for w in sum_warnings(r)]
+    warns = [(r['key'], w) for r in rows if r['part'] == 'отчёт' for w in sum_warnings(r)]
     opens = [(r['key'], q) for r in rows for q in data['cards'][r['key']].get('open', [])]
     wb = Workbook()
-    sheet_list(wb, data, rows, n)
-    sheet_acceptance(wb, data, rows)
-    sheet_control(wb, data)
-    sheet_outside(wb, data)
+    reports = [r for r in rows if r['part'] == 'отчёт']
+    n = counts(reports)
+    sheet_reports(wb, data, reports, n)
     out.mkdir(parents=True, exist_ok=True)
     wb.save(out / 'Перечень.xlsx')
     made = 0 if no_samples else build_samples(rows, out / SAMPLES, only)
@@ -1067,10 +969,8 @@ def main():
         print(f'предупреждение: {k}: образец: {w}')
     for k, q in opens:
         print(f'вопрос владельцу: {k}: {q}')
-    print(f'Перечень.xlsx: {len(rows)} строк — отчётов {n["reports"]} (заготовок {n["stub"]}) + видов '
-          f'{n["report_vids"]}, бланков {n["blanks"]} + видов {n["blank_vids"]}, требований {n["reqs"]}; '
-          f'⚠ {n["warn"]} (кыргызский текст {n["kg"]}); вне перечня {len(data["outside"])}; '
-          f'образцов {made}; предупреждений {len(warns)}; вопросов владельцу {len(opens)}')
+    print(f'Перечень.xlsx: {len(reports)} строк — отчётов {n["reports"]} + видов {n["report_vids"]}; '
+          f'⚠ {n["warn"]}; образцов {made}; предупреждений {len(warns)}; вопросов владельцу {len(opens)}')
 
 
 if __name__ == '__main__':

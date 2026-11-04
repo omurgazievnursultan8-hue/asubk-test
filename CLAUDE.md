@@ -116,27 +116,29 @@ python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.ht
 # twice. Rerun after every edit to either file; a new schema column needs a dictionary line.
 python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
 
-# Rebuild the list of reports and print forms for the final act (Перечень.xlsx with the
-# acceptance sheet, plus a sample xlsx per report in obrazcy/ — blanks have no sample file)
-# from its one source docs/perechen-otchetov/perechen.json. Fails and writes nothing on a bad
-# row or card.
+# Rebuild the list of reports for the final act (Перечень.xlsx: one sheet, Отчёты; plus a sample xlsx
+# per report in obrazcy/) from its one source docs/perechen-otchetov/perechen.json. Blanks, rules,
+# basis, acceptance, the control set and «вне перечня» stay in the JSON and are not written to the file.
+# Fails and writes nothing on a bad row or card.
 python3 scripts/build_perechen.py         # -> docs/perechen-otchetov/Перечень.xlsx + obrazcy/
 python3 scripts/build_perechen.py --no-samples   # xlsx only
 python3 scripts/build_perechen.py --only=ФО-01,ФО-02   # rebuild only these samples, keep the rest
-python3 scripts/build_perechen.py --reports      # -> Перечень-отчётов.xlsx (reports and their views only)
 
 # Replace one card in perechen.json as text, without reformatting the file; refuses to write if anything
 # else changed. Reports are grilled one per session with the /grill-otchet skill (standard: its standart.md).
 python3 scripts/put_card.py ФО-02 --dump card.json                      # current card -> file
 python3 scripts/put_card.py ФО-02 card.json [--name "…"] [--note "…"]   # file -> card (+ row name/note)
+python3 scripts/put_card.py "ФО-04|Вид" --shows "…" --to "…" --old "…"   # row fields of the form or its view
 
-# Rebuild the dashboard tile list for the final act (appendix to ТЗ 24; sheets «Плитки» ПЛ-NN and
-# «Отчёты плиток» ОП-NN) from its one source docs/perechen-plitok/plitki.json. Reconciles with the
-# mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
-# traffic-light thresholds, shift base, default view kinds, params, role layouts; reads the report
-# cards in perechen.json (read-only): a tile's column and slice must be in the ФО card or in its
-# request; fails and writes nothing on a mismatch. Rerun after editing plitki.json, the mockup's
-# tiles/layouts, or a card that tiles stand on.
+# Rebuild the dashboard tile list for the final act (appendix to ТЗ 24) from its one source
+# docs/perechen-plitok/plitki.json. Sheet «Плитки»: role → section → tiles in four columns (№, Плитка, Что показывает,
+# Откуда); sheet «Отчёты плиток»: the live ОП-NN only. Tile and report numbers are permanent, retired ones are never reused.
+# Reconciles with the mockup via node (scripts/perechen_plitok_maket.mjs): tiles, names, report/queue, second number,
+# traffic-light thresholds, shift base, default view kinds, params, role layouts; reads the report cards in perechen.json
+# (read-only): a tile's column and slice must be in the ФО card or in its request. Also checks the totals in `expect`
+# (73 tiles, 81 rows, 12 reports), a non-empty phrase, a threshold in the phrase equal to the tile's. Tiles with catalogOnly
+# (ПЛ-86…91) are reconciled but not printed. Fails and writes nothing on a mismatch. Rerun after editing plitki.json,
+# the mockup's tiles/layouts, or a card that tiles stand on.
 python3 scripts/build_perechen_plitok.py  # -> docs/perechen-plitok/Перечень плиток.xlsx
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.

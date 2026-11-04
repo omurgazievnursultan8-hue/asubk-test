@@ -10,37 +10,39 @@
 
 Что собирается (в папке вывода, по умолчанию docs/perechen-plitok/):
 - «Перечень плиток.xlsx», листы:
-  «Плитки» — правила, обозначения и строки ПЛ-NN: где стоит (роль · секция · место), охват,
-  отчёт или очередь, значения параметров, главное и второе число, сдвиг, светофор, виды по
-  умолчанию, что утверждает заказчик;
-  «Отчёты плиток» — строки ОП-NN: объект, отбор, показатели, разрезы, параметры и плитки,
-  которые на отчёте стоят; снятый отчёт — строка «снят → ФО-NN»; ниже плитки на отчётах перечня
-  (ФО-NN): колонка, второе число, отбор, разрез, заявка к отчётности. Отчёт в листе «Плитки» —
-  ссылка на строку этого листа.
+  «Плитки» — шапка, три правила, строка обозначений; дальше роль → секция → плитки в порядке экрана,
+  четыре колонки: №, Плитка, Что показывает, Откуда;
+  «Отчёты плиток» — отчёты плиток к сдаче, колонки: №, Отчёт, Что считает, Плитки.
 
-Вычисляется, а не пишется в JSON: плитки у отчёта, итоги в шапке.
+В файл не печатаются, но хранятся в JSON и сверяются с макетом: сдвиг, виды, параметры, точная колонка
+отчёта. Плитки только каталога хранятся с пометкой catalogOnly: на экранах их нет, в файл они не идут.
+
+Вычисляется, а не пишется в JSON: плитки у отчёта, итоги в шапке, число плиток у роли.
 
 Проверки (не сошлось — ничего не пишется):
-- номера ПЛ-NN и ОП-NN идут подряд с 01 и не повторяются;
-- у плитки заполнены все поля; обзорная ссылается на действующий ОП или на ФО, ссылочная — на
-  очередь модуля; у каждого действующего ОП есть плитка, у снятого нет и он называет ФО;
+- номера ПЛ-NN и ОП-NN возрастают, не повторяются и не берут снятые (блок «retired»);
+- итоги равны блоку «expect»: плиток на экранах, строк, отчётов плиток, плиток только каталога;
+- у плитки заполнены все поля; у плитки на экране — фраза «Что показывает», у плитки без экрана —
+  пометка catalogOnly; обзорная ссылается на ОП или на ФО, ссылочная — на очередь модуля;
+  у каждого ОП есть фраза «Что считает» и плитка на экране;
+- порог во фразе равен порогу плитки в макете: цвет, знак, граница («если есть» — больше нуля);
+  у плитки без светофора цвета во фразе нет;
 - плитка на ФО: колонка и второе число есть в карточке отчёта, разрез — среди доступных; чего в
   карточке нет, записано заявкой (имя в кавычках «»). У заготовки колонок ещё нет: число названо в её
   назначении или заявкой. Заявка на показатель или разрез, который уже есть в карточке, устарела;
-- «⚠»: «состав и порядок раскладки» — у плитки раскладки, «плитка каталога» — у плитки только
-  в каталоге, «порог светофора» — ровно у плиток с порогом (знак > или <);
-- в тексте нет внутренних кодов (ADR-, ДБ-, ОД-…) и номеров задач;
+- в тексте нет внутренних кодов (ADR-, ДБ-, ПЕР-…), номеров задач и запрещённых слов;
 - сверка с макетом mockups/dashboard/dashboard.html (scripts/perechen_plitok_maket.mjs): те же
   плитки каталога с теми же названиями, видом, отчётом и очередью; отчёт макета для ФО — запись
   блока «fo» с тем же номером и названием; второе число есть там же;
   светофор — те же цвета, знаки и границы, зелёный и число, на котором горит; та же база
   сдвига; те же виды по умолчанию (по роду вида: Движение, Разрез, Ряд, Карта, Таблица); те же
-  значения параметров; те же отчёты под плитками; раскладки ролей — те же плитки в тех же
+  значения параметров; те же отчёты под плитками; раскладки ролей — те же роли, те же плитки в тех же
   секциях и в том же порядке.
-  Не сверяются (тексты перечня): модуль, охват роли, слова главного и второго числа, разрез и
-  колонки внутри вида, отбор плитки на ФО (свободный текст), на какой ФО ушли плитки снятого ОП.
+  Не сверяются (тексты перечня): модуль, охват роли, слова фразы, главного и второго числа, разрез и
+  колонки внутри вида, отбор плитки на ФО (свободный текст).
 """
 import json
+import math
 import re
 import subprocess
 import sys
@@ -61,13 +63,11 @@ DRAFT = ' (заготовка)'
 TILE_RE = re.compile(r'^ПЛ-\d{2}$')
 REPORT_RE = re.compile(r'^ОП-\d{2}$')
 KINDS = ('обзорная', 'ссылочная')
-TILE_REQ = ('maket', 'name', 'module', 'kind', 'scope', 'params', 'main', 'second', 'shift', 'tl',
-            'views', 'warn')
-REPORT_REQ = ('maket', 'name', 'object', 'filter')
-FO_ID = re.compile(r'ФО-\d{2}')
+TILE_REQ = ('maket', 'name', 'module', 'kind', 'scope', 'params', 'main', 'second', 'shift', 'tl', 'views')
+REPORT_REQ = ('maket', 'name', 'shows', 'object', 'filter')
 QUOTED = re.compile(r'«([^»]+)»')
-WARN_LAYOUT, WARN_CATALOG, WARN_TL = 'состав и порядок раскладки', 'плитка каталога', 'порог светофора'
-FORBID = re.compile(r'\b(?:ADR|ИО|ПВ|ОЧ|ОД|КВ|СС|РЯ|ДБ|ИМ|ГП|КН|ВБ|ПЗ|ПЛТ)-Д?\d|\b[PП]\d+-R\d')
+FORBID = re.compile(r'\b(?:ADR|ИО|ПВ|ОЧ|ОД|КВ|СС|РЯ|ДБ|ИМ|ГП|КН|ВБ|ПЗ|ПЛТ|ПЕР|ППЛ)-Д?\d|\b[PП]\d+-R\d')
+FORBID_WORD = re.compile(r'должник|\bволн[аыеу]\b', re.I)
 # база сдвига макета → слова перечня; у ссылочной плитки сдвига нет («—»)
 SHIFTS = {'prevMonthEnd': 'за месяц', 'quarterStart': 'за квартал', 'halfStart': 'за полугодие',
           'yearStart': 'за год', 'yearAgo': 'за 12 месяцев', 'period': 'к прошлому периоду',
@@ -76,30 +76,28 @@ VIEWS = {'move': 'Движение', 'slice': 'Разрез', 'series': 'Ряд'
 TL_COLORS = {'red': 'красный', 'yellow': 'жёлтый'}
 # светофор на втором числе: «на втором: …», «на доле: …», у «Мои задания» — «просрочено > 0»
 TL_ON_SECOND = re.compile(r'^на (?:втором|доле)\b|просрочено')
+# порог во фразе: «Жёлтый больше 4 %», «красный меньше 80 %», «красный, если есть»
+SHOWS_TL = re.compile(r'(жёлтый|красный)(?:, если есть| (больше|меньше) (\d+))', re.I)
+SHOWS_COLOR = re.compile(r'жёлтый|красный|зелёный', re.I)
+SIGNS = {'больше': '>', 'меньше': '<'}
 
-COLS = [
-    ('Номер', 8), ('Плитка', 32), ('Модуль', 15), ('Вид', 11), ('Где стоит', 34), ('Охват роли', 20),
-    ('Отчёт или очередь', 36), ('Значения параметров', 26), ('Главное число', 24),
-    ('Второе число', 20), ('Сдвиг', 14), ('Светофор', 22), ('Виды по умолчанию', 38),
-    ('⚠ Утверждает заказчик', 22),
-]
-REPORT_COLS = [
-    ('Номер', 8), ('Отчёт', 34), ('Объект', 22), ('Отбор', 34), ('Показатели', 40),
-    ('Разрезы', 36), ('Параметры', 22), ('Плитки на отчёте', 30),
-]
-# ширины — те же колонки листа, что у REPORT_COLS
-FO_COLS = [
-    ('Плитка', 8), ('Название', 34), ('Отчёт перечня', 22), ('Колонка отчёта', 34), ('Второе число', 40),
-    ('Отбор', 36), ('Разрез', 22), ('Заявка к отчётности', 30),
-]
+COLS = [('№', 8), ('Плитка', 40), ('Что показывает', 72), ('Откуда', 46)]
+REPORT_COLS = [('№', 8), ('Отчёт', 44), ('Что считает', 72), ('Плитки', 28)]
 REPORTS_SHEET = 'Отчёты плиток'
+REPORTS_HEAD = 4
 
 BLUE = '006AF5'
 HEAD_FILL = PatternFill('solid', fgColor=BLUE)
-WARN_FILL = PatternFill('solid', fgColor='FFF4D6')
+ROLE_FILL = PatternFill('solid', fgColor='DCE9FB')
+SECTION_FILL = PatternFill('solid', fgColor='F1F4F8')
 THIN = Side(style='thin', color='C9D3E0')
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 WRAP = Alignment(wrap_text=True, vertical='top')
+
+
+def font(size=11, **kw):
+    """Шрифт с именем: без него часть программ показывает жирное шрифтом с засечками."""
+    return Font(name='Calibri', size=size, **kw)
 
 
 def fail(errors):
@@ -120,11 +118,26 @@ def strings(x):
             yield from strings(v)
 
 
-def check_numbers(items, rx, prefix, errors):
-    for i, it in enumerate(items, 1):
-        want = f'{prefix}-{i:02d}'
-        if not rx.match(str(it.get('id'))) or it['id'] != want:
-            errors.append(f'{it.get("id")}: ожидался номер {want} — номера идут подряд с 01')
+def plural(n, one, few, many):
+    if n % 10 == 1 and n % 100 != 11:
+        return f'{n} {one}'
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f'{n} {few}'
+    return f'{n} {many}'
+
+
+def check_numbers(items, rx, retired, errors):
+    """Номера постоянные: убранный номер не используется повторно, порядок по возрастанию."""
+    ids = [str(it.get('id')) for it in items]
+    for x in ids:
+        if not rx.match(x):
+            errors.append(f'{x}: номер не по образцу')
+        if x in retired:
+            errors.append(f'{x}: номер снят и повторно не используется')
+    if len(set(ids)) != len(ids):
+        errors.append(f'номера повторяются: {sorted(x for x in set(ids) if ids.count(x) > 1)}')
+    if ids != sorted(ids):
+        errors.append('номера идут не по возрастанию')
 
 
 def read_fo():
@@ -173,7 +186,8 @@ def check_fo_source(t, fo, errors):
 
 
 def check_tiles(data, fo, errors):
-    reports = {r['id'] for r in data['reports'] if not r.get('closed')}
+    reports = {r['id'] for r in data['reports']}
+    roles = {r['name'] for r in data['roles']}
     for t in data['tiles']:
         tid = t.get('id')
         for k in TILE_REQ:
@@ -188,7 +202,7 @@ def check_tiles(data, fo, errors):
                     errors.append(f'{tid}: отчёта {src["fo"]} нет в блоке «fo»')
                 check_fo_source(t, fo, errors)
             elif src.get('report') not in reports:
-                errors.append(f'{tid}: обзорная плитка ссылается на действующий ОП или на ФО, а не на {src}')
+                errors.append(f'{tid}: обзорная плитка ссылается на отчёт плитки или на ФО, а не на {src}')
         if t.get('kind') == 'ссылочная' and not (src.get('queue') and src.get('module')):
             errors.append(f'{tid}: ссылочная плитка ссылается на очередь модуля (queue, module)')
         where = t.get('where')
@@ -196,27 +210,18 @@ def check_tiles(data, fo, errors):
                 not (w.get('role') and w.get('section') and isinstance(w.get('n'), int)) for w in where):
             errors.append(f'{tid}: «где стоит» — список {{role, section, n}}')
             where = []
-        warn = [w.strip() for w in t.get('warn', '').split(',')]
-        if bool(where) != (WARN_LAYOUT in warn) or (not where) != (WARN_CATALOG in warn):
-            errors.append(f'{tid}: ⚠ «{WARN_LAYOUT}» у плитки раскладки, «{WARN_CATALOG}» — у плитки '
-                          f'только в каталоге')
-        if bool(re.search(r'[<>]', t.get('tl', ''))) != (WARN_TL in warn):
-            errors.append(f'{tid}: ⚠ «{WARN_TL}» ставится ровно у плиток с порогом')
-        bad = set(warn) - {WARN_LAYOUT, WARN_CATALOG, WARN_TL}
-        if bad:
-            errors.append(f'{tid}: в ⚠ неизвестное {sorted(bad)}')
+        for w in where:
+            if w['role'] not in roles:
+                errors.append(f'{tid}: роли «{w["role"]}» нет в блоке «roles»')
+        if bool(where) == bool(t.get('catalogOnly')):
+            errors.append(f'{tid}: плитка либо на экране, либо с пометкой catalogOnly')
+        if where and not (isinstance(t.get('shows'), str) and t['shows'].strip()):
+            errors.append(f'{tid}: пустая фраза «Что показывает»')
 
 
-def check_reports(data, fo, errors):
-    used = {t['source'].get('report') for t in data['tiles'] if t.get('source')}
+def check_reports(data, errors):
+    used = {t['source'].get('report') for t in data['tiles'] if t.get('where')}
     for r in data['reports']:
-        if 'closed' in r:
-            named = FO_ID.findall(r['closed'])
-            if not r.get('name') or not named or any(x not in fo for x in named):
-                errors.append(f'{r.get("id")}: снятый отчёт — название и ФО, на который он снят')
-            if r.get('id') in used:
-                errors.append(f'{r.get("id")}: отчёт снят, а плитка на нём стоит')
-            continue
         for k in REPORT_REQ:
             if not isinstance(r.get(k), str) or not r[k].strip():
                 errors.append(f'{r.get("id")}: нет поля «{k}»')
@@ -226,7 +231,21 @@ def check_reports(data, fo, errors):
         if not isinstance(r.get('dims'), list):
             errors.append(f'{r.get("id")}: «dims» — список')
         if r.get('id') not in used:
-            errors.append(f'{r.get("id")}: на отчёте не стоит ни одна плитка')
+            errors.append(f'{r.get("id")}: на экранах ролей нет ни одной плитки на этом отчёте')
+
+
+def check_totals(data, errors):
+    screen = [t for t in data['tiles'] if t.get('where')]
+    got = {'tiles': len(screen), 'rows': sum(len(t['where']) for t in screen),
+           'reports': len(data['reports']), 'catalogOnly': len(data['tiles']) - len(screen)}
+    for k, v in data['expect'].items():
+        if got.get(k) != v:
+            errors.append(f'итог «{k}»: {got.get(k)}, ожидалось {v}')
+    for r in data['roles']:
+        if not r.get('name') or not r.get('scope'):
+            errors.append(f'роль {r}: нужны name и scope')
+        if not any(w['role'] == r.get('name') for t in screen for w in t['where']):
+            errors.append(f'у роли «{r.get("name")}» нет плиток')
 
 
 def tl_diff(text, tl):
@@ -246,6 +265,19 @@ def tl_diff(text, tl):
     return None
 
 
+def shows_tl_diff(text, tl):
+    """Расхождение порога во фразе «Что показывает» с порогом плитки в макете; None — сошлось."""
+    if not tl:
+        return 'во фразе цвет, в макете светофора нет' if SHOWS_COLOR.search(text) else None
+    have = {m[0].lower(): (SIGNS[m[1]], m[2]) if m[1] else ('>', '0') for m in SHOWS_TL.findall(text)}
+    want = {TL_COLORS[c]: (tl[c][0], str(tl[c][1])) for c in TL_COLORS if tl.get(c)}
+    if have != want:
+        return f'во фразе порог {have}, в макете {want}'
+    if not want and not re.search('зелёный', text, re.I):
+        return 'в макете зелёный, во фразе его нет'
+    return None
+
+
 def view_kinds(text):
     return [] if text == '—' else sorted(v.strip().split()[0] for v in text.split(';'))
 
@@ -257,6 +289,10 @@ def check_tile_maket(t, x, errors):
     why = tl_diff(t['tl'], x['tl'])
     if why:
         errors.append(f'{tid}: светофор «{t["tl"]}» — {why}')
+    if t.get('where'):
+        why = shows_tl_diff(t['shows'], x['tl'])
+        if why:
+            errors.append(f'{tid}: фраза «{t["shows"]}» — {why}')
     shift = SHIFTS.get(x['shift'], x['shift']) if x['shift'] else '—'
     if t['shift'] != shift:
         errors.append(f'{tid}: сдвиг «{t["shift"]}», в макете «{shift}»')
@@ -279,7 +315,7 @@ def check_maket(data, fo, errors):
         return
     mk = json.loads(run.stdout)
     mt = {t['id']: t for t in mk['tiles']}
-    rep = {r['id']: r['maket'] for r in data['reports'] if not r.get('closed')}
+    rep = {r['id']: r['maket'] for r in data['reports']}
     ours = {t['maket']: t for t in data['tiles']}
     for m in sorted(set(mt) - set(ours)):
         errors.append(f'плитки каталога макета «{mt[m]["title"]}» ({m}) нет в перечне')
@@ -314,8 +350,6 @@ def check_maket(data, fo, errors):
     for m in sorted(set(fo_of) - set(mr)):
         errors.append(f'{fo_of[m]}: под плитками каталога макета нет отчёта {m}')
     for r in data['reports']:
-        if r.get('closed'):
-            continue
         if r['maket'] not in mr:
             errors.append(f'{r["id"]}: в макете под плитками каталога нет отчёта {r["maket"]}')
         elif r['name'] != mr[r['maket']]:
@@ -324,6 +358,9 @@ def check_maket(data, fo, errors):
             errors.append(f'{r["id"]}: показатели {r["cols"]}, в макете {mc[r["maket"]]}')
     for m in sorted(set(mr) - set(rep.values()) - set(fo_of)):
         errors.append(f'отчёта макета «{mr[m]}» ({m}) нет в перечне')
+    roles = [r['name'] for r in data['roles']]
+    if roles != [lay['role'] for lay in mk['layouts']]:
+        errors.append(f'роли {roles}, в макете {[lay["role"] for lay in mk["layouts"]]}')
     placed = {}
     for t in data['tiles']:
         for w in t['where']:
@@ -342,19 +379,21 @@ def check_maket(data, fo, errors):
 
 def check(data, fo):
     errors = []
-    for k in ('title', 'date', 'stage', 'rules', 'legend', 'fo', 'tiles', 'reports'):
+    for k in ('title', 'date', 'expect', 'rules', 'legend', 'roles', 'retired', 'fo', 'tiles', 'reports'):
         if not data.get(k):
             errors.append(f'нет «{k}»')
     if errors:
         fail(errors)
-    check_numbers(data['tiles'], TILE_RE, 'ПЛ', errors)
-    check_numbers(data['reports'], REPORT_RE, 'ОП', errors)
+    check_numbers(data['tiles'], TILE_RE, data['retired']['tiles'], errors)
+    check_numbers(data['reports'], REPORT_RE, data['retired']['reports'], errors)
     check_tiles(data, fo, errors)
-    check_reports(data, fo, errors)
+    check_reports(data, errors)
+    if not errors:
+        check_totals(data, errors)
     for s in strings(data):
-        m = FORBID.search(s)
+        m = FORBID.search(s) or FORBID_WORD.search(s)
         if m:
-            errors.append(f'внутренний код «{m.group(0)}» в «{s[:60]}…»')
+            errors.append(f'запрещено «{m.group(0)}» в «{s[:60]}…»')
     if errors:
         fail(errors)
     check_maket(data, fo, errors)
@@ -369,173 +408,132 @@ def set_widths(ws, cols):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 
-def text_row(ws, row, text, ncols, font=None, height=None):
+def lines_of(text, width):
+    """Сколько строк займёт текст в колонке этой ширины; с запасом: шрифт у читателя может оказаться шире."""
+    return sum(max(1, math.ceil(len(p) / (width * 0.92))) for p in str(text).split('\n'))
+
+
+def text_row(ws, row, text, cols, fnt=None, fill=None):
+    """Строка на всю ширину таблицы; высота — по числу строк текста (объединённая ячейка сама не растёт)."""
+    ncols, width = len(cols), sum(w for _, w in cols)
     ws.cell(row=row, column=1, value=text)
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=ncols)
     c = ws.cell(row=row, column=1)
     c.alignment = WRAP
-    if font:
-        c.font = font
-    if height:
-        ws.row_dimensions[row].height = height
+    c.font = fnt or font()
+    if fill:
+        for i in range(1, ncols + 1):
+            ws.cell(row=row, column=i).fill = fill
+    size = fnt.size if fnt else 11
+    ws.row_dimensions[row].height = round(lines_of(text, width * 11 / size) * size * 1.4 + 3)
 
 
 def header(ws, row, cols):
     for i, (title, _) in enumerate(cols, 1):
         c = ws.cell(row=row, column=i, value=title)
-        c.font = Font(bold=True, color='FFFFFF')
+        c.font = font(bold=True, color='FFFFFF')
         c.fill = HEAD_FILL
         c.alignment = Alignment(wrap_text=True, vertical='center')
         c.border = BORDER
-    ws.row_dimensions[row].height = 30
+    ws.row_dimensions[row].height = 22
 
 
-def table_row(ws, r, vals):
+def table_row(ws, r, vals, cols):
     for i, v in enumerate(vals, 1):
         c = ws.cell(row=r, column=i, value=v)
         c.alignment = WRAP
         c.border = BORDER
-    ws.cell(row=r, column=1).font = Font(bold=True)
+        c.font = font()
+    ws.cell(row=r, column=1).font = font(bold=True)
+    ws.row_dimensions[r].height = max(lines_of(v, w) for v, (_, w) in zip(vals, cols)) * 15 + 3
 
 
-def page_setup(ws, head=None):
-    if head:
-        ws.print_title_rows = f'{head}:{head}'
+def page_setup(ws, head):
+    ws.print_title_rows = f'{head}:{head}'
     ws.page_setup.orientation = 'landscape'
-    ws.page_setup.paperSize = ws.PAPERSIZE_A3
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-
-
-def link_to(c, row):
-    c.hyperlink = f"#'{REPORTS_SHEET}'!A{row}"
-    c.font = Font(color=BLUE, underline='single')
-
-
-def where_text(t):
-    if not t['where']:
-        return 'только каталог'
-    return '\n'.join(f'{w["role"]} · {w["section"]} · {w["n"]}' for w in t['where'])
+    ws.page_margins.left = ws.page_margins.right = 0.4
+    ws.page_margins.top = ws.page_margins.bottom = 0.5
+    ws.oddFooter.center.text = 'Страница &P из &N'
+    ws.freeze_panes = ws.cell(row=head + 1, column=1)
 
 
 def source_text(t, names, fo):
     s = t['source']
     if 'fo' in s:
-        return f'{s["fo"]} «{fo[s["fo"]]["name"]}»' + (', заявка' if s.get('request') else '')
+        return f'{s["fo"]} {fo[s["fo"]]["name"]}'
     if 'report' in s:
-        return f'{s["report"]} «{names[s["report"]]}»'
-    return f'очередь «{s["queue"]}», модуль «{s["module"]}»'
+        return f'{s["report"]} {names[s["report"]]}'
+    return f'Очередь {s["queue"]}'
 
 
-def sheet_tiles(wb, data, fo, layout):
+def sheet_tiles(wb, data, fo):
     ws = wb.active
     ws.title = 'Плитки'
-    nc = len(COLS)
     set_widths(ws, COLS)
-    tiles = data['tiles']
     names = {r['id']: r['name'] for r in data['reports']}
-    link = sum(1 for t in tiles if t['kind'] == 'ссылочная')
-    placed = sum(1 for t in tiles if t['where'])
+    report_row = {r['id']: REPORTS_HEAD + i for i, r in enumerate(data['reports'], 1)}
+    screen = [t for t in data['tiles'] if t['where']]
+    rows = sum(len(t['where']) for t in screen)
     r = 1
-    text_row(ws, r, data['title'], nc, Font(bold=True, size=14), 22)
+    text_row(ws, r, data['title'], COLS, font(14, bold=True))
     r += 1
-    text_row(ws, r, f'{data["date"]}. {data["stage"]}', nc, Font(italic=True, color='555555'))
-    r += 1
-    on_fo = [t for t in tiles if 'fo' in t['source']]
-    open_rep = [x for x in data['reports'] if not x.get('closed')]
-    total = (f'Плиток: {len(tiles)} — обзорных {len(tiles) - link}, ссылочных {link}; в раскладках '
-             f'ролей {placed}, только в каталоге {len(tiles) - placed}. Обзорные: {len(on_fo)} на '
-             f'{len({t["source"]["fo"] for t in on_fo})} отчётах перечня отчётов, '
-             f'{len(tiles) - link - len(on_fo)} на {len(open_rep)} отчётах плиток '
-             f'(лист «{REPORTS_SHEET}»). Отчётов к сдаче: {len(fo)} перечня отчётов и '
-             f'{len(open_rep)} плиток, всего {len(fo) + len(open_rep)}.')
-    text_row(ws, r, total, nc, Font(bold=True))
+    text_row(ws, r, f'{plural(len(screen), "плитка", "плитки", "плиток")} на экранах '
+                    f'{plural(len(data["roles"]), "роли", "ролей", "ролей")}, '
+                    f'{plural(rows, "строка", "строки", "строк")}. Ещё '
+                    f'{plural(len(data["reports"]), "отчёт", "отчёта", "отчётов")} плиток на втором листе. '
+                    f'Редакция {data["date"]}.', COLS, font(color='555555'))
     r += 2
-    for rule in data['rules']:
-        text_row(ws, r, rule, nc, height=30)
+    for i, rule in enumerate(data['rules'], 1):
+        text_row(ws, r, f'{i}. {rule}', COLS)
         r += 1
     r += 1
-    text_row(ws, r, 'Обозначения: ' + '; '.join(data['legend']) + '.', nc,
-             Font(color='555555', size=9), 30)
+    text_row(ws, r, data['legend'], COLS, font(10, color='555555'))
     r += 2
-    header(ws, r, COLS)
     head = r
-    for t in tiles:
+    header(ws, head, COLS)
+    for role in data['roles']:
+        items = sorted(((w['n'], w['section'], t) for t in screen for w in t['where'] if w['role'] == role['name']),
+                       key=lambda x: x[0])
         r += 1
-        table_row(ws, r, [t['id'], t['name'], t['module'], t['kind'], where_text(t), t['scope'],
-                          source_text(t, names, fo), t['params'], t['main'], t['second'], t['shift'],
-                          t['tl'], t['views'], t['warn']])
-        target = layout['tiles'].get(t['id']) or layout['reports'].get(t['source'].get('report'))
-        if target:
-            link_to(ws.cell(row=r, column=7), target)
-        ws.cell(row=r, column=nc).fill = WARN_FILL
-    ws.freeze_panes = ws.cell(row=head + 1, column=3)
-    ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
+        text_row(ws, r, f'{role["name"]} · {plural(len(items), "плитка", "плитки", "плиток")} · {role["scope"]}',
+                 COLS, font(12, bold=True), ROLE_FILL)
+        section = None
+        for _, sec, t in items:
+            if sec != section:
+                section = sec
+                r += 1
+                text_row(ws, r, sec, COLS, font(bold=True), SECTION_FILL)
+            r += 1
+            table_row(ws, r, [t['id'], t['name'], t['shows'], source_text(t, names, fo)], COLS)
+            rep = t['source'].get('report')
+            if rep:
+                c = ws.cell(row=r, column=4)
+                c.hyperlink = f"#'{REPORTS_SHEET}'!A{report_row[rep]}"
+                c.font = font(color=BLUE, underline='single')
     page_setup(ws, head)
 
 
-def fo_tiles(data):
-    return sorted((t for t in data['tiles'] if 'fo' in t['source']), key=lambda t: (t['source']['fo'], t['id']))
-
-
-def report_layout(data):
-    """Строки листа «Отчёты плиток»: отчётов и плиток на ФО — нужны ссылкам с листа «Плитки»."""
-    head = 4
-    fo_head = head + len(data['reports']) + 3   # пустая строка, подзаголовок, шапка
-    return {
-        'head': head, 'fo_head': fo_head,
-        'reports': {rep['id']: head + i for i, rep in enumerate(data['reports'], 1)},
-        'tiles': {t['id']: fo_head + i for i, t in enumerate(fo_tiles(data), 1)},
-    }
-
-
-def sheet_reports(wb, data, fo, layout):
+def sheet_reports(wb, data):
     ws = wb.create_sheet(REPORTS_SHEET)
-    nc = len(REPORT_COLS)
     set_widths(ws, REPORT_COLS)
     on = {}
     for t in data['tiles']:
         rep = t['source'].get('report')
-        if rep:
+        if rep and t['where']:
             on.setdefault(rep, []).append(t['id'])
-    first_of_fo = {}
-    for t in fo_tiles(data):
-        first_of_fo.setdefault(t['source']['fo'], layout['tiles'][t['id']])
-    text_row(ws, 1, f'{data["title"]}: отчёты плиток', nc, Font(bold=True, size=14), 22)
-    text_row(ws, 2, 'Отчёт плитки — общий отчёт каталога: объект, отбор, показатели, разрезы и '
-                    'параметры. Он остаётся только там, где числа плитки нет в отчёте перечня отчётов. '
-                    'Снятый отчёт — строка «снят → ФО-NN». Состав отчётов перечня описан в перечне '
-                    'отчётов; ниже по ним — только то, что нужно плитке.',
-             nc, Font(italic=True, color='555555'), 30)
-    head = layout['head']
-    header(ws, head, REPORT_COLS)
-    r = head
+    text_row(ws, 1, REPORTS_SHEET, REPORT_COLS, font(14, bold=True))
+    text_row(ws, 2, f'{plural(len(data["reports"]), "отчёт", "отчёта", "отчётов")}, которых нет в перечне отчётов, '
+                    f'но сдать их надо.', REPORT_COLS, font(color='555555'))
+    r = REPORTS_HEAD
+    header(ws, r, REPORT_COLS)
     for rep in data['reports']:
         r += 1
-        assert r == layout['reports'][rep['id']]
-        if rep.get('closed'):
-            table_row(ws, r, [rep['id'], rep['name'], f'снят → {rep["closed"]}', '—', '—', '—', '—', '—'])
-            link_to(ws.cell(row=r, column=3), first_of_fo[FO_ID.findall(rep['closed'])[0]])
-            continue
-        table_row(ws, r, [rep['id'], rep['name'], rep['object'], rep['filter'],
-                          '; '.join(rep['cols']), '; '.join(rep['dims']) or '—',
-                          '; '.join(rep['params']), ', '.join(on[rep['id']])])
-    ws.auto_filter.ref = f'A{head}:{get_column_letter(nc)}{r}'
-    r += 2
-    text_row(ws, r, 'Плитки на отчётах перечня: какая колонка, отбор и разрез нужны плитке. Заявка — чего '
-                    'в карточке отчёта ещё нет.', nc, Font(bold=True))
-    r += 1
-    assert r == layout['fo_head']
-    header(ws, r, FO_COLS)
-    for t in fo_tiles(data):
-        r += 1
-        assert r == layout['tiles'][t['id']]
-        s = t['source']
-        table_row(ws, r, [t['id'], t['name'], f'{s["fo"]} «{fo[s["fo"]]["name"]}»', s['col'], s.get('col2') or '—',
-                          s['filter'], '; '.join(s['dims']) or '—', '; '.join(s.get('request') or []) or '—'])
-    ws.freeze_panes = 'C1'   # на листе две таблицы: закреплённая шапка первой не подходит ко второй
-    page_setup(ws)
+        table_row(ws, r, [rep['id'], rep['name'], rep['shows'], ', '.join(on[rep['id']])], REPORT_COLS)
+    page_setup(ws, REPORTS_HEAD)
 
 
 def main():
@@ -545,17 +543,17 @@ def main():
     data = json.loads(src.read_text(encoding='utf-8'))
     fo = read_fo()
     check(data, fo)
-    layout = report_layout(data)
     wb = Workbook()
-    sheet_tiles(wb, data, fo, layout)
-    sheet_reports(wb, data, fo, layout)
+    sheet_tiles(wb, data, fo)
+    sheet_reports(wb, data)
     out.mkdir(parents=True, exist_ok=True)
     path = out / OUT_NAME
     wb.save(path)
+    screen = [t for t in data['tiles'] if t['where']]
     print(f'{path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}: '
-          f'плиток {len(data["tiles"])}, на ФО {len(fo_tiles(data))}, отчётов плиток '
-          f'{sum(1 for x in data["reports"] if not x.get("closed"))} (снято '
-          f'{sum(1 for x in data["reports"] if x.get("closed"))}); сверка с макетом и карточками — сошлось')
+          f'плиток {len(screen)}, строк {sum(len(t["where"]) for t in screen)}, '
+          f'отчётов плиток {len(data["reports"])}, только в каталоге {len(data["tiles"]) - len(screen)} '
+          f'(в файл не идут); сверка с макетом и карточками — сошлось')
 
 
 if __name__ == '__main__':
