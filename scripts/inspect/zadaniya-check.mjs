@@ -1,4 +1,4 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–26 макета модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–27 макета модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
@@ -231,6 +231,9 @@
 //      «Закрытые» по отбору; полоса стенда и тост о сбросе; ширина; поручения стенда; чистота экрана.
 //   Переписаны под модель, а не удалены: #206 (выборка «видимое без вкладки»), #299, #300, #311 (панель по типу, снять пачкой нельзя), #310 (подпись круга опроса в полосе),
 //   #319 (без задания только решение без руководителя), #322, #323, #325 (строка, кнопка, вкладка решений); числа сдвига сида #314, #316. Снятых нет.
+//   AK #368-380 — настройка и журнал прогонов (волна 27): строка на задание, отборы, правка только в окне и только администратором, панель на чтение;
+//      порог только показан, ссылки к владельцам; подсветка без правки; сигнал строкой; журнал: опрос, поводы, доставка; слово «сосед» на экранах;
+//      #296, #307, #311, #326 переписаны под новый вид, #367 — под «переадресовано» без ссылки.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -830,7 +833,7 @@ const setRule = (id, field, v, by = 'E4') => ZD.editRule(id, { [field]: v }, { b
   const pv = ZD.state.povods.find(p => p.kind === 'pk-addr-missing' && zalog && p.objectId === zalog.id);
   const fix = ZD.state.tasks.find(t => t.originKind === 'pk-addr-missing' && pv && t.povodKey === pv.key);
   ok(56, zalog && zalog.assignee === 'E4' && zalog.addr.via === 'администратор' && zalog.addr.responsible === null &&
-       !sameRun && !!pv && pv.traits.роль === 'куратор модуля-соседа' && !!fix && fix.assignee === 'E4',
+       !sameRun && !!pv && pv.traits.роль === 'куратор модуля' && !!fix && fix.assignee === 'E4',
     `конец цепочки: у модуля «залог» нет куратора, у подразделения-владельца «Аналитика» нет руководителя → ` +
     `задание ${zalog && zalog.id} администратору E4, и на следующем самоопросе это само стало поводом ` +
     `«адресат не найден» (${pv && pv.key}) с заданием ${fix && fix.id} — хардкод больше не тихий`);
@@ -1866,7 +1869,7 @@ const AP_HL_KINDS = ['ap-program-closed','ap-doc-expired'];
   ok(119, wd === '2/3/3/2/30/10' && r('ap-stuck-new').dueN === 5 && AP_HL_KINDS.every(k => !r(k)) && r('ap-supplement').dueN === 1 && r('ap-supplement').dueUnit === 'month' &&
        r('ap-supplement').dueSource === 'Типовое положение, п. 66' && r('ap-vote').dueUnit === 'named' && r('ap-decide').dueUnit === 'named' &&
        r('ap-confirm').dueSource === 'внутренний акт' && sup.dueDate === '2026-10-02' && dec.dueDate === '2026-09-16' &&
-       /не настраивается/.test(named) && /настройка соседа/.test(thr) && !('threshold' in r('ap-stuck-new')) &&
+       /не настраивается/.test(named) && /настройка модуля-владельца/.test(thr) && !('threshold' in r('ap-stuck-new')) &&
        r('ap-stuck-new').editions.length === 1 && ZD.state.neighborSet.ap.stuckWd === 10,
     `ГФ 2, заключение 3, изучение 3, сформировать 2, привязать 30, зарегистрировать 10 р.д.; застой — 5 р.д.; порог застоя 10 р.д. — ` +
     `настройка заявок, в правиле его нет и правкой правила он не меняется; «Дополнить» — 1 к.м. по норме (AP-104: 02.09 → 02.10); ` +
@@ -3033,7 +3036,7 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   ZD.seed();
   ZD.ruleForKind('ap-stuck-new').threshold = 12;
   const errs = ZD.checkRegistry();
-  ok(193, n30 > n10 && !ZD.ruleForKind('lp-expiring') && errs.some(e => /настройка соседа/.test(e)),
+  ok(193, n30 > n10 && !ZD.ruleForKind('lp-expiring') && errs.some(e => /настройка модуля-владельца/.test(e)),
     `«Истекает» — настройка программ: 30 к.д. дают ${n30} строки подсветки, 10 к.д. — ${n10}; у подсветки правила нет, а ` +
     `подложенный в правило порог сверка реестра ловит`);
 })();
@@ -3045,7 +3048,7 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   const t = ZD.state.tasks.find(x => x.originKind === 'gd-review');
   const h = ZD.renderOrigin(t, ZD.povodByKey(t.povodKey));
   ok(194, /Откуда задание/.test(h) && h.indexOf('Заведующий отделом кредитных программ — Мамбетов') !== -1 &&
-       h.indexOf('редакция 1 с 01.09.2026 · основание: подключение соседа «Госрешение» · правка: выпуск 1') !== -1 &&
+       h.indexOf('редакция 1 с 01.09.2026 · основание: подключение модуля «Госрешение» · правка: выпуск 1') !== -1 &&
        h.indexOf('5 р.д. от выдачи · источник: внутренний акт') !== -1 && /род вида: шаг/.test(h) &&
        h.indexOf("ZD.showRule('rule-gd-review')") !== -1,
     `в карточке — повод (вид, объект, с какой даты, признаки, род), правило с редакцией, датой и основанием, кто поручил ` +
@@ -5059,18 +5062,18 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
     `ЗНП-2, ЗНП-11 — подсвечено объектов на пяти датах: ${seen.join(' · ')}; заданий, поводов, строк статистике и уведомлений от подсветки нет, опрос её не трогает; ни выключить, ни ввести рубильником нельзя`);
 })();
 
-/* ЗНП-4, ЗНП-11 — подсветка видна отдельной категорией реестра, с основанием и числом объектов */
+/* ЗНП-4, ЗНП-11 — подсветка отдельной вкладкой, с основанием и числом объектов; в таблице заданий её нет; род вида считается реестром */
 (() => {
   ZD.seed();
-  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'kinds'; ZD.state.kindCat = 'подсветка';
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'highlight'; ZD.state.hlOpen = null;
   const h = ZD.renderSettings();
-  ZD.state.kindCat = 'задание';
-  const t = ZD.renderSettings();
+  ZD.state.settingsTab = 'tasks'; ZD.state.ruleSt = 'все';
+  const t = ZD.renderSettings(), c = ZD.registryCounts(), panel = ZD.renderRulePanel('rule-gd-review');
   const lp = ZD.highlightsOn(ZD.state.today).find(x => x.kind === 'lp-expiring');
-  ok(296, /<b>76<\/b>Задания/.test(h) && /шаги 24 · надзор 46 · самоопрос 6/.test(h) && /<b>25<\/b>Подсветка/.test(h) && /<b>1<\/b>Сигнал/.test(h) && /<b>2<\/b>Выведены/.test(h) &&
-       ZD.HIGHLIGHT_KINDS.every(k => h.indexOf('mono small">' + k + '<') !== -1) && !/Выключить/.test(h) && /Заданий, просрочек и строк статистики не даёт/.test(h) && lp.count === 2 && h.indexOf(`ZD.toggleHl('lp-expiring')">2 `) !== -1 &&
-       !ZD.HIGHLIGHT_KINDS.some(k => t.indexOf('mono small">' + k + '<') !== -1) && /по сохранению \+ ночной прогон/.test(t) && /<th>Основание<\/th>/.test(t),
-    `ЗНП-4, ЗНП-11 — вкладка «Виды повода»: счётчики 76 · 25 · 1 · 2; подсветка отдельным списком с основанием и числом объектов на дату, без рубильника; в списке заданий её нет; у шагов «по сохранению + ночной прогон»`);
+  ok(296, c.задание === 76 && c.шаг === 24 && c.надзор === 46 && c.самоопрос === 6 && c.подсветка === 25 && c.сигнал === 1 && c.выведен === 2 &&
+       ZD.HIGHLIGHT_KINDS.every(k => h.indexOf(`data-hl="${k}"`) !== -1) && !/Выключить|Изменить/.test(h) && /Заданий, просрочек и строк статистики не даёт/.test(h) && lp.count === 2 && h.indexOf(`ZD.toggleHl('lp-expiring')`) !== -1 && /<th>Основание<\/th>/.test(h) &&
+       !ZD.HIGHLIGHT_KINDS.some(k => t.indexOf(`data-hl="${k}"`) !== -1) && /по сохранению и ночью/.test(panel),
+    `ЗНП-4, ЗНП-11 — реестр 76 · 25 · 1 · 2; подсветка отдельной вкладкой с основанием и числом объектов на дату, без рубильника; в таблице заданий её нет; у шагов «по сохранению и ночью»`);
 })();
 
 /* ЗНП-13 — возврат только выпуском: документ нашёлся — вид получает правило или настройку сигнала */
@@ -5338,9 +5341,12 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.state.viewer = 'E1';
   const ro = ZD.renderSettings();
   ZD.state.viewer = 'E4';
+  ZD.askSignal(S);
+  const chans = ZD.dialog.fields.find(x => x.f === 'channels').options.join();
+  ZD.dialogCancel();
   ok(307, /основание/.test(noBasis) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('сигнал') && /выпуском/.test(ord) && /вне закрытого списка/.test(out) &&
-       /Срок платежа по графику близко/.test(html) && /id="sgBasis"/.test(html) && /SMS/.test(html) && /e-mail/.test(html) && (html.match(/<div class="card"><h3>/g) || []).length === 1 &&
-       /Только чтение/.test(ro) && !/id="sgBasis"/.test(ro) && !/Выключить/.test(ro),
+       /Срок платежа по графику близко/.test(html) && (html.match(/<tr data-sig="/g) || []).length === 1 && html.indexOf(`ZD.askSignal('${S}')`) !== -1 && /SMS/.test(chans) && /e-mail/.test(chans) &&
+       /Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro),
     `ЗНП-7, ЗНП-20 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; на вкладке «Уведомления» один сигнал, остальным только чтение; настройка сигнала обычные уведомления не трогает`);
 })();
 
@@ -5427,10 +5433,14 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.toggleGroup('mine|pk-im-no-inspection|E22');
   ZD.state.viewer = 'E4';
   ZD.lpExtend('LP-8', 'E8', '2029-12-31', 'приказ');
-  const runs = ZD.renderRuns();
+  ZD.state.runsTab = 'poll'; ZD.state.runOpen = null;
+  const shut = ZD.renderRuns();
+  ZD.toggleRun(ZD.state.pollRuns[ZD.state.pollRuns.length - 1].id);
+  const runs = ZD.renderRuns(), saves = ZD.state.savePolls.filter(p => p.t === ZD.state.today).length;
+  ZD.toggleRun(ZD.state.runOpen);
   ok(311, !/class="gt"/.test(closed) && /▸ Провести осмотр объекта — 12/.test(closed) && (open.match(/grp-item/g) || []).length === 12 && !/class="gt"/.test(open) && !/grp-bar/.test(open) && !/Взять/.test(open) && !/Заявить исполнение/.test(open) &&
-       !/имитировать|setPollScope|toggleDown|setStatCleared/.test(runs) && /Опросы по сохранению/.test(runs) && /Поле и журнал/.test(runs) && /Ошибка не значит пусто/.test(runs) && /После двух ночей подряд/.test(runs),
-    `ЗНП-14, ЗНП-6, ЭЗ-10, ЭЗ-25 — группа свёрнута одной строкой, разворачивается 12 заданиями; работа в деле — без панели и отметок; журнал прогонов показывает опросы по сохранению и сверку поля, рубильников стенда в нём нет`);
+       !/имитировать|setPollScope|toggleDown|setStatCleared/.test(shut + runs) && !/Опросы по сохранению/.test(shut) && /Опросы по сохранению/.test(runs) && saves > 0 && /Ошибка не значит пусто/.test(shut) && /После двух ночей подряд/.test(shut),
+    `ЗНП-14, ЗНП-6, ЭЗ-10, ЭЗ-25 — группа свёрнута одной строкой, разворачивается 12 заданиями; работа в деле — без панели и отметок; журнал прогонов раскрывает ночь с опросами по сохранению за этот день, рубильников стенда в нём нет`);
 })();
 
 /* ЗНП-19 — две ночи считаются датами: повтор той же датой — та же ночь; удачный опрос по сохранению счёт не сбрасывает */
@@ -5777,12 +5787,12 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   ZD.go('runs');
   const noDirect = ZD.state.view === 'queue';
   ZD.showRule(ZD.state.rules[0].id);
-  const read = ZD.state.view === 'settings' && ZD.state.ruleRead === true && !ZD.renderNav().includes('Настройка');
+  const read = ZD.state.view === 'queue' && ZD.ruleCard === ZD.state.rules[0].id && !ZD.renderNav().includes('Настройка') && !('ruleRead' in ZD.state);
   ZD.setViewer('E1');
-  const readEnds = ZD.state.view === 'queue' && ZD.state.ruleRead === false;
+  const readEnds = ZD.state.view === 'queue' && ZD.ruleCard === null;
   ok(326, byRole && admins === 'E4' && /Настройка/.test(navAdmin) && /Журнал прогонов/.test(navAdmin) && !/Настройка|Журнал прогонов/.test(navPlain) && label === 'Задания' &&
        stays && fromRuns && fromSettings && noDirect && read && readEnds,
-    `ЭЗ-1 — меню «Настройка» и «Журнал прогонов» только у администратора (${admins}), у остальных ${ZD.EMP.length - 1} только «${label}»; сменился зритель — назад в очередь, прямой переход тоже; правило по ссылке из карточки читается без пунктов меню`);
+    `ЭЗ-1 — меню «Настройка» и «Журнал прогонов» только у администратора (${admins}), у остальных ${ZD.EMP.length - 1} только «${label}»; сменился зритель — назад в очередь, прямой переход тоже; правило по ссылке из карточки открывается панелью поверх очереди, без пунктов меню`);
 })();
 
 /* ЭЗ-2 — пять вкладок, пустые скрыты, «Моя работа» всегда; опустевшая открытая сменяется первой непустой; одна таблица */
@@ -5922,7 +5932,7 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   const h1 = viewAs('E1'), c1 = cellsOf(rowOf(h1, 'T1'))[2];
   const cases = /<a class="q-case" href="\.\.\/loan-application\/loan-application\.html" target="_blank" title="[^"]*" onclick="event\.stopPropagation\(\)">заявка AP-101<\/a>/.test(c1) && /ещё 2/.test(c1) && (c1.match(/AP-10\d/g) || []).length >= 3;
   const silent = ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighbor-silent' && t.assignee === 'E1'), cs = cellsOf(rowOf(h1, silent.id))[2];
-  const textOnly = !/<a |<button/.test(cs) && /сосед-модуль/.test(plain(cs));
+  const textOnly = !/<a |<button/.test(cs) && /модуль «/.test(plain(cs));
   const h4 = viewAs('E4'); ZD.state.viewer = 'E4';
   const over = ZD.queueGroups('mine').map(x => x.task).find(t => t && ZD.caseOf(t) && ZD.caseOf(t).task), co = cellsOf(rowOf(h4, over.id))[2], parent = ZD.caseOf(over).task;
   const toTask = new RegExp(`event\\.stopPropagation\\(\\);ZD\\.openCard\\('${parent}'\\)`).test(co) && parent !== over.id;
@@ -6851,7 +6861,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   function rowsHave(x) { return ZD.NOTIF_KINDS.every(k => x.includes(`data-n="${k}"`)); }
 })();
 
-/* ЭЗ-49 — карточку открывает тот, кому задание видно: старое уведомление этого не обходит, сообщение отмечено прочитанным */
+/* ЭЗ-49, ЭЗ-Д12, ЭЗ-65 — «переадресовано» бывшему исполнителю: без ссылки, текст называет нового исполнителя, клик только отмечает прочитанным; право видеть не меняется */
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
@@ -6860,6 +6870,9 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.state.viewer = 'E1';
   const n = ZD.notifsOf('E1').find(x => x.kind === 'переадресовано' && x.items.some(i => i.taskId === t.id));
   const hidden = !ZD.bucketOf(t, 'E1');
+  const text = ZD.notifText(n), row = ZD.renderNotifPage();
+  const named = text.indexOf(ZD.empName('E3')) !== -1 && /новый исполнитель/.test(text);
+  const noLink = ZD.notifLinks(n) === '' && !(n.items.some(i => i.taskId === t.id) && new RegExp(`data-go="${n.id}"`).test(ZD.notifLinks(n)));
   ZD.notifGo(n.id, 0);
   const shut = ZD.cardId === null && n.read === true;
   ZD.openCard(t.id);
@@ -6868,10 +6881,11 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.openCard(t.id);
   const opened = ZD.cardId === t.id;
   ZD.closeCard();
-  let stale = 0;
-  ZD.state.notifications.forEach(x => { x.items.forEach(i => { if (i.taskId && x.to && !ZD.bucketOf(ZD.taskOf(i.taskId), x.to)) stale++; }); });
-  ok(367, hidden && shut && shut2 && opened,
-    `ЭЗ-49 — бывший исполнитель по уведомлению «переадресовано» карточку не открывает, сообщение прочитано; новый исполнитель открывает; на 01.10 таких ссылок у получателей ${stale}`);
+  const moved = ZD.state.notifications.filter(x => x.kind === 'переадресовано');
+  const former = moved.filter(x => x.items.some(i => i.taskId && !ZD.bucketOf(ZD.taskOf(i.taskId), x.to))).length, linked = moved.filter(x => ZD.notifLinks(x) !== '').length;
+  const others = ZD.state.notifications.filter(x => x.kind !== 'переадресовано' && x.kind !== 'сигнал' && ZD.notifLinks(x) !== '').length;
+  ok(367, hidden && named && noLink && row.indexOf(ZD.empName('E3')) !== -1 && shut && shut2 && opened && moved.length > 0 && former > 0 && linked === 0 && others > 0,
+    `ЭЗ-49, ЭЗ-Д12, ЭЗ-65 — у «переадресовано» ссылки нет, текст: ${text}; клик только отмечает прочитанным; видимость не расширена: прямое открытие отказано, новый исполнитель открывает; на 01.10 таких ${moved.length}, задание не видно получателю у ${former}, со ссылкой 0; у остальных видов ссылки на месте`);
 })();
 
 /* Чистая карточка: на трёх датах у всех зрителей нет сырых значений; ключ и демо-карточка не в счёт */
@@ -6887,6 +6901,352 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
     if (m) hits.push(`${d} ${v} ${t.id}: ${s.slice(Math.max(0, m.index - 30), m.index + 30)}`);
   });
   ok(366, n > 1000 && hits.length === 0, `ЭЗ-11, ЭЗ-Д3 — ${n} карточек на трёх датах у всех зрителей: нет undefined, JSON, сырых дат и id${hits.length ? '; найдено: ' + hits.slice(0, 3).join(' / ') : ''}`);
+})();
+
+/* ---------- волна 27: настройка заданий и журнал прогонов ---------- */
+const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)"`, 'g'))].map(m => m[1]);
+
+/* ЭЗ-18, ADR-0290, ЭЗ-58 — строка на задание: вид, действие и правило один к одному; подсветки и сигнала в таблице нет; состояние считается на дату */
+(() => {
+  ZD.seed();
+  const dates = {};
+  ['2026-10-01', '2026-11-02'].forEach(d => {
+    ZD.goToDate(d);
+    ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks'; ZD.state.ruleSt = 'все'; ZD.state.ruleMod = ''; ZD.state.ruleQ = '';
+    const r = ZD.ruleRows(), c = {};
+    r.forEach(x => { c[x.st] = (c[x.st] || 0) + 1; });
+    dates[d] = { n: rowsIn(ZD.renderSettings(), 'data-r').length, c };
+  });
+  const r = ZD.state.rules, kinds = new Set(r.map(x => x.kind)), acts = new Set(r.map(x => x.action));
+  const reg = ZD.registryCounts();
+  const far = {}; ZD.ruleRows().forEach(x => { const s = ZD.ruleStateOf(x.k, '2027-03-01'); far[s] = (far[s] || 0) + 1; });
+  const noRule = ZD.state.actions.filter(a => !acts.has(a.id)).map(a => a.id).join();
+  const outside = ZD.state.povodKinds.filter(k => !kinds.has(k.id)).map(k => ZD.kindCategory(k)).sort().join();
+  const a = dates['2026-10-01'], b = dates['2026-11-02'];
+  ok(368, r.length === 78 && kinds.size === 78 && acts.size === 78 && reg.задание + reg.выведен === 78 && noRule === 'act-ap-reject-unfixed' &&
+       outside === Array(25).fill('подсветка').concat('сигнал').sort().join() && a.n === 78 && b.n === 78 &&
+       a.c['в действии'] === 52 && a.c['не введён'] === 26 && b.c['в действии'] === 60 && b.c['выведен'] === 1 && b.c['не введён'] === 17 && far['в действии'] === 76 && far['выведен'] === 2,
+    `ЭЗ-18, ЭЗ-58 — 78 строк: одно задание, один вид, одно действие (без правила только действие эскалации); на 01.10 в действии 52, не введены 26; на 02.11 в действии 60, выведен 1, не введены 17; на 01.03.2027 в действии 76 + выведены 2; подсветка и сигнал вне таблицы`);
+})();
+
+/* ЭЗ-18 — поиск и отборы: число в подписи равно строкам, поиск сужает, порядок применения не важен */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
+  const set = (m, st, q) => { ZD.state.ruleMod = m; ZD.state.ruleSt = st; ZD.state.ruleQ = q; return rowsIn(ZD.renderSettings(), 'data-r'); };
+  const data = (m, st) => ZD.state.rules.filter(r => { const k = ZD.kindOf(r.kind); return (!m || ZD.ownerOfKind(k.id) === m) && (st === 'все' || ZD.ruleStateOf(k) === st); }).map(r => r.id);
+  const all = set('', 'все', ''), inAction = set('', 'в действии', ''), retired = set('', 'выведен', ''), off0 = set('', 'снят', '');
+  const asset = set('Имущество', 'все', ''), assetLive = set('Имущество', 'в действии', '');
+  const same = (x, y) => x.slice().sort().join() === y.slice().sort().join();
+  const found = set('', 'все', 'претенз'), foundOk = found.length > 0 && found.length < 10 && found.every(id => /претенз/i.test(ZD.ruleRows().filter(x => x.r.id === id).map(x => x.a.label + x.k.title + (ZD.appearOf(x.k).thr || '')).join('')));
+  const none = set('', 'все', 'нет такого слова');
+  const emptyMsg = /Ничего не найдено/.test(ZD.renderSettings());
+  set('', 'все', '');
+  const label = ZD.renderSettings();
+  const counts = /Все — 78/.test(label) && /В действии — 60/.test(label) && /Не введены — 17/.test(label) && /Выведенные — 1/.test(label) && /Снятые — 0/.test(label) && /Имущество — 16/.test(label);
+  ok(369, all.length === 78 && same(inAction, data('', 'в действии')) && same(retired, data('', 'выведен')) && off0.length === 0 && same(asset, data('Имущество', 'все')) && asset.length === 16 && same(assetLive, data('Имущество', 'в действии')) && assetLive.length < 16 && foundOk && none.length === 0 && emptyMsg && counts,
+    `ЭЗ-18 — на 02.11: все 78, в действии ${inAction.length}, выведен ${retired.length}, снятых 0; модуль «Имущество» ${asset.length}, в действии ${assetLive.length}; поиск «претенз» ${found.length} строк; числа в отборах равны строкам`);
+})();
+
+/* ЭЗ-18 — правка только в окне с основанием и только администратором; инлайн-форм нет; редакция видна в истории */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks'; ZD.state.ruleSt = 'все';
+  const h = ZD.renderSettings(), inputs = [...h.matchAll(/<input[^>]*>/g)].map(m => m[0]);
+  const onlySearch = inputs.length === 1 && /id="ruleQ"/.test(inputs[0]) && !/<textarea/.test(h);
+  const id = 'rule-ap-stuck-new', r = ZD.state.rules.find(x => x.id === id), ed0 = r.edN, panel0 = ZD.renderRulePanel(id);
+  const btn = panel0.indexOf(`ZD.askRule('${id}')`) !== -1 && /data-edit/.test(panel0) && /История редакций/.test(panel0) && /Основание/.test(panel0) && /Признаки/.test(panel0) && /Важность/.test(panel0) && /Где делается работа/.test(panel0);
+  ZD.askRule(id);
+  const fieldsNoThr = !ZD.dialog.fields.some(x => /порог|threshold/i.test(x.f + ' ' + x.label));
+  ZD.dialogSet('dueN', '9');
+  ZD.dialogSet('why', '');
+  const noWhy = ZD.dialogSubmit() === false && /Заполните/.test(ZD.dialog.err) && r.edN === ed0 && r.dueN !== 9;
+  ZD.dialogSet('why', 'приказ №64');
+  const saved = ZD.dialogSubmit() === true && r.dueN === 9 && r.edN === ed0 + 1;
+  const hist = ZD.renderRulePanel(id);
+  const inHist = /приказ №64/.test(hist) && /было/.test(hist);
+  const foreign = throws(() => ZD.editRule(id, { dueN: 4 }, { by: 'E1', from: ZD.state.today, basis: 'приказ' }));
+  const noBasis = throws(() => ZD.editRule(id, { dueN: 4 }, { by: 'E4', from: ZD.state.today, basis: '' }));
+  /* надзор выключается с основанием и уходит в «снятые»; шаг и самоопрос — только выпуском */
+  const live = ZD.ruleRows().filter(x => x.st === 'в действии');
+  const sv = live.find(x => x.k.genus === 'надзор'), step = live.find(x => x.k.genus === 'шаг'), self = live.find(x => x.k.genus === 'самоопрос');
+  const pSv = ZD.renderRulePanel(sv.r.id), pStep = ZD.renderRulePanel(step.r.id), pSelf = ZD.renderRulePanel(self.r.id);
+  const offBtn = pSv.indexOf(`ZD.askKindOff('${sv.k.id}')`) !== -1 && !/askKindOff/.test(pStep) && /Выключается только выпуском/.test(pStep) && !/askKindOff/.test(pSelf);
+  ZD.askKindOff(sv.k.id);
+  const offEmpty = ZD.dialogSubmit() === false && !!ZD.ruleRows().find(x => x.r.id === sv.r.id && x.st === 'в действии');
+  ZD.dialogSet('why', 'приказ №65');
+  const offDone = ZD.dialogSubmit() === true && ZD.ruleRows().find(x => x.r.id === sv.r.id).st === 'снят';
+  ZD.state.ruleSt = 'снят';
+  const offRows = rowsIn(ZD.renderSettings(), 'data-r');
+  const pOff = ZD.renderRulePanel(sv.r.id);
+  ZD.askKindOn(sv.k.id);
+  ZD.dialogSet('why', 'приказ №66');
+  const back = ZD.dialogSubmit() === true && ZD.ruleRows().find(x => x.r.id === sv.r.id).st === 'в действии';
+  const foreignOff = throws(() => ZD.deactivateKind(sv.k.id, 'E1', 'приказ'));
+  ok(370, onlySearch && btn && fieldsNoThr && noWhy && saved && inHist && /администратор|может/i.test(foreign) && /основан/.test(noBasis) && offBtn && offEmpty && offDone && offRows.join() === sv.r.id && /Включить/.test(pOff) && /приказ №65/.test(pOff) && back && /администратор/.test(foreignOff),
+    `ЭЗ-18 — на странице только поле поиска; «Изменить» и «Выключить» — окна с обязательным основанием, чужому отказ движка; срок 9 в редакции ${ed0 + 1} с основанием в истории; выключенный надзор виден в «Снятых», включается обратно; шаг и самоопрос — только выпуском`);
+})();
+
+/* ЭЗ-1, ЭЗ-19, ЭЗ-61 — не администратор: панель на чтение поверх очереди, без меню и кнопок; закрытие возвращает на место */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-10-01');
+  const t = ZD.state.tasks.find(x => x.originKind && x.assignee && x.assignee !== 'E4' && ZD.ruleForKind(x.originKind) && !ZD.isTerminal(x)), who = t.assignee, rid = ZD.ruleForKind(t.originKind).id;
+  ZD.state.viewer = who; ZD.state.view = 'queue';
+  ZD.openCard(t.id);
+  const link = ZD.renderOrigin(t, ZD.povodByKey(t.povodKey)).indexOf(`ZD.showRule('${rid}')`) !== -1;
+  ZD.showRule(rid);
+  const onTop = ZD.ruleCard === rid && ZD.cardId === null && ZD.state.view === 'queue';
+  const p = ZD.renderRulePanel(rid), menu = ZD.menuItems().map(x => x.view).join();
+  const ro = /Только чтение/.test(p) && !/data-edit|ZD\.askRule|ZD\.askKindO|ZD\.askEditionCancel/.test(p) && /История редакций/.test(p) && /Основание/.test(p);
+  ZD.closeCard();
+  const closed = ZD.ruleCard === null && ZD.state.view === 'queue';
+  ZD.askRule(rid);
+  const ed0 = ZD.state.rules.find(r => r.id === rid).edN;
+  ZD.dialogSet('why', 'приказ');
+  if (ZD.dialog.fields.some(x => x.f === 'dueN')) ZD.dialogSet('dueN', '9');
+  ZD.dialogSubmit();
+  const direct = ZD.dialog ? ZD.dialog.err : '', held = ZD.state.rules.find(r => r.id === rid).edN === ed0;
+  ZD.dialogCancel();
+  ZD.showRule('нет такого');
+  const unknown = ZD.ruleCard === null;
+  ZD.state.viewer = 'E4';
+  ok(371, link && onTop && ro && !/settings|runs/.test(menu) && closed && /администратор|может/i.test(direct) && held && unknown,
+    `ЭЗ-1, ЭЗ-19, ЭЗ-61 — у ${who} ссылка из карточки открывает панель поверх очереди, кнопок правки нет, меню без настройки; закрытие — на месте; вызов окна мимо экрана отбит движком`);
+})();
+
+/* ЭЗ-19, ЭЗ-59 — порог появления только показан: значение от модуля-владельца, ссылка на его настройку, в заданиях не правится */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks'; ZD.state.ruleSt = 'все';
+  const rows = ZD.ruleRows(), thr = rows.filter(x => ZD.appearOf(x.k).thr), linked = thr.filter(x => ZD.appearOf(x.k).set);
+  const own = thr.filter(x => !ZD.appearOf(x.k).set).map(x => x.k.id).sort().join();
+  const stuck = rows.find(x => x.k.id === 'ap-stuck-new');
+  const before = ZD.appearOf(stuck.k).thr;
+  ZD.state.neighborSet.ap.stuckWd = 12;
+  const after = ZD.appearOf(stuck.k).thr, panel = ZD.renderRulePanel(stuck.r.id);
+  ZD.state.neighborSet.ap.stuckWd = 10;
+  const h = ZD.renderSettings(), page = ZD.OWNER_SET.apps.page;
+  const toOwner = h.indexOf(`href="../${page}"`) !== -1 && panel.indexOf(`href="../${page}"`) !== -1 && /экрана настройки в его макете пока нет/.test(panel);
+  const pages = Object.values(ZD.OWNER_SET).map(x => x.page).concat(ZD.OWNER_SCREENS.map(x => x.page));
+  const exist = pages.every(p => existsSync(resolve(__dir, '../../mockups', p)));
+  const editors = !/stuckWd|expiringDays|soonDays/.test(h + panel) && !/neighborSet/.test(src.slice(src.indexOf('function askRule('), src.indexOf('function askEditionCancel(')));
+  const refused = throws(() => ZD.editRule(stuck.r.id, { threshold: 12 }, { by: 'E4', from: ZD.state.today, basis: 'приказ' }));
+  ok(372, thr.length === 35 && linked.length === 31 && own === 'pk-await-long,pk-ext-pending,pk-neighbor-silent,pk-overdue' && before === '10 р.д. без событий' && after === '12 р.д. без событий' && toOwner && exist && editors && /настройка модуля-владельца/.test(refused),
+    `ЭЗ-19, ЭЗ-59, ЭЗ-Д5 — порог показан у ${thr.length} заданий, у ${linked.length} со ссылкой на настройку модуля, 4 своих механизма без ссылки; значение читается от модуля и в заданиях не правится; у заявок подсказка об отсутствии экрана; ${pages.length} адресов, все файлы есть`);
+})();
+
+/* ЭЗ-19, ЭЗ-60 — кураторство и календарь у владельцев: в настройке три вкладки и две ссылки */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-10-01');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
+  const h = ZD.renderSettings(), tabs = [...h.slice(0, h.indexOf('tab-links')).matchAll(/ZD\.setSettingsTab\('(\w+)'\)">([^<]+)</g)].map(m => m[2]).join();
+  const links = /<a class="q-case" href="\.\.\/kuratorstvo\/kuratorstvo\.html"[^>]*>Кураторство<\/a>/.test(h) && /<a class="q-case" href="\.\.\/docflow\/docflow\.html"[^>]*>Производственный календарь<\/a>/.test(h);
+  const hint = /Своего экрана в макетах нет/.test(ZD.OWNER_SCREENS[1].hint);
+  const gone = !/askCurat|setCuration|renderCuration|renderCalendarTab|setKindCat|submitRuleEdit|submitSignalEdit|toggleRule\b/.test(src);
+  ok(373, tabs === 'Задания,Подсветка,Уведомления' && links && hint && gone && !('kindCat' in ZD.state) && !('ruleRead' in ZD.state),
+    `ЭЗ-19, ЭЗ-60 — вкладки: ${tabs}; «Кураторство» ведёт на экран модуля, календарь — на настройки документооборота с подсказкой; снятый код и экспорт убраны`);
+})();
+
+/* ЭЗ-25, ЗНП-11, ЗНП-13 — подсветка только на чтение; числа прогоном ночей; строка раскрывается объектами, карточка объекта открывается */
+(() => {
+  ZD.seed();
+  const res = {};
+  ['2026-10-01', '2026-11-02'].forEach(d => {
+    ZD.goToDate(d);
+    ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'highlight'; ZD.state.hlOpen = null;
+    const h = ZD.renderSettings(), hl = ZD.highlightsOn(d);
+    res[d] = { rows: rowsIn(h, 'data-hl').length, obj: hl.reduce((a, x) => a + x.count, 0), lit: hl.filter(x => x.count).length, clean: !/Выключить|Изменить|<input|askRule|askKind/.test(h), said: new RegExp(`объектов: ${hl.reduce((a, x) => a + x.count, 0)}, видов с объектами: ${hl.filter(x => x.count).length} из 25`).test(plain(h)) };
+  });
+  const a = res['2026-10-01'], b = res['2026-11-02'];
+  const hl = ZD.highlightsOn('2026-11-02').find(x => x.count), shut = rowsIn(ZD.renderSettings(), 'data-hl-obj').length;
+  ZD.toggleHl(hl.kind);
+  const h2 = ZD.renderSettings(), objs = rowsIn(h2, 'data-hl-obj');
+  ZD.openHighlight(hl.kind, objs[0]);
+  const drawer = ZD.renderHighlightDrawer();
+  ZD.closeCard();
+  const none = ZD.highlightsOn('2026-11-02').find(x => !x.count);
+  const noClick = h2.indexOf(`ZD.toggleHl('${none.kind}')`) === -1;
+  const opened = /Открыть/.test(h2) && drawer.length > 100 && /drawer/.test(drawer);
+  ok(374, a.rows === 25 && b.rows === 25 && a.obj === 8 && a.lit === 6 && b.obj === 12 && b.lit === 11 && a.clean && b.clean && a.said && b.said && shut === 0 && objs.length === hl.count && opened && noClick && !/mono/.test(h2),
+    `ЭЗ-25 — 25 видов без кнопок правки; на 01.10 подсвечено ${a.obj} объектов у ${a.lit} видов, на 02.11 ${b.obj} у ${b.lit} (заход E4); строка раскрывается объектами, карточка открывается; без объектов строка не раскрывается`);
+})();
+
+/* ЭЗ-Д11 — сигнал строкой, как обычные уведомления: правка в окне с основанием, сырого кода вида и постоянной формы нет */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-10-01');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs';
+  const S = 'pk-cr-payment-due', h = ZD.renderSettings(), v = plain(h);
+  const row = rowsIn(h, 'data-sig').join() === S, noRaw = !/pk-/.test(v) && !/<input|<textarea/.test(h);
+  ZD.askSignal(S);
+  ZD.dialogSet('channels', ['всплывающее', 'SMS']);
+  const noWhy = ZD.dialogSubmit() === false && /Заполните/.test(ZD.dialog.err) && ZD.state.signals[S].channels.join() === 'всплывающее';
+  ZD.dialogSet('basis', 'приказ №70');
+  const done = ZD.dialogSubmit() === true && ZD.state.signals[S].channels.join() === 'всплывающее,SMS';
+  const h2 = ZD.renderSettings();
+  const shown = /всплывающее, SMS/.test(h2) && /История правок/.test(h2) && /приказ №70/.test(h2) && /способ: было всплывающее/.test(h2) && !/текст: было|получатели: было/.test(h2);
+  const foreign = throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E1', basis: 'приказ' }));
+  ok(375, row && noRaw && noWhy && done && shown && !!foreign,
+    'ЭЗ-Д11 — сигнал одной строкой таблицы; правка в окне с обязательным основанием; способ и основание в общей истории правок; кода вида и формы на странице нет; чужому отказ движка');
+})();
+
+/* ЭЗ-24 — «Опрос»: источники и ночи короткой строкой, сверху новые, ответы и опросы по сохранению в раскрытии, расхождение поля только если есть */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.runsTab = 'poll'; ZD.state.runOpen = null;
+  const h = ZD.renderRuns(), v = plain(h), runs = ZD.state.pollRuns;
+  const order = rowsIn(h, 'data-run');
+  const newest = order.join() === runs.slice().reverse().map(r => r.id).join() && order.length > 30;
+  const noSwitch = !/имитировать|setPollScope|toggleDown|setStatCleared|<input|runPoll/.test(h);
+  const clean = !/\{|"|pk-|сосед/.test(v);
+  const r = runs[runs.length - 1], line = rowOfAttr(h, 'data-run', r.id);
+  const lineOk = line.includes(`ответили ${r.sources.filter(s => s.answer === 'множество').length} из ${r.sources.length}`) && !/data-run-detail/.test(h);
+  const srcRows = (h.match(/data-sources[\s\S]*?<\/table>/) || [''])[0];
+  const sources = (srcRows.match(/<tr>/g) || []).length - 1 === ZD.SOURCES.length && /по сохранению и ночью/.test(srcRows) && /отвечает/.test(srcRows);
+  ZD.toggleRun(r.id);
+  const open = ZD.renderRuns(), d = plain(open);
+  const detail = /data-run-detail/.test(open) && r.sources.every(s => open.includes(`<td>${s.name}</td>`)) && /Ответы источников/.test(d) && /Опросы по сохранению за день/.test(d) && !/разошлось с журналом/.test(d);
+  ZD.toggleRun(r.id);
+  const folded = !/data-run-detail/.test(ZD.renderRuns());
+  /* запись мимо операции: поле разошлось — видно в той ночи и только в ней */
+  const t = ZD.state.tasks.find(x => !ZD.isTerminal(x) && x.current.ev !== 'возвращено');
+  t.journal.push({ t: ZD.state.today, ev: 'возвращено', by: 'E4' });
+  ZD.state.today = '2026-11-03';
+  const rr = ZD.runPoll();
+  ZD.toggleRun(rr.id);
+  const drift = ZD.renderRuns(), pill = /поле разошлось: 1/.test(drift) && (drift.match(/поле разошлось:/g) || []).length === 1 && rowOfAttr(drift, 'data-run', rr.id).includes('поле разошлось') && /Поле состояния разошлось с журналом/.test(drift) && drift.includes(`<td>${t.id}</td>`);
+  ok(376, newest && noSwitch && clean && lineOk && sources && detail && folded && pill,
+    `ЭЗ-24 — ${order.length} ночей на 02.11, сверху новые; строка «ответили N из M», новых, отпавших, совпало, полнота; раскрытие — ответы и опросы по сохранению за день; расхождение поля только в ночи, где есть; рубильников нет, JSON и ключей нет`);
+  function rowOfAttr(x, a, id) { const i = x.indexOf(`${a}="${id}"`); return x.slice(i, x.indexOf('</tr>', i)); }
+})();
+
+/* ЭЗ-24, ЭЗ-Д7, ЭЗ-63 — «Поводы»: по умолчанию действующие, поиск по делу, отборы; в строке нет ключа и кода вида, ключ только в раскрытии */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.runsTab = 'povods'; ZD.state.povSt = 'действует'; ZD.state.povKind = ''; ZD.state.povQ = '';
+  const rows = ZD.povodRows(), live = rows.filter(x => x.st === 'действует');
+  const h = ZD.renderRuns(), keys = rowsIn(h, 'data-p');
+  const defLive = keys.length === live.length && ZD.state.povSt === 'действует';
+  const body = h.slice(h.indexOf('<tbody>'));
+  const noRaw = !/\{|"|\bpk-|\bE\d{1,2}\b|20\d\d-\d\d-\d\d/.test(plain(body)) && !/JSON\.stringify/.test(src.slice(src.indexOf('function renderRuns('), src.indexOf('function toggleStatCleared(')));
+  ZD.state.povQ = 'нарын';
+  const found = rowsIn(ZD.renderRuns(), 'data-p'), foundOk = found.length > 0 && found.length < live.length;
+  ZD.state.povQ = '';
+  const kind = live[0].k.id; ZD.state.povKind = kind;
+  const byKind = rowsIn(ZD.renderRuns(), 'data-p'), kindOk = byKind.length === live.filter(x => x.k.id === kind).length;
+  ZD.state.povKind = ''; ZD.state.povSt = 'отпал';
+  const gone = rowsIn(ZD.renderRuns(), 'data-p'), goneOk = gone.length === rows.filter(x => x.st === 'отпал').length && gone.length > 0 && /<span class="pill neutral">отпал<\/span>/.test(ZD.renderRuns());
+  ZD.state.povSt = 'все';
+  const all = rowsIn(ZD.renderRuns(), 'data-p').length === rows.length;
+  ZD.state.povSt = 'действует';
+  const key = keys[0], one = rows.find(x => x.p.key === key);
+  const shut = !/data-pov-detail/.test(h);
+  ZD.togglePovod(key);
+  const open = ZD.renderRuns(), det = open.slice(open.indexOf('data-pov-detail'));
+  const detail = /data-key/.test(det) && plain(det).includes(key) && /История/.test(det) && /появился/.test(det);
+  ZD.togglePovod(key);
+  /* ЭЗ-63: снят без поручения уходит из действующих; заморожен остаётся в них своей отметкой */
+  const tk = ZD.state.tasks.find(x => x.povodKey && !ZD.isTerminal(x) && ZD.povodByKey(x.povodKey).status === 'appeared');
+  const kk = tk.povodKey;
+  ZD.releaseTask(tk.id, tk.author, 'снято для проверки');
+  const rel = ZD.povodRows().find(x => x.p.key === kk), relOut = rel.st === 'снят' && rowsIn(ZD.renderRuns(), 'data-p').indexOf(kk) === -1;
+  ZD.state.povSt = 'снят';
+  const relShown = rowsIn(ZD.renderRuns(), 'data-p').indexOf(kk) !== -1 && /снят без поручения/.test(ZD.renderRuns());
+  ZD.state.povSt = 'действует';
+  ZD.state.sourceDown.docs = true; ZD.state.today = '2026-11-03'; ZD.runPoll(); ZD.state.sourceDown.docs = false;
+  const frozen = ZD.povodRows().filter(x => x.p.status === 'frozen'), fh = ZD.renderRuns();
+  const frOk = frozen.length > 0 && frozen.every(x => x.st === 'действует') && rowsIn(fh, 'data-p').indexOf(frozen[0].p.key) !== -1 && /<span class="pill warn">заморожен<\/span>/.test(fh);
+  ok(377, defLive && noRaw && foundOk && kindOk && goneOk && all && shut && detail && !!one && relOut && relShown && frOk,
+    `ЭЗ-24, ЭЗ-Д7, ЭЗ-63 — на 02.11 по умолчанию действующие ${live.length} из ${rows.length}; поиск «нарын» ${found.length}; по виду ${byKind.length}; отпавшие ${gone.length}; ключ только в раскрытии, в строке нет JSON, кода вида и сырых дат; снятый без поручения уходит из действующих, замороженные (${frozen.length}) остаются с отметкой`);
+})();
+
+/* ЭЗ-24, ЭЗ-62 — действующие поводы без задания: все сигналы; считаем заново от заданий; ссылка на задание только по праву видеть */
+(() => {
+  ZD.seed();
+  const res = {};
+  ['2026-10-01', '2026-11-02'].forEach(d => {
+    ZD.goToDate(d);
+    ZD.state.viewer = 'E4'; ZD.state.runsTab = 'povods'; ZD.state.povSt = 'действует'; ZD.state.povKind = ''; ZD.state.povQ = '';
+    const has = new Set(ZD.state.tasks.map(t => t.povodKey).filter(Boolean));
+    const live = ZD.state.povods.filter(p => p.status !== 'gone' && !ZD.povodReleased(p)), none = live.filter(p => !has.has(p.key));
+    const s = ZD.povodStats();
+    res[d] = { live: live.length, none: none.length, sig: none.filter(p => ZD.kindOf(p.kind).genus === 'сигнал').length, stats: s, said: new RegExp(`Действующих поводов ${live.length}, без задания ${none.length}, все — сигналы`).test(plain(ZD.renderRuns())) };
+  });
+  const a = res['2026-10-01'], b = res['2026-11-02'];
+  const rows = ZD.povodRows().filter(x => x.st === 'действует' && x.task);
+  const mine = rows.find(x => ZD.bucketOf(x.task, 'E4')), other = rows.find(x => !ZD.bucketOf(x.task, 'E4'));
+  const h = ZD.renderRuns(), rowOf2 = k => { const i = h.indexOf(`data-p="${k}"`); return h.slice(i, h.indexOf('</tr>', i)); };
+  const link = rowOf2(mine.p.key).indexOf(`ZD.openCard('${mine.task.id}')`) !== -1;
+  const text = rowOf2(other.p.key).indexOf('ZD.openCard') === -1 && rowOf2(other.p.key).includes(other.task.id);
+  const lineOf = k => { ZD.togglePovod(k); const r = ZD.renderRuns(); ZD.togglePovod(k); const m = r.match(/<div class="k">Задание<\/div><div class="v">([^<]*)/); return m ? m[1] : ''; };
+  const hiddenLine = lineOf(other.p.key), shownLine = lineOf(mine.p.key);
+  const noLeak = hiddenLine === `${other.task.id}: вам не видно` && shownLine.startsWith(`${mine.task.id} · `);
+  ok(378, a.live === 120 && a.none === 15 && a.sig === 15 && b.live === 120 && b.none === 3 && b.sig === 3 && a.stats.live === a.live && a.stats.none === a.none && b.stats.none === b.none && a.said && b.said && link && text && noLeak,
+    `ЭЗ-24, ЭЗ-62 — без задания: 01.10 ${a.none} из ${a.live}, 02.11 ${b.none} из ${b.live}, все сигналы (заход E4); ссылка и подробности задания по праву видеть, чужое и в строке, и в раскрытии только номером`);
+})();
+
+/* ЭЗ-24, ЭЗ-16, ЭЗ-64 — доставка: только администратору, по одной записи на способ, всплывающие не показываются; пусто — честно; SMS видно на следующем прогоне */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-10-01');
+  ZD.state.viewer = 'E4'; ZD.state.runsTab = 'poll';
+  const empty = ZD.renderRuns();
+  const honest = /data-delivery-empty/.test(empty) && /SMS и почта не включены/.test(empty) && !/data-delivery>/.test(empty) && !/ждёт отправки/.test(empty) && ZD.deliveryRows().length === 0;
+  ZD.state.viewer = 'E1';
+  const foreign = ZD.renderDelivery() === '';
+  ZD.state.viewer = 'E4';
+  ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS'] }, { by: 'E4', basis: 'приказ №71' });
+  const waiting = /SMS или почта включены, отправок ещё не было/.test(ZD.renderRuns());
+  const was = ZD.state.notifications.length;
+  ZD.createFreeTask({ label: 'Проверить доставку', assignee: 'E3', author: 'E2', dueDate: '2026-10-20' });
+  const fresh = ZD.deliveryRows(), h = ZD.renderRuns();
+  const one = fresh.length === 1 && fresh[0].channel === 'SMS' && fresh[0].status === 'ждёт отправки' && fresh[0].to === 'E3' && ZD.state.notifications.length === was + 1;
+  const block = h.slice(h.indexOf('data-delivery')), row = rowsIn(h, 'data-send').length === 1 && /ждёт отправки/.test(h) && !/всплывающее<\/td>/.test(block) && /<td[^>]*>поручено<\/td>/.test(block) && !block.includes('Проверить доставку');
+  ZD.state.viewer = 'E2';
+  const hidden = !/Доставка SMS и почты/.test(ZD.renderDelivery());
+  ZD.state.viewer = 'E4';
+  /* ночной прогон после включения: новое сообщение пишется с тем же способом */
+  ZD.editNotif('эскалация', { channels: ['всплывающее', 'e-mail'] }, { by: 'E4', basis: 'приказ №72' });
+  const before = ZD.deliveryRows().length;
+  ZD.state.today = '2026-10-16'; ZD.runPoll();
+  const later = ZD.deliveryRows().slice(0, ZD.deliveryRows().length - before);
+  ok(379, honest && foreign && waiting && one && row && hidden && later.length > 0 && later.every(x => x.t === '2026-10-16') && ZD.deliveryRows().every(x => x.channel !== 'всплывающее'),
+    `ЭЗ-24, ЭЗ-64 — без включения блок честно пуст; у остальных блока нет; включили SMS для «поручено» — одна запись «ждёт отправки», всплывающих строк нет, содержания задания нет; на следующем прогоне новых отправок ${later.length}`);
+})();
+
+/* ЭЗ-Д10, ЭЗ-66 — на экранах нет слова «сосед»: очередь всех зрителей, карточки, настройка, панели, журнал, полоса стенда, реестр вида и действия */
+(() => {
+  ZD.seed();
+  const BAD = /сосед/i, hits = [];
+  const check = (where, h) => { const t = plain(h); const m = t.match(BAD); if (m) hits.push(`${where}: ${t.slice(Math.max(0, m.index - 30), m.index + 30)}`); };
+  ['2026-10-01', '2026-11-02'].forEach(d => {
+    ZD.goToDate(d);
+    ZD.EMP.forEach(e => {
+      ZD.state.viewer = e.id;
+      ZD.tabsOf(e.id).forEach(x => { ZD.state.qSearch = 't'; check(`${d} ${e.id} ${x.id}`, viewAs(e.id, x.id)); ZD.state.qSearch = ''; });
+    });
+    ZD.EMP.forEach(e => { ZD.state.viewer = e.id; check(`${d} ${e.id} страница уведомлений`, ZD.renderNotifPage()); check(`${d} ${e.id} колокольчик`, ZD.renderBell()); });
+    ZD.state.notifications.forEach(n => check(`${d} уведомление`, ZD.notifText(n)));
+    ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
+    ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ZD.state.rules.forEach(r => check(`${d} панель ${r.id}`, ZD.renderRulePanel(r.id)));
+    ZD.state.povSt = 'все'; ZD.state.runsTab = 'povods'; check(`${d} поводы`, ZD.renderRuns());
+    ZD.state.runsTab = 'poll'; check(`${d} опрос`, ZD.renderRuns());
+    check(`${d} стенд`, ZD.renderStand());
+    ZD.state.povods.forEach(p => check(`${d} повод`, ZD.describePovod(p)));
+  });
+  ZD.state.povodKinds.forEach(k => check('вид', k.title));
+  ZD.state.actions.forEach(a => check('действие', a.label));
+  let cards = 0;
+  eachCard(DATES3, (t, v, d) => { cards++; check(`${d} ${v} ${t.id}`, noKey(noDemo(ZD.renderCard(t.id)))); });
+  ok(380, cards > 1000 && hits.length === 0, `ЭЗ-Д10, ЭЗ-66 — слова «сосед» нет: очередь всех зрителей на двух датах, ${cards} карточек, уведомления всех зрителей, настройка, панели правил, журнал, полоса стенда, реестр вида и действия${hits.length ? '; найдено: ' + hits.slice(0, 3).join(' / ') : ''}`);
 })();
 
 /* ---------- отчёт ---------- */

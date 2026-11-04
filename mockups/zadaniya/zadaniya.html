@@ -145,10 +145,6 @@ table.cgrid tbody tr.grp.over td{ background:var(--status-error-bg); }
 table.cgrid tbody tr.grp-item td:first-child{ padding-left:22px; white-space:nowrap; }
 table.cgrid tbody tr.grp td:first-child{ white-space:nowrap; }
 table.cgrid tbody tr.grp-bar td{ background:var(--asubk-gray-50); }
-.reg-counts{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-.reg-counts button{ border:1px solid var(--border-default); background:var(--asubk-white); border-radius:6px; padding:8px 14px; cursor:pointer; font:var(--font-label); color:var(--text-body); }
-.reg-counts button b{ font-size:18px; margin-right:6px; }
-.reg-counts button.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
 table.cgrid tbody tr.sub td{ background:var(--surface-panel); }
 table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
   background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; max-width:280px; }
@@ -205,6 +201,14 @@ table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px soli
 .q-tools input[type="search"]{ height:32px; width:380px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
   background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; }
 .q-tools .push{ margin-left:auto; }
+.q-tools label{ display:inline-flex; align-items:center; gap:6px; font:var(--font-label); color:var(--text-muted); }
+.q-tools select{ height:32px; max-width:360px; border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
+.tabs .tab-links{ margin-left:auto; display:inline-flex; align-items:center; gap:18px; font:var(--font-label); }
+.run-detail{ padding:10px 14px 14px; }
+table.qgrid tbody tr[data-r], table.qgrid tbody tr[data-run], table.qgrid tbody tr[data-p]{ cursor:pointer; }
+table.qgrid tbody tr[data-r]:hover td, table.qgrid tbody tr[data-p]:hover td, table.qgrid tbody tr[data-run]:not(.over):hover td{ background:var(--surface-hover); }
+table.cgrid tbody tr[data-hl][onclick]{ cursor:pointer; }
+table.cgrid tbody tr[data-hl][onclick]:hover td{ background:var(--surface-hover); }
 table.qgrid{ table-layout:fixed; }
 table.qgrid thead th{ padding:7px 10px; cursor:pointer; user-select:none; overflow:hidden; text-overflow:ellipsis; }
 table.qgrid tbody td{ padding:6px 10px; line-height:19px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
@@ -427,7 +431,7 @@ const CURATION = [ // закрепление: роль кураторства ×
   {role:'куратор подразделения', obj:'Баткенская область',     emp:'E2', from:'2026-01-01', to:'2026-09-03'},
   {role:'куратор подразделения', obj:'Баткенская область',     emp:'E1', from:'2026-09-04', to:null},
   {role:'куратор подразделения', obj:'unit-narynskaya-obl',    emp:'E3', from:'2026-01-01', to:null},
-  {role:'куратор модуля-соседа', obj:'взыскание',              emp:'E1', from:'2026-01-01', to:null},
+  {role:'куратор модуля', obj:'взыскание',              emp:'E1', from:'2026-01-01', to:null},
   {role:'куратор отчётности подразделения', obj:'dep-admin',   emp:'E1', from:'2026-01-01', to:null},
   {role:'куратор отчётности подразделения', obj:'dep-prom',    emp:'E3', from:'2026-01-01', to:null},
   ...['rep-batken','rep-jalal','rep-issyk','rep-naryn','rep-talas','rep-chui','rep-bishkek','rep-tokmok','rep-kara-balta']
@@ -673,7 +677,7 @@ function seedPovodKinds(){ return [
   {id:'pk-overdue',      title:'Просрочено задание',                    objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-rejected',      title:'Задание отклонено',                     objectType:'task',      traits:[],                    sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-await-long',    title:'Ожидает приёмки дольше срока',          objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
-  {id:'pk-neighbor-silent',title:'Сосед не отвечает',                    objectType:'source',    traits:['ночей_подряд','молчит_с'], sensitive:true,  ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-neighbor-silent',title:'Источник не отвечает',                    objectType:'source',    traits:['ночей_подряд','молчит_с'], sensitive:true,  ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-kind-inactive', title:'Вид повода не введён в действие',       objectType:'povodKind', traits:['дней_с_заведения'],  sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-addr-missing',  title:'Адресат не найден',                     objectType:'task',      traits:['вид_объекта','роль'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-ext-pending',   title:'Запрос продления без ответа',           objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
@@ -686,7 +690,7 @@ function seedPovodKinds(){ return [
   {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Статистика
-  {id:'pk-stat-neighbor-silent', title:'Сосед статистики молчит',                     objectType:'module',   traits:['прогонов_подряд'], sensitive:false, ownerDept:'Аналитика', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-stat-neighbor-silent', title:'Модуль не отвечает Статистике',                     objectType:'module',   traits:['прогонов_подряд'], sensitive:false, ownerDept:'Аналитика', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Отчётность
   {id:'pk-rep-obligation-overdue', title:'Срок сдачи формы отчётности истёк',          objectType:'obligation', traits:['дней_просрочки'], sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02',
    retiredAt:'2026-10-06'}, // выведен выпуском: его работу делает просрочка задания вида «близко или прошёл»
@@ -830,7 +834,7 @@ function seedActions(){ return [
   // Оргструктура
   {id:'act-org-head-vacant',      label:'Закрыть вакансию руководителя подразделения',     importance:'высокая', needsProof:false},
   // Статистика
-  {id:'act-stat-silent',          label:'Разобраться с молчанием соседа-модуля',           importance:'высокая', needsProof:false},
+  {id:'act-stat-silent',          label:'Разобраться, почему модуль не отвечает Статистике',           importance:'высокая', needsProof:false},
   // Отчётность
   {id:'act-rep-overdue',          label:'Обеспечить сдачу просроченной формы отчётности',  importance:'высокая', needsProof:true},
   {id:'act-rep-due',              label:'Сдать форму отчётности к сроку',                  importance:'высокая', needsProof:false, where:'отчётность: окончательный выпуск формы с получателем'},
@@ -917,7 +921,7 @@ const A_CTRL_CHIEF    = {by:'участник', who:'руководитель к
 const A_APPROVE_CHIEF = {by:'участник', who:'руководитель утверждающего продление'};
 const A_ADMIN   = {by:'должность', who:'администратор модуля'};
 const A_CUR_UNIT = {by:'кураторство', role:'куратор подразделения'};
-const A_CUR_MOD  = {by:'кураторство', role:'куратор модуля-соседа'};
+const A_CUR_MOD  = {by:'кураторство', role:'куратор модуля'};
 const A_CUR_REP  = {by:'кураторство', role:'куратор отчётности подразделения'};
 const Q_REP = {by:'очередь', role:null, who:'«Отчётность» подразделения, за которым обязательство'}; // роль называет повод
 const Q_GD = {by:'очередь', role:'gd-approver'};
@@ -951,18 +955,18 @@ function seedRules(){ return [
   {id:'rule-addr-missing', kind:'pk-addr-missing', action:'act-addr-missing', addressee:A_ADMIN,   dueN:1, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
   {id:'rule-ext-pending',  kind:'pk-ext-pending',  action:'act-ext-pending',  addressee:A_APPROVE_CHIEF, dueN:1, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
   // Оргструктура
-  {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed('2026-09-02','подключение соседа «Оргструктура»')]},
+  {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Оргструктура»')]},
   // Статистика
-  {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        addressee:A_CUR_MOD,  controller:'post-admin', dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение соседа «Статистика»')]},
+  {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        addressee:A_CUR_MOD,  controller:'post-admin', dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Статистика»')]},
   // Отчётность
-  {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      addressee:A_CUR_REP,  dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение соседа «Отчётность»')]},
+  {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      addressee:A_CUR_REP,  dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Отчётность»')]},
   {id:'rule-rep-due',             kind:'pk-rep-obligation-due',     action:'act-rep-due',          addressee:Q_REP,      dueN:0, dueUnit:'beforeDate', dueSource:ACT_SRC, editions:[ed('2026-10-05','ответ отчётности по обязательствам: от «близко» до выпуска')]},
   // Госрешение
-  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение соседа «Госрешение»')]},
-  {id:'rule-gd-revise', kind:'gd-revise',               action:'act-gd-revise', addressee:N_GD_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение соседа «Госрешение»')]},
+  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
+  {id:'rule-gd-revise', kind:'gd-revise',               action:'act-gd-revise', addressee:N_GD_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
   // Кредитные программы
-  {id:'rule-lp-review',   kind:'lp-review',   action:'act-lp-review', addressee:Q_LP,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение соседа «Кредитные программы»')]},
-  {id:'rule-lp-revise',   kind:'lp-revise',   action:'act-lp-revise', addressee:N_LP_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение соседа «Кредитные программы»')]},
+  {id:'rule-lp-review',   kind:'lp-review',   action:'act-lp-review', addressee:Q_LP,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
+  {id:'rule-lp-revise',   kind:'lp-revise',   action:'act-lp-revise', addressee:N_LP_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
   // Заявки
   ...[
     ['ap-confirm',        'act-ap-confirm',        Q_AP_GF,     {dueN:2}],
@@ -976,7 +980,7 @@ function seedRules(){ return [
     ['ap-register',       'act-ap-register',       A_CUR_AP,    {dueN:10}],
     ['ap-stuck-new',      'act-ap-stuck',          A_CUR_AP,    {dueN:5}],
   ].map(([kind, action, addressee, x])=>Object.assign({id:'rule-'+kind, kind, action, addressee,
-    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение соседа «Заявки»')]}, x)),
+    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Заявки»')]}, x)),
   // Документооборот
   ...[
     ['doc-revise',   'act-doc-revise',   N_DOC('автор документа'),      {dueN:3}],
@@ -991,7 +995,7 @@ function seedRules(){ return [
     ['doc-file',     'act-doc-file',     Q_DOC_ARCH,                    {dueN:5}],
     ['doc-return',   'act-doc-return',   N_DOC('получивший оригинал'),  {dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок выдачи'}],
   ].map(([kind, action, addressee, x])=>Object.assign({id:'rule-'+kind, kind, action, addressee,
-    dueUnit:'workday', dueSource:DOC_SRC, editions:[ed('2026-09-01','подключение соседа «Документооборот»')]}, x)),
+    dueUnit:'workday', dueSource:DOC_SRC, editions:[ed('2026-09-01','подключение модуля «Документооборот»')]}, x)),
   // Имущество: порог появления повода — настройка модуля имущества, здесь только срок задания
   ...[
     ['pk-im-offer-overdue',        'act-im-offer',  2],
@@ -1003,7 +1007,7 @@ function seedRules(){ return [
     ['pk-im-unsold',               'act-im-unsold', 15],
     ['pk-im-instalment-overdue',   'act-im-inst',   5],
   ].map(([kind, action, dueN])=>({id:'rule-'+kind, kind, action, addressee:A_CUR_IM, dueN,
-    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-10-01','подключение соседа «Имущество»')]})),
+    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-10-01','подключение модуля «Имущество»')]})),
   // Имущество по Инструкции: срок Инструкции уже истёк к появлению повода (это порог соседа) — срок задания короткий, «внутренний акт»
   ...[
     ['pk-im-ssi-memo',            'act-im-ssi-memo',   1,  {by:'очередь', role:'im-opk'}],
@@ -1019,30 +1023,30 @@ function seedRules(){ return [
   // Анализ: срок — от даты состояния (утверждение обзора, закрытие периода); у периода срок называет шаблон, пусто — значение правила
   {id:'rule-pk-an-no-review', kind:'pk-an-no-review', action:'act-an-no-review', addressee:A_HEAD_AN, dueN:20,
    dueUnit:'workday', dueBase:'состояние', ownDue:'поле шаблона «N р.д. после закрытия периода»', dueSource:ACT_SRC,
-   editions:[ed('2026-10-01','подключение соседа «Анализ»')]},
+   editions:[ed('2026-10-01','подключение модуля «Анализ»')]},
   // Взыскание: срок — шаблона взыскания (Порядок, закон или проект); правилом не настраивается, продления в заданиях нет
   ...VZ_STEPS.map(([kind, , , , , unit])=>({id:'rule-'+kind, kind, action:'act-'+kind.slice(3), addressee:unit ? {by:'очередь', role:unit} : A_CUR_VZ, dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок шаблона взыскания',
-    editions:[ed('2026-10-01','подключение соседа «Взыскание»')]})),
+    editions:[ed('2026-10-01','подключение модуля «Взыскание»')]})),
   // Залог: порог появления (интервал обследования, срок годности отчёта, горизонт поручительства) — настройка залога;
   // где дату держит залог (запрет, комитет), срок называет он и продления нет; иначе — значение правила, продление — общим порядком
   ...ZL_STEPS.filter(noHL).map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='zl' ? A_CUR_ZL : x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr},
-    editions:[ed('2026-11-02','подключение соседа «Залог»')]},
+    editions:[ed('2026-11-02','подключение модуля «Залог»')]},
     x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named} : {dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC})),
   // Платежи: порог появления (3 р.д. ожидания) — настройка платежей; срок — значение правила, продление — общим порядком
   ...PL_STEPS.filter(noHL).map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC,
-    editions:[ed('2026-11-10','подключение соседа «Платежи»')]})),
+    editions:[ed('2026-11-10','подключение модуля «Платежи»')]})),
   // Заёмщик: пакет и анализ — срок от начала полосы риска (прижатого к вводу вида), значение правила; акт сверки — до 1 сентября
   // (п. 9), дата, прошедшая к выдаче, — 1 р.д. от выдачи
   ...ZM_STEPS.map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_ZM,
-    editions:[ed('2026-11-16','подключение соседа «Заёмщик»')]},
+    editions:[ed('2026-11-16','подключение модуля «Заёмщик»')]},
     x.periodic ? {dueN:x.dueN, dueUnit:'beforeDate', dueSource:'Порядок, п. 9'} : {dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:ACT_SRC})),
   // Реструктуризация: срок называет реструктуризация по норме-справочнику (п. 18) в редакции на дату якоря; продления в заданиях нет
   ...RS_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_CR,
     dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок по норме реструктуризации (п. 18)',
-    editions:[ed('2026-11-23','подключение соседа «Реструктуризация»')]})),
+    editions:[ed('2026-11-23','подключение модуля «Реструктуризация»')]})),
   // Классификация: срок нормой не задан — значение правила от выдачи, продление — общим порядком
   ...CL_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:{by:'очередь', role:'cl-inspector'},
-    dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-11-30','подключение соседа «Классификация»')]})),
+    dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-11-30','подключение модуля «Классификация»')]})),
 ]; }
 function ed(from, basis){ return {n:1, from, by:'выпуск 1', basis, release:1}; } // начальные деловые значения ставит выпуск
 /* правило — деловая половина вида: поля прода меняются только новой редакцией с датой начала и основанием;
@@ -1068,7 +1072,7 @@ function editRule(ruleId, changes, o){
   const num = (x, what)=>{ const n = parseInt(x,10); if(!(n>=1) || String(n)!==String(x).trim()) throw new Error(`${what} — целое число больше нуля`); return n; };
   Object.keys(changes).forEach(f=>{
     const x = changes[f];
-    if(f==='threshold') throw new Error('порог появления повода — настройка соседа, не правила');
+    if(f==='threshold') throw new Error('порог появления повода — настройка модуля-владельца, не правила');
     if(PROD_FIELDS.indexOf(f)===-1) throw new Error(`«${f}» меняется выпуском`);
     if(f==='dueN'){ if(r.dueUnit==='named') throw new Error('срок этого правила называет владелец — не настраивается');
       v.dueN = r.dueUnit==='beforeDate' && String(x).trim()==='0' ? 0 : num(x, 'срок'); } // «за N к.д. до даты» — и в самый день
@@ -1339,13 +1343,13 @@ function statMirrorAt(d){
     {kind:'сосед молчит', nb:'взыскание', key:'сосед-молчит/взыскание/с-2026-08-20', runs:3,
      obj:'взыскание', period:'молчание с 2026-08-20', from:'2026-08-20',
      reasons:['отказал по правам','недоступен'],
-     text:'сосед «взыскание» молчит 3 прогона подряд с 20.08.2026 (отказал по правам, недоступен) — повод модулю заданий'},
+     text:'модуль «взыскание» молчит 3 прогона подряд с 20.08.2026 (отказал по правам, недоступен) — повод модулю заданий'},
   ];
   if(d>='2026-09-04') leads.push(
     {kind:'сосед молчит', nb:'залог', key:'сосед-молчит/залог/с-2026-09-01', runs:2,
      obj:'залог', period:'молчание с 2026-09-01', from:'2026-09-01',
      reasons:['недоступен'],
-     text:'сосед «залог» молчит 2 прогона подряд с 01.09.2026 (недоступен) — повод модулю заданий'});
+     text:'модуль «залог» молчит 2 прогона подряд с 01.09.2026 (недоступен) — повод модулю заданий'});
   return {ok:true, module:'статистика', date:d, kinds:['сосед молчит'], full:true,
     leads: state.statCleared ? leads.filter(l=>l.nb!=='взыскание') : leads};
 }
@@ -3495,9 +3499,9 @@ function seedState(){
     today: '2026-09-02',
     viewer: 'E4',
     view: 'queue',
-    ruleRead: false,   // правило открыто на чтение по ссылке из карточки: пункта меню нет
     qTab: 'work', qSearch: '', qSort: {}, closedFilter: 'mine', // очередь: вкладка, поиск, сортировка, отбор закрытых
-    settingsTab: 'kinds',
+    settingsTab: 'tasks', ruleQ: '', ruleMod: '', ruleSt: 'в действии', hlOpen: null, // настройка: вкладка, поиск и отборы таблицы заданий, раскрытая подсветка
+    runsTab: 'poll', runOpen: null, povQ: '', povKind: '', povSt: 'действует', povOpen: null, // журнал прогонов: вкладка, раскрытая ночь, поиск и отборы поводов
     povodKinds: seedPovodKinds(),
     actions: seedActions(),
     rules: seedRules(),
@@ -3685,7 +3689,7 @@ function notify(t, kind, to, due){
 }
 /* за один прогон или одно пакетное действие — одна запись на человека × вид повода × вид уведомления, внутри перечень заданий */
 function pushNotif(kind, taskId, to, due, originKind){
-  const item = {taskId, due:due||null}, dg = state.digest, key = dg && originKind ? [to, originKind, kind].join('|') : null;
+  const item = Object.assign({taskId, due:due||null}, kind==='переадресовано' ? {newAssignee:taskOf(taskId).assignee} : {}), dg = state.digest, key = dg && originKind ? [to, originKind, kind].join('|') : null;
   if(key && dg[key]){ dg[key].count++; if(taskId) dg[key].items.push(item); return dg[key]; }
   const cfg = state.notifSettings[kind]; // текст и способ — из настройки на момент отправки
   const n = messageOf({id:nextId('N'), t:state.today, kind, originKind, taskId, to, due:due||null, count:1, items:taskId ? [item] : [], text:cfg.text, channels:cfg.channels.slice()});
@@ -4337,8 +4341,8 @@ function describePovod(p){
   if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
   if(p.objectType==='employee'){ return `сотрудник ${emp(p.objectId) ? emp(p.objectId).name : p.objectId}`; }
   if(p.objectType==='territory'){ return `территория подразделения «${p.objectId}»`; }
-  if(p.objectType==='module'){ return `сосед-модуль «${p.objectId}» (по данным статистики)`; }
-  if(p.objectType==='povod'){ const q=povodByKey(p.objectId); return q ? `повод «${kindOf(q.kind).title}» · ${q.key}` : p.objectId; }
+  if(p.objectType==='module'){ return `модуль «${p.objectId}» (по данным статистики)`; }
+  if(p.objectType==='povod'){ const q=povodByKey(p.objectId); return q ? `повод «${kindOf(q.kind).title}» · ${describePovod(q)}` : p.objectId; }
   if(p.objectType==='gosreshenie'){ const o=ownerObj('gd', p.objectId); return `${p.objectId} ${o ? o.title : ''}`.trim(); }
   if(p.objectType==='program'){ const o=ownerObj('lp', p.objectId); return `${p.objectId} ${o ? o.title : ''}`.trim(); }
   if(p.objectType==='application'){ const o=ownerObj('ap', p.objectId);
@@ -4795,7 +4799,7 @@ function checkRegistry(){
     const k = kindOf(r.kind), by = r.addressee.by;
     if(!postOf(r.author)) errs.push(`${r.id}: автор правила — не должность`);
     if(r.controller && r.controller!=='автор' && !postOf(r.controller)) errs.push(`${r.id}: контролёр — не автор и не должность`);
-    if('threshold' in r) errs.push(`${r.id}: порог появления повода — настройка соседа, не правила`);
+    if('threshold' in r) errs.push(`${r.id}: порог появления повода — настройка модуля-владельца, не правила`);
     const form = by==='очередь' ? 'очередь' : by==='названный' ? 'названный' : 'формула';
     if(k.addrForm!==form) errs.push(`${r.id}: адресат правила не той формы, что объявил вид («${k.addrForm}»)`);
     if(by==='очередь' && !(r.addressee.role ? roleOf(r.addressee.role) : r.addressee.who)) errs.push(`${r.id}: роль очереди не заведена`);
@@ -4869,10 +4873,10 @@ function ui(fn){ // действие из интерфейса: отказ дв�
   try{ fn(); }catch(e){ toast(e.message,'err'); }
   renderCardDrawer(); render();
 }
-const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; правило на чтение — по ссылке из карточки
-function go(view){ state.view=view; state.ruleRead=false; render(); }
+const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; остальным правило на чтение — панелью по ссылке из карточки
+function go(view){ state.view=view; render(); }
 function setAsOf(v){ state.today=v; applyEditions(v); render(); }
-function setViewer(v){ state.viewer=v; state.ruleRead=false; groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; render(); }
+function setViewer(v){ state.viewer=v; groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; if(ruleCard){ ruleCard=null; renderCardDrawer(); } render(); }
 /* стенд: ночи подряд от старта до выбранной даты включительно. Срез зависит только от даты и настроек полосы, клики зрителя
    не переживают смену даты. Настройки полосы — имитация недоступности, круг опроса, зритель — сохраняются; недоступность и
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
@@ -4907,12 +4911,13 @@ function playStandScenes(d, ids){
 }
 /* след действий на стенде: что изменилось после сбора среза, смена даты сбросит */
 function standMark(){
-  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals, state.notifSettings]).length].join('/');
+  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals, state.notifSettings]).length, state.povodKinds.reduce((a, k)=>a+k.switches.length, 0)].join('/');
 }
 function goToDate(d){
   if(!state) seedState();
   const touched = !!state.standMark && standMark()!==state.standMark;
-  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, kindCat:state.kindCat, ruleOpen:state.ruleOpen, ruleRead:state.ruleRead,
+  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, ruleQ:state.ruleQ, ruleMod:state.ruleMod, ruleSt:state.ruleSt, hlOpen:state.hlOpen,
+    runsTab:state.runsTab, povQ:state.povQ, povKind:state.povKind, povSt:state.povSt,
     qTab:state.qTab, qSearch:state.qSearch, qSort:state.qSort, closedFilter:state.closedFilter,
     pollScope:state.pollScope, sourceDown:state.sourceDown, statCleared:state.statCleared};
   seedState();
@@ -4961,11 +4966,11 @@ function renderStand(){
     <label>Круг опроса <select onchange="ZD.setPollScope(this.value)">${[['все','все подключённые'],['первый выпуск','первый выпуск — механизм и взыскание'],['механизм','только механизм']].map(([v,l])=>opt(v, l, state.pollScope)).join('')}</select></label>
     <details${standDownOpen ? ' open' : ''}><summary onclick="ZD.standToggle(!this.parentNode.open)">Имитация недоступности${down.length ? ': '+esc(down.map(x=>x.name).join(', ')) : ''}</summary>
       <div class="stand-down">${SOURCES.map(x=>`<label><input type="checkbox" ${state.sourceDown[x.id] ? 'checked' : ''} onchange="ZD.toggleDown('${x.id}', this.checked)"> ${esc(x.name)}</label>`).join('')}
-        <label><input type="checkbox" ${state.statCleared ? 'checked' : ''} onchange="ZD.setStatCleared(this.checked)"> сосед «взыскание» у Статистики перестал молчать</label></div>
+        <label><input type="checkbox" ${state.statCleared ? 'checked' : ''} onchange="ZD.setStatCleared(this.checked)"> модуль «взыскание» снова отвечает Статистике</label></div>
     </details>`;
 }
 function render(){
-  if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer) && !state.ruleRead) state.view = 'queue'; // зритель сменился на этих экранах
+  if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer)) state.view = 'queue'; // зритель сменился на этих экранах
   if(typeof document==='undefined') return;
   const titles = {queue:'Задания', settings:'Настройка', runs:'Журнал прогонов', notifs:'Все уведомления'};
   document.getElementById('title').textContent = titles[state.view] || '';
@@ -4983,6 +4988,13 @@ function render(){
 /* ---------- очередь: одна таблица на вкладку ---------- */
 function setQueueTab(id){ state.qTab=id; render(); }
 function setClosedFilter(id){ state.closedFilter=id; render(); }
+/* поиск и отборы настройки и журнала: поле поиска после перерисовки остаётся в фокусе */
+function setFilter(f, v, inputId){
+  state[f]=v; render();
+  if(typeof document==='undefined' || !inputId) return;
+  const el = document.getElementById(inputId);
+  if(el){ el.focus(); el.setSelectionRange(v.length, v.length); }
+}
 function setSearch(v){
   state.qSearch=v; render();
   if(typeof document==='undefined') return;
@@ -5386,7 +5398,7 @@ function openFreeForm(){
 }
 
 /* ---------- карточка: панель поверх очереди со своим адресом ---------- */
-let cardOpenId=null, hlCard=null, fold={}, cardShown=null;
+let cardOpenId=null, hlCard=null, ruleCard=null, fold={}, cardShown=null;
 const hasUrl = ()=>typeof history!=='undefined' && typeof location!=='undefined';
 function taskInUrl(){ const m = hasUrl() && /[?&]task=([^&]+)/.exec(location.search||''); return m ? decodeURIComponent(m[1]) : null; }
 function moveUrl(how, id){
@@ -5404,15 +5416,15 @@ function cardVisible(id){
 function openCard(id){
   if(!cardVisible(id)) return;
   moveUrl(taskInUrl() ? 'replaceState' : 'pushState', id); // панель одна: ссылка внутри неё меняет адрес, а не копит шаги «назад»
-  cardOpenId=id; hlCard=null; fold={};
+  cardOpenId=id; hlCard=null; ruleCard=null; fold={};
   renderCardDrawer();
 }
 function closeCard(){
   if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
-  cardOpenId=null; hlCard=null;
+  cardOpenId=null; hlCard=null; ruleCard=null;
   renderCardDrawer();
 }
-function openHighlight(kindId, key){ cardOpenId=null; hlCard={kindId, key}; renderCardDrawer(); }
+function openHighlight(kindId, key){ cardOpenId=null; ruleCard=null; hlCard={kindId, key}; renderCardDrawer(); }
 function cardFold(name, open){ fold[name] = open; }
 const foldOpen = (name, dflt)=>name in fold ? fold[name] : dflt;
 const noCasePage = ()=>toast('В макете у этого дела своей страницы нет', '');
@@ -5420,10 +5432,10 @@ const noCasePage = ()=>toast('В макете у этого дела своей 
 function syncFromUrl(){
   const id = taskInUrl();
   dlg = null; paintDialog(); // окно принадлежит экрану, с которого ушли
-  if(!id){ cardOpenId=null; hlCard=null; renderCardDrawer(); return; }
+  if(!id){ cardOpenId=null; hlCard=null; ruleCard=null; renderCardDrawer(); return; }
   if(id===cardOpenId) return;
-  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; hlCard=null; renderCardDrawer(); return; }
-  cardOpenId=id; hlCard=null; fold={};
+  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; hlCard=null; ruleCard=null; renderCardDrawer(); return; }
+  cardOpenId=id; hlCard=null; ruleCard=null; fold={};
   renderCardDrawer();
 }
 /* открыто прямым адресом: панель поверх «Моей работы», «назад» закрывает её, а не уводит со страницы */
@@ -5650,6 +5662,7 @@ function renderCardDrawer(){
   let host = document.getElementById('cardHost');
   if(!host){ host=document.createElement('div'); host.id='cardHost'; document.body.appendChild(host); }
   if(hlCard){ host.innerHTML = renderHighlightDrawer(); cardShown=null; return; }
+  if(ruleCard){ host.innerHTML = renderRulePanel(ruleCard); cardShown=null; return; }
   if(!cardOpenId || !taskOf(cardOpenId)){ host.innerHTML=''; cardShown=null; return; }
   const body = host.querySelector('.drawer-b'), top = body && cardShown===cardOpenId ? body.scrollTop : 0;
   host.innerHTML = renderCard(cardOpenId);
@@ -5657,8 +5670,9 @@ function renderCardDrawer(){
   host.querySelector('.drawer-b').scrollTop = top; // действие в карточке не сбрасывает её прокрутку
 }
 /* откуда задание: повод, редакция правила, кто поручил, откуда срок — по снимку выдачи */
+function dueUnitWord(r){ return r.dueUnit==='workday' ? 'р.д.' : r.dueUnit==='beforeDate' ? `к.д. до ${kindOf(r.kind).dueDateName || '«Даты по»'}` : r.dueUnit==='month' ? 'кал. мес.' : 'к.д.'; }
 function dueText(r, short){
-  const unit = r.dueUnit==='workday' ? 'р.д.' : r.dueUnit==='beforeDate' ? `к.д. до ${kindOf(r.kind).dueDateName || '«Даты по»'}` : r.dueUnit==='month' ? 'кал. мес.' : 'к.д.';
+  const unit = dueUnitWord(r);
   if(r.dueUnit==='named') return `называет владелец — ${r.dueFrom}`+(r.extendBy ? `; продление утверждает ${r.extendBy}` : '');
   return `${r.dueN} ${unit}`+(r.dueBase==='состояние' ? ' от даты состояния' : r.dueUnit==='workday' ? ' от выдачи' : '')+
     (r.ownDue ? `; если назван — ${r.ownDue}` : '')+(r.dueSource && !short ? ` · источник: ${r.dueSource}` : '');
@@ -5676,12 +5690,16 @@ function renderOrigin(t, povod){
         ${t.ruleEdition!==ruleById(t.ruleId).edN ? `<div class="small">сейчас действует редакция ${ruleById(t.ruleId).edN} — на выданное не влияет</div>` : ''}</div>
       <div class="k">Поручил</div><div class="v">${by}</div>
       <div class="k">Откуда срок</div><div class="v">${esc(dueText(rule))}</div>
-      <div class="k"></div><div class="v"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило в реестре</button></div>
+      <div class="k"></div><div class="v"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило</button></div>
     </div>`;
 }
-function showRule(ruleId){ closeCard(); state.view='settings'; state.settingsTab='rules'; state.ruleOpen=ruleId; state.ruleRead=!isTasksAdmin(state.viewer); render();
-  if(typeof document==='undefined') return;
-  const row = document.getElementById('rule-'+ruleId); if(row) row.scrollIntoView({block:'center'}); }
+/* правило открывается панелью поверх той страницы, где зритель сейчас; в меню у остальных пунктов нет, закрытие возвращает на место */
+function showRule(ruleId){
+  if(!ruleById(ruleId)) return;
+  closeCard();
+  ruleCard = ruleId;
+  renderCardDrawer();
+}
 
 /* карточка обзора и шаблона у анализа — демо соседа: утверждение, замена, что поручено (из заданий) */
 function renderRepCard(id){ // обязательство по форме у отчётности: закрывает окончательный выпуск с получателем
@@ -6166,122 +6184,276 @@ function renderClCard(id){ // реестр фактов п. 11 кредита у
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
     <div class="small">Факт без решения комитета здесь — подсветка без исполнителя: в категорию риска он не идёт; поручение — в заданиях, очереди кредитных инспекторов. Факт, решение комитета и аннулирование с причиной вносит кредитный инспектор. Задания увидят запись на следующем опросе.</div></div>`;
 }
+/* ---------- настройка заданий: одна таблица и панель; вид и действие приходят выпуском, правило правится редакциями ---------- */
+const SETTINGS_TABS = [['tasks','Задания'],['highlight','Подсветка'],['notifs','Уведомления']];
+/* кураторство и календарь — у владельцев; задания их только читают. Экрана календаря в макетах нет, на чтение он показан в настройках документооборота */
+const OWNER_SCREENS = [
+  {label:'Кураторство', page:'kuratorstvo/kuratorstvo.html', hint:'Экран модуля «Кураторство» в новой вкладке: закрепления ведёт он, задания только читают'},
+  {label:'Производственный календарь', page:'docflow/docflow.html', hint:'Общий справочник системы. Своего экрана в макетах нет: на чтение он показан в настройках документооборота, откроется в новой вкладке'},
+];
+/* настройка модуля-владельца; у заявок и программ порог есть, а экрана в их макетах пока нет */
+const OWNER_SET = {
+  orgstruct:{name:'Оргструктура', page:'org-structure/org-structure.html'}, statistics:{name:'Статистика', page:'statistics/statistics.html'},
+  reports:{name:'Отчётность', page:'reports/reports.html'}, gosresh:{name:'Госрешение', page:'decision/decisions.html'},
+  programs:{name:'Кредитные программы', page:'loan-program/loan-program.html', noScreen:true}, apps:{name:'Заявки', page:'loan-application/loan-application.html', noScreen:true},
+  docs:{name:'Документооборот', page:'docflow/docflow.html'}, assets:{name:'Имущество', page:'assets/assets.html'}, analysis:{name:'Анализ', page:'analysis/analysis.html'},
+  credit:{name:'Кредит', page:'loan-credit/credit.html'}, collection:{name:'Взыскание', page:'collection/collection.html'}, collateral:{name:'Залог', page:'collateral/zalog.html'},
+  payments:{name:'Платежи', page:'payments/payments.html'}, borrower:{name:'Заёмщик', page:'borrower/borrower.html'},
+  restructuring:{name:'Реструктуризация', page:'restructuring/restructuring.html'}, classification:{name:'Классификация', page:'classification/classification.html'},
+};
+const ownerSetOf = k=>{ const s = sourceOfKind(k.id); return s ? OWNER_SET[s.id]||null : null; };
+/* порог появления: значение держит модуль-владелец, здесь только показ; у своих видов — порог механизма, правится выпуском */
+const KIND_THRESHOLD = Object.assign({
+  'pk-overdue':()=>`${OVERDUE_WD} р.д. после срока`,
+  'pk-await-long':()=>`дольше ${AWAIT_THRESHOLD_WD} р.д.`,
+  'pk-ext-pending':()=>`дольше ${EXT_PENDING_WD} р.д.`,
+  'pk-neighbor-silent':()=>`${SILENT_NIGHTS} ночи подряд`,
+  'ap-stuck-new':()=>`${apStuckWd()} р.д. без событий`,
+  'pk-rep-obligation-due':()=>`за ${repSoonDays()} к.д. до срока сдачи`,
+  'pk-pl-await':()=>`с ${PL_AWAIT_WD}-го р.д. от даты операции`,
+  'pk-zl-survey-overdue':()=>'интервал обследования по виду предмета',
+  'pk-zl-coverage':()=>'порог обеспеченности кредита',
+  'pk-zl-surety-expiring':()=>`за ${ZL_SURETY_WARN} к.д. до конца срока`,
+  'pk-zm-fhs':()=>`средний риск и долг больше ${ZM_FHS_LIMIT/1000000} млн сом`,
+  'pk-im-act-pending':()=>`больше ${IM_SET.act} к.д. без акта`,
+  'pk-im-registration-pending':()=>`больше ${IM_SET.reg} к.д.`,
+  'pk-im-topup-pending':()=>`больше ${IM_SET.topup} к.д.`,
+  'pk-im-no-inspection':()=>`${IM_SET.inspMonths} мес., скот и зерно ${IM_SET.inspByKind['скот']} мес.`,
+  'pk-im-not-listed':()=>state.today<IM_INSTR ? IM_SRC.listedOld : IM_SRC.listed,
+  'pk-im-unsold':()=>`${IM_SET.unsold} объявления без заявок`,
+  'pk-im-instalment-overdue':()=>`от ${IM_SET.inst} к.д. просрочки`,
+  'pk-im-ssi-memo':()=>IM_SRC.ssiMemo,
+  'pk-im-guard':()=>IM_SRC.guard,
+  'pk-im-buyback-notice':()=>IM_SRC.notice,
+  'pk-im-relist':()=>IM_SRC.relist,
+  'pk-im-application-pending':()=>`${IM_SRC.app}; выкуп ${IM_SRC.appBuyback}`,
+  'pk-im-topup-due':()=>IM_SRC.topupDue,
+  'pk-im-bankruptcy':()=>IM_SRC.bankruptcy,
+  'pk-im-pledge-term':()=>IM_SRC.pledge,
+}, Object.fromEntries(VZ_STEPS.map(([kind, n])=>[kind, ()=>`${VZ_TPL[n].gap ? `через ${VZ_TPL[n].gap} дн. после: ` : 'после: '}${VZ_TPL[n].base}`])));
+function appearOf(k){
+  const f = KIND_THRESHOLD[k.id], s = sourceOfKind(k.id);
+  return {text:k.title, thr:f ? f() : null, set:f && s && s.id!=='self' ? ownerSetOf(k) : null};
+}
+/* состояние на дату: вид приходит не введённым, снятый — выключен рубильником, выведенный — выпуском */
+const RULE_STATES = [['в действии','В действии'],['не введён','Не введены'],['выведен','Выведенные'],['снят','Снятые'],['все','Все']];
+function ruleStateOf(k, d){
+  d = d||state.today;
+  if(k.retiredAt && k.retiredAt<=d) return 'выведен';
+  if(k.off) return 'снят';
+  return k.activatedAt && k.activatedAt<=d ? 'в действии' : 'не введён';
+}
+function ruleAddr(r){
+  const a = r.addressee;
+  return a.by==='очередь' ? 'очередь: '+(a.role ? roleTitle(a.role) : a.who) : a.by==='кураторство' ? a.role : a.who;
+}
+const dueShort = r=>r.dueUnit==='named' ? 'называет модуль' : dueText(r, true).split(';')[0];
+/* строка на задание: вид, действие и правило один к одному */
+function ruleRows(){
+  return state.rules.map(r=>{ const k = kindOf(r.kind); return {r, k, a:actionOf(r.action), mod:ownerOfKind(k.id), st:ruleStateOf(k)}; });
+}
+function ruleHit(x, q){
+  if(!q) return true;
+  const ap = appearOf(x.k);
+  return [x.a.label, x.k.title, x.mod, ruleAddr(x.r), dueShort(x.r), ap.thr||''].join(' ').toLowerCase().indexOf(q)!==-1;
+}
+function rulesShown(rows){
+  const q = state.ruleQ.trim().toLowerCase();
+  return (rows||ruleRows()).filter(x=>(!state.ruleMod || x.mod===state.ruleMod) && (state.ruleSt==='все' || x.st===state.ruleSt) && ruleHit(x, q));
+}
+function thrHtml(ap){
+  if(!ap.set) return `<span class="small">${esc(ap.thr)}</span>`;
+  const hint = `Порог задаёт модуль «${ap.set.name}»${ap.set.noScreen ? '. Экрана настройки в его макете пока нет' : ''}. Откроется в новой вкладке`;
+  return `<a class="q-case" href="../${ap.set.page}" target="_blank" title="${esc(hint)}" onclick="event.stopPropagation()">${esc(ap.thr)}</a>`;
+}
+function ruleSince(k, st){
+  if(st==='выведен') return `<span class="pill neutral">выведен ${fmt(k.retiredAt)}</span>`;
+  if(st==='снят') return `<span class="pill neutral">снят ${fmt(k.off.t)}</span>`;
+  if(st==='не введён') return k.activatedAt ? `<span class="pill warn">с ${fmt(k.activatedAt)}</span>` : '<span class="pill warn">не введён</span>';
+  return fmt(k.activatedAt);
+}
+function ruleRow(x){
+  const {r, k, a, st} = x, ap = appearOf(k), pend = pendingEdition(r);
+  return `<tr class="${st==='в действии' ? '' : 'hole'}" data-r="${r.id}" onclick="ZD.showRule('${r.id}')">
+    <td title="${tip(a.label)}">${esc(a.label)}</td>
+    <td>${esc(x.mod)}</td>
+    <td title="${tip(ruleAddr(r))}">${esc(ruleAddr(r))}</td>
+    <td title="${tip(dueText(r, true))}">${esc(dueShort(r))}</td>
+    <td title="${tip(k.title+(ap.thr ? ' · '+ap.thr : ''))}">${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td>
+    <td>${ruleSince(k, st)}</td>
+    <td>${r.edN}${pend ? ` <span class="pill warn" title="Ждёт редакция ${pend.n} с ${fmt(pend.from)}">ждёт ${pend.n}</span>` : ''}</td>
+  </tr>`;
+}
+function renderRulesTab(){
+  const errs = checkRegistry(), rows = ruleRows(), q = state.ruleQ.trim().toLowerCase(), shown = rulesShown(rows);
+  const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
+  const inMod = x=>(!state.ruleMod || x.mod===state.ruleMod) && ruleHit(x, q), inSt = x=>(state.ruleSt==='все' || x.st===state.ruleSt) && ruleHit(x, q);
+  const mods = [...new Set(rows.map(x=>x.mod))];
+  const modOpts = opt('', `Все модули — ${rows.filter(inSt).length}`, state.ruleMod)+mods.map(m=>opt(m, `${m} — ${rows.filter(x=>x.mod===m && inSt(x)).length}`, state.ruleMod)).join('');
+  const stOpts = RULE_STATES.map(([v, l])=>opt(v, `${l} — ${rows.filter(x=>inMod(x) && (v==='все' || x.st===v)).length}`, state.ruleSt)).join('');
+  return `${errs.length ? `<div class="banner danger"><b>Реестр не сходится:</b><ul>${errs.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
+    <div class="q-tools">
+      <input type="search" id="ruleQ" placeholder="Что сделать, кому, когда появляется" value="${esc(state.ruleQ)}" oninput="ZD.setFilter('ruleQ', this.value, 'ruleQ')">
+      <label>Модуль <select onchange="ZD.setFilter('ruleMod', this.value)">${modOpts}</select></label>
+      <label>Состояние <select onchange="ZD.setFilter('ruleSt', this.value)">${stOpts}</select></label>
+      <span class="small push">Показано ${shown.length} из ${rows.length}</span>
+    </div>
+    <table class="cgrid qgrid" data-rules>${qCols([400, 150, 210, 140, 0, 140, 90])}
+      <thead><tr><th>Что сделать</th><th>Модуль</th><th>Кому</th><th>Срок</th><th>Когда появляется</th><th>С какой даты</th><th>Редакция</th></tr></thead>
+      <tbody>${shown.map(ruleRow).join('') || '<tr><td colspan="7" class="muted">Ничего не найдено</td></tr>'}</tbody></table>`;
+}
+const RELEASE_WORD = {addressee:'адресат', dueUnit:'единица срока', dueFrom:'кто называет срок', extendBy:'кто утверждает продление', dueBase:'от чего считается срок', ownDue:'собственный срок', dueSource:'откуда срок'};
+function valText(f, x){
+  if(f==='author') return postOf(x).title;
+  if(f==='controller') return controllerText(x);
+  if(f==='importance') return x || 'как у действия';
+  if(f==='dueN') return x==null ? 'называет модуль' : String(x);
+  return String(x);
+}
+function ruleHistory(r, admin){ // редакции хранят значения: «было → стало»
+  const rows = r.editions.slice().sort(byFrom).map(e=>{
+    const prev = e.was ? r.editions.find(x=>x.n===e.was) : null, pend = e===pendingEdition(r);
+    const diff = e.release ? (e.fields ? 'выпуск изменил: '+e.fields.map(f=>RELEASE_WORD[f]||f).join(', ') : 'начальные значения')
+      : PROD_FIELDS.filter(f=>prev && e.values[f]!==prev.values[f]).map(f=>`${FIELD_TITLE[f]} ${valText(f, e.values[f])} (было ${valText(f, prev.values[f])})`).join(' · ');
+    const st = e.cancelled ? `<span class="pill neutral">отменена ${fmt(e.cancelled.t)}: ${esc(e.cancelled.basis)}</span>` : pend ? '<span class="pill warn">ждёт даты</span>' : e.n===r.edN ? '<span class="pill ok">действует</span>' : '';
+    const cancel = admin && pend ? ` <button class="btn btn-secondary btn-xs" onclick="ZD.askEditionCancel('${r.id}', ${e.n})">Отменить</button>` : '';
+    return `<tr class="${e.cancelled ? 'hole' : ''}"><td>${e.n}</td><td>${fmt(e.from)}</td><td>${esc(emp(e.by)?.name||e.by)}</td><td>${esc(e.basis)}</td><td class="small">${esc(diff)}</td><td>${st}${cancel}</td></tr>`;
+  }).join('');
+  return `<table class="cgrid" data-history><thead><tr><th>Ред.</th><th>Действует с</th><th>Кто</th><th>Основание</th><th>Что менялось</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+const TRAIT_NAME = {с:'с какой даты', до:'до какой даты'};
+const TAKE_WORD = {'нужно':'исполнитель принимает задание', 'через очередь':'берут из очереди', 'не нужно':'принимать не нужно, работа начата сразу'};
+/* панель правила; у не администратора — только чтение, поверх той страницы, откуда пришёл */
+function renderRulePanel(id){
+  const r = ruleById(id), k = kindOf(r.kind), a = actionOf(r.action), admin = isTasksAdmin(state.viewer), st = ruleStateOf(k), ap = appearOf(k), set = ownerSetOf(k);
+  const holder = p=>emp(postHolderOn(p, state.today))?.name||'должность вакантна';
+  const line = (label, html)=>`<div class="k">${esc(label)}</div><div class="v">${html}</div>`;
+  const traits = (k.traits||[]).map(x=>TRAIT_NAME[x] || x.replace(/_/g, ' ').replace('раб дней', 'рабочих дней')).join(', ');
+  const btn = (fn, arg, label, cls)=>`<button class="btn ${cls||'btn-secondary'} btn-sm" onclick="ZD.${fn}('${arg}')">${label}</button>`;
+  const off = switchable(k) && activeOn(k, state.today) ? btn('askKindOff', k.id, 'Выключить')
+    : st==='не введён' ? btn('askKindOn', k.id, 'Ввести в действие') : st==='снят' && switchable(k) ? btn('askKindOn', k.id, 'Включить') : '';
+  const lock = st==='выведен' ? `Выведен выпуском ${fmt(k.retiredAt)}: вернуть может только выпуск.` : st==='в действии' && !switchable(k) ? 'Выключается только выпуском.' : '';
+  const acts = !admin ? `<div class="banner info" style="margin-top:12px">Только чтение. Правит администратор заданий: ${esc(holder('post-admin'))}</div>`
+    : `<div class="btn-row" data-edit style="margin-top:12px">${st==='выведен' ? '' : btn('askRule', r.id, 'Изменить', 'btn-primary')}${off}</div>${lock ? `<div class="small" style="margin-top:6px">${lock}</div>` : ''}`;
+  const sets = set ? `<a class="q-case" href="../${set.page}" target="_blank" title="Откроется в новой вкладке">Настройка модуля «${esc(set.name)}»</a>${set.noScreen ? ' <span class="small">экрана настройки в его макете пока нет</span>' : ''}` : '';
+  const switches = k.switches.length ? `<div class="section-h">Ввод в действие и выключение</div>
+    <table class="cgrid"><thead><tr><th>Дата</th><th>Что</th><th>Кто</th><th>Основание</th></tr></thead>
+    <tbody>${k.switches.slice().reverse().map(x=>`<tr><td>${fmt(x.t)}</td><td>${esc(x.ev)}</td><td>${esc(emp(x.by)?.name||x.by)}</td><td>${esc(x.basis)}</td></tr>`).join('')}</tbody></table>` : '';
+  return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
+  <div class="drawer" data-rule="${r.id}">
+    <div class="drawer-h"><h3>${esc(a.label)}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+    <div class="drawer-b">
+      <div class="kv kv-top">
+        ${line('Когда появляется', `${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}`)}
+        ${line('Модуль', `${esc(ownerOfKind(k.id))}${sets ? ' · '+sets : ''}`)}
+        ${line('Кому', esc(ruleAddr(r)))}
+        ${line('Кто поручил', `${esc(postOf(r.author).title)} <span class="small">${esc(holder(r.author))}</span>`)}
+        ${line('Контролёр', r.controller ? esc(controllerText(r.controller)) : '<span class="small">нет: исполнение подтверждает отпадение причины</span>')}
+        ${line('Срок', esc(dueText(r)))}
+        ${line('С какой даты', ruleSince(k, st))}
+        ${line('Редакция', `${r.edN}`)}
+        ${line('Основание', `${esc(k.basis.group)}${k.basis.source ? ' · '+esc(k.basis.source) : ''}`)}
+        ${line('Признаки', esc(traits)||'—')}
+        ${line('Важность', r.importance ? esc(r.importance) : `как у действия: ${esc(a.importance)}`)}
+        ${line('Где делается работа', a.where ? esc(a.where) : 'в самом задании')}
+        ${a.needsProof ? line('Подтверждение', 'ссылка обязательна') : ''}
+        ${k.sumAttr ? line('Сумма по заданию', esc(k.sumAttr)) : ''}
+        ${line('Опрос', `${k.pollOnSave ? 'по сохранению и ночью' : 'ночью'} · ${k.periodic ? 'периодический' : 'событийный'}`)}
+        ${k.genus==='сигнал' ? line('Принятие', 'уведомление без срока и ответа') : line('Принятие', `${TAKE_WORD[k.take]}${k.ownerExec ? ' · работа у владельца' : ''}${k.fourEyes ? ' · четыре глаза' : ''}${k.personal ? ' · лично' : ''}`)}
+        ${k.genus==='сигнал' ? '' : line('Если нет ответа', k.escalate ? (k.escalate.to==='уведомление' ? `уведомление: ${esc(k.escalate.who)}, без передачи` : `очередь «${esc(roleTitle(k.escalate.role))}»`) : 'общий порядок: просрочка уходит руководителю')}
+      </div>
+      ${acts}
+      <div class="section-h">История редакций</div>
+      ${ruleHistory(r, admin)}
+      ${switches}
+    </div>
+  </div>`;
+}
+/* окна правки: действие только по кнопке окна, основание обязательно, отказ движка — ошибка в окне */
+function askRule(id){
+  const r = ruleById(id), posts = POSTS.map(p=>({v:p.id, l:p.title}));
+  const fields = (r.dueUnit==='named' ? [] : [{f:'dueN', label:`Срок, ${dueUnitWord(r)}`, type:'number', required:true}]).concat([
+    {f:'controller', label:'Контролёр', type:'select', blank:'нет: подтверждает отпадение причины', options:[{v:'автор', l:'автор правила'}].concat(posts)},
+    {f:'importance', label:'Важность', type:'select', blank:'как у действия', options:IMPORTANCE.map(x=>({v:x, l:x}))},
+    {f:'author', label:'Кто поручил, должность', type:'select', required:true, options:posts},
+    {f:'from', label:'Действует с', type:'date', required:true},
+    WHY('Основание')]);
+  return openDialog({title:'Изменить правило', submit:'Сохранить редакцией', done:'Редакция сохранена',
+    note:`${actionOf(r.action).label}. Кому, единицу срока и действие меняет выпуск. Выданные задания держат редакцию, по которой выданы.`,
+    values:{dueN:r.dueN==null ? '' : String(r.dueN), controller:r.controller||'', importance:r.importance||'', author:r.author, from:state.today, why:''}, fields,
+    run:x=>{
+      const ch = {};
+      if(r.dueUnit!=='named' && String(r.dueN)!==String(x.dueN).trim()) ch.dueN = String(x.dueN).trim();
+      if((r.controller||'')!==x.controller) ch.controller = x.controller;
+      if((r.importance||'')!==x.importance) ch.importance = x.importance;
+      if(r.author!==x.author) ch.author = x.author;
+      const e = editRule(r.id, ch, {by:state.viewer, from:x.from, basis:x.why.trim()});
+      dlg.done = `Редакция ${e.n} ${e.from===state.today ? 'действует' : 'ждёт даты '+fmt(e.from)}`;
+    }});
+}
+function askEditionCancel(id, n){
+  return openDialog({title:`Отменить редакцию ${n}`, submit:'Отменить редакцию', done:'Редакция отменена', values:{why:''}, fields:[WHY('Основание')],
+    run:x=>cancelEdition(id, n, state.viewer, x.why.trim())});
+}
+function askKindOff(id){
+  const k = kindOf(id);
+  return openDialog({title:`Выключить: ${k.title}`, submit:'Выключить', done:'Выключено',
+    note:k.genus==='сигнал' ? 'Новых уведомлений не будет.' : 'Новых заданий не будет, открытые закроются с итогом «снято».', values:{why:''}, fields:[WHY('Основание')],
+    run:x=>deactivateKind(id, state.viewer, x.why.trim())});
+}
+function askKindOn(id){
+  const k = kindOf(id), back = !!k.off;
+  return openDialog({title:`${back ? 'Включить' : 'Ввести в действие'}: ${k.title}`, submit:back ? 'Включить' : 'Ввести в действие', done:back ? 'Включено' : 'Введено в действие', values:{why:''}, fields:[WHY('Основание')],
+    run:x=>activateKind(id, state.viewer, x.why.trim())});
+}
+/* подсветка — только чтение: заданием или сигналом становится выпуском */
+function renderHighlightTab(){
+  const hl = highlightsOn(state.today), total = hl.reduce((a, x)=>a+x.count, 0), lit = hl.filter(x=>x.count).length;
+  const rows = hl.map(x=>{
+    const k = kindOf(x.kind), open = state.hlOpen===x.kind;
+    const items = open ? x.rows.map(r=>`<tr class="grp-item" data-hl-obj="${esc(r.key)}"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)}${Object.keys(r.traits||{}).length ? ' · '+esc(traitsText(r.traits)) : ''}</td>
+        <td><button class="linky" onclick="ZD.openHighlight('${k.id}', this.closest('tr').dataset.hlObj)">Открыть</button></td></tr>`).join('') : '';
+    return `<tr data-hl="${k.id}"${x.count ? ` onclick="ZD.toggleHl('${k.id}')"` : ''}>
+      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
+      <td>${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}</td>
+      <td>${x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
+  }).join('');
+  return `<div class="small" style="margin-bottom:8px">Подсветка видна на объекте в его модуле. Заданий, просрочек и строк статистики не даёт; опрос её не трогает. Вид становится заданием или сигналом только выпуском. На ${fmt(state.today)} подсвечено объектов: ${total}, видов с объектами: ${lit} из ${hl.length}.</div>
+    <table class="cgrid" data-highlight><thead><tr><th>Вид</th><th>Владелец</th><th>Основание</th><th>Объектов на дату</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
 function renderSettings(){
-  const tabs = [['kinds','Виды повода'],['actions','Действия'],['rules','Правила'],['notifs','Уведомления'],['addr','Кураторство и замещение'],['calendar','Производственный календарь']];
-  const tabBtns = tabs.map(([k,l])=>`<button class="${state.settingsTab===k?'on':''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
-  let body='';
+  const tabs = SETTINGS_TABS.map(([k, l])=>`<button class="${state.settingsTab===k ? 'on' : ''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
+  const links = OWNER_SCREENS.map(s=>`<a class="q-case" href="../${s.page}" target="_blank" title="${esc(s.hint)}">${esc(s.label)}</a>`).join('');
   const admin = isTasksAdmin(state.viewer);
-  const roBanner = admin ? '' : `<div class="banner info">Только чтение. Реестры правит администратор заданий — ${esc(emp(postHolderOn('post-admin', state.today))?.name||'должность вакантна')}.</div>`;
-  if(state.settingsTab==='kinds'){
-    const errs = checkRegistry();
-    const srcOf = id=>(sourceOfKind(id)||{}).name||'—';
-    const sw = k=>{
-      const on = activeOn(k, state.today), last = k.switches.slice(-1)[0];
-      const retired = !!k.retiredAt && k.retiredAt<=state.today;
-      const st = retired ? '<span class="pill neutral">выведен выпуском '+fmt(k.retiredAt)+'</span>' : on ? '<span class="pill ok">с '+fmt(k.activatedAt)+'</span>' : k.off ? '<span class="pill neutral">выключен '+fmt(k.off.t)+'</span>'
-        : k.activatedAt ? '<span class="pill warn">с '+fmt(k.activatedAt)+'</span>' : '<span class="pill warn">не введён</span>';
-      const note = last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : '';
-      const sw2 = switchable(k);
-      const lock = !sw2 && (on || k.off) ? '<div class="small">выключается только выпуском</div>' : '';
-      const ctl = !admin || retired ? '' : !on && !(k.off && !sw2)
-        ? `<div class="form-row"><input id="sw-${k.id}" placeholder="основание" style="width:130px"><button class="btn btn-sm btn-primary" onclick="ZD.ui(()=>ZD.activateKind('${k.id}', ZD.state.viewer, document.getElementById('sw-${k.id}').value.trim()))">Ввести в действие</button></div>`
-        : on && sw2 ? `<div class="form-row"><input id="sw-${k.id}" placeholder="основание" style="width:130px"><button class="btn btn-sm btn-secondary" onclick="ZD.ui(()=>ZD.deactivateKind('${k.id}', ZD.state.viewer, document.getElementById('sw-${k.id}').value.trim()))">Выключить</button></div>` : '';
-      return st + note + lock + ctl;
-    };
-    const cnt = registryCounts(), cat = state.kindCat || 'задание';
-    const catBtn = (x, label, note)=>`<button class="${cat===x?'on':''}" onclick="ZD.setKindCat('${x}')"><b>${cnt[x]}</b>${label}${note ? ` <span class="small">${note}</span>` : ''}</button>`;
-    const counts = `<div class="reg-counts">${catBtn('задание', 'Задания', `шаги ${cnt.шаг} · надзор ${cnt.надзор} · самоопрос ${cnt.самоопрос}`)}${catBtn('подсветка', 'Подсветка')}${catBtn('сигнал', 'Сигнал')}${catBtn('выведен', 'Выведены')}</div>`;
-    const basisCell = k=>`${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}`;
-    let list = '';
-    if(cat==='подсветка'){
-      const hl = highlightsOn(state.today), total = hl.reduce((a,x)=>a+x.count,0);
-      list = `<div class="small" style="margin-bottom:8px">Подсветка видна на объекте у соседа. Заданий, просрочек и строк статистики не даёт; опрос её не трогает. На ${fmt(state.today)} подсвечено объектов: ${total}. Вид становится заданием или сигналом только выпуском.</div>
-      <table class="cgrid"><thead><tr><th>Вид</th><th>Владелец</th><th>Основание</th><th>Объектов на дату</th></tr></thead>
-      <tbody>${hl.map(x=>{ const k = kindOf(x.kind), open = state.hlOpen===x.kind; return `<tr>
-        <td>${esc(k.title)} <span class="mono small">${k.id}</span></td><td>${esc(x.owner||srcOf(k.id))}<div class="small">${esc(k.ownerDept)}</div></td>
-        <td>${basisCell(k)}</td>
-        <td>${x.count ? `<button class="linky" onclick="ZD.toggleHl('${k.id}')">${x.count} ${open ? '▾' : '▸'}</button>` : '<span class="small">нет</span>'}</td></tr>
-        ${open ? x.rows.map(r=>`<tr class="grp-item"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)} · ${esc(Object.entries(r.traits||{}).map(([a,b])=>`${a}: ${b}`).join(', '))}</td>
-          <td><button class="linky" onclick="ZD.openHighlight('${k.id}', '${esc(r.key)}')">Открыть</button></td></tr>`).join('') : ''}`; }).join('')}</tbody></table>`;
-    } else {
-      const items = state.povodKinds.filter(k=>kindCategory(k)===cat);
-      list = `<div class="small" style="margin-bottom:8px">Вид повода и действие приходят выпуском. В работающей системе у вида правится только ввод в действие и рубильник — у надзора и сигнала.</div>
-    <table class="cgrid"><thead><tr><th>Вид повода</th><th>Род</th><th>Основание</th><th>Владелец</th><th>Объект</th><th>Признаки</th><th>Опрос</th><th>Адресат · принятие · исполнение · эскалация</th><th>Реквизит суммы</th><th>В действии</th></tr></thead>
-    <tbody>${items.map(k=>`<tr>
-      <td>${esc(k.title)} <span class="mono small">${k.id}</span></td>
-      <td><span class="pill ${k.genus==='шаг'?'info':k.genus==='надзор'?'neutral':'warn'}">${esc(k.genus)}</span></td>
-      <td>${basisCell(k)}</td>
-      <td>${esc(ownerOfKind(k.id)||srcOf(k.id))}<div class="small">${esc(k.ownerDept)}</div></td>
-      <td>${esc(k.objectType)}</td><td>${k.traits.join(', ')||'—'}</td>
-      <td>${k.pollOnSave ? 'по сохранению + ночной прогон' : 'ночной прогон'}<div class="small">${k.periodic ? 'периодический · поглощение периодом: '+esc(k.periodAbsorb||'не объявлено') : 'событийный'}</div></td>
-      <td>${k.genus==='сигнал' ? 'уведомление без срока и ответа' : `${esc(k.addrForm)} · ${esc(k.take)}${k.ownerExec?' · <span class="pill info">у владельца</span>':''}${k.fourEyes?' <span class="pill neutral">4 глаза</span>':''}${k.personal?' <span class="pill neutral">лично</span>':''}
-        <div class="small">эскалация: ${k.escalate ? (k.escalate.to==='уведомление' ? 'уведомление — '+esc(k.escalate.who)+', без переназначения' : 'очередь «'+esc(roleTitle(k.escalate.role))+'»') : 'общая'}</div>`}</td>
-      <td>${esc(k.sumAttr||'—')}</td>
-      <td>${sw(k)}</td>
-    </tr>`).join('')}</tbody></table>`;
-    }
-    body = `${roBanner}${errs.length ? `<div class="banner danger"><b>Реестр не сходится:</b><ul>${errs.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}${counts}${list}`;
-  } else if(state.settingsTab==='actions'){
-    body = `<table class="cgrid"><thead><tr><th>Действие</th><th>Важность по умолчанию</th><th>Ссылка на подтверждение</th><th>Где делается работа</th></tr></thead>
-    <tbody>${state.actions.map(a=>`<tr><td>${esc(a.label)} <span class="mono small">${a.id}</span></td><td>${a.importance}</td><td>${a.needsProof?'обязательна':'—'}</td><td>${a.where?esc(a.where):'<span class="small">в задании</span>'}</td></tr>`).join('')}</tbody></table>`;
-  } else if(state.settingsTab==='rules'){
-    const holder = p=>{ const e = postHolderOn(p, state.today); return e ? emp(e).name : 'вакантна'; };
-    const thr = {'ap-stuck-new':`«Застряла» после ${apStuckWd()} р.д. — настройка заявок`};
-    body = `${roBanner}<div class="small" style="margin-bottom:8px">Правило меняется только новой редакцией — с датой начала (сегодня или будущей) и основанием. Выданные задания держат редакцию, по которой выданы.</div>
-    <table class="cgrid"><thead><tr><th>Вид повода · правило</th><th>Действие</th><th>Адресат</th><th>Автор</th><th>Контролёр · важность</th><th>Срок</th><th>Редакция</th></tr></thead>
-    <tbody>${state.rules.map(r=>{ const pend = pendingEdition(r), cur = r.editions.find(e=>e.n===r.edN), open = state.ruleOpen===r.id; return `<tr id="rule-${r.id}" class="${open?'focus':''}">
-      <td>${esc(kindOf(r.kind).title)}<div class="small">${esc(kindOf(r.kind).genus)} · <span class="mono">${r.id}</span></div></td><td>${esc(actionOf(r.action).label)}</td>
-      <td>${esc(r.addressee.by==='кураторство' ? 'роль кураторства: '+r.addressee.role : r.addressee.by==='очередь' ? 'очередь роли: '+(r.addressee.role ? roleTitle(r.addressee.role) : r.addressee.who) : r.addressee.by==='названный' ? 'названный поводом: '+r.addressee.who : r.addressee.who)}</td>
-      <td>${esc(postOf(r.author).title)}<div class="small">${esc(holder(r.author))}</div></td>
-      <td>${r.controller ? esc(controllerText(r.controller))+' <div class="small">и отпадение повода</div>' : '<span class="small">отпадение повода</span>'}
-        <div class="small">важность: ${r.importance ? esc(r.importance) : 'как у действия ('+esc(actionOf(r.action).importance)+')'}</div></td>
-      <td>${esc(dueText(r, true))}${thr[r.kind] ? `<div class="small">порог появления: ${esc(thr[r.kind])}</div>` : ''}</td>
-      <td>${r.edN} с ${fmt(cur.from)}${pend ? `<div><span class="pill warn">ждёт ред. ${pend.n} с ${fmt(pend.from)}</span></div>` : ''}
-        <div><button class="linky" onclick="ZD.toggleRule('${r.id}')">${open ? 'Свернуть' : admin ? 'Изменить' : 'История'}</button></div></td>
-    </tr>${open ? `<tr><td colspan="7">${renderRuleHistory(r, admin)}</td></tr>` : ''}`; }).join('')}</tbody></table>`;
-  } else if(state.settingsTab==='notifs'){
-    body = roBanner + renderNotifSettings(admin);
-  } else if(state.settingsTab==='addr'){
-    const d = state.today, who = id=>emp(id)?.name||'—';
-    body = `<div class="section-h">Закрепления на ${fmt(d)}</div>
-    <table class="cgrid"><thead><tr><th>Роль</th><th>Объект</th><th>Ответственный</th><th>Действует</th><th>Период</th></tr></thead>
-    <tbody>${CURATION.map(c=>{ const on = c.from<=d && (!c.to || d<=c.to); return `<tr class="${on?'':'hole'}">
-      <td>${esc(c.role)}</td><td>${esc(c.obj)}</td><td>${esc(who(c.emp))}</td><td>${on?esc(who(actingFor(c.emp,d))):'—'}</td>
-      <td class="small">${fmt(c.from)} — ${c.to?fmt(c.to):'…'}</td></tr>`; }).join('')}</tbody></table>
-    <div class="section-h">Замещение</div>
-    <table class="cgrid"><thead><tr><th>Сотрудник</th><th>Замещает</th><th>Период</th><th>Причина</th></tr></thead>
-    <tbody>${ABSENCES.map(a=>`<tr><td>${esc(who(a.emp))}</td><td>${esc(who(a.sub))}</td><td>${fmt(a.from)} — ${fmt(a.to)}</td><td>${esc(a.reason)}</td></tr>`).join('')}</tbody></table>
-    <div class="section-h">Роли — очереди</div>
-    <table class="cgrid"><thead><tr><th>Роль</th><th>Носители</th><th>Подразделение роли</th><th>Руководитель</th></tr></thead>
-    <tbody>${ROLES.map(r=>`<tr><td>${esc(roleTitle(r.id))}</td><td>${esc(r.holders.map(who).join(', '))}</td><td>${esc(r.dept)}</td><td>${esc(who(deptHead(r.dept)))}</td></tr>`).join('')}</tbody></table>
-    <div class="section-h">Подразделения — запасной адресат</div>
-    <table class="cgrid"><thead><tr><th>Подразделение</th><th>Руководитель</th></tr></thead>
-    <tbody>${DEPTS.map(x=>`<tr><td>${esc(x.id)}</td><td>${x.head?esc(who(x.head)):'<span class="pill warn">нет</span>'}</td></tr>`).join('')}</tbody></table>`;
-  } else if(state.settingsTab==='calendar'){
-    const y = +state.today.slice(0,4);
-    body = `<div class="small" style="margin-bottom:8px">Общий справочник системы, только чтение. Постоянные праздники (на любой год): ${CALENDAR_FIXED.map(x=>x.slice(3)+'.'+x.slice(0,2)).join(', ')}.</div>
-    <table class="cgrid"><thead><tr><th>Год</th><th>Состояние</th><th>Переносы и праздники года</th><th>Рабочие субботы</th></tr></thead>
-    <tbody>${[...new Set([...Object.keys(CALENDAR_YEARS).map(Number), y, y+1])].sort().map(k=>{ const r=CALENDAR_YEARS[k];
-      return `<tr class="${r?'':'over'}"><td>${k}</td><td>${r?'заведён':'не заведён — рабочие дни по сб/вс с отметкой у срока'}</td><td>${r?r.holidays.map(fmt).join(', '):'—'}</td><td>${r?r.workdays.map(fmt).join(', '):'—'}</td></tr>`; }).join('')}</tbody></table>`;
-  }
-  return `<div class="tabs">${tabBtns}</div>${body}`;
+  const ro = admin ? '' : `<div class="banner info">Только чтение. Правит администратор заданий: ${esc(emp(postHolderOn('post-admin', state.today))?.name||'должность вакантна')}</div>`;
+  const body = state.settingsTab==='highlight' ? renderHighlightTab() : state.settingsTab==='notifs' ? renderNotifSettings(admin) : renderRulesTab();
+  return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${ro}${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
-function setKindCat(k){ state.kindCat=k; render(); }
+function goSettings(tab){ state.settingsTab=tab; state.view='settings'; render(); }
 function toggleHl(id){ state.hlOpen = state.hlOpen===id ? null : id; render(); }
 function recipText(r){ return r.by==='кураторство' ? r.role+' — по объекту, с замещением' : postOf(r.post).title; }
-/* обычные уведомления: текст и способ правит администратор в окне с основанием; получатели показаны, выключить нельзя */
+/* сигналы и обычные уведомления одним видом: строка, правка в окне с основанием. Получатели обычных определены механизмом, выключить нельзя; новое событие для сигнала — только выпуском */
 function renderNotifSettings(admin){
   const rows = NOTIF_KINDS.map(k=>{ const c = state.notifSettings[k]; return `<tr data-n="${k}"><td>${esc(NOTIF_SPEC[k].title)}</td><td>${esc(NOTIF_SPEC[k].who)}</td><td>${esc(c.text)}</td><td>${esc(c.channels.join(', '))}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k}')">Изменить</button></td>` : ''}</tr>`; }).join('');
-  const changed = (h, f)=>f==='text' ? `текст: было «${h.was.text}»` : `способ: было ${h.was.channels.join(', ')}`;
-  const hist = NOTIF_KINDS.flatMap(k=>state.notifSettings[k].history.map(h=>({k, h}))).sort((a, b)=>cmpVal(b.h.t, a.h.t));
+  const sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
+  const sigRows = sigKinds.map(k=>{
+    const c = state.signals[k.id], on = activeOn(k, state.today), last = k.switches.slice(-1)[0];
+    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button> <button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
+    return `<tr data-sig="${k.id}"><td>${esc(k.title)}<div class="small">${esc(k.basis.source)}</div></td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">нет куратора — руководитель подразделения-владельца</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
+      <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
+  }).join('');
+  const changed = (h, f)=>f==='text' ? `текст: было «${h.was.text}»` : f==='channels' ? `способ: было ${h.was.channels.join(', ')}` : `получатели: было ${h.was.recipients.map(recipText).join('; ')}`;
+  const hist = NOTIF_KINDS.flatMap(k=>state.notifSettings[k].history.map(h=>({title:NOTIF_SPEC[k].title, h})))
+    .concat(sigKinds.flatMap(k=>state.signals[k.id].history.map(h=>({title:k.title, h})))).sort((a, b)=>cmpVal(b.h.t, a.h.t));
   return `<div class="section-h">Сигналы</div>
-    ${renderSignals(admin)}
+    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания: срока и ответа нет, опрос тот же, на новый случай — одно уведомление получателю за прогон. Новое событие приходит только выпуском.</div>
+    <table class="cgrid"><thead><tr><th>Сигнал</th><th>Кому</th><th>Текст</th><th>Способ</th><th>Состояние</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${sigRows}</tbody></table>
     <div class="section-h">Обычные уведомления</div>
     <div class="small" style="margin-bottom:8px">Список закрытый: получатели определены механизмом и не меняются, выключить уведомление нельзя, способ нужен хотя бы один.</div>
     <table class="cgrid"><thead><tr><th>Уведомление</th><th>Кому</th><th>Текст</th><th>Способ</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
     ${hist.length ? `<div class="section-h">История правок</div><table class="cgrid"><thead><tr><th>Дата</th><th>Уведомление</th><th>Кто</th><th>Основание</th><th>Что менялось</th></tr></thead>
-      <tbody>${hist.map(x=>`<tr><td>${fmt(x.h.t)}</td><td>${esc(NOTIF_SPEC[x.k].title)}</td><td>${esc(empName(x.h.by))}</td><td>${esc(x.h.basis)}</td><td class="small">${esc(Object.keys(x.h.was).map(f=>changed(x.h, f)).join('; '))}</td></tr>`).join('')}</tbody></table>` : ''}`;
+      <tbody>${hist.map(x=>`<tr><td>${fmt(x.h.t)}</td><td>${esc(x.title)}</td><td>${esc(empName(x.h.by))}</td><td>${esc(x.h.basis)}</td><td class="small">${esc(Object.keys(x.h.was).map(f=>changed(x.h, f)).join('; '))}</td></tr>`).join('')}</tbody></table>` : ''}`;
 }
 function askNotif(kind){
   const c = state.notifSettings[kind];
@@ -6296,82 +6468,25 @@ function askNotif(kind){
       editNotif(kind, ch, {by:state.viewer, basis:x.basis.trim()});
     }});
 }
-/* сигналы: кому, что и как; новое событие — только выпуском */
-function renderSignals(admin){
-  const kinds = state.povodKinds.filter(k=>k.genus==='сигнал');
-  return `<div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания: срока и ответа нет, опрос тот же, на новый случай — одно уведомление получателю за прогон. Новое событие приходит только выпуском.</div>
-  ${kinds.map(k=>{
-    const c = state.signals[k.id], on = activeOn(k, state.today), d = k.id, last = k.switches.slice(-1)[0];
-    const chan = SIGNAL_CHANNELS.map(x=>`<label><input type="checkbox" class="sgCh" value="${x}" ${c.channels.indexOf(x)!==-1?'checked':''}> ${x}</label>`).join('');
-    const role = k.signalRole;
-    const hasRole = c.recipients.some(r=>r.by==='кураторство');
-    const posts = POSTS.map(p=>`<label><input type="checkbox" class="sgPost" value="${p.id}" ${c.recipients.some(r=>r.post===p.id)?'checked':''}> ${esc(p.title)}</label>`).join('');
-    return `<div class="card"><h3>${esc(k.title)} <span class="mono small">${k.id}</span> ${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}</h3>
-      <div class="kv">
-        <div class="k">Основание</div><div class="v">${esc(k.basis.source)}</div>
-        <div class="k">Получатели</div><div class="v">${esc(c.recipients.map(recipText).join('; '))}<div class="small">нет куратора — руководитель подразделения-владельца вида</div></div>
-        <div class="k">Текст</div><div class="v">${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></div>
-        <div class="k">Способ</div><div class="v">${esc(c.channels.join(', '))}</div>
-        ${last ? `<div class="k">Рубильник</div><div class="v">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}
-      </div>
-      ${c.history.length ? `<div class="section-h">История правок</div><table class="cgrid"><thead><tr><th>Дата</th><th>Кто</th><th>Основание</th><th>Что менялось</th></tr></thead><tbody>${c.history.slice().reverse().map(h=>`<tr><td>${fmt(h.t)}</td><td>${esc(emp(h.by)?.name||h.by)}</td><td>${esc(h.basis)}</td><td class="small">${esc(Object.keys(h.was).map(f=>({recipients:'получатели', text:'текст', channels:'способ'})[f]).join(', '))}</td></tr>`).join('')}</tbody></table>` : ''}
-      ${admin ? `<div class="section-h">Изменить</div>
-      <div class="fld" style="margin-bottom:12px"><label>Роль кураторства</label><div class="chk-row"><label><input type="checkbox" id="sgRole" ${hasRole?'checked':''}> ${esc(role||'—')}</label></div></div>
-      <div class="fld" style="margin-bottom:12px"><label>Должности</label><div class="chk-row">${posts}</div></div>
-      <div class="fld" style="margin-bottom:12px"><label>Текст</label><input id="sgText" value="${esc(c.text)}" style="width:100%"></div>
-      <div class="fld" style="margin-bottom:12px"><label>Способ</label><div class="chk-row">${chan}</div></div>
-      <div class="form-row"><div class="fld"><label>Основание</label><input id="sgBasis" placeholder="приказ, служебная записка"></div>
-        <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.submitSignalEdit('${d}'))">Сохранить</button></div>
-      <div class="form-row" style="margin-top:8px"><div class="fld"><label>Основание ${on ? 'выключения' : 'включения'}</label><input id="sgSw"></div>
-        <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.${on ? 'deactivateKind' : 'activateKind'}('${d}', ZD.state.viewer, document.getElementById('sgSw').value.trim()))">${on ? 'Выключить' : 'Включить'}</button></div>` : ''}
-    </div>`; }).join('')}`;
-}
-function submitSignalEdit(kindId){
-  const k = kindOf(kindId), rec = [];
-  if(document.getElementById('sgRole').checked) rec.push({by:'кураторство', role:k.signalRole});
-  Array.from(document.querySelectorAll('.sgPost')).filter(x=>x.checked).forEach(x=>rec.push({by:'должность', post:x.value}));
-  const channels = Array.from(document.querySelectorAll('.sgCh')).filter(x=>x.checked).map(x=>x.value);
-  editSignal(kindId, {recipients:rec, text:document.getElementById('sgText').value.trim(), channels}, {by:state.viewer, basis:document.getElementById('sgBasis').value.trim()});
-  toast('Настройка сигнала сохранена', 'ok');
-}
-function toggleRule(id){ state.ruleOpen = state.ruleOpen===id ? null : id; render(); }
-function valText(f, x){
-  if(f==='author') return postOf(x).title;
-  if(f==='controller') return controllerText(x);
-  if(f==='importance') return x || 'как у действия';
-  if(f==='dueN') return x==null ? 'называет владелец' : String(x);
-  return String(x);
-}
-function renderRuleHistory(r, admin){ // редакции хранят значения: «было → стало»
-  const rows = r.editions.slice().sort(byFrom).map(e=>{
-    const prev = e.was ? r.editions.find(x=>x.n===e.was) : null;
-    const diff = e.release ? (e.fields ? 'поля выпуска: '+e.fields.join(', ') : 'начальные значения')
-      : PROD_FIELDS.filter(f=>prev && e.values[f]!==prev.values[f]).map(f=>`${FIELD_TITLE[f]} ${valText(f, e.values[f])} (было ${valText(f, prev.values[f])})`).join(' · ');
-    const st = e.cancelled ? `<span class="pill neutral">отменена ${fmt(e.cancelled.t)}: ${esc(e.cancelled.basis)}</span>` : e===pendingEdition(r) ? '<span class="pill warn">ждёт даты</span>' : e.n===r.edN ? '<span class="pill ok">действует</span>' : '';
-    const cancel = admin && e===pendingEdition(r) ? ` <input id="reCancel" placeholder="основание отмены" style="width:140px"> <button class="btn btn-sm btn-secondary" onclick="ZD.ui(()=>ZD.cancelEdition('${r.id}', ${e.n}, ZD.state.viewer, document.getElementById('reCancel').value.trim()))">Отменить</button>` : '';
-    return `<tr class="${e.cancelled?'hole':''}"><td>${e.n}</td><td>${fmt(e.from)}</td><td>${esc(emp(e.by)?.name||e.by)}</td><td>${esc(e.basis)}</td><td class="small">${esc(diff)}</td><td>${st}${cancel}</td></tr>`;
-  }).join('');
-  const opt = (list, cur)=>list.map(([v,l])=>`<option value="${esc(v)}" ${v===(cur==null?'':cur)?'selected':''}>${esc(l)}</option>`).join('');
-  const form = !admin ? '' : `<div class="card"><h3>Новая редакция</h3><div class="form-row">
-    ${r.dueUnit==='named' ? '' : `<div class="fld"><label>Срок</label><input id="reDueN" type="number" value="${r.dueN}" style="width:70px"></div>`}
-    <div class="fld"><label>Контролёр</label><select id="reCtrl">${opt([['','нет — отпадение повода'],['автор','автор правила']].concat(POSTS.map(p=>[p.id, p.title])), r.controller)}</select></div>
-    <div class="fld"><label>Важность</label><select id="reImp">${opt([['','как у действия']].concat(IMPORTANCE.map(x=>[x,x])), r.importance)}</select></div>
-    <div class="fld"><label>Автор (должность)</label><select id="reAuthor">${opt(POSTS.map(p=>[p.id, p.title]), r.author)}</select></div>
-    <div class="fld"><label>Действует с</label><input id="reFrom" type="date" value="${state.today}" min="${state.today}"></div>
-    <div class="fld"><label>Основание</label><input id="reBasis" placeholder="приказ, служебная записка"></div>
-    <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.submitRuleEdit('${r.id}'))">Сохранить редакцией</button>
-  </div><div class="small">Адресат, единица срока и действие меняются выпуском.</div></div>`;
-  return `<table class="cgrid"><thead><tr><th>Ред.</th><th>Действует с</th><th>Правка</th><th>Основание</th><th>Значения</th><th></th></tr></thead><tbody>${rows}</tbody></table>${form}`;
-}
-function submitRuleEdit(ruleId){
-  const r = ruleById(ruleId), val = id=>{ const x = document.getElementById(id); return x ? x.value.trim() : null; }, ch = {};
-  const put = (f, x, same)=>{ if(x!==null && !same) ch[f] = x; };
-  put('dueN', val('reDueN'), String(r.dueN)===val('reDueN'));
-  put('controller', val('reCtrl'), (r.controller||'')===val('reCtrl'));
-  put('importance', val('reImp'), (r.importance||'')===val('reImp'));
-  put('author', val('reAuthor'), r.author===val('reAuthor'));
-  const e = editRule(ruleId, ch, {by:state.viewer, from:val('reFrom'), basis:val('reBasis')});
-  toast(`Редакция ${e.n} ${e.from===state.today ? 'действует' : 'ждёт даты '+fmt(e.from)}`, 'ok');
+/* сигнал: кому, что и как; новое событие — только выпуском */
+function askSignal(kindId){
+  const k = kindOf(kindId), c = state.signals[kindId], role = k.signalRole, postName = id=>postOf(id).title;
+  const fields = (role ? [{f:'role', label:'Роль кураторства', type:'checks', options:[role]}] : []).concat([
+    {f:'posts', label:'Должности', type:'checks', options:POSTS.map(p=>p.title)},
+    {f:'text', label:'Текст', type:'textarea', required:true},
+    {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS},
+    {f:'basis', label:'Основание', required:true}]);
+  return openDialog({title:`Сигнал «${k.title}»`, submit:'Сохранить', done:'Настройка сигнала сохранена', wide:true, note:'Нет куратора — получает руководитель подразделения-владельца. Новое событие приходит только выпуском.',
+    values:{role:c.recipients.filter(r=>r.by==='кураторство').map(r=>r.role), posts:c.recipients.filter(r=>r.by==='должность').map(r=>postName(r.post)), text:c.text, channels:c.channels.slice(), basis:''}, fields,
+    run:x=>{
+      const rec = (x.role||[]).map(r=>({by:'кураторство', role:r})).concat(POSTS.filter(p=>(x.posts||[]).indexOf(p.title)!==-1).map(p=>({by:'должность', post:p.id})));
+      const keyOf = list=>list.map(r=>r.by==='кураторство' ? r.role : r.post).sort().join(), ch = {}; // в историю идёт только изменённое
+      if(keyOf(rec)!==keyOf(c.recipients)) ch.recipients = rec;
+      if(x.text.trim()!==c.text) ch.text = x.text.trim();
+      if(x.channels.slice().sort().join()!==c.channels.slice().sort().join()) ch.channels = SIGNAL_CHANNELS.filter(y=>x.channels.indexOf(y)!==-1);
+      if(!Object.keys(ch).length) throw new Error('значения не изменились');
+      editSignal(kindId, ch, {by:state.viewer, basis:x.basis.trim()});
+    }});
 }
 
 /* ввод вида в действие и рубильник надзора и сигнала — администратор заданий, с основанием */
@@ -6403,44 +6518,139 @@ function deactivateKind(kindId, by, basis){ // поводы вида отпус�
   return k;
 }
 
-
+/* ---------- журнал прогонов: работает ли опрос; почему по делу есть задание или его нет ---------- */
+const RUNS_TABS = [['poll','Опрос'],['povods','Поводы']];
+function setRunsTab(k){ state.runsTab=k; render(); }
+function toggleRun(id){ state.runOpen = state.runOpen===id ? null : id; render(); }
+function togglePovod(key){ state.povOpen = state.povOpen===key ? null : key; render(); }
+const runSum = (r, f)=>r.sources.reduce((a, s)=>a+s[f], 0);
+const runAnswered = r=>r.sources.filter(s=>s.answer==='множество').length;
+const answerPill = a=>a==='множество' ? 'ответил' : '<span class="pill warn">не ответил: поводы не тронуты, ночь неполная</span>';
+function runDetail(r){
+  const saves = state.savePolls.filter(p=>p.t===r.date).reverse();
+  const drift = r.stateDrift.length ? `<div class="section-h">Поле состояния разошлось с журналом</div>
+    <table class="cgrid"><thead><tr><th>Задание</th><th>В поле</th><th>В журнале</th><th>Итог</th></tr></thead>
+    <tbody>${r.stateDrift.map(x=>`<tr><td>${esc(x.task)}</td><td>${esc(x.поле||'—')}</td><td>${esc(x.журнал)}</td><td class="small">пересобрано из журнала</td></tr>`).join('')}</tbody></table>` : '';
+  const saveRows = saves.map(p=>`<tr class="${p.answer==='множество' ? '' : 'over'}"><td>${esc(p.name)}</td>
+    <td>${p.answer==='множество' ? 'ответил' : p.error==='источник не ответил' ? '<span class="pill warn">ошибка — сохранение прошло, поводы не тронуты, ночь сверит заново</span>' : `<span class="pill err">сбой сверки: ${esc(p.error)} — сохранение прошло, ночь сверит заново</span>`}</td><td>${p.new}</td><td>${p.gone}</td><td>${p.matched}</td></tr>`).join('');
+  return `<div class="run-detail" data-run-detail>
+    <div class="small">Круг опроса: ${esc(r.scope)}</div>
+    <div class="section-h">Ответы источников</div>
+    <table class="cgrid"><thead><tr><th>Источник</th><th>Ответ</th><th>Новых</th><th>Отпавших</th><th>Совпало</th></tr></thead>
+    <tbody>${r.sources.map(s=>`<tr class="${s.answer==='множество' ? '' : 'over'}"><td>${esc(s.name)}</td><td>${answerPill(s.answer)}</td><td>${s.new}</td><td>${s.gone}</td><td>${s.matched}</td></tr>`).join('')}</tbody></table>
+    <div class="section-h">Опросы по сохранению за день</div>
+    ${saveRows ? `<table class="cgrid"><thead><tr><th>Источник</th><th>Ответ</th><th>Новых</th><th>Отпавших</th><th>Совпало</th></tr></thead><tbody>${saveRows}</tbody></table>` : '<div class="small">Сохранений в этот день не было</div>'}
+    ${drift}
+  </div>`;
+}
+/* доставка: строка на отправку по способу; всплывающие сюда не идут, статус только тот, что записан; видно, что ушло и кому, а не содержание чужих заданий */
+function deliveryRows(){
+  const out = [];
+  notifsAll().forEach(n=>(n.delivery||[]).forEach(d=>out.push({id:n.id, t:n.t, to:n.to, channel:d.channel, status:d.status, what:(n.kind==='сигнал' ? n.text : NOTIF_SPEC[n.kind].title)+(n.count>1 ? ` (${n.count})` : '')})));
+  return out;
+}
+const notifsAll = ()=>state.notifications.slice().reverse().sort((a, b)=>cmpVal(b.t, a.t));
+const DELIVERY_LAST = 20;
+function renderDelivery(){
+  if(!isTasksAdmin(state.viewer)) return '';
+  const rows = deliveryRows(), total = state.notifications.length;
+  const anyOn = Object.values(state.notifSettings).concat(Object.values(state.signals)).some(c=>c.channels.some(x=>x!=='всплывающее'));
+  const link = '<button class="linky" onclick="ZD.goSettings(\'notifs\')">вкладке «Уведомления» настройки</button>';
+  const empty = anyOn ? `SMS или почта включены, отправок ещё не было: запись появится при следующем уведомлении этого вида. Сообщений всего ${total}, все всплывающие. Способы правятся на ${link}.`
+    : `SMS и почта не включены: у всех уведомлений способ «всплывающее», сообщений ${total}. Способы правятся на ${link}.`;
+  return `<div class="section-h">Доставка SMS и почты</div>
+    ${rows.length ? `<div class="small" style="margin-bottom:6px">Отправок ${rows.length}${rows.length>DELIVERY_LAST ? `, показаны последние ${DELIVERY_LAST}` : ''}, всего сообщений ${total}. Способы правятся на ${link}.</div>
+    <table class="cgrid qgrid" data-delivery>${qCols([120, 300, 110, 0, 160])}<thead><tr><th>Дата</th><th>Кому</th><th>Способ</th><th>Уведомление</th><th>Статус</th></tr></thead>
+    <tbody>${rows.slice(0, DELIVERY_LAST).map(x=>`<tr data-send="${x.id}"><td>${fmt(x.t)}</td><td>${esc(empName(x.to))}</td><td>${esc(x.channel)}</td><td title="${tip(x.what)}">${esc(x.what)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table>` : `<div class="small" data-delivery-empty>${empty}</div>`}`;
+}
+function renderPollTab(){
+  const sources = SOURCES.map(s=>{
+    const sil = s.id==='self' ? null : silenceOf(s.id, state.today), on = POLL_SCOPES[state.pollScope](s);
+    return `<tr><td>${esc(s.name)}</td><td>${s.onSave ? 'по сохранению и ночью' : 'ночью'}</td><td>${s.release ? 'первый' : 'по готовности'}</td>
+      <td>${!on ? '<span class="small">не подключён</span>' : sil ? `<span class="pill warn">не отвечает с ${fmt(sil.since)}, ночей подряд: ${sil.nights}</span>` : 'отвечает'}</td></tr>`;
+  }).join('');
+  const nights = state.pollRuns.slice().reverse().map(r=>{
+    const open = state.runOpen===r.id, n = r.sources.length;
+    return `<tr class="${r.complete ? '' : 'over'}" data-run="${r.id}" onclick="ZD.toggleRun('${r.id}')">
+      <td>${open ? '▾' : '▸'} ${fmt(r.date)}</td><td>ответили ${runAnswered(r)} из ${n}</td><td>${runSum(r, 'new')}</td><td>${runSum(r, 'gone')}</td><td>${runSum(r, 'matched')}</td>
+      <td>${r.complete ? '<span class="pill ok">полный</span>' : '<span class="pill warn">неполный</span>'}${r.stateDrift.length ? ` <span class="pill err">поле разошлось: ${r.stateDrift.length}</span>` : ''}</td></tr>
+      ${open ? `<tr class="sub"><td colspan="6" class="nest wrap">${runDetail(r)}</td></tr>` : ''}`;
+  }).join('') || '<tr><td colspan="6" class="muted">Прогонов ещё не было</td></tr>';
+  return `<div class="section-h">Источники</div>
+    <div class="small" style="margin-bottom:6px">Ошибка не значит пусто: поводы источника не трогаются, прогон неполный. После двух ночей подряд — задание администратору.</div>
+    <table class="cgrid qgrid" data-sources>${qCols([0, 260, 180, 520])}<thead><tr><th>Источник</th><th>Как опрашивается</th><th>Выпуск</th><th>Состояние</th></tr></thead><tbody>${sources}</tbody></table>
+    <div class="section-h">Журнал ночей</div>
+    <table class="cgrid qgrid" data-nights>${qCols([170, 220, 120, 120, 120, 0])}<thead><tr><th>Дата</th><th>Ответы</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th></tr></thead><tbody>${nights}</tbody></table>
+    ${renderDelivery()}`;
+}
+/* поводы: состояние на сегодня словами; ключ — только в подробностях */
+const POV_STATES = [['действует','Действующие'],['снят','Снятые'],['отпал','Отпавшие'],['все','Все']];
+const POV_EV = {'появился':'появился', 'вновь-появился':'появился снова', 'заморожен':'заморожен: источник не ответил', 'разморожен':'разморожен: источник снова ответил', 'отпал':'отпал', 'закрыт-системой':'закрыт системой', 'снят без поручения':'снят без поручения'};
+function povodStateOf(p){ return p.status==='gone' ? 'отпал' : povodReleased(p) ? 'снят' : 'действует'; }
+function povodRows(){
+  const byKey = {};
+  state.tasks.forEach(t=>{ if(t.povodKey) (byKey[t.povodKey] = byKey[t.povodKey]||[]).push(t); });
+  return state.povods.slice().reverse().map(p=>{
+    const list = byKey[p.key]||[];
+    return {p, k:kindOf(p.kind), st:povodStateOf(p), task:list.filter(t=>!isTerminal(t)).pop() || list[list.length-1] || null};
+  });
+}
+function povodStats(rows){
+  rows = rows||povodRows();
+  const live = rows.filter(x=>x.st==='действует'), none = live.filter(x=>!x.task);
+  return {total:rows.length, live:live.length, none:none.length, signals:none.filter(x=>x.k.genus==='сигнал').length};
+}
+function povodStatePill(x){
+  if(x.st==='отпал') return '<span class="pill neutral">отпал</span>';
+  if(x.st==='снят') return '<span class="pill neutral">снят без поручения</span>';
+  return x.p.status==='frozen' ? '<span class="pill warn">заморожен</span>' : '<span class="pill ok">действует</span>';
+}
+function povodTaskCell(x){
+  if(x.k.genus==='сигнал') return '<span class="small">сигнал</span>';
+  if(!x.task) return '<span class="small">нет</span>';
+  const t = x.task, done = isTerminal(t) ? ' <span class="small">закрыто</span>' : '';
+  /* право видеть не меняется: чужое задание — только номер, и в строке, и в раскрытии */
+  return bucketOf(t, state.viewer) ? `<button class="linky" onclick="event.stopPropagation();ZD.openCard('${t.id}')">${t.id}</button>${done}` : `<span title="Вам задание не видно">${t.id}</span>${done}`;
+}
+function povodDetail(x){
+  const p = x.p, t = x.task, seen = t && bucketOf(t, state.viewer), line = (l, h)=>`<div class="k">${esc(l)}</div><div class="v">${h}</div>`;
+  return `<div class="run-detail"><div class="kv" data-pov-detail>
+    ${line('Ключ', `<span class="mono" data-key>${esc(p.key)}</span>`)}
+    ${line('Источник', esc(ownerOfKind(p.kind)||'—'))}
+    ${line('Впервые', fmt(p.firstSeen))}
+    ${t ? line('Задание', seen ? `${t.id} · ${esc(whatToDo(t))} · ${t.assignee ? esc(empName(t.assignee)) : 'никто не взял'} · ${esc(displayState(t))}` : `${t.id}: вам не видно`) : line('Задание', x.k.genus==='сигнал' ? 'нет: сигнал, только уведомление' : 'нет')}
+    ${line('История', p.journal.map(e=>`${fmt(e.t)} ${esc(POV_EV[e.ev]||e.ev)}${e.reason ? ': '+esc(e.reason) : ''}`).join('; '))}
+  </div></div>`;
+}
+function renderPovodTab(){
+  const rows = povodRows(), s = povodStats(rows), q = state.povQ.trim().toLowerCase();
+  const hit = x=>!q || [describePovod(x.p), x.p.objectId, x.k.title, traitsText(x.p.traits)].join(' ').toLowerCase().indexOf(q)!==-1;
+  const inKind = x=>(!state.povKind || x.p.kind===state.povKind) && hit(x), inSt = x=>(state.povSt==='все' || x.st===state.povSt) && hit(x);
+  const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
+  const kinds = [...new Set(rows.map(x=>x.p.kind))].map(id=>kindOf(id)).sort((a, b)=>cmpVal(a.title, b.title));
+  const kindOpts = opt('', `Все виды — ${rows.filter(inSt).length}`, state.povKind)+kinds.map(k=>opt(k.id, `${k.title} — ${rows.filter(x=>x.p.kind===k.id && inSt(x)).length}`, state.povKind)).join('');
+  const stOpts = POV_STATES.map(([v, l])=>opt(v, `${l} — ${rows.filter(x=>inKind(x) && (v==='все' || x.st===v)).length}`, state.povSt)).join('');
+  const shown = rows.filter(x=>inKind(x) && inSt(x));
+  const body = shown.map(x=>{ const p = x.p, open = state.povOpen===p.key, tr = traitsText(p.traits); return `<tr data-p="${esc(p.key)}" onclick="ZD.togglePovod(this.dataset.p)">
+      <td title="${tip(x.k.title)}">${open ? '▾' : '▸'} ${esc(x.k.title)}</td>
+      <td title="${tip(describePovod(p))}">${esc(describePovod(p))}</td>
+      <td>${povodStatePill(x)}</td>
+      <td>${fmt(p.stateDate)}${p.approx ? ' <span class="small" title="Дата приблизительная">≈</span>' : ''}</td>
+      <td title="${tip(tr)}" class="small">${esc(tr)}</td>
+      <td>${povodTaskCell(x)}</td></tr>${open ? `<tr class="sub"><td colspan="6" class="nest wrap">${povodDetail(x)}</td></tr>` : ''}`; }).join('');
+  return `<div class="small" style="margin-bottom:8px">Действующих поводов ${s.live}, без задания ${s.none}${s.none ? (s.signals===s.none ? ', все — сигналы: уведомление без задания' : `, из них сигналов ${s.signals}`) : ''}.</div>
+    <div class="q-tools">
+      <input type="search" id="povQ" placeholder="Поиск по делу" value="${esc(state.povQ)}" oninput="ZD.setFilter('povQ', this.value, 'povQ')">
+      <label>Вид <select onchange="ZD.setFilter('povKind', this.value)">${kindOpts}</select></label>
+      <label>Состояние <select onchange="ZD.setFilter('povSt', this.value)">${stOpts}</select></label>
+      <span class="small push">Показано ${shown.length} из ${rows.length}</span>
+    </div>
+    <table class="cgrid qgrid" data-povods>${qCols([300, 0, 130, 140, 380, 110])}<thead><tr><th>Вид</th><th>Дело</th><th>Состояние</th><th>С какой даты</th><th>Признаки</th><th>Задание</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="6" class="muted">Ничего не найдено</td></tr>'}</tbody></table>`;
+}
 function renderRuns(){
-  const rows = state.pollRuns.slice().reverse().map(r=>`
-    <tr class="${r.complete?'':'over'}">
-      <td>${r.id}</td><td>${fmt(r.date)}</td>
-      <td>${r.sources.map(s=>`${esc(s.name)}: ${esc(s.answer)}`).join('; ')}</td>
-      <td>${r.sources.reduce((a,s)=>a+s.new,0)}</td>
-      <td>${r.sources.reduce((a,s)=>a+s.gone,0)}</td>
-      <td>${r.sources.reduce((a,s)=>a+s.matched,0)}</td>
-      <td>${r.complete ? '<span class="pill ok">полный</span>' : '<span class="pill warn">неполный — источник не ответил</span>'}</td>
-      <td>${esc(r.scope)}</td>
-      <td>${r.stateDrift.length ? `<span class="pill err">поле разошлось с журналом: ${r.stateDrift.length}</span><div class="small">${esc(r.stateDrift.map(x=>x.task).join(', '))} — пересобрано из журнала</div>` : '<span class="small">сходится</span>'}</td>
-    </tr>`).join('') || '<tr><td colspan="9" class="muted">прогонов ещё не было</td></tr>';
-  return `
-  <div class="section-h">Источники</div>
-  <div class="small" style="margin-bottom:6px">Ошибка не значит пусто: поводы источника не трогаются, прогон неполный. После двух ночей подряд — задание администратору.</div>
-  <table class="cgrid"><thead><tr><th>Источник</th><th>Опрос</th><th>Выпуск</th><th>В круге опроса</th><th>Не отвечает</th></tr></thead>
-    <tbody>${SOURCES.map(s=>{ const sil = s.id==='self' ? null : silenceOf(s.id, state.today);
-      return `<tr><td>${esc(s.name)}</td><td>${s.onSave ? 'по сохранению + ночной прогон' : 'ночной прогон'}</td>
-      <td>${s.release ? 'первый' : '<span class="small">по готовности</span>'}</td>
-      <td>${POLL_SCOPES[state.pollScope](s) ? 'да' : '<span class="small">не подключён</span>'}</td>
-      <td>${sil ? `с ${fmt(sil.since)} · ночей подряд: ${sil.nights}` : '—'}</td></tr>`; }).join('')}</tbody></table>
-  <div class="section-h">Журнал прогонов</div>
-  <table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th>Ответ источника</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th><th>Круг</th><th>Поле и журнал</th></tr></thead>
-    <tbody>${rows}</tbody></table>
-  <div class="section-h">Опросы по сохранению</div>
-  <table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th>Источник</th><th>Ответ</th><th>Новых</th><th>Отпавших</th><th>Совпало</th></tr></thead>
-    <tbody>${state.savePolls.slice().reverse().slice(0, 20).map(p=>`<tr class="${p.answer==='множество'?'':'over'}"><td>${p.id}</td><td>${fmt(p.t)}</td><td>${esc(p.name)}</td>
-      <td>${p.answer==='множество' ? esc(p.answer) : p.error==='источник не ответил' ? `<span class="pill warn">ошибка — сохранение прошло, поводы не тронуты, ночь сверит заново</span>` : `<span class="pill err">сбой сверки: ${esc(p.error)} — сохранение прошло, ночь сверит заново</span>`}</td><td>${p.new}</td><td>${p.gone}</td><td>${p.matched}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">сохранений ещё не было</td></tr>'}</tbody></table>
-  <div class="section-h">Поводы (текущий срез)</div>
-  <table class="cgrid"><thead><tr><th>Ключ</th><th>Вид</th><th>Состояние</th><th>Дата состояния</th><th>Признаки</th></tr></thead>
-    <tbody>${state.povods.slice().reverse().map(p=>`<tr>
-      <td class="mono small">${esc(p.key)}</td><td>${esc(kindOf(p.kind).title)}</td>
-      <td><span class="pill ${p.status==='gone'?'neutral':p.status==='frozen'?'warn':'ok'}">${p.status}</span>${p.status!=='gone' && povodReleased(p) ? ' <span class="pill neutral">снят без поручения</span>' : ''}</td>
-      <td>${fmt(p.stateDate)}${p.approx?' <span class="small">(приблизительно)</span>':''}</td>
-      <td class="small">${esc(JSON.stringify(p.traits||{}))}</td>
-    </tr>`).join('') || '<tr><td colspan="5" class="muted">пусто</td></tr>'}</tbody></table>
-  `;
+  const tabs = RUNS_TABS.map(([k, l])=>`<button class="${state.runsTab===k ? 'on' : ''}" onclick="ZD.setRunsTab('${k}')">${l}</button>`).join('');
+  return `<div class="tabs">${tabs}</div>${state.runsTab==='povods' ? renderPovodTab() : renderPollTab()}`;
 }
 function toggleStatCleared(v){ state.statCleared=v; render(); }
 
@@ -6455,14 +6665,20 @@ function notifText(n){
   if(n.kind==='сигнал') return `${n.text} — ${n.items.map(x=>x.text).join('; ')}`;
   const t = n.items[0] && taskOf(n.items[0].taskId);
   if(!t) return n.text;
+  if(n.kind==='переадресовано'){ // бывшему исполнителю: кому передано, ссылки нет — задание ему больше не видно
+    const to = [...new Set(n.items.map(x=>empName(x.newAssignee)).filter(Boolean))].join(', ');
+    return `${n.text}${n.count>1 ? ` (${n.count} ${zadan(n.count)})` : ''}: ${whatToDo(t)}${to ? ` · новый исполнитель: ${to}` : ' · ждёт в очереди'}`;
+  }
   return n.count>1 ? `${n.text} (${n.count} ${zadan(n.count)}): ${whatToDo(t)}` : `${n.text}: ${whatToDo(t)}${n.due ? ` · срок ${fmt(n.due)}` : ''}`;
 }
 function bellToggle(open){ bellOpen = open===undefined ? !bellOpen : open; render(); }
-/* клик открывает задание или карточку объекта и отмечает прочитанным; открытие панели статус не меняет. Из панели — поверх «Моей работы», со страницы — поверх неё: закрытие вернёт к той же строке */
+const hasNotifLink = n=>n.kind!=='переадресовано';
+/* клик открывает задание или карточку объекта и отмечает прочитанным; у «переадресовано» только отмечает; открытие панели статус не меняет. Из панели — поверх «Моей работы», со страницы — поверх неё: закрытие вернёт к той же строке */
 function notifGo(id, i){
   const n = state.notifications.find(x=>x.id===id);
   if(!n) return;
   n.read = true;
+  if(!hasNotifLink(n)){ render(); return; }
   bellOpen = false;
   if(state.view!=='notifs'){ state.view = 'queue'; state.qTab = 'work'; }
   const item = n.items[i||0];
@@ -6484,6 +6700,7 @@ function renderBell(){
     </div>`;
 }
 function notifLinks(n){
+  if(!hasNotifLink(n)) return '';
   if(n.kind==='сигнал') return `<span class="small">без задания</span> ${n.items.map((x, i)=>`<button class="linky" onclick="ZD.notifGo('${n.id}', ${i})">${esc((povodByKey(x.key)||{}).objectId||'открыть')}</button>`).join(' ')}`;
   return n.items.map((x, i)=>`<button class="linky" onclick="ZD.notifGo('${n.id}', ${i})">${x.taskId}</button>`).join(' ');
 }
@@ -6516,7 +6733,8 @@ return {
   checkRegistry, taskRows, myTile, isMine, isOverdue, assigneeOn, obligationAt, repIssue, retireKinds, dueText, activeOn,
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
-  showRule, toggleRule, submitRuleEdit,
+  showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
+  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, renderDelivery, empName, notifLinks,
   addWorkdays, workdaysBetween, isWork, calNote, SOURCES, SILENT_NIGHTS, POLL_SCOPES,
   SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
@@ -6526,11 +6744,11 @@ return {
   renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES,
   bucketOf, bucketsOf, tabsOf, currentTab, setQueueTab, setClosedFilter, setSearch, setSort, closedFilters, closedMine, closedResult, subSummary,
   whatToDo, caseOf, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupChoose,
-  openFreeForm, setSettingsTab, setKindCat, toggleHl, deactivateKind, activateKind,
+  openFreeForm, setSettingsTab, toggleHl, deactivateKind, activateKind,
   toggleDown, toggleStatCleared, setPollScope, ui,
   ROLES, roleOf, queueHolders, inQueue, queueTasks, queueGroups, batchTasks, groupOps, toggleGroup, batchUI, signGroup,
   checkStateField, kindCategory, registryCounts, highlightsOn,
-  editSignal, releaseSignal, releaseTaskKind, signalRecipients, submitSignalEdit, SIGNAL_CHANNELS,
+  editSignal, releaseSignal, releaseTaskKind, signalRecipients, SIGNAL_CHANNELS,
   ownerStep:savedAt(src=>src==='gd' ? 'gosresh' : 'programs', ownerStep), lpExtend:savedAt('programs', lpExtend), lpChangeBase:savedAt('programs', lpChangeBase),
   gdAttachDoc:savedAt('gosresh', gdAttachDoc), ownerAt,
   ownerOfKind, sourceOfKind, expiringDays, renderOwnerCard,
