@@ -2360,9 +2360,9 @@ ok('ФХС. КЗ-45: запись — ответ анализа: начало, �
     const mid = row('sc-org-mid'), high = row('sc-org-high');
     const iso = g.ev("AN_FHS.since").split('.').reverse().join('-');
     return mid.includes(`limit:${g.ev("AN_FHS.mid.limit")},`) && mid.includes(`grace:${g.ev("AN_FHS.mid.grace")},`)
-      && mid.includes(`since:'${iso}'`) && mid.includes("basis:'п. 11.2'") && g.ev("AN_FHS.mid.clause") === 'п. 11 пп. 2'
+      && mid.includes(`since:'${iso}'`) && mid.includes("basis:'Порядок №41 п. 11 пп. 2'") && g.ev("AN_FHS.mid.clause") === 'п. 11 пп. 2'
       && high.includes('limit:null,') && g.ev("AN_FHS.high.limit") === null && high.includes(`grace:${g.ev("AN_FHS.high.grace")},`)
-      && high.includes(`since:'${iso}'`) && high.includes("basis:'п. 6.5'") && g.ev("AN_FHS.high.clause") === 'п. 6 пп. 5'; })());
+      && high.includes(`since:'${iso}'`) && high.includes("basis:'Порядок №41 п. 6 пп. 5'") && g.ev("AN_FHS.high.clause") === 'п. 6 пп. 5'; })());
 ok('ФХС. КЗ-45: запись — ответ заданий: срок пакета совпадает с видом владельца (zadaniya.html, ZM_STEPS)',
   /id:'pk-zm-fin-package'[^\n]*dueN:10\b/.test(readFileSync(resolve('mockups/zadaniya/zadaniya.html'), 'utf8')) && g.ev("ZD_PACK_RULE.n") === 10);
 ok('ФХС. НЗ-17, КЗ-45: срок пакета — значение одной записи, подпись «решение проекта»; правка записи двигает срок',
