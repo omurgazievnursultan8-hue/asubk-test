@@ -635,14 +635,14 @@ const PL_STEPS = [
    sum:'сумма поступления', addr:'pl-accountant', dueN:5, act:'Опознать поступление',
    where:'платежи, лента поступлений: привязка к кредиту рождает платёж датой поступления; чужие деньги — возврат отправителю, денег не было — сторно'},
 ];
-/* виды заёмщика: его обязательства по Порядку — ведущему куратору заёмщика. Пакет гасит документ в досье, анализ — утверждённое
+/* виды заёмщика: его обязательства по Порядку — ведущему куратору заёмщика. Пакет гасит полное получение по запросу (ответ анализа), анализ — утверждённое
    плановое заключение за период, акт — подпись обеих сторон.
    Пакет — «вид · заёмщик», срок от начала полосы риска; анализ — «вид · заёмщик · период», порог и срок из расписания анализа;
    акт сверки — «вид · заёмщик · год», до 1 сентября */
 const ZM_STEPS = [
   {id:'pk-zm-fin-package', title:'Нужен пакет финансовых документов', traits:['категория','полоса_с'], dueN:10,
    act:'Запросить и получить полный пакет финансовых документов',
-   where:'заёмщик, досье: документ «Пакет финансовых документов», датированный не раньше начала полосы риска'},
+   where:'заёмщик: пакет финансовых документов, полностью полученный по запросу не раньше начала полосы риска (ответ модуля «Анализ»)'},
   {id:'pk-zm-fhs',         title:'Анализ финансово-хозяйственного состояния не проведён', traits:['категория','полоса_с','период','срок'], periodic:true,
    named:'расписание анализа: конец полугодия + 45 дн.',
    act:'Провести анализ финансово-хозяйственного состояния',
@@ -1838,6 +1838,8 @@ function seedOwnerObjects(){ return {
      (черновик — null), кто утвердил */
   anz: [
     {no:'ФА-7', subj:'01105201910011', period:'2П 2026', occasion:'plan', approvedAt:'2027-01-11', by:'E3'},
+    // пакет финансовых документов: запрос ЗП-…, получен полностью; неполное получение записью не становится
+    {no:'ЗП-14', subj:'01105201910011', period:'2025 год', occasion:AN_PACK, approvedAt:'2026-02-25', by:'E3'},
   ],
   /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
      на приказ, редакция на дату; пусто — периодичность не объявлена */
@@ -1998,12 +2000,11 @@ function PLK(id, borrower, issued, ev){ // кредит: резерв и ава�
 function PLP(id, credit, receipt, amount, op, ev){ // платёж по шлюзу: действует сразу, датой операции
   return {type:'payment', id, credit, receipt, amount, channel:'шлюз', ev:[{t:op, by:null, how:`платёж ${id} по шлюзу: ${money(amount)}, поступление ${receipt}`}].concat(ev)};
 }
-/* заёмщик: категория риска и её полоса, снимок суммарного остатка, документы досье, годовые акты сверки. Ведущего куратора
+/* заёмщик: категория риска и её полоса, снимок суммарного остатка, годовые акты сверки. Ведущего куратора
    называет кураторство — ответом на дату */
 function seedBorrowers(){ return [
   ZMB('01105201910011', 'ОсОО «Талас-Дан»', '2025-06-10', 64200000, [
     {t:'2026-02-16', cat:'mid', by:null, how:'1-й день просрочки: средний кредитный риск'},
-    {t:'2026-02-25', doc:'пакет', by:'E3', how:'в досье: «Пакет финансовых документов» за 2025 год'},
     {t:'2026-04-06', cat:'low', by:null, how:'просрочка погашена: низкий кредитный риск'},
     {t:'2026-05-20', act:{year:'2026', stage:'подписан'}, by:'E3', how:'акт сверки на 01.01.2026 подписан обеими сторонами'},
     {t:'2026-11-02', cat:'mid', by:null, how:'1-й день просрочки: средний кредитный риск'}]),
@@ -2434,7 +2435,7 @@ function plDecisionAttrib(s, p, d){ // спорная пеня: решение �
     .map(x=>x.restored || x.late).filter(e=>e.t>=from).sort((a, b)=>a.t<b.t ? -1 : 1).pop();
   return {cancel:clear ? `${clear.how} — спорная пеня снимается без комиссии` : s.last.how};
 }
-/* заёмщик на дату: категория и полоса риска, суммарный остаток, документы досье и годовые акты — из фактов заёмщика */
+/* заёмщик на дату: категория и полоса риска, суммарный остаток и годовые акты — из фактов заёмщика; пакет — из ответа анализа */
 /* строки расписания анализа: порог, период и отсрочку объявляет анализ, заёмщик читает; у высокого риска порога нет */
 const AN_FHS = {
   mid:{limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
@@ -2447,20 +2448,18 @@ const ZM_DOC = {пакет:'Пакет финансовых документов
 function zmAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
-  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, docs:[], acts:{},
+  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
     repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
   evs.forEach(e=>{
     if(e.cat){ if(e.cat==='low') s.strip = null; else if(!s.strip) s.strip = e.t; s.cat = e.cat; s.catSince = e.t; } // средний → высокий — та же полоса
     if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ s.repaid = null; s.activeSince = e.t; } } // новый кредит после погашения
-    if(e.doc) s.docs.push(e);
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
     const fhsNeed = !!s.strip && anFhsNeed(s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
     s.fhsSince = fhsNeed ? s.fhsSince || e.t : null;
   });
-  // документ в досье считается по своей дате, не по дате внесения; документ пакета прежней полосы не в счёт
-  const inStrip = kind=>s.strip ? s.docs.filter(e=>e.doc===kind && (e.docDate || e.t)>=s.strip).pop() || null : null;
-  s.pack = inStrip('пакет');
+  // пакет приходит ответом анализа и считается по своей дате; пакет прежней полосы не в счёт
+  s.pack = s.strip ? analysisDocs(o.id, d).filter(x=>x.type===ZM_DOC.пакет && x.date>=s.strip)[0] || null : null;
   // акт нужен за каждый год, на 1 января которого заёмщик был действующим; погасил всё — больше не действующий,
   // прежние годы закрыл акт о полном погашении; новый кредит — годы считаются заново
   s.years = [];
@@ -2473,12 +2472,15 @@ function zmAt(o, d){
 function halfOf(d){ const y = d.slice(0, 4); return d.slice(5, 7)<='06' ? {from:`${y}-01-01`, to:`${y}-06-30`} : {from:`${y}-07-01`, to:`${y}-12-31`}; }
 /* ответ анализа «документы досье» на дату, зеркало шва analysisDocs: вид, дата, номер, период и кто утвердил. Считается из заключений:
    только утверждённое плановое, одно на период — первое из заведённых, как в analysisDone; заключение по заявке, черновик и переиздание документа не дают */
-const AN_PLAN = 'plan';
+const AN_PLAN = 'plan', AN_PACK = 'pack';
 const anPeriodName = from=>`${from.slice(5, 7)<='06' ? '1П' : '2П'} ${from.slice(0, 4)}`; // как период назван в записях анализа
 function analysisDocs(subj, d){
   const docs = [];
   state.owner.anz.filter(a=>a.subj===subj && a.occasion===AN_PLAN && a.approvedAt && a.approvedAt<=d)
-    .forEach(a=>{ if(!docs.some(x=>x.period===a.period)) docs.push({type:ZM_DOC.анализ, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}); });
+    .forEach(a=>{ if(!docs.some(x=>x.type===ZM_DOC.анализ && x.period===a.period)) docs.push({type:ZM_DOC.анализ, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}); });
+  // пакет: только полное получение по запросу (номер запроса, дата получения, период запроса); by — кто отметил получение
+  state.owner.anz.filter(a=>a.subj===subj && a.occasion===AN_PACK && a.approvedAt && a.approvedAt<=d)
+    .forEach(a=>docs.push({type:ZM_DOC.пакет, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}));
   return docs.sort((a, b)=>a.date<b.date ? -1 : a.date>b.date ? 1 : 0);
 }
 /* открытые периоды анализа ФХС: только закончившиеся, условие читается на конец периода, задание появляется на следующий день;
@@ -2486,8 +2488,9 @@ function analysisDocs(subj, d){
 function zmFhsOpen(s, d){
   const out = [], o = ownerObj('zm', s.id);
   if(s.repaid) return out;
-  const docs = analysisDocs(s.id, d);
+  const docs = analysisDocs(s.id, d).filter(e=>e.type===ZM_DOC.анализ);
   for(let p = halfOf(kindOf('pk-zm-fhs').activatedAt||d); p.to<d; p = halfOf(addDays(p.to, 1))){
+    if(p.to<s.activeSince) continue; // период закончился раньше начала нового кредита после полного погашения: не считается
     const x = zmAt(o, p.to), name = anPeriodName(p.from);
     if(!x || !x.fhsSince || docs.some(e=>e.period===name)) continue;
     out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:addDays(p.to, 1), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat, strip:x.strip, debt:x.debt}, p));
@@ -2983,7 +2986,10 @@ const ZMC = x=>Object.assign({src:'zm', objectType:'borrower', cur:true}, x);
 const zmTraits = s=>({категория:ZM_CAT[s.cat], полоса_с:s.strip, сумма:s.debt});
 Object.assign(OWNER_CFG, {
   'pk-zm-fin-package': ZMC({when:s=>!!s.strip && !s.pack, since:s=>s.strip, traits:zmTraits,
-    done:e=>e.doc==='пакет', cancel:s=>zmCancel(s)}),
+    attrib:(s,p,d)=>{ // исполнитель — кто отметил получение пакета; адресат — «исполнено», другой — «выполнил другой»
+      const strip = zmAt(ownerObj('zm', s.id), appearedOn(p))?.strip || s.strip;
+      const q = strip && analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.пакет && x.date>=strip)[0];
+      return q ? {by:q.by, how:`пакет получен полностью по запросу ${q.ref} от ${fmt(q.date)} за ${q.period}`} : {cancel:zmCancel(s)}; }}),
   'pk-zm-fhs':         ZMC({when:(s,d)=>zmFhsOpen(s, d).length>0,
     each:(s,d)=>zmFhsOpen(s, d).map(x=>({period:x.key, sub:x.key, since:x.since, due:x.due, x})),
     since:(s,d,x)=>x.since,
@@ -3442,11 +3448,10 @@ function plStep(id, by, step, arg){
           {t:d, by, confirm:{line:'по поступлению '+s.id}, how:`платёж подтверждён строкой реестра ЦК поступления ${s.id}`}]});
   }
 }
-/* факт в карточке заёмщика (демо соседа): документ пакета в досье и подпись годового акта вносит сотрудник отраслевого
-   департамента — ведущий куратор, его замещающий, руководитель или коллега; кто именно — атрибуция факта.
-   Документ анализа руками не вносится: он приходит из заключения */
+/* факт в карточке заёмщика (демо соседа): подпись годового акта вносит сотрудник отраслевого департамента — ведущий куратор,
+   его замещающий, руководитель или коллега; кто именно — атрибуция факта. Пакет и документ анализа руками не вносятся:
+   они приходят ответом анализа */
 const ZM_FACTS = {
-  'пакет':        {ev:dd=>({doc:'пакет', docDate:dd}),  how:dd=>`в досье: «${ZM_DOC.пакет}» от ${fmt(dd)}`},
   'акт подписан': {ev:y=>({act:{year:y, stage:'подписан'}}), how:y=>`акт сверки на 01.01.${y} подписан обеими сторонами`},
 };
 const ZM_DEPT = 'Сопровождение'; // отраслевой департамент: ведёт мониторинг заёмщика
@@ -3455,16 +3460,15 @@ function zmStepError(id, by, step, arg){
   const d = state.today, s = zmAt(ownerObj('zm', id), d), f = ZM_FACTS[step];
   if(!s) return 'заёмщика нет';
   if(!f) return `шага «${step}» у заёмщика нет`;
-  // записи карточки — документ в досье и акт; риск, остаток и погашение — события соседей, не записи карточки
-  const later = ownerObj('zm', id).ev.filter(e=>e.t>d && (e.doc || e.act)).map(e=>e.t).sort()[0];
+  // записи карточки — акт; риск, остаток и погашение — события соседей, не записи карточки
+  const later = ownerObj('zm', id).ev.filter(e=>e.t>d && e.act).map(e=>e.t).sort()[0];
   if(later) return `в карточке заёмщика уже есть запись от ${fmt(later)}: задним числом не вносится`;
   if(step==='акт подписан' && (s.years.indexOf(arg)===-1 || s.signed(arg))) return `акта на 01.01.${arg} заёмщик не должен или он уже подписан`;
-  if(step!=='акт подписан' && arg && arg>d) return 'дата документа позже сегодняшней';
   return zmDeptOk(by) ? null : 'документ заёмщика вносит сотрудник отраслевого департамента';
 }
 function zmStep(id, by, step, arg){
   const err = zmStepError(id, by, step, arg); if(err) throw new Error(err);
-  const f = ZM_FACTS[step], a = step==='акт подписан' ? arg : arg || state.today; // у документа — его дата
+  const f = ZM_FACTS[step], a = arg;
   ownerObj('zm', id).ev.push(Object.assign({t:state.today, by, how:f.how(a)}, f.ev(a)));
 }
 /* факт в заявке на реструктуризацию (демо соседа): пакет, возврат, вынос на комитет и письмо вносит сотрудник отраслевого
@@ -6178,10 +6182,10 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   const btn = (step, arg, label)=>`<button class="btn btn-secondary btn-sm" onclick='ZD.ui(()=>ZD.zmStep(${JSON.stringify(o.id)}, ZD.state.viewer, ${JSON.stringify(step)}, ${JSON.stringify(arg)}))'>${esc(label)}</button>`;
   const rows = [];
   if(OWNER_CFG['pk-zm-fin-package'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.пакет)}<div class="small">полоса риска с ${fmt(s.strip)}</div></td>
-    <td class="small">срок — правило заданий</td><td>${btn('пакет', null, 'Пакет в досье')}</td></tr>`);
+    <td class="small">срок — правило заданий</td><td class="small">полный пакет по запросу получает и отмечает модуль «Анализ»</td></tr>`);
   zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
     <td class="small">до ${fmt(x.due)} — расписание анализа</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
-  analysisDocs(s.id, d).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">заключение ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
+  analysisDocs(s.id, d).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
   return `<div class="card">${head}
@@ -6197,7 +6201,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
       : '<div class="small">открытых обязательств нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Документ пакета в досье и подпись акта вносит сотрудник отраслевого департамента; документ пакета прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Подпись акта вносит сотрудник отраслевого департамента; пакет финансовых документов приходит ответом анализа, только при полном получении по запросу, вручную не вносится; пакет прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
 }
 const RS_OUTCOME = {возврат:'возвращена без рассмотрения', отпала:'отпала: кредит погашен', отказ:'отказ'};
 function renderRsCard(id){ // заявка на реструктуризацию у владельца: сроки п. 18 — подсветка без исполнителя и без флага просрочки
