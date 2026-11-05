@@ -1960,13 +1960,17 @@ group('Волна 5 · НЗ-17, НЗ-11: подпись задаёт запис�
   ck('ИМ-114: приказ без номера и даты — отказ', !IM.setParam('thr.unsold', { v: 4, from: TODAY_, why: 'x', order: 'приказ директора' }).ok);
 });
 
-group('Волна 5 · ИМ-107: 90 к.д. на чтение, подпись «решение проекта», 3 года — п. 17', ({ IM, doc }) => {
-  const t = thrOf(IM, 'pk-im-pledge-term');
+group('Волна 5 · ИМ-107: 90 к.д. — число проекта, правит заведующий с датой и основанием; 3 года — п. 17', ({ IM, doc }) => {
+  const P = 'thr.pledge-term', t = thrOf(IM, 'pk-im-pledge-term');
+  const pt = d => IM.triggers(d).filter(x => x.kind === 'pk-im-pledge-term' && x.id === 'ИО-410');
   ck('ИМ-107: 90 к.д., «решение проекта», условие называет п. 17', t.v === 90 && t.src === 'решение проекта' && has(t.cond, '3-летнего') && has(t.cond, 'п. 17'), t);
+  ck('ИМ-107: не заведующий не правит', !IM.setParam(P, { v: 120, from: TODAY_, why: 'x' }).ok);
   IM.setRole('head'); IM.go('settings');
-  ck('ИМ-107: кнопки нет, правка отказана, смена через выпуск', !doc.querySelector('[data-testid="new-thr.pledge-term"]') && (r => !r.ok && has(r.why, 'выпуск'))(IM.setParam('thr.pledge-term', { v: 60, from: TODAY_, why: 'x' })));
-  ck('ИМ-107: выпуск без акта возможен, подпись остаётся «решение проекта»', IM.paramRelease('thr.pledge-term', { v: 60, from: '2028-04-01', why: 'уточнили срок' }).ok && thr90(IM) === 'решение проекта');
-  function thr90(M) { return M.srcOf(M.recOn(thrOf(M, 'pk-im-pledge-term'), '2028-04-01')); }
+  ck('ИМ-107: у заведующего кнопка есть; без даты, с прошлой датой и без основания — отказ', !!doc.querySelector(`[data-testid="new-${P}"]`) && !IM.setParam(P, { v: 120, from: '', why: 'x' }).ok && !IM.setParam(P, { v: 120, from: '2028-03-14', why: 'x' }).ok && !IM.setParam(P, { v: 120, from: TODAY_, why: '' }).ok);
+  ck('ИМ-107: при 90 к.д. повод появляется 03.07.2030', !pt('2030-07-02').length && pt('2030-07-03').length === 1, [pt('2030-07-02'), pt('2030-07-03')]);
+  ck('ИМ-107: 120 к.д. с даты: подпись прежняя, повод раньше, не раньше порога', IM.setParam(P, { v: 120, from: TODAY_, why: 'напоминать раньше' }).ok && thrOf(IM, 'pk-im-pledge-term').src === 'решение проекта' && !pt('2030-06-02').length && pt('2030-06-03').length === 1, [pt('2030-06-02'), pt('2030-06-03')]);
+  ck('ИМ-107: снижение до 30 к.д. после появления повод не снимает (НЗ-2)', IM.setParam(P, { v: 30, from: '2030-08-01', why: 'x' }).ok && pt('2030-08-02').length === 1, pt('2030-08-02'));
+  ck('ИМ-107: выпуск без акта теперь отказан: нормы здесь нет', !IM.paramRelease(P, { v: 60, from: '2031-01-01', why: 'x' }).ok);
   ck('ИМ-113: у «Срок ответа истёк» нет числа, кнопки и правки', !doc.querySelector('[data-testid="new-thr.offer-overdue"]') && has(doc.querySelector('[data-testid="thr.offer-overdue"]').textContent, 'срок из документа') && !IM.setParam('thr.offer-overdue', { v: 3, from: TODAY_, why: 'x' }).ok);
 });
 

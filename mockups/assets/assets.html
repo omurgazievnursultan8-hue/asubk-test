@@ -524,7 +524,7 @@ const ASSIGN = [
    ОТКУДА ЧИСЛО задаёт запись (srcOf): act — норма (акт и пункт), order — внутренний акт (приказ Фонда), ни того ни другого —
    решение проекта. Вручную подпись не выбирается. ЧИСЛО НОРМЫ на экране не правится: новая редакция — новая запись через выпуск
    (paramRelease), старая остаётся для прошлых дел. Остальное правит заведующий Сектором (setParam).
-   Первая запись действует и на даты раньше себя: более ранних значений нет (ИМ-116). release — на чтение без акта (ИМ-107);
+   Первая запись действует и на даты раньше себя: более ранних значений нет (ИМ-116).
    noNum — у строки нет своего числа (ИМ-113). */
 const INSTR = 'Инструкция (проект от 11.05.2026)';
 const num = (recs, x) => Object.defineProperties(Object.assign({ recs }, x), {
@@ -549,7 +549,7 @@ const SETTINGS = {
     normNum(30, 'дн.',  'п. 46', { id: 'pk-im-topup-due',            obj: 'объект',      cond: 'доплата «к выплате» не выплачена дольше порога или «удержана»' }),
     projNum(30, 'к.д.',          { id: 'pk-im-encumbrance-ending',   obj: 'объект',      cond: 'обременение кончается в пределах порога' }),
     normNum(10, 'дн.',  'п. 17', { id: 'pk-im-bankruptcy',           obj: 'предложение / залог обязанного лица', cond: 'взыскание опубликовало «признан банкротом», у лица есть залог, записки в Комитет нет' }),
-    projNum(90, 'к.д.',          { id: 'pk-im-pledge-term',          obj: 'объект из залога (банкротство)', cond: 'до конца 3-летнего срока отчуждения (Инструкция, п. 17) осталось меньше порога', release: true }),
+    projNum(90, 'к.д.',          { id: 'pk-im-pledge-term',          obj: 'объект из залога (банкротство)', cond: 'до конца 3-летнего срока отчуждения (Инструкция, п. 17) осталось меньше порога' }),
     projNum(60, 'к.д.',          { id: 'pk-im-claim-open',           obj: 'объект',      cond: 'требование к отчуждателю открыто дольше порога' }),
   ],
   /* Порог осмотра по виду (ИМ-56, ИМ-111): только исключения, чаще нормы. Запись с пустым значением снимает исключение; строки нет — умолчание pk-im-no-inspection. */
@@ -2812,7 +2812,7 @@ const canSet = (role = S.role) => role === 'head';
 const setGuard = () => canSet() ? null : no('настройки правит только заведующий Сектором по работе с активами');
 const SET_DIS = ' disabled title="правит только заведующий Сектором по работе с активами"';
 const thrPath = t => 'thr.' + t.id.replace('pk-im-', '');
-const canEditNum = n => !n.noNum && !n.release && !n.recs[n.recs.length - 1].act;
+const canEditNum = n => !n.noNum && !n.recs[n.recs.length - 1].act;
 const showVal = (n, v) => v == null ? 'умолчание' : `${v} ${n.unit}`;
 const newBtn = path => `<button class="btn btn-secondary btn-sm" data-testid="new-${path}" onclick="IM.uiParam('${jsq(path)}')">Новое значение</button>`;
 /* Значение, откуда число, с какой даты; у заведующего — кнопка нового значения (btn: в таблице есть такой столбец). */
@@ -2892,7 +2892,6 @@ function setParam(path, spec = {}) {
   const last = n.recs[n.recs.length - 1], name = paramName(path);
   if (n.noNum) return no(`«${name}»: своего числа нет, срок задаёт документ или таблица сроков ответа`);
   if (last.act) return no(`«${name}»: число задаёт норма — ${last.act}. На экране оно не правится: новая редакция акта — новая запись с датой через выпуск, старая остаётся для прошлых дел`);
-  if (n.release) return no(`«${name}»: на чтение, смена через выпуск`);
   const insp = path.startsWith('insp.'), raw = String(spec.v == null ? '' : spec.v).trim();
   if (!(insp && raw === '') && !/^[1-9]\d*$/.test(raw)) return no(`значение «${raw}» — не целое положительное число`);
   const v = raw === '' ? null : +raw;
@@ -2927,13 +2926,12 @@ function paramRelease(path, spec = {}) {
   const n = nodeOf(path); if (!n) return no('такой настройки нет');
   if (n.noNum) return no('у этой строки своего числа нет');
   const last = n.recs[n.recs.length - 1], act = String(spec.act == null ? '' : spec.act).trim();
-  if (!act && !n.release) return no('новая редакция нормы без акта и пункта не вводится');
+  if (!act) return no('новая редакция нормы без акта и пункта не вводится');
   const refused = paramDateRefusal(spec.from, last); if (refused) return no(refused);
   const why = String(spec.why == null ? '' : spec.why).trim();
   if (!why) return no('основание обязательно: на вопрос «почему изменили» система должна ответить');
   if (!(+spec.v > 0) || (n.unit !== '%' && !Number.isInteger(+spec.v))) return no(`значение «${spec.v}» — не положительное число${n.unit === '%' ? '' : ' или не целое'}`);
-  const rec = { from: spec.from, v: +spec.v, why, by: 'выпуск' };
-  if (act) rec.act = act;
+  const rec = { from: spec.from, v: +spec.v, why, by: 'выпуск', act };
   n.recs.push(rec);
   if (path.startsWith('insp.')) SETTINGS.inspByKind[path.slice(5)] = n;
   return { ok: true, why: '', rec };
