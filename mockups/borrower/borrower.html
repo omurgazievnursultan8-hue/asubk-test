@@ -1982,10 +1982,9 @@ DOCS.push(
   { id:'DOC-4', inn:'01204199910016', scope:{kind:'залог',   ref:'ЗД-2024-119'},     type:'Отчёт об оценке',        date:'14.02.2024', ownerModule:'zalog',      file:'ocenka-119.pdf',     by:'Токтосунов Б. М.' },
   /* претензия по нецелевому — собственный процесс заёмщика (PR-102), не чужой */
   { id:'DOC-5', inn:'01204199910016', scope:{kind:'взыскание', ref:'PR-102'},        type:'Претензионное письмо',   date:'26.03.2026', ownerModule:'collection', file:'pretenziya-102.pdf', by:'Осмонова Г. Т.' },
-  /* Ветка 2 — пакет фин. документов пришёл: этим ЗАКРЫВАЕТСЯ О-1 (п. 6 пп. 5). Анализ один:
-     он закрывает первое полугодие 2026, второе остаётся открытым (один документ — один период). */
+  /* Ветка 2 — пакет фин. документов пришёл: этим ЗАКРЫВАЕТСЯ О-1 (п. 6 пп. 5). Документ анализа
+     в досье не вносится: заключение за первое полугодие 2026 — ответ анализа, AN_DOCS. */
   { id:'DOC-20', inn:'02201199920021', scope:{kind:'заёмщик', ref:'02201199920021'},   type:'Пакет финансовых документов', date:'18.06.2026', ownerModule:'borrower', file:'fin-paket-2201.pdf', by:'Бекова А. С.' },
-  { id:'DOC-21', inn:'02201199920021', scope:{kind:'заёмщик', ref:'02201199920021'},   type:'Анализ финансово-хозяйственного состояния', date:'03.07.2026', ownerModule:'analysis', file:'fhs-2201-2026-1.pdf', by:'Бекова А. С.' },
 );
 CHECKS_EXT.push(
   { inn:'01204199910016', source:'КИБ Ишеним', takenAt:'01.03.2026', appId:'APP-118', payload:{rating:'B', overdueTotal:9898000} },
@@ -3235,8 +3234,9 @@ function statusOf(dueDate, d){
    Обязательство — не задача со статусом, а требование Порядка к паре «заёмщик × период».
    Ключ — (ИНН, код, период): у пакета период это дата начала текущей полосы повышенной
    категории, у анализа — полугодие, у выноса на комитет — месяц. Отметки «выполнено» нет и
-   быть не может: закрывает ФАКТ ИЗ МОДУЛЯ-ИСТОЧНИКА — документ в досье или решение комитета
-   (ADR-0001, И-7). Отсюда главное следствие периода: вынос за июль не закрывает пропущенный июнь. */
+   быть не может: закрывает ФАКТ ИЗ МОДУЛЯ-ИСТОЧНИКА — документ в досье, заключение анализа или
+   решение комитета (ADR-0001, И-7). Отсюда главное следствие периода: вынос за июль не закрывает
+   пропущенный июнь, заключение за одно полугодие не закрывает другое. */
 const OBLIG_DOC = { 'О-1':'Пакет финансовых документов', 'О-2':'Анализ финансово-хозяйственного состояния' };
 const OBLIG_PERIODS_MAX = 6;        // глубина показа повторяющегося обязательства
 /* ОТВЕТ АНАЛИЗА: строка расписания финанализа (владелец — analysis.html, SCHEDULE).
@@ -3251,6 +3251,24 @@ const AN_FHS = {
 const anFhsNeed = (cat, debt) => { const r = AN_FHS[cat]; return !!r && (r.limit === null || debt > r.limit); };
 const anFhsWhy = cat => AN_FHS[cat].risk
   + (AN_FHS[cat].limit === null ? '' : `, остаток больше ${AN_FHS[cat].limit/1000000} млн`);
+/* ОТВЕТ АНАЛИЗА: документы анализа ФХС по заёмщику (владелец — analysis.html, шов analysisDocs).
+   Запись — ответ как он приходит: вид, дата ГГГГ-ММ-ДД, номер, период названием из записи анализа;
+   inn — чей это ответ. Ответ даёт только утверждённое плановое заключение, одно на период, и только
+   после конца периода: отчётность за незавершённый период анализ не принимает. Вручную документ
+   анализа не вносится, ввода здесь нет. Запись о пакете у владельца тот же шов отдаёт, но её чтение
+   не решено (АН-130, КЗ-48): здесь она не заведена, О-1 закрывает документ досье. */
+const AN_DOCS = [
+  { inn:'02201199920021', type:OBLIG_DOC['О-2'], date:'2026-07-03', ref:'ФА-21', period:'1П 2026' },
+];
+const anDay = iso => iso.split('-').reverse().join('.');   // дата шва → дд.мм.гггг этого макета
+/* Как период назван в записях анализа: дата начала полугодия → «1П 2026». */
+const anPeriodName = from => { const [, m, y] = from.split('.'); return (+m <= 6 ? '1П ' : '2П ') + y; };
+/* Ответ шва на срез d: четыре поля, как у владельца. */
+function analysisDocs(inn, d){
+  return AN_DOCS.filter(x => x.inn===inn && dateLE(anDay(x.date), d))
+    .map(({ type, date, ref, period }) => ({ type, date, ref, period }))
+    .sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
 /* ОТВЕТ ЗАДАНИЙ: срок вида «Нужен пакет финансовых документов» — значение их правила и
    откуда число. Нормы и акта у этого срока нет. */
 const ZD_PACK_RULE = { n:10, unit:'р.д.', source:'решение проекта' };
@@ -3260,24 +3278,23 @@ function halfOf(s){
   return +m <= 6 ? { from:'01.01.' + y, to:'30.06.' + y } : { from:'01.07.' + y, to:'31.12.' + y };
 }
 /* Периоды анализа ФХС на срез d — то же, что считает макет заданий (zmFhsOpen), плюс периоды,
-   уже закрытые документом: их показывает секция «Исполненные».
+   уже закрытые заключением: их показывает секция «Исполненные».
    · Условие идущего периода — на дату среза, закрытого — на его конец: событие января не
      снимает долг за декабрь. Срок и условие не зависят от начала полосы риска.
-   · Документ считается по периоду: не раньше его начала. Один документ закрывает один период,
-     самый ранний из открытых, поэтому документы расходуются по мере прохода по периодам.
+   · Период закрывает заключение за этот период: сравнивается название периода, дата заключения
+     значения не имеет. Заключение за другой период этот не закрывает.
    · Нет действующих кредитов на срез — обязательств нет, в том числе за закрытые периоды. */
 function fhsPeriods(inn, d){
   const out = [];
   if (catOfBorrower(inn, d) === null) return out;
-  const docs = DOCS.filter(x => x.inn===inn && x.type===OBLIG_DOC['О-2'] && dateLE(x.date, d))
-    .sort((a,b) => dnum(a.date)-dnum(b.date));
+  const docs = analysisDocs(inn, d).filter(x => x.type===OBLIG_DOC['О-2']);
   for (let p = halfOf(AN_FHS.since); dateLE(p.from, d); p = halfOf(addCalDays(p.to, 1))){
     const at = dateLE(p.to, d) ? p.to : d;
     const cat = catOfBorrower(inn, at), debt = totalDebt(inn, at);
     if (!anFhsNeed(cat, debt)) continue;
-    const i = docs.findIndex(x => dateLE(p.from, x.date));
-    out.push(Object.assign({ at, cat, debt, due:addCalDays(p.to, AN_FHS[cat].grace),
-      closing: i === -1 ? null : docs.splice(i, 1)[0] }, p));
+    const name = anPeriodName(p.from), doc = docs.find(x => x.period===name);
+    out.push(Object.assign({ at, cat, debt, name, ended:dnum(p.to) < dnum(d), due:addCalDays(p.to, AN_FHS[cat].grace),
+      closing: doc ? Object.assign({}, doc, { date:anDay(doc.date) }) : null }, p));
   }
   return out;
 }
@@ -3334,8 +3351,10 @@ function obligations(inn, d){
   fhsPeriods(inn, d).forEach(p => {
     const r = AN_FHS[p.cat];
     mk('О-2', r.clause, 'анализ фин.-хоз. состояния', p.from + '..' + p.to, 'за ' + p.from + '—' + p.to, p.due,
-      `конец полугодия + ${r.grace} дн. · расписание анализа`, p.closing, 'досье документов',
-      { from:p.from, to:p.to, condAt:p.at, riskAt:p.cat, debtAt:p.debt, condText:anFhsWhy(p.cat) });
+      `конец полугодия + ${r.grace} дн. · расписание анализа`, p.closing, 'модуль «Анализ»',
+      { from:p.from, to:p.to, condAt:p.at, riskAt:p.cat, debtAt:p.debt, condText:anFhsWhy(p.cat),
+        closeNeed:`нужно плановое заключение за ${p.name}: ведётся и утверждается в модуле «Анализ»`
+          + (p.ended ? '' : `, возможно после ${p.to}`) });
   });
   overdueMonths(inn, d).forEach(p => {
     mk('О-4', 'п.13', 'вынос просроченной задолженности на комитет', p.key, 'за ' + p.key,
@@ -4375,8 +4394,8 @@ function curatorCard(inn){
 /* Вкладка «Обязательства» (КЗ-27) — подача по образцу «Актов сверок»: две секции, действующие
    и исполненные. Один список на всё был неверен ровно в том, ради чего вкладку открывают:
    действующее требование и закрытый факт — разная работа, а сортировка по коду перемешивала их
-   через строку. Ни одной кнопки «выполнено»: закрыть обязательство может только документ или
-   решение в модуле-источнике (И-7). Отсюда «чем закрыто» у исполненных и «где закрывается»
+   через строку. Ни одной кнопки «выполнено»: закрыть обязательство может только документ, заключение
+   или решение в модуле-источнике (И-7). Отсюда «чем закрыто» у исполненных и «где закрывается»
    у действующих — вместо колонки «отметка».
    Строку заголовит ПУНКТ ПОРЯДКА, а не внутренний О-N: обязательство существует нормой, и
    спор о нём ведут номером пункта. О-N остался ключом модели (код × период) и в подаче не нужен.
@@ -4418,7 +4437,11 @@ function obligationsTab(inn){
     + '<td>' + dueCell(o) + '</td>'
     + '<td>' + badge(o) + '</td>'
     + '<td><span class="muted">факта закрытия нет · </span>'
-      + extLink('где закрывается', o.closeIn || 'модуль-источник') + '</td></tr>');
+      + extLink('где закрывается', o.closeIn || 'модуль-источник')
+      + (o.closeNeed ? '<div class="muted" style="margin-top:3px">' + esc(o.closeNeed) + '</div>' : '') + '</td></tr>');
+  /* У заключения анализа номер и период, у документа досье файл, у решения комитета номер. */
+  const closedBy = c => c.ref ? 'заключение ' + c.ref + ' от ' + c.date + ' за ' + c.period
+    : (c.file || c.id) + ' · ' + c.date;
   const doneRows = done.map(o => '<tr>'
     + '<td>' + clauseCell(o) + '</td>'
     + '<td>' + esc(o.periodLabel) + condLine(o) + '</td>'
@@ -4426,7 +4449,7 @@ function obligationsTab(inn){
     + '<td><span class="badge b-ok">исполнено</span></td>'
     + '<td>' + esc(o.closing.type || o.closing.subject || o.closing.id)
       + '<div class="muted" style="margin-top:3px">'
-      + esc((o.closing.file || o.closing.id) + ' · ' + o.closing.date) + ' '
+      + esc(closedBy(o.closing)) + ' '
       + extLink('открыть', o.closeIn || 'модуль-источник') + '</div></td></tr>');
   const head = last => '<th style="width:26%">Пункт Порядка</th><th style="width:20%">Период</th>'
     + '<th style="width:20%">Срок</th><th style="width:12%">Статус</th><th style="width:22%">' + last + '</th>';
@@ -4437,7 +4460,7 @@ function obligationsTab(inn){
       : 'закрывает факт из модуля-источника',
     '', open.length ? table(head('Где закрывается'), openRows)
                     : empty('Действующих требований Порядка нет: всё, что выставлялось, закрыто фактом.'));
-  const doneSect = sect('Исполненные', 'закрыты документом в досье или решением комитета', '',
+  const doneSect = sect('Исполненные', 'закрыты документом в досье, заключением анализа или решением комитета', '',
     done.length ? table(head('Чем закрыто'), doneRows)
                 : empty('Исполненных требований нет.'));
   return tabDefBar(inn, 'обязательства', 'обязательств', 'сроки Порядка соблюдены')
@@ -6160,6 +6183,18 @@ function orphanDocRow(inn, kind, doc){
     + '<td>' + esc(doc.date) + '</td><td>' + esc(doc.by || '—') + '</td>'
     + '<td>' + extLink('открыть', MODULE_RU[SCOPE_MODULE[kind]]) + '</td></tr>';
 }
+/* Документы анализа — ответ модуля «Анализ» на дату среза: номер, период и дата, как пришли.
+   Только чтение: вручную такой документ не вносится. В комплект п.97 не входит. */
+function analysisDocsSect(inn){
+  const docs = analysisDocs(inn, asOf());
+  if(!docs.length) return '';
+  const rows = docs.map(x => '<tr><td>' + esc(x.type) + '</td><td>' + esc(x.period) + '</td>'
+    + '<td><span class="mono">' + esc(x.ref) + '</span></td><td>' + esc(anDay(x.date)) + '</td>'
+    + '<td>' + extLink('открыть', 'модуль «Анализ»') + '</td></tr>');
+  return sect('Документы анализа', 'приходят из модуля «Анализ» · вручную не вносятся · в процент досье не входят',
+    '<span class="badge b-gray">только чтение</span>',
+    table('<th>Документ</th><th style="width:15%">Период</th><th style="width:15%">Номер</th><th style="width:15%">Дата</th><th style="width:10%"></th>', rows));
+}
 function docsTab(inn){
   const stats = dossierStats(inn);
   const sections = [];
@@ -6207,7 +6242,7 @@ function docsTab(inn){
   const defBar = defectBar('досье', def, 'комплект собран, документы вне реестра отсутствуют');
   if(!sections.length && !appSect) return defBar + sect('Документы', 'досье п.97', '', empty('Документов нет.'));
   const pct = stats.req ? Math.round(stats.met/stats.req*100) : 100;
-  return defBar + dossierBar(pct, stats.met, stats.req, stats.exp) + sections.join('') + appSect;
+  return defBar + dossierBar(pct, stats.met, stats.req, stats.exp) + sections.join('') + analysisDocsSect(inn) + appSect;
 }
 
 /* 9. Проверки — внутренние (сверка ЧС/суды/просрочка + категория/группа) + внешние снимки CHECKS_EXT (зеркало, И-5). */
@@ -6685,6 +6720,8 @@ function historyItems(inn){
   DOCS.filter(d=>d.inn===inn).forEach(d=>add({date:d.date, dot:'info', cat:'doc', kind:'документ', tab:tabIx('документы'),
     title:`Документ: ${d.type}`,
     body:`${d.scope.kind} ${d.scope.kind==='кредит'?noOf(d.scope.ref):d.scope.ref} · ${d.file}${d.by?' · '+d.by:''}`}));
+  analysisDocs(inn, TODAY).forEach(x=>add({date:anDay(x.date), dot:'info', cat:'doc', kind:'документ', tab:tabIx('документы'),
+    title:`Документ: ${x.type}`, body:`заключение ${x.ref} за ${x.period} · модуль «Анализ»`}));
 
   /* ── проверки: внешние снимки и реестр ЧС ── */
   CHECKS_EXT.filter(x=>x.inn===inn).forEach(x=>add({date:x.takenAt, dot:'info', cat:'check', kind:'снимок', tab:tabIx('проверки'),
