@@ -26,7 +26,7 @@
     Показатели (§9.2, ADR-0272): предпросмотр того, что шов отдаёт «Статистике».
     Настройки (§1.2, §1.11): справочники — правка администратором документооборота с журналом
       (волна 2); производственный календарь (общий, только чтение); «Шаги для заданий» — ответ на
-      опрос, вал-задания, сигналы просрочки «Заданий», порог свёртки, журнал закрытия шагов;
+      опрос, группы, сигналы просрочки «Заданий», сроки шагов на чтение, журнал закрытия шагов;
       «Перенос» — отчёт прогона переноса и повторный прогон (§11, С-29).
 
   ПРАВИЛА, ЗАШИТЫЕ В ДВИЖОК (экраны их не поясняют — только показывают и запрещают)
@@ -59,12 +59,15 @@
       в дело — очередь роли; закрытие — отпадением с атрибуцией («исполнено», «выполнил другой»,
       «снято» с причиной). Очереди «на мне» у модуля нет. Сверка с «Заданиями» (волна 2):
       у названного адресата шага «Взять в работу» нет (ЗН-17); замещение после выдачи задание не
-      переносит — замещающий действует «Б за А» (ЗН-22); свёртка по паре «вид × адресат», порог
-      по умолчанию 10, вал — больше порога за один прогон (ЗН-23, ЗН-25); просрочка: никем не
+      переносит — замещающий действует «Б за А» (ЗН-22); просрочка: никем не
       взятая очередь — сразу «никто не взял» руководителю подразделения роли и «срок истёк»
       носителям, на 5-й р.д. — администратору документооборота (ЗН-19); взятое и названное —
       общее правило: «срок истёк» исполнителю, на 5-й р.д. «Просрочено задание» руководителю (ЗН-16).
       Сигналы — вывод «Заданий» на дату, документооборот их не шлёт.
+    ADR-0327 · ЗНП-3, ЗНП-6, ЗНП-16 — каждый шаг — отдельное задание; порога и вал-задания нет;
+      группа — вид очереди, а не запись; одно действие — один опрос; уведомления за прогон сводятся.
+    ADR-0333 · НЗ-13, НЗ-17 — порогов появления у модуля нет; сроки шагов — значения правил
+      заданий, в макете одна запись-зеркало STEP_RULES; на экране только показ.
     ADR-0268 · ДО-11 — бланк «Отчётности» с получателем → черновик исходящего (заглушка шва).
     ADR-0272 · ДО-26/43 — показатели считает «Статистика»; здесь только предпросмотр.
     Инварианты ИД-1…ИД-20 проверяет смоук (ИД-19 — перенесённые только для чтения).
@@ -89,7 +92,7 @@
     Старая система (источник переноса с одним «паспортом» прогона).
 
   НЕ МОДЕЛИРУЕТСЯ: открытые вопросы ДО-Д16 (переназначение исполнителя резолюции) и ДО-Д17 (отзыв
-  резолюции); частота опроса 5 минут (С-15) — опрос после каждого действия; транспорт (С-27).
+  резолюции); ночной прогон-страховка (опрос идёт после каждого действия); транспорт (С-27).
 
   «Сегодня» заморожено: TODAY = 2026-10-15; системные штампы берутся из S.clock (смоук сдвигает
   его, чтобы проверить новый год). Шов для смоука — window.DF; действия возвращают {ok, why}.
@@ -196,7 +199,7 @@ table.cgrid td.num, table.cgrid th.num{ text-align:right; white-space:nowrap; }
 .small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
 .why{ font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:3px; }
 .why.err{ color:var(--asubk-red); }
-.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link); font:inherit; text-decoration:underline; }
+.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link); font:inherit; text-align:left; text-decoration:underline; }
 .card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:14px; background:var(--surface-card); }
 .card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
 .card-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; }
@@ -533,8 +536,6 @@ const S = { clock: TODAY, user: 'e7', view: 'in', docId: null, tab: 'req', q: ''
   archTab: 'cases', caseOpen: null, setTab: 'types', indFrom: '2026-09-01', indTo: TODAY };
 let DOCS = [], RES = [], ISSUES = [], COUNTERS = {}, EXT = {}, TASKS = [], STEPBY = {}, SEQ = {};
 let MEASURES = [], MIGRATIONS = [], DICTLOG = [];
-/* Порог свёртки по видам шага (§10.1 п. 6): объявляет документооборот как владелец вида, по умолчанию 10. */
-const BATCH_THRESHOLD = {};
 let SYNC_HOLD = 0;
 
 /* ------------------------------ хелперы ----------------------------- */
@@ -1185,43 +1186,56 @@ function extendFromTasks(resId, newDue, approver) {
 const POVOD_NAME = { 'doc-revise': 'доработать черновик', 'doc-approve': 'согласовать', 'doc-sign': 'подписать', 'doc-register': 'зарегистрировать',
   'doc-dispatch': 'отправить', 'doc-review': 'рассмотреть входящий', 'doc-execute': 'исполнить резолюцию', 'doc-control': 'подтвердить на контроле',
   'doc-acquaint': 'ознакомиться', 'doc-file': 'сдать в дело', 'doc-return': 'вернуть оригинал' };
+/* Сроки шагов — ответ «Заданий»: значения их правил (реестр правил, виды doc-*). Зеркало чужого реестра, а не
+   настройка модуля: документооборот сроков не хранит и не правит, порогов появления у него нет. Единственная
+   запись в макете: её читают и povods(), и экран «Шаги для заданий». Сверяется с правилами заданий в смоуке. */
+const STEP_RULES = {
+  'doc-revise':   { dueN: 3, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-approve':  { dueN: 2, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-sign':     { dueN: 2, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-register': { dueN: 1, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-dispatch': { dueN: 2, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-review':   { dueN: 2, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-execute':  { dueN: null, dueUnit: 'named', dueSource: null, dueFrom: 'срок резолюции' },
+  'doc-control':  { dueN: 2, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-acquaint': { dueN: 3, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-file':     { dueN: 5, dueUnit: 'workday', dueSource: 'решение проекта' },
+  'doc-return':   { dueN: null, dueUnit: 'named', dueSource: null, dueFrom: 'срок выдачи' },
+};
 function povods() {
   const out = [];
-  const P = (kind, obj, addr, due, docId, base) => out.push({ key: kind + '|' + obj, kind, obj, addr, due, doc: docId, base: base || null });
-  const W = (base, n) => addWork(base, n);
+  /* Срок из правила считается от выдачи: выдача — этот опрос. У doc-execute и doc-return срок называет документ. */
+  const P = (kind, obj, addr, docId) => out.push({ key: kind + '|' + obj, kind, obj, addr, due: addWork(S.clock, STEP_RULES[kind].dueN), doc: docId, base: S.clock });
+  const N = (kind, obj, addr, docId, due) => out.push({ key: kind + '|' + obj, kind, obj, addr, due, doc: docId, base: null });
   DOCS.filter(d => !d.legacy && !d.deleted).forEach(d => {
     const r = curRound(d);
-    if (d.stage === 'draft' && d.returned) P('doc-revise', d.id, { emp: d.author }, W(d.returned.at, 3), d.id, d.returned.at);
-    if (d.stage === 'approval') r.steps.filter(s => !s.res).forEach(s => P('doc-approve', d.id + '×' + s.emp, { emp: s.emp }, W(r.at, 2), d.id, r.at));
-    if (d.stage === 'signing' && !d.signed) P('doc-sign', d.id, { emp: d.signer, personal: true }, W(r.at, 2), d.id, r.at);
-    if (d.stage === 'signing' && d.signed) P('doc-register', d.id, { role: 'registrar' }, W(d.signed.at, 1), d.id, d.signed.at);
+    if (d.stage === 'draft' && d.returned) P('doc-revise', d.id, { emp: d.author }, d.id);
+    if (d.stage === 'approval') r.steps.filter(s => !s.res).forEach(s => P('doc-approve', d.id + '×' + s.emp, { emp: s.emp }, d.id));
+    if (d.stage === 'signing' && !d.signed) P('doc-sign', d.id, { emp: d.signer, personal: true }, d.id);
+    if (d.stage === 'signing' && d.signed) P('doc-register', d.id, { role: 'registrar' }, d.id);
     /* ознакомление — у любого зарегистрированного или сданного документа (в т.ч. «Направить на ознакомление») */
-    if (['registered', 'filed'].includes(d.stage)) d.recipients.filter(x => x.mode === 'acq' && !x.acqAt).forEach(x => {
-      const base = x.sent ? x.sent.at : d.regDate; P('doc-acquaint', d.id + '×' + x.emp, { emp: x.emp }, W(base, 3), d.id, base); });
+    if (['registered', 'filed'].includes(d.stage)) d.recipients.filter(x => x.mode === 'acq' && !x.acqAt).forEach(x => P('doc-acquaint', d.id + '×' + x.emp, { emp: x.emp }, d.id));
     if (d.stage !== 'registered') return;
-    if (d.kind === 'out' && d.addressees.some(a => !a.sentDate)) P('doc-dispatch', d.id, { role: 'registrar' }, W(d.regDate, 2), d.id, d.regDate);
+    if (d.kind === 'out' && d.addressees.some(a => !a.sentDate)) P('doc-dispatch', d.id, { role: 'registrar' }, d.id);
     if (d.kind !== 'out') {
-      d.recipients.filter(x => isExecRec(x) && !x.reviewed).forEach(x => P('doc-review', d.id + '×' + x.emp, { emp: x.emp }, W(d.regDate, 2), d.id, d.regDate));
+      d.recipients.filter(x => isExecRec(x) && !x.reviewed).forEach(x => P('doc-review', d.id + '×' + x.emp, { emp: x.emp }, d.id));
       RES.filter(x => x.doc === d.id).forEach(x => {
         const st = resState(x).code; if (['done', 'refused', 'withdrawn'].includes(st)) return;
-        if (!x.claim) P('doc-execute', x.id + '×' + x.resp, { emp: x.resp }, effDue(x), d.id);
-        x.co.forEach(c => P('doc-execute', x.id + '×' + c, { emp: c }, effDue(x), d.id));
-        if (x.claim) P('doc-control', x.id, { emp: d.controller }, W(x.claim.at, 2), d.id, x.claim.at);
+        if (!x.claim) N('doc-execute', x.id + '×' + x.resp, { emp: x.resp }, d.id, effDue(x));
+        x.co.forEach(c => N('doc-execute', x.id + '×' + c, { emp: c }, d.id, effDue(x)));
+        if (x.claim) P('doc-control', x.id, { emp: d.controller }, d.id);
       });
     }
-    if (fileReady(d).ok) P('doc-file', d.id, { role: 'archivist' }, W(S.clock, 5), d.id, S.clock);
+    if (fileReady(d).ok) P('doc-file', d.id, { role: 'archivist' }, d.id);
   });
-  ISSUES.filter(i => !i.returned && i.until < S.clock).forEach(i => P('doc-return', i.id, { emp: i.to }, i.until, i.doc));
+  ISSUES.filter(i => !i.returned && i.until < S.clock).forEach(i => N('doc-return', i.id, { emp: i.to }, i.doc, i.until));
   return out;
 }
-/* Модель «Заданий» в миниатюре. Один вызов sync() — один прогон опроса (ДО-Д19): открыть задание на
-   новый повод, свернуть новые поводы пары «вид × адресат» сверх порога в вал (§10.1 п. 6), закрыть
-   отпадением с атрибуцией. Вал — контейнер ключей: каждый ключ отпадает сам, вал закрыт, когда живых нет. */
-const thresholdOf = kind => BATCH_THRESHOLD[kind] || 10;
-const addrKey = a => a.role ? 'role:' + a.role : a.emp;
+/* Модель «Заданий» в миниатюре. Один вызов sync() — один прогон опроса: на каждый новый повод — отдельное
+   задание со своим сроком, порога и вал-задания нет (ЗНП-3); отпавший повод закрывает задание с атрибуцией. */
 function oneRun(fn) { SYNC_HOLD++; let r; try { r = fn(); } finally { SYNC_HOLD--; } if (!SYNC_HOLD) sync(); return r; }
-function closeInfo(t, key, docId) {
-  const d = doc(docId), s = STEPBY[key];
+function closeInfo(t) {
+  const d = doc(t.doc), s = STEPBY[t.key];
   let outcome = 'исполнено', note = '';
   if (d && d.stage === 'annulled') { outcome = 'снято'; note = 'документ аннулирован'; }
   else if (d && d.deleted) { outcome = 'снято'; note = 'черновик удалён'; }
@@ -1236,36 +1250,30 @@ function closeInfo(t, key, docId) {
 function sync() {
   if (SYNC_HOLD) return;
   const cur = povods(), keys = new Set(cur.map(p => p.key));
-  TASKS.filter(t => t.open).forEach(t => {
-    if (t.val) {
-      t.items.filter(i => i.live && !keys.has(i.key)).forEach(i => Object.assign(i, { live: false, closedAt: S.clock }, closeInfo(t, i.key, i.doc)));
-      if (!t.items.some(i => i.live)) {
-        const sn = t.items.filter(i => i.outcome === 'снято').length;
-        Object.assign(t, { open: false, outcome: sn === t.items.length ? 'снято' : 'исполнено', closedAt: S.clock,
-          note: `шагов ${t.items.length}: исполнено ${t.items.length - sn}` + (sn ? `, снято ${sn}` : '') });
-      }
-    } else if (!keys.has(t.key)) Object.assign(t, { open: false, closedAt: S.clock }, closeInfo(t, t.key, t.doc));
-  });
-  /* проверка «есть ли открытое задание» смотрит и на поштучные, и на списки валов */
-  const openKeys = new Set();
-  TASKS.filter(t => t.open).forEach(t => { if (t.val) t.items.filter(i => i.live).forEach(i => openKeys.add(i.key)); else openKeys.add(t.key); });
-  const fresh = cur.filter(p => !openKeys.has(p.key));
-  const prevOf = key => TASKS.filter(t => t.key === key || (t.val && t.items.some(i => i.key === key))).slice(-1)[0];
-  const groups = new Map();
-  fresh.forEach(p => { const g = p.kind + '|' + addrKey(p.addr); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
-  groups.forEach(list => {
-    const p0 = list[0];
-    if (list.length > thresholdOf(p0.kind)) {
-      const id = 'З-' + (++SEQ.task);
-      TASKS.push({ id, val: true, key: 'вал|' + id, kind: p0.kind, addr: p0.addr, due: list.map(p => p.due).sort()[0], base: p0.base, doc: null, at: S.clock, open: true, taken: null,
-        inWork: !p0.addr.role, items: list.map(p => { const prev = prevOf(p.key); return { key: p.key, doc: p.doc, due: p.due, live: true, repeatOf: prev ? prev.id : null }; }) });
-    } else list.forEach(p => {
-      const prev = prevOf(p.key);
-      TASKS.push({ id: 'З-' + (++SEQ.task), key: p.key, kind: p.kind, addr: p.addr, due: p.due, base: p.base, doc: p.doc, at: S.clock, open: true, taken: null,
-        inWork: !p.addr.role, repeatOf: prev ? prev.id : null });
-    });
+  TASKS.filter(t => t.open && !keys.has(t.key)).forEach(t => Object.assign(t, { open: false, closedAt: S.clock }, closeInfo(t)));
+  /* Названный срок ведёт документ: продление резолюции меняет срок открытого задания; срок из правила остаётся от выдачи. */
+  cur.filter(p => STEP_RULES[p.kind].dueUnit === 'named').forEach(p => { const t = TASKS.find(x => x.open && x.key === p.key); if (t) t.due = p.due; });
+  const openKeys = new Set(TASKS.filter(t => t.open).map(t => t.key));
+  cur.filter(p => !openKeys.has(p.key)).forEach(p => {
+    const prev = TASKS.filter(t => t.key === p.key).slice(-1)[0];
+    TASKS.push({ id: 'З-' + (++SEQ.task), key: p.key, kind: p.kind, addr: p.addr, due: p.due, base: p.base, doc: p.doc, at: S.clock, open: true, taken: null,
+      inWork: !p.addr.role, repeatOf: prev ? prev.id : null });
   });
   STEPBY = {};
+}
+/* Группа в списке (ЗНП-3, ЗНП-14): вид очереди заданий, а не запись — своего срока, журнала и исхода нет.
+   Задания одного вида у одного человека, в очереди роли — вид × роль; взятое уходит к взявшему; от двух. */
+function taskGroups(date = S.clock) {
+  const m = new Map();
+  TASKS.filter(t => t.open).forEach(t => {
+    const who = t.taken || t.addr.emp, key = t.kind + '|' + (who || 'role:' + t.addr.role);
+    if (!m.has(key)) m.set(key, { key, kind: t.kind, addr: t.taken ? { emp: t.taken } : t.addr, tasks: [] });
+    m.get(key).tasks.push(t);
+  });
+  return [...m.values()].filter(g => g.tasks.length >= 2).map(g => {
+    const dues = g.tasks.map(t => t.due).filter(Boolean).sort();
+    return { ...g, due: dues[0] || null, late: g.tasks.filter(t => t.due && t.due < date).length };
+  });
 }
 /* «Взять в работу» — только у очереди роли (ЗН-17): у названного адресата задание сразу в работе. */
 function takeTask(taskId, actor) {
@@ -1274,6 +1282,12 @@ function takeTask(taskId, actor) {
   if (!hasRole(actor, t.addr.role)) return no('взять можно задание очереди своей роли');
   if (t.taken) return no('задание уже взял ' + empName(t.taken));
   t.taken = actor; t.inWork = true; return yes;
+}
+/* «Взять все» у группы очереди (ЗНП-15): поштучно, отказ по одному не останавливает остальные, отказанные названы. */
+function takeTasks(ids, actor) {
+  const out = (ids || []).map(id => ({ id, ...takeTask(id, actor) })), n = out.filter(x => x.ok).length;
+  return { ok: out.length > 0 && n === out.length, taken: n, total: out.length, results: out,
+    msg: `Взято ${n} из ${out.length}` + (n < out.length ? ': ' + out.filter(x => !x.ok).map(x => x.id + ' — ' + x.why).join('; ') : '') };
 }
 /* Кто видит задание на дату: адресат или взявший; очередь, пока не взята, — все носители роли;
    замещающий адресата — видит и действует за него, задание не переезжает (ЗН-22). */
@@ -1302,6 +1316,17 @@ function taskSignals(date = S.clock) {
     }
   });
   return out;
+}
+/* Что видит человек (ЗНП-16): за прогон сообщения сводятся по «сигнал × вид шага × кому». Просрочка считается по
+   каждому заданию: taskSignals() остаётся по заданию, у строки — её задания. */
+function signalDigest(date = S.clock) {
+  const m = new Map();
+  taskSignals(date).forEach(s => {
+    const key = [s.kind, s.task.kind, s.to.join()].join('|');
+    if (!m.has(key)) m.set(key, { kind: s.kind, step: s.task.kind, to: s.to, text: s.text, tasks: [] });
+    m.get(key).tasks.push(s.task);
+  });
+  return [...m.values()].map(x => ({ ...x, due: x.tasks.map(t => t.due).sort()[0] }));
 }
 
 /* ================== действия волны 2 (ДО-30, §10.3, печать) ================== */
@@ -1530,14 +1555,6 @@ function casesCopy(actor, from, to) {
   dlog(actor, 'Номенклатура дел', 'Номенклатура скопирована', `${from} → ${to}: заведено ${made.length}, уже были ${src.length - made.length}`);
   return { ok: true, why: '', created: made.length, skipped: src.length - made.length, msg: `Заведено дел: ${made.length}, уже были: ${src.length - made.length}` };
 }
-/* Порог свёртки вида шага (§10.1 п. 6, ЗН-25): объявляет документооборот как владелец вида (ДО-Д19). */
-function thresholdSave(actor, kind, n) {
-  const g = adminGate(actor); if (g) return g;
-  if (!POVOD_NAME[kind]) return no('вид шага не найден');
-  const v = Number(n); if (!Number.isInteger(v) || v < 1) return no('порог — целое число от 1');
-  const was = thresholdOf(kind); if (was === v) return no('изменений нет');
-  BATCH_THRESHOLD[kind] = v; dlog(actor, 'Порог свёртки', 'Изменён порог', `${POVOD_NAME[kind]}: было ${was}, стало ${v}`); return yes;
-}
 
 /* ==================== перенос из старой системы (§11, С-29) ==================== */
 /* Прогон повторяемый (P25-R39): ключ — id старой системы, второй прогон новых документов не создаёт;
@@ -1574,7 +1591,7 @@ function migrationRun(actor) {
 }
 
 /* Пачка выпусков «Отчётности» → пачка черновиков с общим маршрутом (§10.2, ДО-41); с submit — сразу по
-   маршруту одним действием, то есть одним прогоном опроса: у подписанта один вал-задание (С-32). */
+   маршруту одним действием, то есть одним прогоном опроса: у подписанта по заданию на документ (С-32). */
 function fromBlankPack(packId, actor, o = {}) {
   const pk = PACKS.find(x => x.id === packId); if (!pk) return no('пачка не найдена');
   if (pk.docIds.length) return no('по пачке уже созданы черновики');
@@ -1766,7 +1783,7 @@ function seed() {
   let i5 = must(create('e8', 'in', { type: 't-in-bank', subject: 'О поступлении средств в погашение по кредиту К-14', sender: { text: 'ЗАО «Банк Компаньон»' }, senderKind: 'Банк', corrNo: '17/2290',
     corrDate: '2026-10-13', docDate: '2026-10-13', receivedDate: '2026-10-14', recipients: ['e3'] }), 'i5').id;
   must(attach(i5, 'e8', 'scan', 'bank.pdf'), 'i5 scan'); must(register(i5, 'e8'), 'i5 reg');
-  /* Пачка из 12 уведомлений «Отчётности» — одним действием на подпись Байжановой: у неё один вал-задание */
+  /* Пачка из 12 уведомлений «Отчётности» — одним действием на подпись Байжановой: 12 заданий, в очереди заданий одна группа */
   must(fromBlankPack('ПВ-41', 'e5', { signer: 'e2', submit: true }), 'пачка');
   /* Письмо — ждёт подписи Председателя */
   let o9 = must(create('e4', 'out', { type: 't-out-letter', subject: 'О графике погашения задолженности', docDate: '2026-10-14', addressees: [{ subj: 'b2' }], signer: 'e1' }), 'o9').id;
@@ -2122,33 +2139,34 @@ function viewSettings() {
     ${DICTLOG.slice().reverse().map(l => `<tr><td>${fmt(l.at)}</td><td>${esc(empName(l.by))}</td><td>${esc(l.dict)}</td><td>${esc(l.act)}</td><td>${esc(l.text)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Правок справочников нет</td></tr>'}</tbody></table>`;
   return `<div class="tabs">${T_.map(([k, l]) => `<button class="tab${k === S.setTab ? ' on' : ''}" data-testid="set-${k}" onclick="DF.setTab('${k}')">${l}</button>`).join('')}</div>${b}`;
 }
-/* «Шаги для заданий» — то, что видит шов: ответ на опрос, задания, валы, сигналы «Заданий», порог свёртки. */
+/* «Шаги для заданий» — то, что видит шов: ответ на опрос, задания, группы, сигналы «Заданий», сроки шагов. */
+const nTasks = n => { const a = n % 10, b = n % 100; return n + (a === 1 && b !== 11 ? ' задание' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? ' задания' : ' заданий'); };
 function viewTasks() {
   const u = S.user, P = povods(), docLbl = id => { const d = doc(id); return d ? KINDS[d.kind].short + ' ' + (noText(d) || 'черновик') : ''; };
   const addr = a => a.role ? 'очередь роли «' + SYS_ROLES[a.role] + '»' : empName(a.emp) + (a.personal ? ' (лично)' : '');
-  const taskOf = key => TASKS.find(t => t.open && (t.key === key || (t.val && t.items.some(i => i.live && i.key === key))));
+  const taskOf = key => TASKS.find(t => t.open && t.key === key);
   const dueTxt = (due, base) => { const n = base ? calNote(base, due) : ''; return dueCell(due) + (n ? `<div class="why err" data-testid="cal-note">${esc(n)}</div>` : ''); };
   const state = t => !t ? '' : t.addr.role ? (t.taken ? 'взял ' + esc(empName(t.taken)) : 'в очереди · не взято')
     + (!t.taken && hasRole(u, t.addr.role) ? ` <button class="btn btn-secondary btn-sm" data-testid="take-${t.id}" onclick="DF.uiTake('${t.id}')">Взять в работу</button>` : '') : 'в работе';
   const subsTxt = t => { if (!t) return ''; const v = taskViewers(t); return v.subs.map(x => esc(empName(x.emp)) + ' за ' + esc(empName(x.for)) + (x.afterIssue ? ' · замещение после выдачи — задание не переносится' : '')).join('<br>'); };
-  const vals = TASKS.filter(t => t.val), sig = taskSignals();
+  const groups = taskGroups(), sig = signalDigest(), lateN = new Set(sig.flatMap(x => x.tasks)).size;
+  const groupAct = g => g.addr.role && hasRole(u, g.addr.role) ? `<button class="btn btn-secondary btn-sm" data-testid="take-all-${g.kind}" onclick="DF.uiTakeGroup('${g.key}')">Взять все</button>` : '';
   return `<div class="section-h">Ответ на опрос: открытые шаги · ${P.length}</div><table class="cgrid" data-testid="povods"><thead><tr><th>Шаг</th><th>Документ</th><th>Адресат</th><th>Срок</th><th>Задание</th><th>Состояние</th><th>Действует за адресата</th></tr></thead><tbody>
-      ${P.map(p => { const t = taskOf(p.key); return `<tr><td>${esc(POVOD_NAME[p.kind])}</td><td>${openLink(doc(p.doc), docLbl(p.doc))}</td><td>${esc(addr(p.addr))}</td><td>${dueTxt(p.due, p.base)}</td>
-        <td class="mono">${t ? esc(t.id) + (t.val ? ' (вал)' : '') : ''}</td><td>${state(t)}</td><td>${subsTxt(t)}</td></tr>`; }).join('')}</tbody></table>
+      ${P.map(p => { const t = taskOf(p.key); return `<tr><td>${esc(POVOD_NAME[p.kind])}</td><td>${openLink(doc(p.doc), docLbl(p.doc) + ' · ' + doc(p.doc).subject)}</td><td>${esc(addr(p.addr))}</td><td>${dueTxt(t ? t.due : p.due, t ? t.base : p.base)}</td>
+        <td class="mono">${t ? esc(t.id) : ''}</td><td>${state(t)}</td><td>${subsTxt(t)}</td></tr>`; }).join('')}</tbody></table>
     <div class="small" style="margin-top:6px">У названного адресата шага «Взять в работу» нет — задание сразу в работе; очередь роли берёт любой носитель роли.</div>
-    ${vals.length ? `<div class="section-h">Вал-задания</div><table class="cgrid" data-testid="vals"><thead><tr><th>Задание</th><th>Шаг</th><th>Адресат</th><th>Шагов: живых / всего</th><th>Срок</th><th>Состояние</th><th>Документы</th></tr></thead><tbody>
-      ${vals.slice().reverse().map(t => `<tr class="${t.open ? '' : 'gone'}"><td class="mono">${esc(t.id)}</td><td>${esc(POVOD_NAME[t.kind])}</td><td>${esc(addr(t.addr))}</td><td>${t.items.filter(i => i.live).length} / ${t.items.length}</td>
-        <td>${dueCell(t.open ? t.due : null) === '—' ? fmt(t.due) : dueCell(t.due)}</td><td>${t.open ? state(t) : esc(t.outcome + (t.note ? ' · ' + t.note : ''))}</td>
-        <td class="small">${t.items.map(i => esc(docLbl(i.doc) + ' · ' + (doc(i.doc) || {}).subject) + (i.live ? '' : ' — ' + esc(i.outcome + (i.note ? ': ' + i.note : '')))).join('<br>')}</td></tr>`).join('')}</tbody></table>
-      <div class="small" style="margin-top:6px">Вал собирается, когда за один прогон опроса одному адресату пришло больше шагов одного вида, чем порог. Подписать вал можно пачкой: «Мои» → «Ждут моей подписи».</div>` : ''}
-    <div class="section-h">Сигналы «Заданий» на ${fmt(S.clock)} · ${sig.length}</div><table class="cgrid" data-testid="signals"><thead><tr><th>Задание</th><th>Шаг · документ</th><th>Срок</th><th>Сигнал</th><th>Кому</th></tr></thead><tbody>
-      ${sig.map(x => `<tr class="${x.kind === 'escalation' || x.kind === 'overdue' || x.kind === 'nobody' ? 'over' : ''}"><td class="mono">${esc(x.task.id)}</td><td>${esc(POVOD_NAME[x.task.kind])} · ${esc(x.task.val ? 'вал' : docLbl(x.task.doc))}</td>
-        <td>${fmt(x.task.due)}</td><td>${esc(x.text)}</td><td>${esc(x.to.map(empName).join(', '))}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Просроченных заданий нет</td></tr>'}</tbody></table>
-    <div class="small" style="margin-top:6px">Сигналы шлют «Задания», документооборот только отвечает на опрос. Очередь, которую никто не взял, — сразу руководителю подразделения роли; на 5-й рабочий день — администратору документооборота. Названное или взятое — исполнителю «срок истёк», на 5-й рабочий день руководителю «Просрочено задание».</div>
-    <div class="section-h">Порог свёртки по видам шагов</div><table class="cgrid" data-testid="thresholds" style="max-width:560px"><thead><tr><th>Вид шага</th><th class="num">Порог</th><th></th></tr></thead><tbody>
-      ${Object.keys(POVOD_NAME).map(k => `<tr><td>${esc(POVOD_NAME[k])}</td><td class="num">${thresholdOf(k)}</td><td>${isAdmin(u) ? `<button class="btn btn-secondary btn-sm" data-testid="thr-${k}" onclick="DF.uiThreshold('${k}')">Изменить</button>` : ''}</td></tr>`).join('')}</tbody></table>
+    <div class="section-h">Группы в очереди заданий · ${groups.length}</div><table class="cgrid" data-testid="groups"><thead><tr><th>Шаг</th><th>Кому</th><th class="num">Заданий</th><th>Ближайший срок</th><th class="num">Просрочено</th><th></th></tr></thead><tbody>
+      ${groups.map(g => `<tr data-testid="group-${g.kind}"><td>${esc(POVOD_NAME[g.kind])}</td><td>${esc(addr(g.addr))}</td><td class="num">${g.tasks.length}</td><td>${dueCell(g.due)}</td><td class="num">${g.late}</td><td>${groupAct(g)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Групп нет</td></tr>'}</tbody></table>
+    <div class="small" style="margin-top:6px">Группа — строка в очереди «Заданий» с общим действием: своего срока, журнала и исхода у неё нет, каждое задание считается отдельно. Подписать пачкой можно в «Мои» → «Ждут моей подписи».</div>
+    <div class="section-h">Сигналы «Заданий» на ${fmt(S.clock)} · заданий ${lateN}, сообщений ${sig.length}</div><table class="cgrid" data-testid="signals"><thead><tr><th>Задание</th><th>Шаг · документ</th><th>Срок</th><th>Сигнал</th><th>Кому</th></tr></thead><tbody>
+      ${sig.map(x => { const one = x.tasks.length === 1; return `<tr class="${x.kind === 'escalation' || x.kind === 'overdue' || x.kind === 'nobody' ? 'over' : ''}"><td class="${one ? 'mono' : ''}">${esc(one ? x.tasks[0].id : nTasks(x.tasks.length))}</td><td>${esc(POVOD_NAME[x.step])}${one ? ' · ' + esc(docLbl(x.tasks[0].doc)) : ''}</td>
+        <td>${fmt(x.due)}</td><td>${esc(x.text)}</td><td>${esc(x.to.map(empName).join(', '))}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">Просроченных заданий нет</td></tr>'}</tbody></table>
+    <div class="small" style="margin-top:6px">Сигналы шлют «Задания», документооборот только отвечает на опрос. Очередь, которую никто не взял, — сразу руководителю подразделения роли; на 5-й рабочий день — администратору документооборота. Названное или взятое — исполнителю «срок истёк», на 5-й рабочий день руководителю «Просрочено задание». Сообщения об одном шаге за прогон сводятся в одно, просрочка считается по каждому заданию.</div>
+    <div class="section-h">Сроки шагов</div><table class="cgrid" data-testid="step-rules" style="max-width:720px"><thead><tr><th>Вид шага</th><th>Срок</th><th>Откуда число</th></tr></thead><tbody>
+      ${Object.keys(STEP_RULES).map(k => { const r = STEP_RULES[k], named = r.dueUnit === 'named'; return `<tr data-rule="${k}"><td>${esc(POVOD_NAME[k])}</td><td>${esc(named ? r.dueFrom : r.dueN + ' р.д. от выдачи')}</td><td>${esc(named ? 'называет документ' : r.dueSource)}</td></tr>`; }).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Значения правил модуля «Задания». Менять срок можно только в правилах заданий.</div>
     <div class="section-h">Закрытые шаги</div><table class="cgrid"><thead><tr><th>Задание</th><th>Шаг</th><th>Документ</th><th>Исход</th><th>Пометка</th><th>Закрыто</th></tr></thead><tbody>
-      ${TASKS.filter(t => !t.open).slice().reverse().map(t => `<tr><td class="mono">${esc(t.id)}${t.repeatOf ? ' <span class="muted">повтор после ' + esc(t.repeatOf) + '</span>' : ''}</td><td>${esc(POVOD_NAME[t.kind])}${t.val ? ' (вал)' : ''}</td><td>${esc(t.val ? 'шагов ' + t.items.length : docLbl(t.doc))}</td><td>${esc(t.outcome)}</td><td>${esc(t.note)}</td><td>${fmt(t.closedAt)}</td></tr>`).join('')}</tbody></table>`;
+      ${TASKS.filter(t => !t.open).slice().reverse().map(t => `<tr><td class="mono">${esc(t.id)}${t.repeatOf ? ' <span class="muted">повтор после ' + esc(t.repeatOf) + '</span>' : ''}</td><td>${esc(POVOD_NAME[t.kind])}</td><td>${esc(docLbl(t.doc))}</td><td>${esc(t.outcome)}</td><td>${esc(t.note)}</td><td>${fmt(t.closedAt)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function render() {
@@ -2328,6 +2346,10 @@ function showPrint(r) { if (!r.ok) { toast(r.why, 'err'); return r; } openForm({
 function uiPrintDoc(kind, id) { return showPrint(kind === 'rkk' ? printRkk(id, S.user) : printAcq(id, S.user)); }
 function uiPrintCase(id) { return showPrint(printCase(id, S.user)); }
 function uiTake(taskId) { const r = takeTask(taskId, S.user); toast(r.ok ? 'Задание взято в работу' : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
+function uiTakeGroup(key) {
+  const g = taskGroups().find(x => x.key === key); if (!g) return no('группа не найдена');
+  const r = takeTasks(g.tasks.map(t => t.id), S.user); toast(r.msg, r.ok ? 'ok' : 'err'); render(); return r;
+}
 function pickAll(v) { document.querySelectorAll('input.pick').forEach(x => { x.checked = v; }); }
 function uiSignBatch(ids) {
   if (!ids) { ids = [...document.querySelectorAll('input.pick:checked')].map(x => x.dataset.id); }
@@ -2403,10 +2425,6 @@ function uiCase(id) {
     { id: 'place', label: 'Место хранения (кабинет, шкаф, полка)', value: c ? c.place : '', wide: true }],
     run: v => caseSave(S.user, c ? { id, name: v.name, dept: v.dept, keep: v.keep, place: v.place } : { year: v.year, idx: v.idx, name: v.name, dept: v.dept, keep: v.keep, place: v.place }) });
 }
-function uiThreshold(kind) {
-  openForm({ title: 'Порог свёртки · ' + POVOD_NAME[kind], submit: 'Сохранить', fields: [{ id: 'n', label: 'Вал — когда шагов одному адресату за прогон больше, чем', value: String(thresholdOf(kind)), req: true }],
-    run: v => thresholdSave(S.user, kind, v.n) });
-}
 
 /* ============================ шов для смоука ========================== */
 Object.assign(DF, {
@@ -2422,11 +2440,12 @@ Object.assign(DF, {
   setF(k, v) { S.f[k] = (k === 'from' || k === 'to') ? (toIso(v) || '') : v; render(); }, setInd(k, v) { const x = toIso(v); if (x) S[k] = x; render(); },
   archTab(t) { S.archTab = t; render(); }, openCase(id) { S.caseOpen = id; render(); }, setTab(t) { S.setTab = t; render(); },
   uiDraft, uiDo, uiReject, uiAnnul, uiResDone, uiResRefuse, uiCtrlReturn, uiRes, uiAttach, uiSent, uiDeliv, uiCorrect, uiFile, uiIssue, uiBlank, uiPrint, uiSaveSet, applySet, uiComment,
-  uiDo2, uiPrintDoc, uiPrintCase, uiTake, pickAll, uiSignBatch, uiSendAcq, uiMeasure, uiPack, uiType, uiPhrase, uiSign, uiMethod, uiCase, uiThreshold,
+  uiDo2, uiPrintDoc, uiPrintCase, uiTake, pickAll, uiSignBatch, uiSendAcq, uiMeasure, uiPack, uiType, uiPhrase, uiSign, uiMethod, uiCase, uiTakeGroup,
   /* волна 2 */
-  CALENDAR_YEARS, PHRASES, PACKS, MEASURE_KINDS, LEGACY_SRC, isWork, calendarYearKnown, calNote, workBetween, oneRun, thresholdOf, taskViewers, taskSignals,
+  CALENDAR_YEARS, PHRASES, PACKS, MEASURE_KINDS, LEGACY_SRC, isWork, calendarYearKnown, calNote, workBetween, oneRun, taskViewers, taskSignals,
+  STEP_RULES, taskGroups, takeTasks, signalDigest,
   sendForAcq, measureTargets, preMeasure, registerMeasure, printRkk, printAcq, printCase, typeSave, phraseSave, phraseRemove, signRightSave, methodSave, caseSave, casesCopy,
-  thresholdSave, migrationRun, fromBlankPack, waitingSign, defaultCase,
+  migrationRun, fromBlankPack, waitingSign, defaultCase,
   submitForm, closeForm, render,
 });
 [['DOCS', () => DOCS], ['RES', () => RES], ['ISSUES', () => ISSUES], ['TASKS', () => TASKS], ['COUNTERS', () => COUNTERS], ['EXT', () => EXT],
