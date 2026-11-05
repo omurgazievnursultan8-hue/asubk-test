@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { load, test, ok, no, eq, near, has, hasNot, report } from './harness.mjs';
 
+// W16-* — настройки заданий: значения с датой, новое значение только на новые поводы, норма на чтение,
+// подпись «откуда число», роль администратора справочников (НЗ-2…НЗ-4, НЗ-10, НЗ-17, НЗ-Д4; ЗН-1…ЗН-15).
 test('S0: файл грузится, шов __zt доступен', () => {
   const { zt } = load();
   ok(zt, 'window.__zt отсутствует');
@@ -86,23 +88,19 @@ test('R13-3: coverage-строка движимого неликвида нес�
   has(row.source, 'Прил.1 §2.4');
 });
 
-// R13-4: правка COVER_LIQUID в справочнике (saveRefbook) доезжает до расчёта requiredCover —
-// порог должен читаться из живой переменной верхнего уровня скрипта, а не из снапшота,
-// захваченного при первом вызове. win.COVER_LIQUID = ... НЕ годится для имитации этого:
-// top-level `let` в классическом <script> не становится свойством window (см. D1-1), так что
-// такое присваивание создаёт мёртвое свойство окна, которое requiredCover никогда не читает.
-// Настоящая мутация живого биндинга — через win.eval('COVER_LIQUID = 1.5') (косвенный eval
-// в реализме окна видит и переприсваивает тот же лексический COVER_LIQUID, что читает
-// requiredCover). Каждый test() вызывает load() заново (свежий jsdom) — эта мутация не
-// протекает в другие тесты.
-test('R13-4: правка COVER_LIQUID в справочнике доезжает до расчёта', () => {
-  const { win, zt } = load();
+// R13-4: новая редакция порога доезжает до расчёта requiredCover с даты записи. На экране порог
+// не правится, запись приходит выпуском (НЗ-4, ЗН-6).
+test('R13-4: новая редакция порога обеспеченности доезжает до расчёта с даты записи', () => {
+  const { zt } = load();
   const cs = zt.CONTRACTS.filter(c=>c.status==='Зарегистрирован');
-  const before = zt.requiredCover('К-56', cs).req;
-  near(before, 1.2, 'до правки порог — дефолтный ликвидный 120%');
-  win.eval('COVER_LIQUID = 1.5');
-  const after = zt.requiredCover('К-56', cs).req;
-  eq(after, 1.5, 'после правки справочника requiredCover должна прочитать новое значение живого COVER_LIQUID');
+  near(zt.requiredCover('К-56', cs).req, 1.2, 'до редакции порог — ликвидный 120%');
+  const res = zt.paramRelease('coverLiquid', { v:1.5, from:'01.08.2026', act:'Положение № 99, Прил. 1 §2.3', why:'новая редакция' });
+  ok(res.ok, 'выпуск принят');
+  near(zt.requiredCover('К-56', cs).req, 1.2, 'до даты записи порог прежний');
+  zt.setStandDate('01.08.2026');
+  eq(zt.requiredCover('К-56', cs).req, 1.5, 'с даты записи порог новый');
+  zt.setStandDate('31.07.2026');
+  near(zt.requiredCover('К-56', cs).req, 1.2, 'на прошлую дату — старая запись');
 });
 
 // R13-14 (Р-13, Прил.1 §2.6): заёмщик под категорией, чья обеспеченность устанавливается
@@ -638,39 +636,43 @@ test('R21-1: блок «ОТКРЫТО (Р-10)» удалён', () => {
   has(html, 'ГРАНИЦЫ МОДУЛЯ (Р-21');
 });
 
-// §16 (задача 20): справочник «Регламентные параметры залога» — ~21 параметр, каждый
-// несёт пометку источника: «норматив — <цитата>» (Положение/приложения, read-only без
-// реквизита решения Правления) либо «внутренний» (операционный, свободно редактируется).
-// Ref-1 — тест из брифа, дан ДОСЛОВНО. Он слабый (просто ищет обе подстроки где угодно
-// в файле, включая JS-комментарии) — Ref-2..Ref-5 ниже проверяют реальную реализацию:
-// гейтинг read-only по реквизиту Правления и то, что saveRefbook не спотыкается о
-// заблокированные норматив-поля.
-test('Ref-1: каждый параметр несёт пометку норматив/внутренний', () => {
-  const { win } = load();
-  const html = win.document.documentElement.outerHTML;
-  has(html, 'норматив'); has(html, 'внутренний');
-});
-test('Ref-2: без реквизита Правления норматив-поля read-only (без id), с реквизитом — редактируемы', () => {
+// Справочник «Регламентные параметры обеспечения»: у числа подпись «откуда» (НЗ-17), число нормы
+// на чтение (НЗ-4), правит только администратор справочников (НЗ-Д4). Числа и записи — блок W16.
+const asAdmin = win => { win.document.getElementById('roleSel').value = 'Администратор справочников'; win.onRoleChange(); };
+test('Ref-1 (НЗ-17): подпись источника — из трёх значений, прежних слов на экране нет', () => {
   const { win } = load();
   win.renderRefbook();
-  ok(!win.document.getElementById('rb-cov-liq'), 'rb-cov-liq (норматив) не должен быть editable input без реквизита');
-  ok(!win.document.getElementById('rb-cov-guar'), 'rb-cov-guar (норматив) не должен быть editable input без реквизита');
-  ok(!win.document.getElementById('rb-wear'), 'rb-wear (норматив) не должен быть editable input без реквизита');
-  // внутренние параметры editable всегда, вне зависимости от реквизита
-  ok(win.document.getElementById('rb-ban-days'), 'rb-ban-days (внутренний) должен быть editable input');
-  ok(win.document.getElementById('rb-doc-route'), 'rb-doc-route (внутренний) должен быть editable input');
-  win.document.getElementById('rb-board-req').value = 'Протокол Правления №1 от 01.01.2026';
-  win.rbToggleBoard();
-  ok(win.document.getElementById('rb-cov-liq'), 'с реквизитом Правления норматив-поле должно стать editable input');
-  ok(win.document.getElementById('rb-cov-guar'), 'с реквизитом Правления норматив-поле должно стать editable input');
+  const html = win.document.getElementById('refbookPanel').innerHTML;
+  has(html, 'норма · '); has(html, 'решение проекта');
+  hasNot(html, 'норматив —', 'подпись «норматив — …» заменена');
+  hasNot(html, 'внутренний (', 'подпись «внутренний …» снята');
 });
-test('Ref-3: saveRefbook не спотыкается о заблокированные (read-only) норматив-поля', () => {
+test('Ref-2 (НЗ-Д4, НЗ-4): у администратора поля только у параметров вне заданий, у остальных полей нет', () => {
   const { win } = load();
   win.renderRefbook();
-  ok(!win.document.getElementById('rb-cov-liq'), 'без реквизита норматив-поле read-only');
+  eq(win.document.querySelectorAll('#refbookPanel input:not([readonly]), #refbookPanel select').length, 0, 'куратору экран на чтение: полей ввода нет');
+  asAdmin(win);
+  win.renderRefbook();
+  ok(win.document.getElementById('rb-doc-route'), 'срок маршрута — поле у администратора');
+  ok(win.document.getElementById('rb-page-size'), 'размер страницы — поле у администратора');
+  no(win.document.getElementById('rb-ban-days'), 'срок запрета полем не правится: новое значение с датой');
+  no(win.document.getElementById('rb-cov-liq'), 'порог нормы полем не правится');
+  no(win.document.getElementById('rb-wear'), 'предел износа полем не правится');
+});
+test('Ref-3 (НЗ-Д4): saveRefbook проверяет роль, у администратора сохраняет', () => {
+  const { win } = load();
+  win.renderRefbook();
   win.saveRefbook();
-  const toasts = [...win.document.querySelectorAll('#toastWrap .toast')];
-  ok(toasts.some(t => t.className.includes('ok')), 'сохранение без реквизита Правления должно пройти успешно, а не упасть на locked-полях');
+  let toasts = [...win.document.querySelectorAll('#toastWrap .toast')];
+  ok(toasts.some(t => t.textContent.includes('правит администратор справочников')), 'куратору отказ словами');
+  no(toasts.some(t => t.className.includes('ok')), 'успеха нет');
+  asAdmin(win);
+  win.renderRefbook();
+  win.document.getElementById('rb-doc-route').value = '45';
+  win.saveRefbook();
+  toasts = [...win.document.querySelectorAll('#toastWrap .toast')];
+  ok(toasts.some(t => t.className.includes('ok')), 'администратору сохранение проходит');
+  eq(win.eval('DOC_ROUTE_DAYS'), 45, 'значение применилось');
 });
 test('Ref-4: read-only классификаторы указывают реализующую валидацию', () => {
   const { win } = load();
@@ -680,8 +682,9 @@ test('Ref-4: read-only классификаторы указывают реал�
   has(html, 'проверяется при снятии запрета');
   has(html, 'чек-лист согласования снятия запрета');
 });
-test('Ref-5: новые параметры справочника (COVER_GUARANTEE/_FX, WEAR_LIMIT, DOC_ROUTE_DAYS, каналы снятия, реестр органов) отрендерены с пометками', () => {
+test('Ref-5: параметры справочника отрендерены, каналы и реестр у администратора — поля', () => {
   const { win } = load();
+  asAdmin(win);
   win.renderRefbook();
   const html = win.document.getElementById('refbookPanel').innerHTML;
   has(html, 'Банковская гарантия в валюте кредита');
@@ -1056,12 +1059,17 @@ test('W2-6 (Р-35): просроченный SLA очереди комитета
   has(q.text, 'просрочен SLA', 'текст называет просрочку SLA');
 });
 
-// Р-35: SLA — внутренний параметр справочника, влияет на эскалацию (при большом SLA → mid).
-test('W2-7 (Р-35): рост COMMITTEE_SLA снимает эскалацию до mid', () => {
+// Р-35, НЗ-2: срок комитета берётся на дату направления. Новое значение просрочку не снимает.
+test('W2-7 (Р-35, НЗ-2): рост срока комитета не снимает просрочку, новый договор идёт по новому сроку', () => {
   const { win, zt } = load();
-  win.eval('COMMITTEE_SLA = 30');
-  const q = zt.triggers().find(t => t.type === 'Ожидает решения комитета' && t.obj === 'Д-008');
-  ok(q, 'триггер очереди присутствует'); eq(q.crit, 'mid', '16 дн. < SLA 30 → mid');
+  win.eval("role='Администратор справочников'");
+  ok(zt.setParam('committee', { v:30, from:'11.07.2026', why:'тест' }).ok, 'запись принята');
+  const q = () => zt.triggers().find(t => t.type === 'Ожидает решения комитета' && t.obj === 'Д-008');
+  ok(q(), 'триггер очереди присутствует');
+  eq(q().crit, 'high', 'направлен 25.06.2026, срок на эту дату 10: 16 дн. — просрочка остаётся');
+  zt.contract('Д-008').commissionSince = '11.07.2026';
+  zt.setStandDate('25.07.2026');
+  eq(q().crit, 'mid', 'направлен с даты новой записи: 14 дн. < 30');
 });
 
 // Р-36: документарный гейт (§5.2 предпосылки) блокирует направление в комитет —
@@ -2631,7 +2639,7 @@ test('W9-13 (ДГ-15): журнал договора пишет обе метр�
   ok(d.history.length > before, 'запись добавлена');
   has(last, 'Обеспеченность', 'запись открывается термином глоссария');
   hasNot(last, 'Покрытие', 'слово «покрытие» из журнала убрано (CONTEXT.md)');
-  has(last, 'при пороге', 'порог назван — он меняется решением Правления');
+  has(last, 'при пороге', 'порог назван — он меняется новой редакцией акта');
   has(last, 'индекс', 'индекс назван — им живут экран и гейт');
   // Сидовые записи приведены к тому же виду.
   const seed = zt.contract('Д-001').history[0].what;
@@ -4094,23 +4102,372 @@ test('W15-21 (ПР-11): меню — «Договоры поручительст
   has(win.document.getElementById('listBody').innerHTML, 'ДП-', 'пункт открывает реестр договоров');
 });
 
-// ПР-2/ПР-11: нормативы допуска §9.1 стали параметрами справочника, а не константами кода.
-test('W15-22 (ПР-2): диапазон возраста поручителя правится в справочнике', () => {
+// ПР-2/ПР-11: нормативы допуска §9.1 показаны в справочнике на чтение; договор судится по записи на свою дату.
+test('W15-22 (ПР-2, НЗ-4, ЗН-7): диапазон возраста на чтение, новая редакция только для новых договоров', () => {
   const { win, zt } = load();
   win.navClick('Регламентные параметры обеспечения');
   const txt = win.document.getElementById('refbookPanel').innerHTML;
-  has(txt, 'озраст поручителя', 'диапазон возраста — параметр справочника');
+  has(txt, 'озраст поручителя', 'диапазон возраста показан в справочнике');
   has(txt, 'основания прекращения', 'классификатор оснований показан там же');
   has(txt, 'Отсутствие просроченной задолженности', 'таблица гейтов допуска §9.1/§9.2');
-  // §16: правка норматива требует реквизита решения Правления — без него поля нет в DOM вовсе
-  no(win.document.getElementById('rb-sur-age-max'), 'без решения Правления поле норматива read-only и без id');
-  win.document.getElementById('rb-board-req').value = 'Протокол Правления №7 от 20.07.2026';
-  win.rbToggleBoard();
-  win.document.getElementById('rb-sur-age-max').value = '65';
+  no(win.document.getElementById('rb-sur-age-max'), 'поля нормы нет');
+  const s = zt.surety('ДП-003');
+  has(zt.suretyGates(s).rows.find(r => r.code === 'Г1').result, '18–70', 'до редакции диапазон прежний');
+  ok(zt.paramRelease('surAgeMax', { v:65, from:'11.07.2026', act:'Положение № 99, §9.1', why:'новая редакция' }).ok, 'выпуск принят');
+  has(zt.suretyGates(s).rows.find(r => r.code === 'Г1').result, '18–70', 'договор от 18.09.2025 судится по прежней записи');
+  s.date = '15.07.2026';
+  has(zt.suretyGates(s).rows.find(r => r.code === 'Г1').result, '18–65', 'договор после даты записи — по новой');
+});
+
+// ===== Волна 16: настройки заданий (НЗ-2, НЗ-3, НЗ-4, НЗ-10, НЗ-17, НЗ-Д4; ЗН-1…ЗН-15).
+const W16_ADMIN = 'Администратор справочников';
+const loadAdmin = () => { const x = load(); x.win.eval(`role='${W16_ADMIN}'`); return x; };
+
+test('W16-1 (ЗН-13): без новых записей числа стенда те же', () => {
+  const { win, zt } = load();
+  eq(zt.triggers().length, 44, 'на стенде 44 триггера');
+  eq(zt.suretyTerm(zt.surety('ДП-005')).state, 'истекает', 'ДП-005: 52 дн. при пороге 60');
+  eq(win.eval("nextReval(item('П-028'))"), '20.02.2026', 'план переоценки П-028');
+  eq(win.eval("nextReval(item('П-036'))"), '10.01.2025', 'план раньше первой записи: она действует и на более ранние даты');
+  eq(zt.nextSurvey(zt.item('П-036')), '12.01.2026', 'план обследования П-036');
+  eq(zt.apprValidTill(zt.item('П-004')), '03.02.2026', 'годность отчёта П-004');
+  eq(zt.banDeadline(zt.item('П-017')), '17.07.2026', 'срок запрета П-017');
+});
+
+test('W16-2 (НЗ-2, ЗН-2): поручительство, порог снижен: открытое остаётся, новое считается по новому', () => {
+  const { zt } = loadAdmin();
+  const before = zt.triggers().filter(t => t.type === 'Срок поручительства истекает').map(t => t.obj).join();
+  ok(zt.setParam('surWarn', { v:30, from:'11.07.2026', why:'снижаем нагрузку' }).ok, 'запись принята');
+  eq(zt.suretyTerm(zt.surety('ДП-005')).state, 'истекает', 'ДП-005: 52 дн., повод наступил 03.07.2026 — остаётся');
+  eq(zt.triggers().filter(t => t.type === 'Срок поручительства истекает').map(t => t.obj).join(), before, 'состав очереди тот же');
+  zt.setStandDate('10.11.2026');
+  eq(zt.suretyTerm(zt.surety('ДП-007')).state, 'действует', 'ДП-007: 56 дн. при новом пороге 30 — повода нет');
+  zt.setStandDate('06.12.2026');
+  eq(zt.suretyTerm(zt.surety('ДП-007')).state, 'истекает', 'ДП-007: ровно 30 дн. — повод появился');
+});
+
+test('W16-3 (НЗ-2, ЗН-2): поручительство, порог поднят: повод появляется в день записи', () => {
+  const { zt } = loadAdmin();
+  eq(zt.suretyTerm(zt.surety('ДП-007')).state, 'действует', 'до записи 178 дн. при пороге 60');
+  ok(zt.setParam('surWarn', { v:200, from:'01.08.2026', why:'раньше готовить продление' }).ok, 'запись принята');
+  eq(zt.suretyTerm(zt.surety('ДП-007')).state, 'действует', 'запись ещё не вступила');
+  zt.setStandDate('01.08.2026');
+  const t = zt.suretyTerm(zt.surety('ДП-007'));
+  eq(t.state, 'истекает', 'с даты записи повод есть');
+  eq(t.warnFrom, '01.08.2026', 'появился в день записи');
+});
+
+test('W16-4 (НЗ-2, ЗН-2): запрет считается по значению на дату удостоверения', () => {
+  const { zt } = loadAdmin();
+  ok(zt.setParam('banDays', { v:20, from:'11.07.2026', why:'долгая очередь в органе' }).ok, 'запись принята');
+  const it = zt.item('П-017');
+  eq(zt.banDeadline(it), '17.07.2026', 'удостоверен 10.07.2026: срок по 5 р.д. остался');
+  zt.CONTRACTS.filter(c => c.allocs.some(a => a.item === it.id)).forEach(c => { c.notaryDate = '13.07.2026'; });
+  eq(zt.banDeadline(it), '10.08.2026', 'удостоверен после записи: 13.07.2026 + 20 р.д.');
+});
+
+test('W16-5 (НЗ-2, НЗ-10): интервал переоценки поднят: просрочка остаётся, план будущего сдвигается', () => {
+  const { win, zt } = loadAdmin();
+  ok(zt.setParam('reval:Недвижимое имущество', { v:36, from:'11.07.2026', why:'тест' }).ok, 'запись принята');
+  eq(win.eval("nextReval(item('П-028'))"), '20.02.2026', 'просрочена с 20.02.2026 — дата та же');
+  eq(win.eval("revalOverdue(item('П-028'))"), true, 'просрочка не снята');
+  eq(win.eval("nextReval(item('П-001'))"), '20.01.2029', 'повод не наступил: 20.01.2026 + 36 мес.');
+});
+
+test('W16-6 (НЗ-2, НЗ-10): интервал переоценки снижен: повод появляется в день записи, не задним числом', () => {
+  const { win, zt } = loadAdmin();
+  ok(zt.setParam('reval:Недвижимое имущество', { v:12, from:'11.07.2026', why:'тест' }).ok, 'запись принята');
+  eq(win.eval("nextReval(item('П-004'))"), '11.07.2026', 'по 12 мес. было бы 03.02.2026: новое значение назад не действует');
+  eq(win.eval("revalOverdue(item('П-004'))"), false, 'в день записи ещё не просрочено');
+  zt.setStandDate('12.07.2026');
+  eq(win.eval("revalOverdue(item('П-004'))"), true, 'на следующий день просрочено');
+});
+
+test('W16-7 (НЗ-10, ЗН-14): годность отчёта — строка на экране, карточка и комплект читают одну запись', () => {
+  const { win, zt } = loadAdmin();
+  win.navClick('Регламентные параметры обеспечения');
+  const row = win.document.querySelector('[data-param="appraisal"]');
+  ok(row, 'строка годности отчёта на экране');
+  has(row.textContent, '12 мес.', 'значение');
+  has(row.textContent, 'решение проекта', 'подпись');
+  const req = zt.FILE_REQ_COMMON.find(r => r.t === 'Отчёт об оценке');
+  eq(req.validMonths, 12, 'комплект читает запись');
+  ok(zt.setParam('appraisal', { v:24, from:'11.07.2026', why:'тест' }).ok, 'запись принята');
+  eq(req.validMonths, 24, 'комплект читает новую запись');
+  eq(zt.apprValidTill(zt.item('П-004')), '03.02.2026', 'устаревший отчёт новое значение не омолаживает');
+  eq(zt.apprStale(zt.item('П-004')), true, 'П-004 остаётся устаревшим');
+  eq(zt.apprValidTill(zt.item('П-001')), '20.01.2028', 'годный отчёт считается по новому: 20.01.2026 + 24 мес.');
+  const st = zt.fileStatusOf(req, { docDate:'20.01.2026' });
+  eq(st.till, '20.01.2028', 'строка комплекта даёт ту же дату, что карточка');
+});
+
+test('W16-8 (НЗ-3): отказы словами, запись не появляется', () => {
+  const { win, zt } = loadAdmin();
+  const n = () => zt.PARAMS.surWarn.recs.length;
+  const why = spec => { const r = zt.setParam('surWarn', spec); no(r.ok, 'должен быть отказ'); return r.why; };
+  has(why({ v:30, from:'', why:'x' }), 'дата начала обязательна');
+  has(why({ v:30, from:'10.07.2026', why:'x' }), 'прошлая дата запрещена');
+  has(why({ v:30, from:'11.07.2026', why:'  ' }), 'основание обязательно');
+  has(why({ v:'тридцать', from:'11.07.2026', why:'x' }), 'не целое положительное');
+  has(why({ v:0, from:'11.07.2026', why:'x' }), 'не целое положительное');
+  has(why({ v:60, from:'11.07.2026', why:'x' }), 'значения те же');
+  win.eval("role='Наблюдатель'");
+  has(why({ v:30, from:'11.07.2026', why:'x' }), 'правит администратор справочников');
+  eq(n(), 1, 'записей по-прежнему одна');
+});
+
+test('W16-9 (НЗ-3, ЗН-10): новое значение окном, прежняя запись цела, история рядом со строкой', () => {
+  const { win, zt } = loadAdmin();
+  win.navClick('Регламентные параметры обеспечения');
+  const buttons = () => [...win.document.querySelectorAll('#refbookPanel [data-param] button')];
+  eq(buttons().length, 14, 'кнопка у 14 строк: четыре числа и десять интервалов');
+  no(win.document.querySelector('[data-param-hist="banDays"]'), 'при одной записи истории нет');
+  win.openParamEdit('banDays');
+  const box = win.document.querySelector('.modal.form');
+  has(box.textContent, '5 р.д.', 'окно называет текущее значение');
+  eq(win.document.getElementById('rbpFrom').min, '2026-07-11', 'прошлую дату не выбрать');
+  win.document.getElementById('rbpVal').value = '7';
+  win.document.getElementById('rbpFrom').value = '2026-09-01';
+  win.document.getElementById('rbpWhy').value = 'очередь в регистрирующем органе';
+  win.saveParamEdit();
+  eq(zt.PARAMS.banDays.recs.length, 2, 'записей две');
+  eq(zt.PARAMS.banDays.recs[0].v, 5, 'прежняя цела');
+  eq(zt.PARAMS.banDays.recs[1].by, W16_ADMIN, 'кто внёс');
+  const hist = () => win.document.querySelector('[data-param-hist="banDays"]').textContent;
+  has(hist(), 'с 01.09.2026: 7 р.д.', 'новая запись в истории');
+  has(hist(), 'очередь в регистрирующем органе', 'с основанием');
+  has(hist(), 'ещё не вступила', 'будущая запись помечена');
+  has(win.document.querySelector('[data-param="banDays"]').textContent, '5 р.д.', 'в строке пока действующее значение');
+  zt.setStandDate('01.09.2026');
+  has(win.document.querySelector('[data-param="banDays"]').textContent, '7 р.д.', 'с даты записи в строке новое');
+  hasNot(hist(), 'ещё не вступила', 'пометка снята');
+});
+
+test('W16-10 (НЗ-4): порог нормы на чтение, отказ называет акт, новая редакция — новая запись', () => {
+  const { win, zt } = loadAdmin();
+  win.navClick('Регламентные параметры обеспечения');
+  const row = win.document.querySelector('[data-param="coverLiquid"]');
+  has(row.textContent, '120 %', 'значение');
+  has(row.textContent, 'норма · Положение о работе с залогом № 22, Прил. 1 §2.3–2.4', 'акт и пункт');
+  no(row.querySelector('button, input'), 'ни кнопки, ни поля');
+  const r = zt.setParam('coverLiquid', { v:130, from:'11.07.2026', why:'x' });
+  no(r.ok, 'правка отказана');
+  has(r.why, 'Прил. 1 §2.3–2.4', 'отказ называет пункт');
+  has(r.why, 'через выпуск', 'и порядок');
+  hasNot(win.document.getElementById('refbookPanel').textContent, 'Правлени', 'реквизита Правления на экране нет');
+  no(zt.paramRelease('coverLiquid', { v:1.3, from:'01.08.2026', why:'x' }).ok, 'без акта не вводится');
+  no(zt.paramRelease('coverLiquid', { v:1.3, from:'01.07.2026', act:'акт', why:'x' }).ok, 'прошлой датой не вводится');
+  ok(zt.paramRelease('coverLiquid', { v:1.3, from:'01.08.2026', act:'Положение № 99, Прил. 1 §2.3', why:'новая редакция' }).ok, 'выпуск принят');
+  eq(zt.PARAMS.coverLiquid.recs.length, 2, 'старая запись осталась');
+  win.renderRefbook();
+  has(win.document.querySelector('[data-param="coverLiquid"]').textContent, '120 %', 'до даты — прежнее');
+  has(win.document.querySelector('[data-param-hist="coverLiquid"]').textContent, 'с 01.08.2026: 130 %', 'новая редакция в истории');
+  zt.setStandDate('01.08.2026');
+  has(win.document.querySelector('[data-param="coverLiquid"]').textContent, 'Положение № 99', 'с даты подпись новой редакции');
+});
+
+test('W16-11 (НЗ-4, НЗ-2): новая редакция матрицы не снимает просрочку обследования', () => {
+  const { win, zt } = load();
+  const m = JSON.parse(JSON.stringify(zt.PARAMS.surveyMatrix.recs[0].v));
+  m['Платёжеспособные'].immovable = 48;
+  ok(zt.paramRelease('surveyMatrix', { v:m, from:'11.07.2026', act:'Положение № 99, Прил. 2 §2.3', why:'новая редакция' }).ok, 'выпуск принят');
+  eq(zt.nextSurvey(zt.item('П-036')), '12.01.2026', 'П-036: просрочка с 12.01.2026 остаётся');
+  ok(zt.triggers().some(t => t.type === 'Просрочен контроль: обследование' && t.obj === 'П-036'), 'триггер остался');
+  eq(zt.nextSurvey(zt.item('П-001')), '15.03.2030', 'П-001: повод не наступил, 15.03.2026 + 48 мес.');
+  win.renderRefbook();
+  const p = win.document.getElementById('refbookPanel');
+  has(p.textContent, 'с 11.07.2026: 48/24/24/12 мес.', 'матрица показана с историей');
+  has(p.textContent, 'норма · Положение № 99, Прил. 2 §2.3', 'подпись у матрицы — новой редакции');
+  eq(p.querySelectorAll('[id^="rb-sm-"]').length, 0, 'полей матрицы нет');
+});
+
+test('W16-12 (НЗ-17, ЗН-12): подпись задаёт запись, вручную не выбирается', () => {
+  const { win, zt } = loadAdmin();
+  eq(zt.paramSrc(zt.recOn('surWarn')), 'решение проекта', 'без акта — решение проекта');
+  has(zt.paramSrc(zt.recOn('coverMovable')), 'норма · ', 'число нормы');
+  no(zt.setParam('surWarn', { v:45, from:'11.07.2026', why:'приказ', order:'приказ директора' }).ok, 'приказ без номера и даты отказан');
+  ok(zt.setParam('surWarn', { v:45, from:'11.07.2026', why:'издан приказ', order:'приказ № 7 от 25.06.2026' }).ok, 'с приказом принято');
+  eq(zt.paramSrc(zt.recOn('surWarn')), 'внутренний акт · приказ № 7 от 25.06.2026', 'подпись выведена из записи');
+  eq(zt.paramSrc(zt.PARAMS.surWarn.recs[0]), 'решение проекта', 'старая запись подпись не меняет');
+  win.openParamEdit('surWarn');
+  no(win.document.querySelector('.modal.form select'), 'выбора подписи в окне нет');
+});
+
+test('W16-13 (НЗ-Д4, ЗН-9): роль в макете, экран остальным на чтение, прав куратора нет', () => {
+  const { win, zt } = load();
+  const options = [...win.document.getElementById('roleSel').options].map(o => o.value);
+  ok(options.includes(W16_ADMIN), 'роль в списке');
+  win.navClick('Регламентные параметры обеспечения');
+  for(const r of options.filter(o => o !== W16_ADMIN && o !== 'Комитет по администрированию бюджетных кредитов')){
+    win.document.getElementById('roleSel').value = r;
+    win.onRoleChange();
+    const panel = win.document.getElementById('refbookPanel');
+    eq(panel.querySelectorAll('input:not([readonly]), select, button').length, 0, `роль «${r}»: экран на чтение`);
+    eq(win.document.getElementById('refbookFooter').querySelectorAll('button').length, 0, `роль «${r}»: кнопки сохранения нет`);
+    has(panel.textContent, 'экран только читает', `роль «${r}»: сказано словами`);
+  }
+  win.document.getElementById('roleSel').value = W16_ADMIN;
+  win.onRoleChange();
+  ok(win.document.querySelector('#refbookFooter button'), 'администратору кнопка сохранения появилась без перехода');
+  ok(win.document.querySelector('#refbookPanel [data-param="banDays"] button'), 'и кнопка нового значения');
+  no(zt.canCurate(), 'прав куратора нет');
+  win.renderList();
+  eq(win.document.getElementById('btnNew').style.display, 'none', 'создавать предметы не может');
+});
+
+test('W16-14 (ЗН-8): ужесточение по риску подписано «решение проекта», числа те же', () => {
+  const { win, zt } = load();
+  win.renderRefbook();
+  const t = win.document.getElementById('refbookPanel').textContent;
+  has(t, 'Ужесточение периодичности по категории рискарешение проекта', 'подпись у заголовка');
+  hasNot(t, 'ПОР п.10', 'ссылки на пункт без этих чисел нет');
+  eq(zt.effectiveInterval('Платёжеспособные', true, 'Высокий', zt.RISK_TIGHTENING_APPROVAL), 6, '24 × 0,25 = 6: расчёт тот же');
+  no(zt.triggers().some(x => x.text.includes('ПОР п.10')), 'в тексте триггера ссылки на этот пункт нет');
+});
+
+test('W16-16 (НЗ-3): запись на ту же дату и раньше последней не ставятся', () => {
+  const { zt } = loadAdmin();
+  ok(zt.setParam('surWarn', { v:30, from:'01.09.2026', why:'первая' }).ok, 'будущая запись принята');
+  has(zt.setParam('surWarn', { v:40, from:'01.09.2026', why:'та же дата' }).why, 'ставится позже', 'на ту же дату — отказ');
+  has(zt.setParam('surWarn', { v:40, from:'15.08.2026', why:'раньше' }).why, 'ставится позже', 'раньше последней — отказ');
+  eq(zt.PARAMS.surWarn.recs.length, 2, 'записей две');
+});
+
+test('W16-17 (ЗН-15): запись, которая ещё не вступила, отменяется и остаётся в истории', () => {
+  const { win, zt } = loadAdmin();
+  win.navClick('Регламентные параметры обеспечения');
+  ok(zt.setParam('banDays', { v:7, from:'01.09.2036', why:'опечатка в годе' }).ok, 'запись принята');
+  no(zt.setParam('banDays', { v:7, from:'01.09.2026', why:'исправляю' }).ok, 'поверх неё новая не ставится');
+  win.renderRefbook();
+  const hist = () => win.document.querySelector('[data-param-hist="banDays"]');
+  hist().querySelector('button').click();
+  eq(zt.PARAMS.banDays.recs.length, 1, 'осталась прежняя запись');
+  has(hist().textContent, 'с 01.09.2036: 7 р.д.', 'отменённая видна в истории');
+  has(hist().textContent, 'отменена 11.07.2026', 'с пометкой');
+  no(hist().querySelector('button'), 'повторно отменять нечего');
+  ok(zt.setParam('banDays', { v:7, from:'01.09.2026', why:'верный год' }).ok, 'теперь верная запись ставится');
+  eq(zt.banDeadline(zt.item('П-017')), '17.07.2026', 'на расчёт отмена не повлияла');
+  zt.setStandDate('01.09.2026');
+  has(zt.cancelParam('banDays').why, 'ещё не вступила', 'вступившая не отменяется');
+  eq(zt.PARAMS.banDays.recs.length, 2, 'записи целы');
+});
+
+test('W16-18 (ЗН-15, НЗ-4, НЗ-Д4): отмена — только у администратора и не у нормы', () => {
+  const { win, zt } = loadAdmin();
+  ok(zt.setParam('surWarn', { v:30, from:'01.09.2026', why:'тест' }).ok, 'запись принята');
+  ok(zt.paramRelease('coverLiquid', { v:1.3, from:'01.08.2026', act:'Положение № 99, Прил. 1 §2.3', why:'новая редакция' }).ok, 'выпуск принят');
+  has(zt.cancelParam('coverLiquid').why, 'не отменяется', 'новая редакция акта на экране не отменяется');
+  win.eval("role='Наблюдатель'");
+  has(zt.cancelParam('surWarn').why, 'правит администратор справочников', 'другой роли отказ');
+  eq(zt.PARAMS.surWarn.recs.length, 2, 'запись цела');
+  win.renderRefbook();
+  no(win.document.querySelector('[data-param-hist="surWarn"] button'), 'кнопки у другой роли нет');
+});
+
+test('W16-19 (НЗ-4): порог сравнялся — правило доли ликвида идёт за составом, а не за числом', () => {
+  const { win, zt } = load();
+  const cs = zt.CONTRACTS.filter(c => c.status === 'Зарегистрирован');
+  const applies = id => win.eval(`liquidShareApplies('${id}', CONTRACTS.filter(c => c.status === 'Зарегистрирован'))`);
+  no(applies('К-99'), 'К-99 чисто ликвидный: доли нет и до редакции');
+  ok(applies('К-125'), 'К-125 смешанный: доля есть');
+  ok(zt.paramRelease('coverLiquid', { v:1.5, from:'11.07.2026', act:'Положение № 99, Прил. 1 §2.3', why:'новая редакция' }).ok, 'пороги равны 150 %');
+  eq(zt.requiredCover('К-99', cs).req, 1.5, 'порог К-99 по новой редакции');
+  no(applies('К-99'), 'К-99 остаётся без правила доли');
+  ok(applies('К-125'), 'К-125 остаётся с правилом');
+  no(zt.triggers().some(t => /доля ликвидного залога/.test(t.text) && t.text.includes('К-95')), 'К-95 под одной гарантией не получает упрёка в доле ликвида');
+  const { zt:zt2 } = load();
+  ok(zt2.paramRelease('coverMovable', { v:1.2, from:'11.07.2026', act:'Положение № 99, Прил. 1 §2.4', why:'новая редакция' }).ok, 'пороги равны 120 %');
+  no(zt2.triggers().some(t => /Недостаточность/.test(t.type) && t.text.includes('К-99')), 'снижение порога не добавляет К-99 в очередь');
+});
+
+test('W16-20 (НЗ-4): подписи на карточках читают запись, а не зашитые 80 % и 150 %', () => {
+  const { win, zt } = load();
+  ok(zt.paramRelease('liquidShare', { v:0.7, from:'11.07.2026', act:'Положение № 99, Прил. 1 §2.4', why:'новая редакция' }).ok, 'выпуск принят');
+  ok(zt.paramRelease('coverMovable', { v:1.6, from:'11.07.2026', act:'Положение № 99, Прил. 1 §2.4', why:'новая редакция' }).ok, 'выпуск принят');
+  const c = zt.CONTRACTS.find(x => x.status === 'Зарегистрирован' && x.credits.some(id => win.eval(`liquidShareApplies('${id}', CONTRACTS.filter(c => c.status === 'Зарегистрирован'))`)));
+  ok(c, 'есть договор с правилом доли');
+  win.openCard('contract', c.id, 2);
+  const txt = win.document.getElementById('view-detail').textContent;
+  has(txt, '/ 70%', 'вкладка обеспеченности: доля из записи');
+  hasNot(txt, '/ 80%', 'прежней подписи нет');
+  has(win.contractGates(c).rows.find(r => /доля ликвида/.test(r.basis || '')).basis, '≥ 70%', 'основание гейта: доля из записи');
+});
+
+test('W16-21 (НЗ-2, ЗН-2): рядом с датой показано значение, по которому она посчитана', () => {
+  const { win, zt } = load();
+  const m = JSON.parse(JSON.stringify(zt.PARAMS.surveyMatrix.recs[0].v));
+  m['Платёжеспособные'].immovable = 48;
+  ok(zt.paramRelease('surveyMatrix', { v:m, from:'11.07.2026', act:'Положение № 99, Прил. 2 §2.3', why:'новая редакция' }).ok, 'матрица 48 мес.');
+  const t = zt.triggers().find(x => x.type === 'Просрочен контроль: обследование' && x.obj === 'П-036');
+  has(t.text, 'Плановая дата 12.01.2026', 'дата по прежней записи');
+  has(t.text, '36 мес.', 'и интервал той же записи');
+  hasNot(t.text, '48 мес.', 'новый интервал к этой дате не приписан');
+  eq(zt.surveyRule(zt.item('П-001')).interval, 48, 'у ненаступившего — новый интервал');
+  win.eval("role='Администратор справочников'");
+  ok(zt.setParam('reval:Недвижимое имущество', { v:36, from:'11.07.2026', why:'тест' }).ok, 'переоценка 36 мес.');
+  eq(zt.revalMonths(zt.item('П-028')), 24, 'П-028: план 20.02.2026 посчитан по 24');
+  eq(zt.revalMonths(zt.item('П-001')), 36, 'П-001: план 20.01.2029 посчитан по 36');
+  ok(zt.setParam('appraisal', { v:24, from:'11.07.2026', why:'тест' }).ok, 'годность 24 мес.');
+  eq(zt.apprRule(zt.item('П-004')).rec.v, 12, 'П-004: устарел 03.02.2026 по 12 мес.');
+  const req = zt.FILE_REQ_COMMON.find(r => r.t === 'Отчёт об оценке');
+  const st = zt.fileStatusOf(req, { docDate:'03.02.2025' });
+  eq(st.months, 12, 'комплект: «истёк» показан со сроком 12');
+  eq(st.label, 'истёк 03.02.2026', 'и с той же датой');
+  eq(zt.fileStatusOf(req, { docDate:'20.01.2026' }).months, 24, 'годный отчёт — со сроком 24');
+});
+
+test('W16-22 (ЗН-3): новое значение и смена даты стенда не теряют несохранённые поля', () => {
+  const { win, zt } = loadAdmin();
+  win.navClick('Регламентные параметры обеспечения');
+  win.document.getElementById('rb-doc-route').value = '45';
+  win.document.getElementById('rb-o-Оборудование').value = 'Новый реестр';
+  win.openParamEdit('banDays');
+  win.document.getElementById('rbpVal').value = '7';
+  win.document.getElementById('rbpWhy').value = 'тест';
+  win.saveParamEdit();
+  eq(win.document.getElementById('rb-doc-route').value, '45', 'поле срока осталось');
+  eq(win.document.getElementById('rb-o-Оборудование').value, 'Новый реестр', 'поле органа осталось');
+  eq(win.eval('DOC_ROUTE_DAYS'), 30, 'без «Сохранить» значение не применилось');
+  zt.setStandDate('12.07.2026');
+  eq(win.document.getElementById('rb-doc-route').value, '45', 'смена даты стенда поле не сбрасывает');
   win.saveRefbook();
-  eq(win.eval('SUR_AGE_MAX'), 65, 'норматив применился');
-  const g1 = zt.suretyGates(zt.surety('ДП-003')).rows.find(r => r.code === 'Г1');
-  has(g1.result, '18–65', 'гейт считает по параметру справочника, а не по литералу');
+  eq(win.eval('DOC_ROUTE_DAYS'), 45, 'после сохранения применилось');
+});
+
+test('W16-23 (НЗ-4, ПР-2): выпуск проверяет значение, плохая редакция не проходит', () => {
+  const { zt } = load();
+  const rel = (key, v) => zt.paramRelease(key, { v, from:'11.07.2026', act:'Положение № 99', why:'новая редакция' });
+  const obs = () => zt.triggers().filter(t => t.type === 'Просрочен контроль: обследование').length;
+  const base = obs();
+  has(rel('surveyMatrix', 48).why, 'матрица', 'матрица не числом');
+  eq(obs(), base, 'триггеры обследования те же');
+  has(rel('coverLiquid', 130).why, 'от 100 % до 500 %', '130 вместо 1.3: порог 13000 % не проходит');
+  has(rel('coverLiquid', 0.9).why, 'от 100 % до 500 %', 'порог ниже 100 %');
+  has(rel('liquidShare', 1.5).why, '(0; 100 %]', 'доля больше 100 %');
+  has(rel('wear', 'abc').why, 'не положительное', 'износ не числом');
+  has(rel('surAgeMax', 10).why, 'больше минимального', 'максимум ниже минимума');
+  has(rel('surAgeMin', 80).why, 'меньше максимального', 'минимум выше максимума');
+  ok(rel('surAgeMax', 65).ok, 'верная редакция проходит');
+});
+
+test('W16-24 (НЗ-4): число стало нормой — кнопки нового значения у строки нет', () => {
+  const { win, zt } = loadAdmin();
+  ok(zt.paramRelease('surWarn', { v:30, from:'11.07.2026', act:'Приказ-норма № 5', why:'закреплено актом' }).ok, 'выпуск принят');
+  win.navClick('Регламентные параметры обеспечения');
+  no(win.document.querySelector('[data-param="surWarn"] button'), 'кнопки нет');
+  ok(win.document.querySelector('[data-param="banDays"] button'), 'у остальных есть');
+  has(zt.setParam('surWarn', { v:40, from:'12.07.2026', why:'x' }).why, 'число задаёт норма', 'запись отказывает словами');
+});
+
+test('W16-15: на экране нет номеров решений и пояснений из канона', () => {
+  const { win } = load();
+  win.renderRefbook();
+  const t = win.document.getElementById('refbookPanel').textContent;
+  for(const code of ['НЗ-', 'ЗН-', 'ADR', 'ПР-', 'Р-3', 'Р-22', 'Правлени']) hasNot(t, code, `«${code}» на экране`);
+  win.eval("role='Администратор справочников'");
+  win.openParamEdit('surWarn');
+  const box = win.document.querySelector('.modal.form').textContent;
+  for(const code of ['НЗ-', 'ЗН-', 'ADR']) hasNot(box, code, `«${code}» в окне`);
 });
 
 report();
