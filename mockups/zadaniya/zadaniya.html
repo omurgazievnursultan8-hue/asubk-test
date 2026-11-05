@@ -1837,7 +1837,7 @@ function seedOwnerObjects(){ return {
   /* заключения анализа по заёмщикам (для ответа «документы досье»): период — название из записи анализа, повод, дата утверждения
      (черновик — null), кто утвердил */
   anz: [
-    {no:'ФА-7', subj:'01105201910011', period:'1П 2027', occasion:'plan', approvedAt:'2027-01-20', by:'E3'},
+    {no:'ФА-7', subj:'01105201910011', period:'2П 2026', occasion:'plan', approvedAt:'2027-01-11', by:'E3'},
   ],
   /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
      на приказ, редакция на дату; пусто — периодичность не объявлена */
@@ -2481,16 +2481,16 @@ function analysisDocs(subj, d){
     .forEach(a=>{ if(!docs.some(x=>x.period===a.period)) docs.push({type:ZM_DOC.анализ, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}); });
   return docs.sort((a, b)=>a.date<b.date ? -1 : a.date>b.date ? 1 : 0);
 }
-/* открытые периоды анализа ФХС: условие идущего периода — на сегодня, закрытого — на его конец; период до ввода вида не входит;
-   закрывает заключение именно за этот период */
+/* открытые периоды анализа ФХС: только закончившиеся, условие читается на конец периода, задание появляется на следующий день;
+   за идущий период задания нет, период до ввода вида не входит; закрывает заключение именно за этот период */
 function zmFhsOpen(s, d){
   const out = [], o = ownerObj('zm', s.id);
   if(s.repaid) return out;
   const docs = analysisDocs(s.id, d);
-  for(let p = halfOf(kindOf('pk-zm-fhs').activatedAt||d); p.from<=d; p = halfOf(addDays(p.to, 1))){
-    const x = zmAt(o, p.to<d ? p.to : d), name = anPeriodName(p.from);
+  for(let p = halfOf(kindOf('pk-zm-fhs').activatedAt||d); p.to<d; p = halfOf(addDays(p.to, 1))){
+    const x = zmAt(o, p.to), name = anPeriodName(p.from);
     if(!x || !x.fhsSince || docs.some(e=>e.period===name)) continue;
-    out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:dateMax(x.fhsSince, p.from), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat}, p));
+    out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:addDays(p.to, 1), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat, strip:x.strip, debt:x.debt}, p));
   }
   return out;
 }
@@ -2987,11 +2987,11 @@ Object.assign(OWNER_CFG, {
   'pk-zm-fhs':         ZMC({when:(s,d)=>zmFhsOpen(s, d).length>0,
     each:(s,d)=>zmFhsOpen(s, d).map(x=>({period:x.key, sub:x.key, since:x.since, due:x.due, x})),
     since:(s,d,x)=>x.since,
-    traits:(s,d,x)=>Object.assign(zmTraits(s), {период:perText(x.x), срок:x.due}),
+    traits:(s,d,x)=>Object.assign(zmTraits(x.x), {период:perText(x.x), срок:x.due}), // признаки — на конец периода, как и условие
     attrib:(s,p,d)=>{ // исполнитель — кто утвердил заключение; адресат — «исполнено», другой — «выполнил другой»
       const doc = analysisDocs(s.id, d).find(e=>e.period===anPeriodName(p.sub.slice(0, 10)));
       if(doc) return {by:doc.by, how:`заключение ${doc.ref} от ${fmt(doc.date)} за ${doc.period}, утвердил ${emp(doc.by)?.name||doc.by}`};
-      return {cancel:s.strip && !anFhsNeed(s.cat, s.debt) ? `суммарный остаток ${money(s.debt)} — не больше 50 млн` : zmCancel(s)}; }}),
+      return {cancel:zmCancel(s)}; }}), // условие закончившегося периода не меняется: снять может только погашение заёмщика
   'pk-zm-recon-act':   ZMC({when:s=>s.unsigned.length>0,
     each:s=>s.unsigned.map(y=>({period:y, sub:y, since:`${y}-01-01`, due:`${y}-${ZM_ACT_DUE}`})),
     since:(s,d,x)=>x.since,
@@ -4963,7 +4963,7 @@ function setViewer(v){ state.viewer=v; groupOpen = {}; groupPick = {}; groupOff 
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
 const STAND_START = '2026-09-01';   // первый день с соседями и всеми четырьмя демо-поручениями
 const STAND_OPEN = '2026-10-01';    // на этой дате страница открывается
-const STAND_DATES = ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-03-01'];
+const STAND_DATES = ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-01-04','2027-03-01'];
 function standDates(d){ const out = []; for(let x=STAND_START; x<=d; x=addDays(x, 1)) out.push(x); return out; }
 /* поручения стенда со своей историей: сданные и с запросом продления. Каждое событие — в свою дату, до даты среза его нет.
    Сценарии смоука на seed и опросе их не видят; решения ждут Токтогулов, Эсенгулов, Мамбетов, Орозбаева, Абдразакова */
@@ -6179,7 +6179,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   const rows = [];
   if(OWNER_CFG['pk-zm-fin-package'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.пакет)}<div class="small">полоса риска с ${fmt(s.strip)}</div></td>
     <td class="small">срок — правило заданий</td><td>${btn('пакет', null, 'Пакет в досье')}</td></tr>`);
-  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
+  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
     <td class="small">до ${fmt(x.due)} — расписание анализа</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
   analysisDocs(s.id, d).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">заключение ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
@@ -6197,7 +6197,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
       : '<div class="small">открытых обязательств нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Документ пакета в досье и подпись акта вносит сотрудник отраслевого департамента; документ пакета прежней полосы риска не в счёт. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Документ пакета в досье и подпись акта вносит сотрудник отраслевого департамента; документ пакета прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
 }
 const RS_OUTCOME = {возврат:'возвращена без рассмотрения', отпала:'отпала: кредит погашен', отказ:'отказ'};
 function renderRsCard(id){ // заявка на реструктуризацию у владельца: сроки п. 18 — подсветка без исполнителя и без флага просрочки
@@ -6308,7 +6308,7 @@ const KIND_THRESHOLD = Object.assign({
   'pk-zl-ban-missing':()=>thrT(`срок ${ZL_BAN_WD} р.д. от удостоверения договора`),
   'pk-zl-committee':()=>thrT(`срок комитета ${ZL_COMMITTEE_DAYS} дн.`),
   'pk-an-no-review':()=>thrT('срок обзора называет шаблон анализа'),
-  'pk-zm-fhs':()=>thrT(`средний риск и долг больше ${AN_FHS.mid.limit/1000000} млн сом; высокий риск — всегда`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
+  'pk-zm-fhs':()=>thrT(`на следующий день после конца полугодия, если на его конец средний риск и долг больше ${AN_FHS.mid.limit/1000000} млн сом или высокий риск`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
   'pk-im-act-pending':()=>thrT(`больше ${IM_SET.act} к.д. без акта`),
   'pk-im-registration-pending':()=>thrT(`больше ${IM_SET.reg} к.д.`),
   'pk-im-topup-pending':()=>thrT(`больше ${IM_SET.topup} к.д.`),

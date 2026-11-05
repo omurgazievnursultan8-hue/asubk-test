@@ -243,6 +243,10 @@
 // Анализ ФХС закрывает заключение за период (АН-128, НЗ-28, НЗ-29), 05.11.2026:
 //   #397 — контрольный пример, другой период, заявка, черновик, переиздание, ручного внесения и кнопки нет.
 //   Переписаны под модель: #263, #267, #390, #395, #396. «Один документ — один период» снято вместе с НЗ-20.
+// Анализ ФХС появляется после конца периода (НЗ-30), 05.11.2026:
+//   #398-405 — за идущий период задания нет; на следующий день после конца есть, срок прежний; условие на конец периода: вышел из риска до конца —
+//      задания нет, после конца — остаётся; заключение закрывает только свой период; погашение снимает; что сказано на экране; числа стенда.
+//   Переписаны под модель: #261-264, #267, #389, #390, #394-397 (запись стенда ФА-7: 2П 2026 от 11.01.2027). Снятых нет.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -4247,7 +4251,7 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
     `поглощения, до 1 сентября (п. 9); у взыскания видов по шаблонам 35–38 нет; реестр сходится`);
 })();
 
-/* рубильник и клэмп: до 16.11 поводов нет; 16.11 — семь, база прижата; документ прежней полосы и акт, подписанный за год, — не повод */
+/* рубильник и клэмп: до 16.11 поводов нет; 16.11 — шесть, база прижата; анализа за идущий период нет; документ прежней полосы и акт, подписанный за год, — не повод */
 (() => {
   ZD.seed();
   ZD.runPoll(); at('2026-11-13');
@@ -4255,39 +4259,45 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
   at('2026-11-16');
   const c1 = ZD.runPoll().sources.find(s => s.src === 'borrower');
   const ps = ZD.state.povods.filter(p => ZD.ZM_KINDS.includes(p.kind));
-  const want = [zmKey('pk-zm-fin-package', ZM1), zmKey('pk-zm-fhs', ZM1, ZM_H2), zmKey('pk-zm-fin-package', ZM3), zmKey('pk-zm-fhs', ZM3, ZM_H2), zmKey('pk-zm-recon-act', ZM3, '2025'),
+  const want = [zmKey('pk-zm-fin-package', ZM1), zmKey('pk-zm-fin-package', ZM3), zmKey('pk-zm-recon-act', ZM3, '2025'),
     zmKey('pk-zm-recon-act', ZM3, '2026'), zmKey('pk-zm-recon-act', ZM4, '2026'), zmKey('pk-zm-recon-act', ZM6, '2026')].sort().join();
   const pk = ZD.povodByKey(zmKey('pk-zm-fin-package', ZM1)), pk3 = ZD.povodByKey(zmKey('pk-zm-fin-package', ZM3));
   const none = !ZD.povodByKey(zmKey('pk-zm-recon-act', ZM5, '2026')) &&
     !ZD.povodByKey(zmKey('pk-zm-recon-act', ZM1, '2026'));
   at('2026-11-19'); ZD.runPoll();
   const p2 = ZD.povodByKey(zmKey('pk-zm-fin-package', ZM2));
-  ok(261, c0.new === 0 && c0.answer === 'множество' && c1.new === 8 && ps.map(p => p.key).sort().join() === want &&
+  pollOn('2027-01-01'); // анализ — на следующий день после конца периода, и только у тех, кто на его конец в условии
+  const fhs = ZD.state.povods.filter(p => p.kind === 'pk-zm-fhs').map(p => p.objectId).sort().join();
+  ok(261, c0.new === 0 && c0.answer === 'множество' && c1.new === 6 && ps.map(p => p.key).sort().join() === want &&
        ps.every(p => p.stateDate === '2026-11-16' && p.curObj === p.objectId) &&
        pk.traits.полоса_с === '2026-11-02' && pk.traits.сумма === 64200000 &&
        pk3.traits.категория === 'высокий риск' && pk3.traits.полоса_с === '2026-04-20' && none &&
-       !!p2 && p2.stateDate === '2026-11-19' && !ZD.povodByKey(zmKey('pk-zm-fhs', ZM2, ZM_H2)),
-    `до ввода видов (16.11) заёмщик отвечает пустым множеством; 16.11 — восемь поводов, база прижата ` +
-    `к 16.11, признак хранит настоящее начало полосы; «Талас-Дан» (средний с 02.11, 64,2 млн) — пакет и анализ, пакет февральской ` +
-    `полосы не в счёт, акт за 2026 подписан; «Ош-Курулуш» (высокий) — пакет, анализ без порога и два акта, 2025 и 2026; «Бишкек-Сүт» на ` +
-    `01.01.2026 ещё не действовал — акта нет; 19.11 «Нарын-Мал» перешёл в средний (12,5 млн) — только пакет, база 19.11`);
+       !!p2 && p2.stateDate === '2026-11-19' && fhs === [ZM3, ZM1].sort().join() && !ZD.povodByKey(zmKey('pk-zm-fhs', ZM2, ZM_H2)),
+    `до ввода видов (16.11) заёмщик отвечает пустым множеством; 16.11 — шесть поводов, база прижата ` +
+    `к 16.11, признак хранит настоящее начало полосы; «Талас-Дан» (средний с 02.11, 64,2 млн) — пакет, пакет февральской ` +
+    `полосы не в счёт, акт за 2026 подписан; «Ош-Курулуш» (высокий) — пакет и два акта, 2025 и 2026; «Бишкек-Сүт» на ` +
+    `01.01.2026 ещё не действовал — акта нет; 19.11 «Нарын-Мал» перешёл в средний (12,5 млн) — только пакет, база 19.11; ` +
+    `анализ 01.01.2027 — у «Талас-Дан» и «Ош-Курулуш», у «Нарын-Мал» нет`);
 })();
 
-/* адресат — ведущий куратор заёмщика на дату; пакет и анализ — от начала полосы, акт — 1 сентября, прошедшее — 1 р.д. */
+/* адресат — ведущий куратор заёмщика на дату; пакет — от начала полосы, анализ — конец полугодия + 45 дн., акт — 1 сентября, прошедшее — 1 р.д. */
 (() => {
   ZD.seed();
   pollOn('2026-11-16', '2026-11-19');
   const own = ZD.state.tasks.filter(t => ZD.ZM_KINDS.includes(t.originKind));
-  const p1 = zmLast('pk-zm-fin-package', ZM1), f1 = zmLast('pk-zm-fhs', ZM1, ZM_H2), p2 = zmLast('pk-zm-fin-package', ZM2);
+  const p1 = zmLast('pk-zm-fin-package', ZM1), p2 = zmLast('pk-zm-fin-package', ZM2);
   const a25 = zmLast('pk-zm-recon-act', ZM3, '2025'), a26 = zmLast('pk-zm-recon-act', ZM3, '2026'), a4 = zmLast('pk-zm-recon-act', ZM4, '2026');
-  ok(262, own.length === 9 && p1.assignee === 'E3' && p1.addr.role === 'ведущий куратор заёмщика' && p1.dueDate === '2026-11-30' &&
-       f1.assignee === 'E3' && f1.dueDate === '2027-02-14' && p2.assignee === 'E1' && p2.dueDate === '2026-12-03' &&
+  const onNov = own.length === 7 && !own.some(t => t.originKind === 'pk-zm-fhs') && p1.assignee === 'E3' && p1.addr.role === 'ведущий куратор заёмщика' && p1.dueDate === '2026-11-30' &&
+       p2.assignee === 'E1' && p2.dueDate === '2026-12-03' &&
        a25.assignee === 'E3' && a26.assignee === 'E3' && a25.id !== a26.id && a25.dueDate === '2026-11-17' && a26.dueDate === '2026-11-17' &&
        a4.assignee === 'E1' && a4.dueDate === '2026-11-17' &&
-       /заёмщик ОсОО «Талас-Дан» · ИНН 01105201910011$/.test(p1.label) && /акт сверки на 01\.01\.2025$/.test(a25.label),
-    `16.11: «Талас-Дан» — Нурланова, пакет до 30.11 (10 р.д.), анализ до 14.02.2027 (конец полугодия + 45 дн.); 19.11 «Нарын-Мал» — Есенова, пакет до 03.12; ` +
-    `«Ош-Курулуш» — анализ и два задания по актам за 2025 и 2026 (поглощения нет), 1 сентября прошло — срок 17.11 (1 р.д. от выдачи); ` +
-    `ИП Садыкова — Есенова`);
+       /заёмщик ОсОО «Талас-Дан» · ИНН 01105201910011$/.test(p1.label) && /акт сверки на 01\.01\.2025$/.test(a25.label);
+  pollOn('2027-01-01'); // ведущий куратор — на дату появления: у «Ош-Курулуш» с 01.12 Есенова, переадресации нет
+  const f1 = zmLast('pk-zm-fhs', ZM1, ZM_H2), f3 = zmLast('pk-zm-fhs', ZM3, ZM_H2);
+  ok(262, onNov && !!f1 && f1.assignee === 'E3' && f1.dueDate === '2027-02-14' && !!f3 && f3.assignee === 'E1' && f3.dueDate === '2027-02-14' && !f3.journal.some(e => e.ev === 'переадресовано'),
+    `16.11: «Талас-Дан» — Нурланова, пакет до 30.11 (10 р.д.); 19.11 «Нарын-Мал» — Есенова, пакет до 03.12; ` +
+    `«Ош-Курулуш» — два задания по актам за 2025 и 2026 (поглощения нет), 1 сентября прошло — срок 17.11 (1 р.д. от выдачи); ` +
+    `ИП Садыкова — Есенова; 01.01.2027 анализ до 14.02.2027 (конец полугодия + 45 дн.): «Талас-Дан» — Нурланова, «Ош-Курулуш» — Есенова, ведущий на эту дату`);
 })();
 
 /* пакет гасит документ в досье с атрибуцией, вносит сотрудник отраслевого департамента; анализ гасит заключение, исполнитель — кто его утвердил */
@@ -4298,7 +4308,7 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
   at('2026-02-20'); const backPkg = throws(() => ZD.zmStep(ZM1, 'E3', 'пакет', '2026-02-18'));
   const evSame = zmEv() === ev0;
   pollOn('2026-11-16');
-  const p1 = zmLast('pk-zm-fin-package', ZM1), f1 = zmLast('pk-zm-fhs', ZM1, ZM_H2);
+  const p1 = zmLast('pk-zm-fin-package', ZM1);
   at('2026-11-20');
   const future = throws(() => ZD.zmStep(ZM1, 'E3', 'пакет', '2026-11-21'));
   ZD.zmStep(ZM1, 'E3', 'пакет', '2026-02-25');
@@ -4308,9 +4318,11 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
   const stranger = throws(() => ZD.zmStep(ZM1, 'E33', 'пакет'));
   ZD.zmStep(ZM1, 'E3', 'пакет');
   pollOn('2026-11-24');
-  const fLive = !ZD.isTerminal(f1);
   at('2026-12-01'); ZD.zmStep(ZM1, 'E3', 'пакет');
   at('2026-11-28'); const backUi = throws(() => ZD.zmStep(ZM1, 'E3', 'пакет', '2026-11-27')); // запись 01.12 внесена шагом; заключение анализа — не запись карточки
+  ZD.state.owner.anz.length = 0; // в записи стенда утвердил адресат, здесь нужен другой
+  pollOn('2027-01-04');
+  const f1 = zmLast('pk-zm-fhs', ZM1, ZM_H2), fLive = !!f1 && !ZD.isTerminal(f1);
   anConc(ZM1, '2П 2026', '2027-01-11', 'E2'); pollOn('2027-01-11');
   const o1 = outc(p1), o2 = outc(f1);
   ok(263, stranger === 'документ заёмщика вносит сотрудник отраслевого департамента' && future === 'дата документа позже сегодняшней' &&
@@ -4320,33 +4332,33 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
        oldLive && o1.outcome === 'исполнено' && o1.by === 'E3' &&
        fLive && o2.outcome === 'исполнено · выполнил другой' && o2.by === 'E2' && ZD.povodByKey(p1.povodKey).status === 'gone',
     `20.11 внесённый пакет от 25.02 (прежняя полоса) не гасит, документ из будущего отбит; 24.11 Нурланова положила в досье ` +
-    `пакет финансовых документов — «исполнено»; анализ — отдельное обязательство, живёт; ` +
+    `пакет финансовых документов — «исполнено»; анализ — отдельное обязательство: 04.01.2027 задание есть, пакет его не гасит; ` +
     `11.01.2027 заключение за период утвердил не адресат, руководитель Токтогулов — «исполнено · выполнил другой»; специалист по залогу — отказ; ` +
     `задним числом — отказ: 01.05 акт за 2026 при записи от 20.05, 20.02 пакет при записи от 25.02; в карточке не прибавилось`);
 })();
 
-/* «снято» с причиной заёмщика: вернулся в низкий риск, остаток не больше 50 млн; снова выше — повтор; перевод в высокий анализ не снимает */
+/* пакет — «снято» с причиной заёмщика; анализ смотрит только на конец периода: долг ниже порога и снова выше внутри периода не значат ничего, перевод в высокий срок не меняет */
 (() => {
   ZD.seed();
   pollOn('2026-11-16', '2026-11-19');
-  const p2 = zmLast('pk-zm-fin-package', ZM2), p1 = zmLast('pk-zm-fin-package', ZM1), f1 = zmLast('pk-zm-fhs', ZM1, ZM_H2);
+  const p2 = zmLast('pk-zm-fin-package', ZM2), p1 = zmLast('pk-zm-fin-package', ZM1);
   const o = ZD.state.owner.zm.find(x => x.id === ZM1);
+  ZD.state.owner.anz.length = 0; // запись стенда закрыла бы задание, здесь проверяется, что оно одно
   o.ev.push({ t:'2026-11-20', debt:49500000, by:null, how:'снимок остатка после платежа: 49 500 000' });
   pollOn('2026-11-20');
-  const r1 = outc(f1).reason;
   o.ev.push({ t:'2026-11-23', debt:52000000, by:null, how:'выдан транш: суммарный остаток 52 000 000' });
   pollOn('2026-11-23');
-  const f2 = zmLast('pk-zm-fhs', ZM1, ZM_H2);
   o.ev.push({ t:'2026-11-25', cat:'high', by:null, how:'решение комитета: высокий кредитный риск' });
   pollOn('2026-11-25', '2026-11-26');
+  const noneYet = !ZD.state.tasks.some(t => t.originKind === 'pk-zm-fhs');
+  pollOn('2027-01-01');
+  const fs = ZD.state.tasks.filter(t => t.povodKey === zmKey('pk-zm-fhs', ZM1, ZM_H2)), f = fs[0], fp = f && ZD.povodByKey(f.povodKey);
   ok(264, outc(p2).outcome === 'снято' && outc(p2).reason === 'заёмщик вернулся в низкий риск 26.11.2026' &&
-       /^суммарный остаток 49.500.000 — не больше 50 млн$/.test(r1) && !!f2 && f2.id !== f1.id && f2.repeatOf === f1.id &&
-       f2.dueDate === '2027-02-14' && ZD.povodByKey(f2.povodKey).stateDate === '2026-11-23' &&
-       !ZD.isTerminal(f2) && zmLast('pk-zm-fhs', ZM1, ZM_H2) === f2 &&
+       noneYet && fs.length === 1 && !f.repeatOf && f.dueDate === '2027-02-14' && fp.stateDate === '2027-01-01' &&
+       fp.traits.категория === 'высокий риск' && fp.traits.сумма === 52000000 && !ZD.isTerminal(f) &&
        !ZD.isTerminal(p1) && zmLast('pk-zm-fin-package', ZM1) === p1,
-    `26.11 «Нарын-Мал» погасил просрочку — пакет «снято: вернулся в низкий риск»; «Талас-Дан»: 20.11 остаток 49,5 млн — анализ ` +
-    `«снято», 23.11 снова 52 млн — повтор после, новое задание, срок тот же — 14.02.2027; 25.11 переведён в высокий — ` +
-    `анализ и пакет — те же задания`);
+    `26.11 «Нарын-Мал» погасил просрочку — пакет «снято: вернулся в низкий риск»; «Талас-Дан»: 20.11 остаток 49,5 млн, 23.11 снова 52 млн, 25.11 высокий риск — ` +
+    `внутри периода заданий анализа нет; 01.01.2027 одно задание, не повтор, срок 14.02.2027, признаки на конец периода; пакет — то же задание`);
 })();
 
 /* акт сверки: подписанный — «исполнено», разногласия и уклонение не закрывают; погасил всё — «снято»; новый год — новый ключ */
@@ -4406,13 +4418,15 @@ const anConc = (subj, period, approvedAt, by, occasion = 'plan') => ZD.state.own
   const pk = zmLast('pk-zm-fin-package', ZM3), h = ZD.renderOwnerCard(pk, ZD.povodByKey(pk.povodKey));
   at('2026-11-17'); const r = ZD.runPoll({ downSources: ['borrower'] });
   const frozen = ZD.state.povods.filter(p => ZD.ZM_KINDS.includes(p.kind) && p.status === 'frozen').length;
-  ok(267, rows.length === 8 && rows.every(x => x.owner === 'Заёмщик' && x.sumAttr === 'суммарный остаток по кредитам') &&
-       !r.complete && r.sources.find(s => s.src === 'borrower').answer === 'ошибка' && frozen === 8 &&
+  at('2027-01-04'); const hJan = ZD.renderOwnerCard(pk, ZD.povodByKey(pk.povodKey)); // период закончился — строка анализа появилась
+  ok(267, rows.length === 6 && rows.every(x => x.owner === 'Заёмщик' && x.sumAttr === 'суммарный остаток по кредитам') &&
+       !r.complete && r.sources.find(s => s.src === 'borrower').answer === 'ошибка' && frozen === 6 &&
        ZD.state.povods.filter(p => !ZD.ZM_KINDS.includes(p.kind) && p.status === 'frozen').length === 0 &&
        /Карточка заёмщика ОсОО «Ош-Курулуш»/.test(h) && /высокий риск с 18\.10\.2026/.test(h) && /Пакет в досье<\/button>/.test(h) &&
-       (h.match(/Акт подписан<\/button>/g) || []).length === 2 && /уклонение/.test(h) && /Нурланова/.test(h) && !/Анализ в досье/.test(h) && /плановое заключение за 2П 2026: ведётся и утверждается в модуле «Анализ»/.test(h),
-    `строка задания несёт «чей повод» — Заёмщик и реквизит суммы; 17.11 заёмщик не ответил — заморожены только его 8 поводов; ` +
-    `карточка заёмщика: категория и полоса, ведущий куратор на дату, пакет и два акта с кнопками; у анализа кнопки нет, строка называет заключение за 2П 2026 и модуль «Анализ»`);
+       (h.match(/Акт подписан<\/button>/g) || []).length === 2 && /уклонение/.test(h) && /Нурланова/.test(h) && !/Анализ в досье/.test(h) &&
+       !/плановое заключение за \dП/.test(h) && !/Анализ в досье/.test(hJan) && /плановое заключение за 2П 2026: ведётся и утверждается в модуле «Анализ»/.test(hJan),
+    `строка задания несёт «чей повод» — Заёмщик и реквизит суммы; 17.11 заёмщик не ответил — заморожены только его 6 поводов; ` +
+    `карточка заёмщика: категория и полоса, ведущий куратор на дату, пакет и два акта с кнопками; 16.11 строки анализа нет, период идёт; 04.01.2027 у анализа кнопки нет, строка называет заключение за 2П 2026 и модуль «Анализ»`);
 })();
 
 const RS_ORDER = ['pk-rs-committee','pk-rs-letter'];
@@ -7412,71 +7426,79 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   ZD.seed();
   const o = ZD.state.owner.zm.find(x => x.id === ZM5);
   o.ev.push({ t: '2026-09-15', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск, остаток 60 000 000' });
-  pollOn('2026-11-16');
+  pollOn('2026-11-16', '2027-01-01');
   const t = zmLast('pk-zm-fhs', ZM5, ZM_H2), p = t && ZD.povodByKey(t.povodKey), r = ZD.ruleForKind('pk-zm-fhs');
   const ap = ZD.appearOf(ZD.kindOf('pk-zm-fhs'));
   const panel = ZD.renderRulePanel(r.id);
-  ok(389, !!t && t.dueDate === '2027-02-14' && p.due === '2027-02-14' && p.traits.полоса_с === '2026-09-15' && p.traits.срок === '2027-02-14' && p.sub === ZM_H2 && p.key === `pk-zm-fhs|borrower:${ZM5}|${ZM_H2}` &&
+  ok(389, !!t && t.dueDate === '2027-02-14' && p.due === '2027-02-14' && p.traits.полоса_с === '2026-09-15' && p.traits.срок === '2027-02-14' && p.sub === ZM_H2 && p.key === `pk-zm-fhs|borrower:${ZM5}|${ZM_H2}` && p.stateDate === '2027-01-01' &&
        t.addr.role === 'ведущий куратор заёмщика' && r.dueUnit === 'named' && r.dueN === null && !('dueSource' in r && r.dueSource) &&
-       ap.thr === 'средний риск и долг больше 50 млн сом; высокий риск — всегда' && ap.src === 'норма · Порядок №41 п. 11 пп. 2, п. 6 пп. 5' && ap.set && ap.set.name === 'Анализ' && /analysis\/analysis\.html/.test(panel) && !/borrower\.html/.test(panel) && !/14 р\.д\./.test(panel),
+       ap.thr === 'на следующий день после конца полугодия, если на его конец средний риск и долг больше 50 млн сом или высокий риск' && ap.src === 'норма · Порядок №41 п. 11 пп. 2, п. 6 пп. 5' && ap.set && ap.set.name === 'Анализ' && /analysis\/analysis\.html/.test(panel) && !/borrower\.html/.test(panel) && !/14 р\.д\./.test(panel),
     `НЗ-9 — перевод 15.09.2026, долг 60 млн: срок ${t && t.dueDate}, ключ «вид · заёмщик · период», адресат ведущий куратор; порог норма п. 11 пп. 2 и п. 6 пп. 5, ссылка к расписанию анализа; 14 р.д. нет`);
 })();
 
-/* НЗ-9, НЗ-19 — период повторяется, условие на конец периода, заключение за прошлый период не закрывает */
+/* НЗ-9, НЗ-19, НЗ-30 — период повторяется, условие на конец периода, заключение за прошлый период не закрывает */
 (() => {
-  const H1 = '2027-01-01..2027-06-30';
+  const H1 = '2027-01-01..2027-06-30', H2N = '2027-07-01..2027-12-31';
   ZD.seed();
-  pollOn('2026-11-16');
+  ZD.state.owner.anz.length = 0; // запись стенда закрыла бы задание, здесь проверяется повторение периода
   const o = ZD.state.owner.zm.find(x => x.id === ZM1);
-  const f = zmLast('pk-zm-fhs', ZM1, ZM_H2);
   /* заключение за прошлый период задание за этот период не закрывает */
-  at('2026-11-18');
   anConc(ZM1, '1П 2026', '2026-06-30', 'E3');
-  pollOn('2026-11-18');
-  const oldDocLive = !ZD.isTerminal(f);
+  pollOn('2026-11-16', '2027-01-01');
+  const f = zmLast('pk-zm-fhs', ZM1, ZM_H2), oldDocLive = !!f && !ZD.isTerminal(f);
   /* новый период — новый ключ и новое задание со своим сроком */
-  pollOn('2027-01-04');
+  pollOn('2027-07-01');
   const f27 = zmLast('pk-zm-fhs', ZM1, H1), both = !!f27 && f27.dueDate === '2027-08-14' && f27.id !== f.id && !ZD.isTerminal(f);
-  /* закрытый период условие уже не меняет: январское снижение долга снимает только идущий */
-  o.ev.push({ t: '2027-01-11', debt: 40000000, by: null, how: 'снимок остатка' });
-  pollOn('2027-01-11');
-  const closedStays = !ZD.isTerminal(f) && ZD.isTerminal(f27) && outc(f27).outcome === 'снято';
-  o.ev.push({ t: '2027-01-12', debt: 64200000, by: null, how: 'выдан транш' });
-  pollOn('2027-01-12');
-  const f27b = zmLast('pk-zm-fhs', ZM1, H1);
-  const again = !!f27b && f27b.id !== f27.id && f27b.repeatOf === f27.id && !ZD.isTerminal(f27b) && !ZD.isTerminal(f);
-  /* период до ввода вида в множество не входит; ровно 50 млн не вменяет; расписание — источник порога */
+  /* закончившийся период условие уже не меняет: снижение долга в июле оба задания не снимает */
+  o.ev.push({ t: '2027-07-11', debt: 40000000, by: null, how: 'снимок остатка' });
+  pollOn('2027-07-11');
+  const closedStays = !ZD.isTerminal(f) && !ZD.isTerminal(f27) && zmLast('pk-zm-fhs', ZM1, H1) === f27;
+  /* долг ниже порога на конец следующего периода — задания за него нет, прежние открыты */
+  pollOn('2028-01-01');
+  const noNext = !zmLast('pk-zm-fhs', ZM1, H2N) && ZD.zmFhsOpen(ZD.zmAt(o, '2028-01-01'), '2028-01-01').map(x => x.key).join() === `${ZM_H2},${H1}`;
+  /* период до ввода вида в множество не входит: «Ош-Курулуш» в риске с апреля 2026, первый период — 2П 2026 */
   ZD.seed();
-  const z3 = ZD.zmAt(ZD.state.owner.zm.find(x => x.id === ZM3), '2026-11-16');
-  const before = ZD.zmFhsOpen(z3, '2026-11-16').map(x => x.key).join() === ZM_H2;
+  const before = ZD.zmFhsOpen(ZD.zmAt(ZD.state.owner.zm.find(x => x.id === ZM3), '2027-01-04'), '2027-01-04').map(x => x.key).join() === ZM_H2;
+  /* ровно 50 млн не вменяет, на сом больше вменяет */
   const o5 = ZD.state.owner.zm.find(x => x.id === ZM5);
   o5.ev.push({ t: '2026-11-10', cat: 'mid', debt: 50000000, by: null, how: 'перевод в средний риск, остаток 50 000 000' });
-  const eq = ZD.zmFhsOpen(ZD.zmAt(o5, '2026-11-16'), '2026-11-16').length === 0 && ZD.AN_FHS.mid.limit === 50000000 && ZD.AN_FHS.mid.grace === 45 && ZD.AN_FHS.high.limit === null && ZD.AN_FHS.high.grace === 45;
-  ok(390, oldDocLive && both && closedStays && again && before && eq,
-    `НЗ-9, НЗ-19 — заключение за первое полугодие 2026 не закрывает второе; с 01.01.2027 второе задание до 14.08.2027; снижение долга в январе снимает только идущий период, долг вернулся — повтор за него, закрытый период не тронут; «Ош-Курулуш» за первое полугодие 2026 (до ввода вида) задания не получает; ровно 50 млн не вменяет`);
+  const eq = ZD.zmFhsOpen(ZD.zmAt(o5, '2027-01-04'), '2027-01-04').length === 0 && ZD.AN_FHS.mid.limit === 50000000 && ZD.AN_FHS.mid.grace === 45 && ZD.AN_FHS.high.limit === null && ZD.AN_FHS.high.grace === 45;
+  o5.ev.push({ t: '2026-11-11', debt: 50000001, by: null, how: 'снимок остатка: 50 000 001' });
+  const over = ZD.zmFhsOpen(ZD.zmAt(o5, '2027-01-04'), '2027-01-04').map(x => x.key).join() === ZM_H2;
+  ok(390, oldDocLive && both && closedStays && noNext && before && eq && over,
+    `НЗ-9, НЗ-19, НЗ-30 — заключение за первое полугодие 2026 не закрывает второе; с 01.07.2027 второе задание до 14.08.2027; снижение долга в июле оба задания не снимает, а за период, на конец которого долг ниже порога, задания нет; «Ош-Курулуш» за первое полугодие 2026 (до ввода вида) задания не получает; ровно 50 млн не вменяет, на сом больше вменяет`);
 })();
 
-/* НЗ-26 — высокий риск: строка расписания без порога, срок тот же; высокий → средний при долге не больше 50 млн — «снято» */
+/* НЗ-26 — высокий риск: строка расписания без порога, срок тот же; высокий → средний при долге не больше 50 млн решает конец периода */
 (() => {
   ZD.seed();
-  pollOn('2026-11-16');
+  pollOn('2026-11-16', '2027-01-04');
   const f3 = zmLast('pk-zm-fhs', ZM3, ZM_H2), h3 = f3 ? ZD.renderOwnerCard(f3, ZD.povodByKey(f3.povodKey)) : '';
-  const big = !!f3 && f3.dueDate === '2027-02-14' && f3.assignee === 'E3' && ZD.povodByKey(f3.povodKey).traits.категория === 'высокий риск' &&
-    /Анализ финансово-хозяйственного состояния за [^<]+<div class="small">высокий риск<\/div>/.test(h3);
-  const o5 = ZD.state.owner.zm.find(x => x.id === ZM5);
-  o5.ev.push({ t: '2026-11-17', cat: 'high', by: null, how: 'перевод в высокий риск, остаток 9 800 000' });
-  pollOn('2026-11-17');
-  const f5 = zmLast('pk-zm-fhs', ZM5, ZM_H2);
-  const small = !!f5 && f5.dueDate === '2027-02-14' && f5.addr.role === 'ведущий куратор заёмщика' && !ZD.isTerminal(f5);
-  o5.ev.push({ t: '2026-11-18', cat: 'mid', by: null, how: 'перевод в средний риск, остаток 9 800 000' });
-  pollOn('2026-11-18');
-  const down = !!f5 && ZD.isTerminal(f5) && outc(f5).outcome === 'снято' && /^суммарный остаток 9.800.000 — не больше 50 млн$/.test(outc(f5).reason || '');
-  pollOn('2027-01-04');
+  const big = !!f3 && f3.dueDate === '2027-02-14' && f3.assignee === 'E1' && ZD.povodByKey(f3.povodKey).traits.категория === 'высокий риск' &&
+    /Анализ финансово-хозяйственного состояния за [^<]+<div class="small">на 31\.12\.2026: высокий риск<\/div>/.test(h3);
   anConc(ZM3, '2П 2026', '2027-01-11', 'E1');
   pollOn('2027-01-11');
   const done = !!f3 && ZD.isTerminal(f3) && outc(f3).outcome === 'исполнено' && outc(f3).by === 'E1';
-  ok(396, big && small && down && done,
-    `НЗ-26 — «Ош-Курулуш» (высокий, 88 млн): задание до 14.02.2027, в карточке заёмщика «высокий риск»; «Бишкек-Сүт» (высокий, 9,8 млн): задание без порога, тот же срок; 18.11 перевод в средний при долге 9,8 млн — «снято: суммарный остаток — не больше 50 млн»; заключение за период утвердил адресат — «исполнено»`);
+  /* высокий риск на конец периода при 9,8 млн: задание без порога, тот же срок */
+  ZD.seed();
+  let o5 = ZD.state.owner.zm.find(x => x.id === ZM5);
+  o5.ev.push({ t: '2026-11-17', cat: 'high', by: null, how: 'перевод в высокий риск, остаток 9 800 000' });
+  pollOn('2026-11-16', '2027-01-01');
+  const f5 = zmLast('pk-zm-fhs', ZM5, ZM_H2);
+  const small = !!f5 && f5.dueDate === '2027-02-14' && f5.addr.role === 'ведущий куратор заёмщика' && !ZD.isTerminal(f5);
+  /* перевод в средний при 9,8 млн после конца периода задание не снимает */
+  o5.ev.push({ t: '2027-01-10', cat: 'mid', by: null, how: 'перевод в средний риск, остаток 9 800 000' });
+  pollOn('2027-01-10');
+  const after = !!f5 && !ZD.isTerminal(f5);
+  /* тот же перевод до конца периода: задания нет */
+  ZD.seed();
+  o5 = ZD.state.owner.zm.find(x => x.id === ZM5);
+  o5.ev.push({ t: '2026-11-17', cat: 'high', by: null, how: 'перевод в высокий риск, остаток 9 800 000' },
+    { t: '2026-11-18', cat: 'mid', by: null, how: 'перевод в средний риск, остаток 9 800 000' });
+  pollOn('2026-11-16', '2027-01-01');
+  const down = !zmLast('pk-zm-fhs', ZM5, ZM_H2) && !!zmLast('pk-zm-fhs', ZM3, ZM_H2);
+  ok(396, big && small && after && down && done,
+    `НЗ-26, НЗ-30 — «Ош-Курулуш» (высокий, 88 млн): задание до 14.02.2027, в карточке заёмщика «на 31.12.2026: высокий риск»; заключение за период утвердил адресат — «исполнено»; «Бишкек-Сүт» (высокий, 9,8 млн): задание без порога, тот же срок; перевод в средний при 9,8 млн после конца периода задание не снимает, до конца — задания нет`);
 })();
 
 /* НЗ-10…НЗ-16, НЗ-23, НЗ-24 — столбец «Когда появляется» по таблице канона: что на чтение, что правится на экране, что выпуском */
@@ -7545,6 +7567,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const BAD = /\bundefined\b|\bnull\b|\[object|NaN|НЗ-|ЭЗ-|ЗЦ-|ADR-|волн|noScreen|пока нет/;
   const pages = ['tasks', 'highlight', 'notifs'].map(k => { ZD.state.settingsTab = k; return ZD.renderSettings(); }).concat(ZD.state.rules.map(r => ZD.renderRulePanel(r.id)), ZD.renderStand());
   const hits = pages.filter(h => BAD.test(h)).map(h => (h.match(BAD) || [])[0]);
+  ZD.goToDate('2027-01-04');
   const t = ZD.state.tasks.find(x => x.originKind === 'pk-zm-fhs'), card = t ? ZD.renderCard(t.id) : '';
   ok(394, hits.length === 0 && !!t && /за 01\.07\.2026—31\.12\.2026/.test(t.label) && /расписание анализа/.test(card),
     `НЗ — на вкладках настройки и в 78 панелях нет номеров решений и сырых значений; задание ФХС называет период и срок из расписания` + (hits.length ? ` — нашлось: ${hits.join(', ')}` : ''));
@@ -7557,64 +7580,216 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   o.ev.push({ t: '2026-07-05', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск' },
     { t: '2026-07-21', doc: 'пакет', by: 'E3', how: 'в досье: пакет' },
     { t: '2026-08-01', cat: 'low', by: null, how: 'просрочка погашена' },
-    { t: '2026-10-01', cat: 'mid', by: null, how: 'снова средний риск' });
-  anConc(ZM5, '2П 2026', '2026-07-20', 'E3');
-  const s = ZD.zmAt(o, '2026-11-05');
-  const closed = ZD.zmFhsOpen(s, '2026-11-05').length === 0, pack = s.strip === '2026-10-01' && s.pack === null;
-  const next = ZD.zmFhsOpen(ZD.zmAt(o, '2027-01-04'), '2027-01-04').map(x => x.key).join() === '2027-01-01..2027-06-30';
-  ok(395, closed && pack && next,
-    `НЗ-27 — средний риск 05.07, заключение за 2П 2026 от 20.07 и пакет 21.07, низкий 01.08, снова средний 01.10: анализ за полугодие закрыт, пакет снова нужен, следующий период анализа открыт`);
+    { t: '2026-10-01', cat: 'mid', by: null, how: 'снова средний риск' },
+    { t: '2027-01-15', cat: 'low', by: null, how: 'просрочка погашена' },
+    { t: '2027-02-01', cat: 'mid', by: null, how: 'снова средний риск' });
+  anConc(ZM5, '2П 2026', '2027-01-11', 'E3');
+  const open = d => ZD.zmFhsOpen(ZD.zmAt(o, d), d).map(x => x.key).join();
+  const nov = ZD.zmAt(o, '2026-11-05'), feb = ZD.zmAt(o, '2027-02-10');
+  const pack = nov.strip === '2026-10-01' && nov.pack === null && feb.strip === '2027-02-01' && feb.pack === null;
+  const period = open('2027-01-04') === ZM_H2 && open('2027-01-11') === '' && open('2027-02-10') === '';
+  const next = open('2027-07-01') === '2027-01-01..2027-06-30';
+  ok(395, pack && period && next,
+    `НЗ-27 — средний риск с 01.10 после возврата: документ пакета прежней полосы не в счёт; 04.01.2027 анализ за 2П 2026 открыт, заключение от 11.01 его закрыло; низкий 15.01, снова средний 01.02: анализ за полугодие закрыт, пакет снова нужен; с 01.07.2027 открыт следующий период`);
 })();
 
 /* АН-128, НЗ-28, НЗ-29 — анализ закрывает утверждённое плановое заключение за период задания; вручную не вносится */
 (() => {
   const H1 = '2027-01-01..2027-06-30';
-  /* контрольный пример, запись стенда: открыты 2П 2026 и 1П 2027, ФА-7 утверждено 20.01.2027 за 1П 2027 */
+  /* контрольный пример, запись стенда: ФА-7 утверждено 11.01.2027 за 2П 2026, задание за 1П 2027 появится 01.07.2027 */
   ZD.seed();
   pollOn('2026-11-16', '2027-01-04');
-  const h2 = zmLast('pk-zm-fhs', ZM1, ZM_H2), h1 = zmLast('pk-zm-fhs', ZM1, H1);
+  const h2 = zmLast('pk-zm-fhs', ZM1, ZM_H2);
   const o = ZD.state.owner.zm.find(x => x.id === ZM1);
-  const openBoth = !!h2 && !!h1 && !ZD.isTerminal(h2) && !ZD.isTerminal(h1) && ZD.zmFhsOpen(ZD.zmAt(o, '2027-01-04'), '2027-01-04').map(x => x.key).join() === `${ZM_H2},${H1}` && ZD.analysisDocs(ZM1, '2027-01-19').length === 0;
-  pollOn('2027-01-20');
-  const docs = ZD.analysisDocs(ZM1, '2027-01-20');
-  const shape = docs.length === 1 && docs[0].type === 'Анализ финансово-хозяйственного состояния' && docs[0].date === '2027-01-20' && docs[0].ref === 'ФА-7' && docs[0].period === '1П 2027';
-  const closed = ZD.isTerminal(h1) && outc(h1).outcome === 'исполнено' && outc(h1).by === 'E3' && /ФА-7 от 20\.01\.2027 за 1П 2027, утвердил Нурланова/.test(h1.journal[h1.journal.length - 1].how || '') &&
-    !ZD.isTerminal(h2) && ZD.zmFhsOpen(ZD.zmAt(o, '2027-01-20'), '2027-01-20').map(x => x.key).join() === ZM_H2;
-  pollOn('2027-02-14');
-  const notYet = !ZD.isTerminal(h2) && !ZD.isOverdue(h2, '2027-02-14');
-  pollOn('2027-02-15');
-  const overdue = !ZD.isTerminal(h2) && ZD.isOverdue(h2, '2027-02-15') && h2.dueDate === '2027-02-14';
-  const card = ZD.renderOwnerCard(h2, ZD.povodByKey(h2.povodKey));
-  const screen = !/Анализ в досье/.test(card) && /плановое заключение за 2П 2026: ведётся и утверждается в модуле «Анализ»/.test(card) && /заключение ФА-7 от 20\.01\.2027/.test(card) && /Пакет в досье<\/button>/.test(card);
+  const openH2 = !!h2 && !ZD.isTerminal(h2) && ZD.zmFhsOpen(ZD.zmAt(o, '2027-01-04'), '2027-01-04').map(x => x.key).join() === ZM_H2 && ZD.analysisDocs(ZM1, '2027-01-10').length === 0;
+  pollOn('2027-01-11');
+  const docs = ZD.analysisDocs(ZM1, '2027-01-11');
+  const shape = docs.length === 1 && docs[0].type === 'Анализ финансово-хозяйственного состояния' && docs[0].date === '2027-01-11' && docs[0].ref === 'ФА-7' && docs[0].period === '2П 2026';
+  const closed = !!h2 && ZD.isTerminal(h2) && outc(h2).outcome === 'исполнено' && outc(h2).by === 'E3' && /ФА-7 от 11\.01\.2027 за 2П 2026, утвердил Нурланова/.test(h2.journal[h2.journal.length - 1].how || '');
+  pollOn('2027-06-30');
+  const notYetH1 = !zmLast('pk-zm-fhs', ZM1, H1);
+  pollOn('2027-07-01');
+  const h1 = zmLast('pk-zm-fhs', ZM1, H1);
+  const next = !!h1 && !ZD.isTerminal(h1) && h1.dueDate === '2027-08-14' && h1.id !== h2.id;
+  const card = h1 ? ZD.renderOwnerCard(h1, ZD.povodByKey(h1.povodKey)) : '';
+  const screen = !/Анализ в досье/.test(card) && /плановое заключение за 1П 2027: ведётся и утверждается в модуле «Анализ»/.test(card) && /заключение ФА-7 от 11\.01\.2027/.test(card) && /Пакет в досье<\/button>/.test(card);
   /* условие отпало — заключение остаётся в карточке */
-  o.ev.push({ t: '2027-02-20', cat: 'low', by: null, how: 'просрочка погашена' });
-  at('2027-03-01');
-  const lapsed = /за 1П 2027<\/td>/.test(ZD.renderOwnerCard(h2, ZD.povodByKey(h2.povodKey))) && /заключение ФА-7 от 20\.01\.2027/.test(ZD.renderOwnerCard(h2, ZD.povodByKey(h2.povodKey)));
+  o.ev.push({ t: '2027-07-10', cat: 'low', by: null, how: 'просрочка погашена' });
+  at('2027-07-20');
+  const later = h1 ? ZD.renderOwnerCard(h1, ZD.povodByKey(h1.povodKey)) : '';
+  const lapsed = /за 2П 2026<\/td>/.test(later) && /заключение ФА-7 от 11\.01\.2027/.test(later);
   const act = ZD.actionOf(ZD.ruleForKind('pk-zm-fhs').action);
   const where = /плановое заключение за период задания/.test(act.where) && !/досье: документ/.test(act.where);
+  /* без заключения срок прежний: 14.02.2027 ещё не просрочено, с 15.02.2027 просрочено */
+  ZD.seed();
+  pollOn('2026-11-16', '2027-01-04', '2027-02-14');
+  const f3a = zmLast('pk-zm-fhs', ZM3, ZM_H2), notYet = !!f3a && !ZD.isTerminal(f3a) && !ZD.isOverdue(f3a, '2027-02-14');
+  pollOn('2027-02-15');
+  const overdue = !!f3a && !ZD.isTerminal(f3a) && ZD.isOverdue(f3a, '2027-02-15') && f3a.dueDate === '2027-02-14';
   /* другой период, заявка, черновик не закрывают; переиздание за тот же период второго документа не даёт; вручную нельзя */
   ZD.seed();
-  pollOn('2026-11-16');
+  pollOn('2026-11-16', '2027-01-04');
   const f3 = zmLast('pk-zm-fhs', ZM3, ZM_H2);
-  at('2026-11-18');
-  anConc(ZM3, '1П 2026', '2026-11-18', 'E3');
-  anConc(ZM3, '2025 год', '2026-11-18', 'E3');
-  anConc(ZM3, '2П 2026', '2026-11-18', 'E3', 'appl');
+  at('2027-01-05');
+  anConc(ZM3, '1П 2026', '2027-01-05', 'E3');
+  anConc(ZM3, '2025 год', '2027-01-05', 'E3');
+  anConc(ZM3, '2П 2026', '2027-01-05', 'E3', 'appl');
   anConc(ZM3, '2П 2026', null, 'E3');
-  pollOn('2026-11-18');
-  const stays = !ZD.isTerminal(f3) && ZD.analysisDocs(ZM3, '2026-11-18').map(x => x.period).join() === '1П 2026,2025 год' &&
-    ZD.zmFhsOpen(ZD.zmAt(ZD.state.owner.zm.find(x => x.id === ZM3), '2026-11-18'), '2026-11-18').map(x => x.key).join() === ZM_H2;
+  pollOn('2027-01-05');
+  const stays = !!f3 && !ZD.isTerminal(f3) && ZD.analysisDocs(ZM3, '2027-01-05').map(x => x.period).join() === '1П 2026,2025 год' &&
+    ZD.zmFhsOpen(ZD.zmAt(ZD.state.owner.zm.find(x => x.id === ZM3), '2027-01-05'), '2027-01-05').map(x => x.key).join() === ZM_H2;
   const manual = throws(() => ZD.zmStep(ZM3, 'E3', 'анализ'));
-  /* заключение за 2П 2026 от 11.01.2027 закрывает только 2П 2026 */
-  pollOn('2027-01-04');
-  const h1b = zmLast('pk-zm-fhs', ZM3, H1);
+  /* заключение за 2П 2026 от 11.01.2027 закрывает только 2П 2026; задание за 1П 2027 появляется 01.07.2027 */
   anConc(ZM3, '2П 2026', '2027-01-11', 'E1');
   anConc(ZM3, '2П 2026', '2027-01-15', 'E3');
   at('2027-01-20'); const one = ZD.analysisDocs(ZM3, '2027-01-20').filter(x => x.period === '2П 2026');
-  pollOn('2027-01-20');
-  const reissue = one.length === 1 && one[0].date === '2027-01-11' && ZD.isTerminal(f3) && outc(f3).outcome === 'исполнено' && outc(f3).by === 'E1' && !!h1b && !ZD.isTerminal(h1b);
-  ok(397, openBoth && shape && closed && notYet && overdue && screen && lapsed && where && stays && manual === 'шага «анализ» у заёмщика нет' && reissue,
-    `АН-128, НЗ-28 — открыты второе полугодие 2026 и первое 2027; ФА-7 от 20.01.2027 за 1П 2027 закрыло первое 2027 («исполнено», утвердил адресат), второе 2026 открыто, с 15.02.2027 просрочено; заключение за другой период, по заявке и черновик не закрывают; заключение за 2П 2026 от 11.01.2027 закрыло только его, переиздание второго документа не даёт; условие отпало — заключение в карточке осталось; вручную анализ не вносится, кнопки «Анализ в досье» нет, «Пакет в досье» на месте`);
+  pollOn('2027-01-20', '2027-07-01');
+  const h1b = zmLast('pk-zm-fhs', ZM3, H1);
+  const reissue = one.length === 1 && one[0].date === '2027-01-11' && !!f3 && ZD.isTerminal(f3) && outc(f3).outcome === 'исполнено' && outc(f3).by === 'E1' && !!h1b && !ZD.isTerminal(h1b);
+  ok(397, openH2 && shape && closed && notYetH1 && next && notYet && overdue && screen && lapsed && where && stays && manual === 'шага «анализ» у заёмщика нет' && reissue,
+    `АН-128, НЗ-28 — 04.01.2027 открыто второе полугодие 2026; ФА-7 от 11.01.2027 за 2П 2026 его закрыло («исполнено», утвердил адресат); задание за первое полугодие 2027 появилось 01.07.2027, не раньше, ФА-7 его не закрывает; без заключения с 15.02.2027 просрочено; заключение за другой период, по заявке и черновик не закрывают; переиздание второго документа не даёт; условие отпало — заключение в карточке осталось; вручную анализ не вносится, кнопки «Анализ в досье» нет, «Пакет в досье» на месте`);
+})();
+
+/* НЗ-30 — за идущий период задания нет: условие выполнено, а задания и повода нет до дня после конца периода */
+(() => {
+  const H1 = '2027-01-01..2027-06-30';
+  ZD.seed();
+  const zo = inn => ZD.state.owner.zm.find(x => x.id === inn);
+  const inCond = [ZM1, ZM3].every(inn => !!ZD.zmAt(zo(inn), '2026-12-31').fhsSince);
+  pollOn('2026-11-16', '2026-12-01', '2026-12-31');
+  const fhsTasks = () => ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs');
+  const fhsPovods = () => ZD.state.povods.filter(p => p.kind === 'pk-zm-fhs');
+  const running = inCond && fhsTasks().length === 0 && fhsPovods().length === 0 &&
+    [ZM1, ZM3].every(inn => ZD.zmFhsOpen(ZD.zmAt(zo(inn), '2026-12-31'), '2026-12-31').length === 0);
+  pollOn('2027-01-01');
+  const after = fhsTasks().map(t => t.povodKey).sort().join() === [zmKey('pk-zm-fhs', ZM1, ZM_H2), zmKey('pk-zm-fhs', ZM3, ZM_H2)].sort().join();
+  /* следующий период идёт — задания за него нет, 01.07.2027 есть */
+  pollOn('2027-06-30');
+  const h1Running = !zmLast('pk-zm-fhs', ZM3, H1) && !!ZD.zmAt(zo(ZM3), '2027-06-30').fhsSince;
+  pollOn('2027-07-01');
+  const h1 = !!zmLast('pk-zm-fhs', ZM3, H1);
+  ok(398, running && after && h1Running && h1,
+    `НЗ-30 — «Талас-Дан» и «Ош-Курулуш» условие выполняют, на 16.11, 01.12 и 31.12.2026 заданий и поводов анализа нет; 01.01.2027 ровно два задания за 2П 2026; 30.06.2027 за 1П 2027 задания нет, 01.07.2027 есть`);
+})();
+
+/* НЗ-30 — на следующий день после конца периода задание есть, срок прежний: конец полугодия + 45 дн. */
+(() => {
+  const H1 = '2027-01-01..2027-06-30';
+  ZD.seed();
+  pollOn('2026-12-31', '2027-01-01');
+  const t = zmLast('pk-zm-fhs', ZM3, ZM_H2), p = t && ZD.povodByKey(t.povodKey);
+  const h2 = !!t && t.dueDate === '2027-02-14' && p.due === '2027-02-14' && p.firstSeen === '2027-01-01' && p.stateDate === '2027-01-01' && p.sub === ZM_H2 && p.traits.срок === '2027-02-14';
+  pollOn('2027-06-30', '2027-07-01');
+  const t1 = zmLast('pk-zm-fhs', ZM3, H1), p1 = t1 && ZD.povodByKey(t1.povodKey);
+  const h1 = !!t1 && t1.dueDate === '2027-08-14' && p1.firstSeen === '2027-07-01' && p1.stateDate === '2027-07-01' && t1.id !== t.id;
+  /* первый опрос позже дня появления: дата состояния и срок те же */
+  ZD.seed();
+  pollOn('2027-01-04');
+  const late = zmLast('pk-zm-fhs', ZM3, ZM_H2), lp = late && ZD.povodByKey(late.povodKey);
+  const gap = !!late && lp.firstSeen === '2027-01-04' && lp.stateDate === '2027-01-01' && late.dueDate === '2027-02-14';
+  ok(399, h2 && h1 && gap,
+    `НЗ-30 — 2П 2026: появилось 01.01.2027, срок ${t && t.dueDate}; 1П 2027: появилось 01.07.2027, срок ${t1 && t1.dueDate}; первый опрос 04.01.2027: дата состояния 01.01.2027, срок тот же`);
+})();
+
+/* НЗ-30 — условие на конец периода: вышел из риска или долг упал до конца — задания нет; вошёл в последний день — есть */
+(() => {
+  const fhsAfter = (evs, d = '2027-01-01') => {
+    ZD.seed();
+    ZD.state.owner.zm.find(x => x.id === ZM5).ev.push(...evs);
+    pollOn('2026-11-16', d);
+    return ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs' && t.povodKey.startsWith(`pk-zm-fhs|borrower:${ZM5}|`)).map(t => t.povodKey.split('|')[2]).join();
+  };
+  const IN = { t: '2026-09-15', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск, остаток 60 000 000' };
+  const control = fhsAfter([IN]);
+  const leftRisk = fhsAfter([IN, { t: '2026-12-20', cat: 'low', by: null, how: 'просрочка погашена' }]);
+  const lastDayDebt = fhsAfter([IN, { t: '2026-12-31', debt: 49500000, by: null, how: 'снимок остатка: 49 500 000' }]);
+  const repaid = fhsAfter([IN, { t: '2026-12-20', repaid: true, by: null, how: 'все кредиты заёмщика погашены' }]);
+  const lastDayIn = fhsAfter([{ t: '2026-12-31', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск, остаток 60 000 000' }]);
+  const nextDayIn = fhsAfter([{ t: '2027-01-01', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск, остаток 60 000 000' }]);
+  ok(400, control === ZM_H2 && leftRisk === '' && lastDayDebt === '' && repaid === '' && lastDayIn === ZM_H2 && nextDayIn === '',
+    `НЗ-30 — образец в условии на 31.12: задание есть; низкий риск 20.12, долг 49,5 млн 31.12, погашение 20.12: задания нет вообще; вошёл в риск 31.12: задание есть; вошёл 01.01.2027: за 2П 2026 задания нет`);
+})();
+
+/* НЗ-30 — вышел из риска или долг упал после конца периода: задание остаётся, признаки на конец периода, сырых значений нет */
+(() => {
+  ZD.seed();
+  const o = ZD.state.owner.zm.find(x => x.id === ZM5);
+  o.ev.push({ t: '2026-09-15', cat: 'mid', debt: 60000000, by: null, how: 'перевод в средний риск, остаток 60 000 000' });
+  pollOn('2026-11-16', '2027-01-01');
+  const t = zmLast('pk-zm-fhs', ZM5, ZM_H2);
+  o.ev.push({ t: '2027-01-10', debt: 40000000, by: null, how: 'снимок остатка: 40 000 000' });
+  pollOn('2027-01-10');
+  const debtStays = !!t && !ZD.isTerminal(t);
+  o.ev.push({ t: '2027-01-15', cat: 'low', by: null, how: 'просрочка погашена' });
+  pollOn('2027-01-15');
+  const p = t && ZD.povodByKey(t.povodKey);
+  const riskStays = !!t && !ZD.isTerminal(t) && zmLast('pk-zm-fhs', ZM5, ZM_H2) === t && p.status === 'appeared' && t.dueDate === '2027-02-14';
+  const traits = !!p && p.traits.категория === 'средний риск' && p.traits.полоса_с === '2026-09-15' && p.traits.сумма === 60000000;
+  const h = t ? ZD.renderCard(t.id) : '', own = t ? ZD.renderOwnerCard(t, p) : '';
+  const text = x => x.replace(/onclick='[^']*'/g, '').replace(/<[^>]*>/g, ' '); // только то, что видно: в onclick кнопок null законен
+  const shown = /на 31\.12\.2026: средний риск, остаток больше 50 млн/.test(own) && /низкий риск с 15\.01\.2027/.test(own) && /полоса с: 15\.09\.2026/.test(h) && !/\bnull\b|\bundefined\b|NaN|\[object/.test(text(h + own));
+  pollOn('2027-02-15');
+  const overdue = !!t && !ZD.isTerminal(t) && ZD.isOverdue(t, '2027-02-15');
+  ok(401, debtStays && riskStays && traits && shown && overdue,
+    `НЗ-30 — на 31.12 средний риск и 60 млн; долг 40 млн 10.01 и низкий риск 15.01 задание не снимают; признаки на конец периода: средний риск, полоса с 15.09.2026, 60 млн; с 15.02.2027 просрочено`);
+})();
+
+/* НЗ-30, АН-128 — оба периода открыты, заключение закрывает только свой */
+(() => {
+  const H1 = '2027-01-01..2027-06-30';
+  ZD.seed();
+  pollOn('2026-11-16', '2027-01-04', '2027-07-01');
+  const h2 = zmLast('pk-zm-fhs', ZM3, ZM_H2), h1 = zmLast('pk-zm-fhs', ZM3, H1);
+  const both = !!h2 && !!h1 && h2.id !== h1.id && !ZD.isTerminal(h2) && !ZD.isTerminal(h1);
+  anConc(ZM3, '1П 2027', '2027-07-20', 'E1');
+  pollOn('2027-07-20');
+  const onlyH1 = !!h1 && ZD.isTerminal(h1) && outc(h1).outcome === 'исполнено' && !!h2 && !ZD.isTerminal(h2) && ZD.isOverdue(h2, '2027-07-20');
+  anConc(ZM3, '2П 2026', '2027-07-25', 'E1');
+  pollOn('2027-07-25');
+  const thenH2 = !!h2 && ZD.isTerminal(h2) && outc(h2).outcome === 'исполнено';
+  const none = ZD.zmFhsOpen(ZD.zmAt(ZD.state.owner.zm.find(x => x.id === ZM3), '2027-07-25'), '2027-07-25').length === 0;
+  ok(402, both && onlyH1 && thenH2 && none,
+    `НЗ-30, АН-128 — «Ош-Курулуш»: 01.07.2027 открыты 2П 2026 и 1П 2027; заключение за 1П 2027 от 20.07 закрыло только его, 2П 2026 открыто и просрочено; заключение за 2П 2026 от 25.07 закрыло его`);
+})();
+
+/* НЗ-30 — снимает только погашение заёмщика, причина от заёмщика; прежней причины про остаток больше нет */
+(() => {
+  const H1 = '2027-01-01..2027-06-30';
+  ZD.seed();
+  pollOn('2026-11-16', '2027-01-04', '2027-07-01');
+  const h2 = zmLast('pk-zm-fhs', ZM3, ZM_H2), h1 = zmLast('pk-zm-fhs', ZM3, H1);
+  const o = ZD.state.owner.zm.find(x => x.id === ZM3);
+  const live = !!h2 && !!h1 && !ZD.isTerminal(h2) && !ZD.isTerminal(h1);
+  o.ev.push({ t: '2027-07-10', repaid: true, by: null, how: 'все кредиты заёмщика погашены' });
+  pollOn('2027-07-10');
+  const gone = [h2, h1].every(t => !!t && ZD.isTerminal(t) && outc(t).outcome === 'снято' && /^заёмщик больше не действующий: все кредиты заёмщика погашены$/.test(outc(t).reason || ''));
+  ok(403, live && gone && !src.includes('не больше 50 млн'),
+    `НЗ-30 — погашение 10.07.2027 сняло оба открытых задания: «заёмщик больше не действующий»; причины «остаток не больше 50 млн» в макете нет, условие закончившегося периода не меняется`);
+})();
+
+/* НЗ-30 — на экране сказано, когда появляется: столбец и панель правила, карточка заёмщика; номеров решений и сырых значений нет */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2027-01-04');
+  ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все'; ZD.state.settingsTab = 'tasks';
+  const SAID = /на следующий день после конца полугодия/;
+  const BAD = /\bundefined\b|\bnull\b|\[object|NaN|НЗ-|ЭЗ-|ЗЦ-|АН-1|ADR-|волн/;
+  const ap = ZD.appearOf(ZD.kindOf('pk-zm-fhs')), panel = ZD.renderRulePanel(ZD.ruleForKind('pk-zm-fhs').id), table = ZD.renderSettings();
+  const t = zmLast('pk-zm-fhs', ZM3, ZM_H2), card = t ? ZD.renderCard(t.id) : '', own = t ? ZD.renderOwnerCard(t, ZD.povodByKey(t.povodKey)) : '';
+  const screens = [panel, card, own].map(h => h.replace(/onclick='[^']*'/g, '').replace(/<[^>]*>/g, ' ')); // только то, что видно: в onclick кнопок null законен
+  ok(404, !!t && SAID.test(ap.thr) && SAID.test(panel) && SAID.test(table) && /появляется на следующий день после конца полугодия/.test(own) && /за идущий период задания нет/.test(own) && /на 31\.12\.2026: высокий риск/.test(own) && !screens.some(h => BAD.test(h)),
+    `НЗ-30 — столбец «Когда появляется», панель правила и карточка заёмщика называют день после конца полугодия и условие на конец периода; сырых значений и номеров решений нет`);
+})();
+
+/* НЗ-30 — числа стенда: идут только от анализа ФХС */
+(() => {
+  ZD.seed();
+  const nums = d => { ZD.goToDate(d); return [ZD.state.tasks.length, ZD.state.tasks.filter(t => !ZD.isTerminal(t)).length, ZD.state.notifications.length].join('/'); };
+  const fhsOf = () => ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs').map(t => `${t.povodKey.split(':')[1]}${ZD.isTerminal(t) ? ' закрыто' : ''}`).sort().join();
+  const n1 = nums('2026-10-01'), n2 = nums('2026-11-02'), n3 = nums('2026-11-16'), f3 = fhsOf(), n4 = nums('2027-01-04'), f4 = fhsOf(), n5 = nums('2027-03-01'), f5 = fhsOf();
+  ok(405, n1 === '204/117/401' && n2 === '258/133/605' && n3 === '297/172/683' && n4 === '391/241/896' && n5 === '413/262/964' && f3 === '' &&
+       f4 === [`${ZM1}|${ZM_H2}`, `${ZM3}|${ZM_H2}`].sort().join() && f5 === [`${ZM1}|${ZM_H2} закрыто`, `${ZM3}|${ZM_H2}`].sort().join(),
+    `НЗ-30 — 01.10: ${n1}, 02.11: ${n2}, 16.11: ${n3} (анализа нет), 04.01.2027: ${n4} (два задания за 2П 2026), 01.03.2027: ${n5} («Талас-Дан» закрыт ФА-7, «Ош-Курулуш» открыт)`);
 })();
 
 /* ---------- отчёт ---------- */
