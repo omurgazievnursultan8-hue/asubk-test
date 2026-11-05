@@ -58,8 +58,13 @@
 // замена обзора НАЗЫВАЕТСЯ человеком и ставит пару ссылок (ИА-34); суждение правит автор, а
 // при неактивном авторе — заведующий отделом с отметкой «правка не автором» (ADR-0254);
 // реестр поручений уехал к соседу «задания» (ADR-0250), и наружу открылась ЧЕТВЁРТАЯ дверь —
-// analysisLeads: два вида повода, полное множество, устойчивый ключ и названная база отсчёта
-// срока (ADR-0251, ADR-0229).
+// analysisLeads: полное множество, устойчивый ключ и названная база отсчёта срока (ADR-0251,
+// ADR-0229).
+// Блок АБ (#133…#147) закрывает волну 20 — настройки по ADR-0333: порог на чтение и новая редакция
+// выпуском (НЗ-14, НЗ-4), новое значение периодичности и отсрочки с датой и основанием только на
+// новые периоды (НЗ-3, АН-122, АН-123), подпись «откуда число» (НЗ-17), сверка расписания с
+// заёмщиком и заданиями (НЗ-9, НЗ-26, НЗ-Д10), срок обзора записью шаблона (НЗ-Д8), подсветка
+// вместо вида повода (ЗНП-4, АН-127), документы досье как тот же факт (АН-128…АН-130).
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -269,12 +274,18 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     `редакция со ссылкой из заключения не снимается: «${used.why.slice(0, 70)}…»`);
 
   AN.seed();
-  const curatorSch = AN.setSchedule('sc-fl-high', { grace: 10 });
+  const curatorSch = AN.setSchedule('sc-fl-high', { grace: 10, from: TODAY, why: 'решение отдела' });
   AN.setRole('Администратор');
-  const adminSch = AN.setSchedule('sc-fl-high', { grace: 10 });
+  const noDate = AN.setSchedule('sc-fl-high', { grace: 10 });
+  const adminSch = AN.setSchedule('sc-fl-high', { grace: 10, from: TODAY, why: 'решение отдела' });
   const due = AN.dueOf('b-3');
-  ok(21, !curatorSch.ok && has(curatorSch.why, 'администратор') && adminSch.ok && due.due === '2026-07-10',
-    `расписание правит администратор, и срок пересчитывается от него: отсрочка 10 дней → срок ${due.due} (§7)`);
+  AN.state.today = '2027-07-15';
+  const dueNext = AN.dueOf('b-3');
+  AN.state.today = TODAY;
+  ok(21, !curatorSch.ok && has(curatorSch.why, 'администратор') && !noDate.ok && has(noDate.why, 'дата начала') &&
+        adminSch.ok && due.due === '2026-08-14' && dueNext.due === '2027-07-10',
+    `расписание правит администратор новой записью с датой: отсрочка 10 дней с ${TODAY} — за начатый период срок ` +
+    `${due.due} прежний, за 1П 2027 срок ${dueNext.due} уже от новой записи (§7)`);
 })();
 
 /* ---------- H. Срок → обязательство → дефект (ИА-12, ИА-13) ---------- */
@@ -316,13 +327,14 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const ratios = AN.callSeam('заявка и комиссия', 'analysisRatios', 'b-1');
   const draft = AN.callSeam('заявка и комиссия', 'analysisDraft', 'b-1');
   const evad = AN.callSeam('классификация', 'docsEvading', 'b-5', '1П 2026');
-  ok(28, seams.length === 4 &&
-        seams.join(',') === 'analysisVerdict,analysisDone,docsRequested,analysisLeads' &&
+  ok(28, seams.length === 5 &&
+        seams.join(',') === 'analysisVerdict,analysisDone,docsRequested,analysisLeads,analysisDocs' &&
         !ratios.ok && !draft.ok && !evad.ok && has(evad.why, 'это СУЖДЕНИЕ') && has(evad.why, 'решения комитета'),
-    `наружу ${seams.length} шва (${seams.join(', ')}); коэффициентов и черновиков не отдаёт ни ` +
+    `наружу ${seams.length} швов (${seams.join(', ')}); коэффициентов и черновиков не отдаёт ни ` +
     `один: «${ratios.why.slice(0, 60)}…». Третий шов — факт, а не суждение, и готового признака ` +
     `«уклоняется» рядом с ним нет: «${evad.why.slice(0, 64)}…». Четвёртый заведён волной 18 и ` +
-    `отдаёт не суждение и не факт, а СОСТОЯНИЕ — «вот это сейчас требует задания» (ADR-0251)`);
+    `отдаёт не суждение и не факт, а СОСТОЯНИЕ — «вот это сейчас требует задания» (ADR-0251). ` +
+    `Пятый отдаёт реквизиты документов для досье (АН-129)`);
 
   const cls = AN.callSeam('классификация', 'analysisVerdict', 'b-1');
   const task = AN.callSeam('задания', 'analysisVerdict', 'b-1');
@@ -482,19 +494,20 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
 
   /* АН-Д3: действующая на дату строка выбирается тем же порядком, что и редакция (ИА-17). */
   AN.seed();
+  AN.state.schedule.find(r => r.id === 'sc-org-mid').since = '2025-07-01';
   AN.state.schedule.push({ id: 'sc-org-mid-2', ptype: 'организация', risk: 'mid', freq: 'полугодие',
-    grace: 10, limit: 50000000, basis: 'п. 11.2', since: '2026-03-01' });
+    grace: 10, limit: 50000000, basis: 'Порядок №41 п. 11 пп. 2', since: '2026-01-01' });
   const later = AN.dueOf('b-1');
   AN.seed();
   AN.state.schedule.push({ id: 'sc-org-mid-3', ptype: 'организация', risk: 'mid', freq: 'полугодие',
-    grace: 10, limit: 50000000, basis: 'п. 11.2', since: '2026-08-01' });
+    grace: 10, limit: 50000000, basis: 'Порядок №41 п. 11 пп. 2', since: '2026-03-01' });
   const afterEnd = AN.dueOf('b-1');
   const onePicker = (m[1].match(/function onDate/g) || []).length === 1 &&
     /rowOn\(AN\.state\.schedule/.test(m[1]) && !/rows\.find\(r => r\.ptype/.test(m[1]);
   ok(41, later.row === 'sc-org-mid-2' && later.due === '2026-07-10' &&
         afterEnd.row === 'sc-org-mid' && afterEnd.due === '2026-08-14' && onePicker,
-    `вторая строка того же типа, вступившая в силу 01.03.2026, действует (срок ${later.due}); вступившая ` +
-    `01.08.2026 — уже после конца периода — не действует (${afterEnd.due}); выбор записи на дату сделан одной функцией (ИА-17)`);
+    `вторая запись той же пары, вступившая в силу с начала периода 01.01.2026, действует (срок ${later.due}); вступившая ` +
+    `01.03.2026 — внутри периода — на него не действует (${afterEnd.due}); выбор записи на дату сделан одной функцией (ИА-17)`);
 
   /* АН-Д4: тип лица для срока — на конец отчётного периода, как и для методики (ИА-4, ИА-17). */
   AN.seed();
@@ -638,10 +651,10 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const highTiny = AN.dueOf('b-3');
   ok(47, noLowRow && !low.required && has(low.why, 'Низкий кредитный риск') &&
         has(low.why, 'плановый анализ финансово-хозяйственного состояния не проводится') &&
-        highTiny.required && highTiny.limit === null && highTiny.basis === 'п. 6.5' &&
+        highTiny.required && highTiny.limit === null && highTiny.basis === 'Порядок №41 п. 6 пп. 5' &&
         highTiny.row === 'sc-fl-high',
     `охват ставит норма, а не тип лица: по низкому риску строки нет и отказ назван — «${low.why.slice(0, 62)}…»; ` +
-    `по высокому анализ вменён при задолженности 1 000 сом, порога у строки нет вовсе (п. 6.5)`);
+    `по высокому анализ вменён при задолженности 1 000 сом, порога у строки нет вовсе (${highTiny.basis})`);
 
   /* АН-39: ПОРОГ — поле строки, и сравнение строгое: норма говорит «более», а не «не менее». */
   AN.seed(); AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 32400000 }];
@@ -651,7 +664,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.seed();
   const above = AN.dueOf('b-1');
   ok(48, !below.required && has(below.why, '32 400 000,00') && has(below.why, '50 000 000,00') &&
-        has(below.why, 'не превышает порог') && has(below.why, 'п. 11.2') && below.row === 'sc-org-mid' &&
+        has(below.why, 'не превышает порог') && has(below.why, 'п. 11 пп. 2') && below.row === 'sc-org-mid' &&
         !exact.required && above.required && above.debt === 81400000 && above.limit === 50000000,
     `порог сравнивается строго: 32 400 000 и ровно 50 000 000 анализ не вменяют, 81 400 000 — вменяет. ` +
     `Отказ называет обе величины и пункт: «${below.why.slice(0, 74)}…»`);
@@ -683,17 +696,27 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const nData = (dataSrc.match(/50000000/g) || []).length;
   const cleanLogic = !/50\s?000\s?000|Средний кредитный риск|Высокий кредитный риск/.test(dueSrc);
   AN.setRole('Администратор');
-  const raised = AN.setSchedule('sc-org-mid', { limit: 90000000 });
+  AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 81400000 }];
+  const refused = AN.setSchedule('sc-org-mid', { limit: 90000000, from: TODAY, why: 'проба' });
+  const raised = AN.scheduleRelease('sc-org-mid', { from: '2026-09-01', limit: 90000000,
+    act: 'Порядок №42 п. 11 пп. 2', why: 'новая редакция' });
+  AN.state.today = '2027-01-20';
   const afterRaise = AN.dueOf('b-1');
-  const cleared = AN.setSchedule('sc-org-mid', { limit: '' });
+  AN.state.today = TODAY;
+  const cleared = AN.scheduleRelease('sc-org-mid', { from: '2026-10-01', limit: '',
+    act: 'Порядок №43 п. 6 пп. 5', why: 'новая редакция' });
+  AN.state.today = '2027-01-20';
   const afterClear = AN.dueOf('b-1');
-  const bad = AN.setSchedule('sc-org-mid', { limit: 'полсотни' });
-  ok(50, nAll === nData && nData === 4 && cleanLogic && raised.ok && !afterRaise.required &&
+  AN.state.today = TODAY;
+  const bad = AN.scheduleRelease('sc-org-mid', { from: '2026-11-01', limit: 'полсотни',
+    act: 'Порядок №44', why: 'новая редакция' });
+  ok(50, nAll === nData && nData === 4 && cleanLogic && !refused.ok && raised.ok && !afterRaise.required &&
         has(afterRaise.why, '90 000 000,00') && cleared.ok && afterClear.required &&
         afterClear.limit === null && !bad.ok && has(bad.why, 'пустое поле означает'),
     `порог живёт в записи, а не в коде: число ${nData} раза встречается только в справочнике расписания, ` +
-    `в логике срока нет ни его, ни названий категорий. Администратор поднял порог до 90 000 000 — анализ ` +
-    `перестал вменяться; очистил поле — вменяется безусловно; «полсотни» отклонено словами (ИА-18)`);
+    `в логике срока нет ни его, ни названий категорий. На экране администратор его не правит, новая редакция ` +
+    `приходит выпуском: порог 90 000 000 — анализ перестал вменяться; пустое поле — вменяется безусловно; ` +
+    `«полсотни» отклонено словами (ИА-18, НЗ-4)`);
 
   /* АН-23: величины нет — назван отказ, а не показан чужой срок как свой; дефект из
      неразрешённого срока не рождается (ИА-13). */
@@ -721,8 +744,8 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 32400000 }];
   AN.go('schedule');
   const scrBelow = panel();
-  ok(52, has(scr, 'Категория риска') && has(scr, 'Порог задолженности') && has(scr, 'Основание') &&
-        has(scr, 'порога нет') && has(scr, 'п. 11.2') && has(scr, 'Пара на конец периода') &&
+  ok(52, has(scr, 'Категория риска') && has(scr, 'Порог задолженности') && has(scr, 'норма · Порядок №41') &&
+        has(scr, 'порога нет') && has(scr, 'п. 11 пп. 2') && has(scr, 'Пара на конец периода') &&
         has(scr, 'организация × Средний кредитный риск') && has(scr, 'строка «sc-org-mid»') &&
         has(scrBelow, 'не превышает порог'),
     `на экране расписания видно то же, что в состоянии: пара, порог (и «порога нет» словами), пункт ` +
@@ -2235,7 +2258,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     `печатается В ЗЕРКАЛЕ шапки теми же словами, что уходят в шов: у b-5 «не получен — 42 дн. ` +
     `после срока», у b-3 «не запрашивался». Кнопки запроса аналитику не показаны — запрашивает ` +
     `ведущий куратор, — а «Посчитать дефект по запросу» стоит рядом и отказывает словами. В ` +
-    `площадке швов их четыре, и рядом с ними стоит несуществующий «docsEvading»: спросив его, ` +
+    `площадке швов их пять, и рядом с ними стоит несуществующий «docsEvading»: спросив его, ` +
     `человек читает, почему признака «уклоняется» здесь нет и не будет`);
 })();
 
@@ -2690,29 +2713,26 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     `Самой записи в состоянии анализа нет: номер ${fromRow.no} в нём не встречается ни разу, ` +
     `поля tasks не существует (ИА-36, ADR-0250 §1, §3, §4)`);
 
-  /* --- #126. Четвёртая дверь: вид повода обязателен, повод отпадает ОПРОСОМ ----- */
+  /* --- #126. Четвёртая дверь: вид повода обязателен, «поручений нет» — не вид ---- */
   AN.seed();
   AN.seedReviews();
   const noKind = AN.analysisLeads('');
   const badKind = AN.analysisLeads('обзор просрочен');
-  const before126 = AN.analysisLeads('review-decision');
-  AN.setRole(CHIEF);
-  AN.taskFromReview('ОБ-2', { obj: 'p-06', what: 'вынести на кредитный комитет',
-    due: '2026-09-30' });
-  const after126 = AN.analysisLeads('review-decision');
-  const lead = before126.ok ? before126.leads[0] : {};
+  const goneId = AN.analysisLeads('review-decision');
+  const goneName = AN.analysisLeads('обзор требует решения, поручений нет');
+  const kinds126 = AN.leadKinds();
+  const before126 = AN.analysisLeads('review-missing');
   ok(126,
-      !noKind.ok && has(noKind.why, 'вид повода не назван') && !badKind.ok && has(badKind.why, 'у анализа нет') && before126.ok && before126.n === 1 && lead.obj === 'ОБ-2' &&
-      lead.verdict === 'требует решения руководства' && lead.to === 'Администрирование кредитов' &&
-      lead.seamAsked === 'zdByBasis' && before126.full === true &&
-      after126.ok && after126.n === 0 &&
-      has(after126.note, 'ПОЛНОЕ') && has(after126.note, 'опросом, а не отметкой'),
-    `повод первый — «обзор требует решения, поручений нет»: в множестве ${before126.n} — ` +
-    `${lead.obj} с выводом «${lead.verdict}», адресат «${lead.to}», число поручений спрошено ` +
-    `швом ${lead.seamAsked} у соседа. Завели по нему задание — и повод ОТПАЛ САМ, следующим ` +
-    `опросом (стало ${after126.n}): отметки «закрыто» никто не ставил и ставить некому. Шов ` +
-    `отвечает ПО ВИДУ повода: без вида — отказ («${noKind.why.slice(0, 72)}…»), с выдуманным ` +
-    `видом — свой, другой отказ (ADR-0210, ADR-0211, ADR-0251 §2)`);
+      !noKind.ok && has(noKind.why, 'вид повода не назван') && !badKind.ok && has(badKind.why, 'у анализа нет') &&
+      !goneId.ok && has(goneId.why, 'подсветка') && has(goneId.why, 'задания, срока и просрочки') &&
+      !goneName.ok && goneName.why === goneId.why &&
+      kinds126.length === 1 && kinds126[0].id === 'review-missing' &&
+      before126.ok && before126.full === true && has(before126.note, 'ПОЛНОЕ') &&
+      has(before126.note, 'опросом, а не отметкой'),
+    `вид повода у шва один — «${kinds126[0].name}». «Обзор требует решения, поручений нет» отвечен ` +
+    `своим отказом и по коду, и по имени: «${goneId.why.slice(0, 74)}…». Шов отвечает ПО ВИДУ ` +
+    `повода: без вида — отказ («${noKind.why.slice(0, 72)}…»), с выдуманным видом — свой, другой ` +
+    `отказ (ADR-0210, ADR-0211, ADR-0251 §2, ЗНП-4)`);
 
   /* --- #127. Повод второй: закрытый период, объявленная периодичность ----------- */
   AN.seed();
@@ -2730,12 +2750,12 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     !JSON.stringify(AN.state.reviews).includes('приказ');
   ok(127,
       miss.ok && miss.n === 1 && !!q4 && q4.period.to === '2025-12-31' &&
-      q4.to === 'отдел анализа' && has(q4.what, 'приказ № 118 от 12.01.2026') &&
+      q4.to === 'отдел анализа' && has(q4.what, 'приказ № 118 от 12.01.2026') && q4.dueWd === 15 &&
       !!skipNoCycle && has(skipNoCycle.why, 'периодичность обзора по этой форме приказом не объявлена') &&
       !!skipOpen && has(skipOpen.why, 'не закрыт') &&
       tpl04.ok && tpl04.cycle.every === 'квартал' && tpl04.cycle.basis.indexOf('приказ') === 0 &&
       tpl09.ok && tpl09.cycle === null && !!tpl09.cycleWhy && noOwnCycle,
-    `повод второй — «обзора за период нет»: квартал ${q4.period.from}—${q4.period.to} закрыт, ` +
+    `«обзора за период нет»: квартал ${q4.period.from}—${q4.period.to} закрыт, ` +
     `периодичность у ШО-04 объявлена («${tpl04.cycle.every}», ${tpl04.cycle.basis}), ` +
     `утверждённого обзора за него нет — повод один, и адресован он отделу анализа. Квартал, за ` +
     `который обзор подписан, повода не даёт; НЕ ЗАКРЫТЫЙ период назван отдельно ` +
@@ -2748,40 +2768,36 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   /* --- #128. Ключ устойчив, база отсчёта срока названа -------------------------- */
   AN.seed();
   AN.seedReviews();
-  const l1 = AN.analysisLeads('review-decision');
-  const l2 = AN.analysisLeads('review-decision');
-  const lm = AN.analysisLeads('review-missing');
+  const l1 = AN.analysisLeads('review-missing');
+  const l2 = AN.analysisLeads('review-missing');
   const keysSame = JSON.stringify(l1.leads.map(x => x.key)) ===
                    JSON.stringify(l2.leads.map(x => x.key));
-  const kDec = l1.leads[0], kMiss = lm.leads[0];
+  const kMiss = l1.leads[0];
   ok(128,
-      keysSame && kDec.key === 'review-decision·обзор:ОБ-2·2026-01-01..2026-03-31' &&
-      kMiss.key === 'review-missing·шаблон:ШО-04·2025-10-01..2025-12-31' &&
-      kDec.base === kDec.at && has(kDec.baseWhy, 'дата состояния') &&
+      keysSame && kMiss.key === 'review-missing·шаблон:ШО-04·2025-10-01..2025-12-31' &&
       kMiss.base === '2026-01-01' && kMiss.at === '2025-12-31' &&
       has(kMiss.baseWhy, 'вид повода введён в действие'),
-    `ключ повода УСТОЙЧИВ и собран из тройки «вид × объект × период»: ` +
-    `«${kDec.key}» и «${kMiss.key}»; два опроса подряд дали те же ключи — пересобранный ключ ` +
-    `завёл бы второй повод о том же и второе задание за ним (ADR-0211). База отсчёта срока — ` +
-    `max(дата состояния, дата ввода вида повода в действие): у первого ${kDec.base} (состояние), ` +
-    `у второго состояние ${kMiss.at}, а база ${kMiss.base} — «${kMiss.baseWhy.slice(0, 92)}…». ` +
+    `ключ повода УСТОЙЧИВ и собран из тройки «вид × объект × период»: «${kMiss.key}»; два опроса ` +
+    `подряд дали те же ключи — пересобранный ключ завёл бы второй повод о том же и второе задание ` +
+    `за ним (ADR-0211). База отсчёта срока — max(дата состояния, дата ввода вида повода в действие): ` +
+    `состояние ${kMiss.at}, а база ${kMiss.base} — «${kMiss.baseWhy.slice(0, 92)}…». ` +
     `Без этого первый же опрос объявил бы просроченным всё накопленное за годы (ADR-0229 §9)`);
 
   /* --- #129. Шов открыт заданиям, журнал вызовов помнит вид повода -------------- */
   AN.seed();
   AN.seedReviews();
-  const call = AN.callSeam('задания', 'analysisLeads', 'review-decision');
-  const alien = AN.callSeam('классификация', 'analysisLeads', 'review-decision');
+  const call = AN.callSeam('задания', 'analysisLeads', 'review-missing');
+  const alien = AN.callSeam('классификация', 'analysisLeads', 'review-missing');
   const done = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026', 'plan');
   const log = AN.seamCalls();
   const leadRec = log.find(x => x.seam === 'analysisLeads' && x.ok);
   const refRec = log.find(x => x.seam === 'analysisLeads' && !x.ok);
   const doneRec = log.find(x => x.seam === 'analysisDone');
   ok(129,
-      call.ok && call.answer.kind === 'review-decision' &&
+      call.ok && call.answer.kind === 'review-missing' &&
       !alien.ok && has(alien.why, 'ФАКТ, а не суждение') &&
       done.ok && log.length === 3 &&
-      !!leadRec && leadRec.occasion === 'обзор требует решения, поручений нет' &&
+      !!leadRec && leadRec.occasion === 'обзора за период нет' &&
       leadRec.module === 'задания' && leadRec.n === 1 &&
       !!refRec && refRec.module === 'классификация' && refRec.ok === false &&
       !!doneRec && doneRec.occasion === 'плановый' && doneRec.arg === 'b-1',
@@ -2807,13 +2823,13 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const leadCard = sch130.slice(sch130.indexOf('Что у анализа сейчас требует задания'));
   ok(130,
       has(sch130, 'Что у анализа сейчас требует задания') &&
-      has(sch130, 'обзор требует решения, поручений нет') && has(sch130, 'обзора за период нет') &&
-      has(sch130, 'review-decision·обзор:ОБ-2') && has(sch130, 'База отсчёта срока') &&
+      !has(leadCard, 'обзор требует решения, поручений нет') && has(sch130, 'обзора за период нет') &&
+      has(sch130, 'review-missing·шаблон:ШО-04') && has(sch130, 'База отсчёта срока') &&
       has(sch130, 'Что в множество не вошло и почему') &&
       has(sch130, 'Журнал вызовов швов') && has(sch130, 'Швы ещё не звали') &&
       !/поставить задание|Поставить задание/i.test(leadCard),
-    `на экране «Расписание и швы» поводы стоят СВОЕЙ карточкой: оба вида, ключ повода целиком ` +
-    `(«review-decision·обзор:ОБ-2·…»), база отсчёта срока с объяснением и перечень того, что в ` +
+    `на экране «Расписание и швы» поводы стоят СВОЕЙ карточкой: вид один, ключ повода целиком ` +
+    `(«review-missing·шаблон:ШО-04·…»), база отсчёта срока с объяснением и перечень того, что в ` +
     `множество НЕ вошло и почему. Рядом — журнал вызовов, который на пустом месте говорит ` +
     `словами «Швы ещё не звали». Кнопки «поставить задание» в карточке нет ни одной: анализ ` +
     `отдаёт СОСТОЯНИЕ, задание собирает сосед (ИА-11, ADR-0251 §5)`);
@@ -2845,7 +2861,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     `${rep.no}» и пилюлей в состоянии; заменённый документ из реестра не исчезает (ИА-33, ИА-34, ` +
     `ADR-0252, ADR-0253)`);
 
-  /* --- #132. Пять швов внутрь и четыре наружу — все названы вопросом ------------ */
+  /* --- #132. Швы внутрь и пять наружу — все названы вопросом --------------------- */
   AN.seed();
   const inAll = REP.seamsIn().list.concat(win.STAT.seamsIn().list, win.ZD.seamsIn().list);
   const out = AN.seams();
@@ -2854,23 +2870,341 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const allAsked = inAll.every(x => x.q && x.owner);
   const cons = AN.consumers().find(c => c.module === 'задания');
   ok(132,
-      out.length === 4 && out[3] === 'analysisLeads' &&
+      out.length === 5 && out[3] === 'analysisLeads' && out[4] === 'analysisDocs' &&
       newIn.length === 4 && allAsked &&
       !!cons && cons.may.join(',') === 'analysisLeads' &&
       has(cons.why, 'шва «поручить» у анализа нет и не будет') && !AN.consumers().some(c => c.module === 'задачи'),
-    `швов наружу четыре (${out.join(', ')}), и четыре новых шва ВНУТРЬ заведены волной 18 — ` +
+    `швов наружу пять (${out.join(', ')}), и четыре новых шва ВНУТРЬ заведены волной 18 — ` +
     `${newIn.join(', ')}: числа выпуска у отчётности, задания по основанию и заведение задания ` +
     `у соседа, покрытие охвата у владельца строк. Каждый назван ВОПРОСОМ, а не выгрузкой чужой ` +
     `таблицы. Модуль «задания» спрашивает у анализа ровно одно — поводы: «${cons.why.slice(0, 96)}…»`);
 })();
 
+/* ---------- АБ. Волна 20: настройки по ADR-0333, подсветка, документы досье ---------- */
+(() => {
+  const ADMIN = 'Администратор';
+  const REP = win.REP;
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+  const at = (date, fn) => { AN.state.today = date; const r = fn(); AN.state.today = TODAY; return r; };
+  const steadyDebt = v => { AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v }]; };
+
+  /* --- #133. НЗ-14, НЗ-4: порог на экране на чтение ------------------------------- */
+  AN.seed();
+  AN.setRole(ADMIN);
+  const tryLimit = AN.setSchedule('sc-org-mid', { limit: 90000000, from: TODAY, why: 'проба' });
+  const tryBasis = AN.setSchedule('sc-org-mid', { basis: 'Порядок №42', from: TODAY, why: 'проба' });
+  const recs133 = AN.scheduleRecords('sc-org-mid');
+  AN.go('schedule');
+  const adm133 = panel();
+  const form133 = adm133.slice(adm133.indexOf('Новое значение периодичности и отсрочки'),
+    adm133.indexOf('Сроки обзоров по шаблонам'));
+  ok(133, !tryLimit.ok && has(tryLimit.why, 'Порядок №41 п. 11 пп. 2') && has(tryLimit.why, 'выпуск') &&
+      !tryBasis.ok && recs133.length === 1 && recs133[0].limit === 50000000 &&
+      has(adm133, '50 000 000,00 сом') && has(adm133, 'только на чтение') &&
+      !/id="l-|id="scLimit/.test(adm133) && has(form133, 'id="scFreq"') && has(form133, 'id="scGrace"') &&
+      !/порог/i.test(form133),
+    `НЗ-14, НЗ-4: порог 50 000 000 администратору показан на чтение, поля ввода нет; правка отказана ` +
+    `словами: «${tryLimit.why.slice(0, 96)}…». Записей у строки по-прежнему ${recs133.length}`);
+
+  /* --- #134. НЗ-4: выпуск — новая запись, порог читается на конец периода ---------- */
+  AN.seed();
+  steadyDebt(60000000);
+  const rel = AN.scheduleRelease('sc-org-mid', { from: '2027-03-01', limit: 70000000,
+    act: 'Порядок №42 п. 11 пп. 2', why: 'новая редакция Порядка' });
+  const relPast = AN.scheduleRelease('sc-org-mid', { from: '2026-01-01', limit: 70000000,
+    act: 'Порядок №42 п. 11 пп. 2', why: 'новая редакция Порядка' });
+  const relNoAct = AN.scheduleRelease('sc-org-mid', { from: '2027-04-01', limit: 70000000, why: 'x' });
+  const p2 = at('2027-01-20', () => AN.dueOf('b-1'));
+  const p3 = at('2027-07-15', () => AN.dueOf('b-1'));
+  steadyDebt(81400000);
+  const p3b = at('2027-07-15', () => AN.dueOf('b-1'));
+  const blank134 = AN.scheduleRelease('sc-org-mid', { from: '2027-04-01', limit: '  ',
+    act: 'Порядок №43 п. 6 пп. 5', why: 'новая редакция Порядка' });
+  const old134 = AN.state.schedule.find(r => r.id === 'sc-org-mid');
+  ok(134, rel.ok && rel.row.id === 'sc-org-mid-2' && !relPast.ok && has(relPast.why, 'прошлая дата') &&
+      blank134.ok && blank134.row.limit === null &&
+      !relNoAct.ok && has(relNoAct.why, 'акта и пункта') && old134.limit === 50000000 &&
+      p2.required && p2.limit === 50000000 && p2.period === '2П 2026' && p2.due === '2027-02-14' &&
+      !p3.required && has(p3.why, '70 000 000,00') && has(p3.why, 'Порядок №42 п. 11 пп. 2') &&
+      p3b.required && p3b.limit === 70000000 && p3b.basis === 'Порядок №42 п. 11 пп. 2' && p3b.due === '2027-08-14',
+    `НЗ-4, АН-122: редакция 70 млн с 01.03.2027 — новая запись ${rel.row.id}, старая осталась. Долг 60 млн: ` +
+    `2П 2026 судится по 50 млн и вменён со сроком ${p2.due}; 1П 2027 судится по 70 млн и не вменён. ` +
+    `Прошлая дата и выпуск без акта отказаны`);
+
+  /* --- #135. НЗ-3: дата, основание, роль, история ---------------------------------- */
+  AN.seed();
+  const cur135 = AN.setSchedule('sc-fl-high', { grace: 60, from: TODAY, why: 'решение' });
+  AN.setRole(ADMIN);
+  const noFrom = AN.setSchedule('sc-fl-high', { grace: 60, why: 'решение' });
+  const past = AN.setSchedule('sc-fl-high', { grace: 60, from: '2026-08-20', why: 'решение' });
+  const noWhy = AN.setSchedule('sc-fl-high', { grace: 60, from: TODAY, why: '  ' });
+  const same = AN.setSchedule('sc-fl-high', { grace: 45, from: TODAY, why: 'решение' });
+  const badG = AN.setSchedule('sc-fl-high', { grace: 'много', from: TODAY, why: 'решение' });
+  const good135 = AN.setSchedule('sc-fl-high', { grace: 60, from: '2026-09-01', why: 'решение отдела' });
+  const before135 = AN.setSchedule('sc-fl-high', { grace: 30, from: TODAY, why: 'решение отдела' });
+  const recs135 = AN.scheduleRecords('sc-fl-high');
+  AN.go('schedule');
+  const adm135 = panel();
+  ok(135, !cur135.ok && has(cur135.why, 'администратор') && !noFrom.ok && has(noFrom.why, 'дата начала') &&
+      !past.ok && has(past.why, 'прошлая дата запрещена') && !noWhy.ok && has(noWhy.why, 'основание обязательно') &&
+      !same.ok && has(same.why, 'те же') && !badG.ok && has(badG.why, 'не целое') &&
+      good135.ok && good135.row.since === '2026-09-01' && good135.firstPeriod === '1П 2027' &&
+      !before135.ok && has(before135.why, 'позже') &&
+      recs135.length === 2 && recs135[0].grace === 45 && recs135[1].grace === 60 && recs135[1].why === 'решение отдела' &&
+      has(adm135, 'История') && has(adm135, 'решение отдела') && has(adm135, 'ещё не вступила'),
+    `НЗ-3: без даты, с прошлой датой, без основания, теми же значениями и не у администратора — разные отказы. ` +
+    `Запись с 01.09.2026 добавлена, первый её период ${good135.firstPeriod}, прежняя цела, история стоит под строкой`);
+
+  /* --- #136. АН-122: новое значение только на новые периоды ------------------------ */
+  AN.seed();
+  AN.setRole(ADMIN);
+  steadyDebt(81400000);
+  const set136 = AN.setSchedule('sc-org-mid', { grace: 60, from: TODAY, why: 'решение отдела' });
+  const d1 = AN.dueOf('b-1');
+  const d2 = at('2027-01-20', () => AN.dueOf('b-1'));
+  const d3 = at('2027-07-20', () => AN.dueOf('b-1'));
+  const early = at('2026-03-10', () => { AN.go('schedule'); return AN.dueOf('b-1'); });
+  ok(136, set136.ok && d1.period === '1П 2026' && d1.due === '2026-08-14' && d1.grace === 45 &&
+      !early.required && has(early.why, 'строки расписания для неё нет') &&
+      d2.period === '2П 2026' && d2.due === '2027-02-14' && d2.grace === 45 && d2.row === 'sc-org-mid' &&
+      d3.period === '1П 2027' && d3.due === '2027-08-29' && d3.grace === 60 && d3.row === 'sc-org-mid-2',
+    `АН-122: отсрочка 45 → 60 дн. с ${TODAY}: 1П 2026 — ${d1.due}, 2П 2026 — ${d2.due}, оба по старой записи; ` +
+    `1П 2027 — ${d3.due} по новой. Период, кончившийся до первой записи, отвечен отказом`);
+
+  /* --- #137. АН-123: смена периодичности ------------------------------------------- */
+  AN.seed();
+  AN.setRole(ADMIN);
+  steadyDebt(81400000);
+  AN.setSchedule('sc-org-mid', { freq: 'год', from: TODAY, why: 'решение отдела' });
+  const y1 = at('2027-01-20', () => AN.dueOf('b-1'));
+  const y2 = at('2027-07-20', () => AN.dueOf('b-1'));
+  const y3 = at('2028-01-20', () => AN.dueOf('b-1'));
+  AN.seed();
+  AN.setRole(ADMIN);
+  steadyDebt(81400000);
+  AN.state.schedule.find(r => r.id === 'sc-org-mid').freq = 'год';
+  AN.setSchedule('sc-org-mid', { freq: 'полугодие', from: TODAY, why: 'решение отдела' });
+  const h1 = at('2027-01-20', () => AN.dueOf('b-1'));
+  const h2 = at('2027-07-20', () => AN.dueOf('b-1'));
+  AN.seed();
+  AN.setRole(ADMIN);
+  steadyDebt(81400000);
+  AN.state.today = '2026-02-01';
+  AN.setSchedule('sc-org-mid', { freq: 'год', from: '2026-03-01', why: 'решение отдела' });
+  AN.state.today = TODAY;
+  const g1 = at('2027-01-20', () => AN.dueOf('b-1'));
+  const g2 = at('2028-01-20', () => AN.dueOf('b-1'));
+  ok(137, y1.required && y1.period === '2П 2026' && y1.due === '2027-02-14' &&
+      y2.required && y2.period === '2П 2026' && y2.due === '2027-02-14' &&
+      y3.required && y3.period === '2027 год' && y3.due === '2028-02-14' &&
+      h1.required && h1.period === '2026 год' && h1.due === '2027-02-14' &&
+      h2.required && h2.period === '1П 2027' && h2.due === '2027-08-14' &&
+      g1.required && !g1.unresolved && g1.period === '2П 2026' && g1.due === '2027-02-14' &&
+      g2.required && g2.period === '2027 год',
+    `АН-123: полугодие → год: 2П 2026 срок ${y1.due}, и на 20.07.2027 он же, следующий период ${y3.period}, срок ` +
+    `${y3.due}; год → полугодие: ${h1.period}, потом ${h2.period} без разрыва; смена внутри 1П не даёт отказа ` +
+    `«срок не определён»: ${g1.period}, потом ${g2.period}`);
+
+  /* --- #138. НЗ-17: откуда число --------------------------------------------------- */
+  AN.seed();
+  AN.setRole(ADMIN);
+  const rows138 = AN.state.schedule.slice();
+  const mid138 = rows138.find(r => r.id === 'sc-org-mid'), high138 = rows138.find(r => r.id === 'sc-org-high');
+  const srcAll = rows138.every(r => AN.srcOfTerm(r) === 'решение проекта');
+  AN.go('schedule');
+  const scr138 = panel();
+  const table138 = scr138.slice(scr138.indexOf('Строки расписания'), scr138.indexOf('Новое значение периодичности'));
+  const nProject = (table138.match(/решение проекта/g) || []).length;
+  const withOrder = AN.setSchedule('sc-org-mid', { grace: 60, from: '2026-09-01', why: 'приказ отдела',
+    order: 'приказ № 7 от 25.08.2026' });
+  ok(138, rows138.length === 8 && srcAll && nProject === 8 &&
+      AN.srcOfLimit(mid138) === 'норма · Порядок №41 п. 11 пп. 2' &&
+      AN.srcOfLimit(high138) === 'норма · Порядок №41 п. 6 пп. 5' &&
+      has(table138, 'норма · Порядок №41 п. 11 пп. 2') && has(table138, 'норма · Порядок №41 п. 6 пп. 5') &&
+      withOrder.ok && AN.srcOfTerm(withOrder.row) === 'внутренний акт · приказ № 7 от 25.08.2026',
+    `НЗ-17: порог — «${AN.srcOfLimit(mid138)}», у высокого риска «${AN.srcOfLimit(high138)}»; периодичность и ` +
+    `отсрочка всех ${rows138.length} строк — «решение проекта»: норма их не называет. С приказом в записи — ` +
+    `«${AN.srcOfTerm(withOrder.row)}»`);
+
+  /* --- #139. НЗ-9: расписание сходится с тем, что читают заёмщик и задания ---------- */
+  AN.seed();
+  const zdSrc = readFileSync(resolve(__dir, '../../mockups/zadaniya/zadaniya.html'), 'utf8');
+  const brSrc = readFileSync(resolve(__dir, '../../mockups/borrower/borrower.html'), 'utf8');
+  const zdFhs = /AN_FHS[^\n]*\n?[^\n]*mid:\s*\{\s*limit:\s*50000000[^}]*п\. 11 пп\. 2[^}]*grace:\s*45[^}]*\}[\s\S]{0,120}high:\s*\{\s*limit:\s*null[^}]*п\. 6 пп\. 5[^}]*grace:\s*45/.test(zdSrc);
+  const brFhs = /mid:\s*\{\s*limit:\s*50000000,\s*grace:\s*45,\s*clause:\s*'п\. 11 пп\. 2'[^}]*\}[\s\S]{0,120}high:\s*\{\s*limit:\s*null,\s*grace:\s*45,\s*clause:\s*'п\. 6 пп\. 5'/.test(brSrc);
+  const single = AN.state.schedule.filter(r => r.ptype !== 'групповой заёмщик');
+  const ours = single.every(r => r.grace === 45 && r.since === '2026-01-01' &&
+    (r.risk === 'mid' ? r.limit === 50000000 && r.basis === 'Порядок №41 п. 11 пп. 2'
+                      : r.limit === null && r.basis === 'Порядок №41 п. 6 пп. 5'));
+  AN.SUBJ('b-1').risk = [{ since: '2026-01-01', v: 'low' }, { since: '2026-09-15', v: 'mid' }];
+  steadyDebt(60000000);
+  const moved = at('2027-01-20', () => AN.dueOf('b-1'));
+  ok(139, zdFhs && brFhs && single.length === 6 && ours && moved.required && moved.period === '2П 2026' &&
+      moved.due === '2027-02-14',
+    `НЗ-9: порог 50 млн, 45 дн. и пункты у ${single.length} строк сходятся с AN_FHS заданий и заёмщика, чтением файлов. ` +
+    `Перевод в средний риск 15.09.2026 при долге 60 млн: 2П 2026, срок ${moved.due}`);
+
+  /* --- #140. НЗ-26: высокий без порога, средний с порогом --------------------------- */
+  AN.seed();
+  AN.SUBJ('b-3').debt = [{ since: '2025-01-01', v: 1 }];
+  const hi140 = AN.dueOf('b-3');
+  steadyDebt(50000000);
+  const midEq = AN.dueOf('b-1');
+  steadyDebt(50000001);
+  const midOver = AN.dueOf('b-1');
+  ok(140, hi140.required && hi140.limit === null && hi140.basis === 'Порядок №41 п. 6 пп. 5' &&
+      !midEq.required && has(midEq.why, 'не превышает порог') && midOver.required && midOver.limit === 50000000,
+    `НЗ-26: высокий риск вменён при остатке 1 сом, порога нет (${hi140.basis}); средний при ровно 50 000 000 снят, ` +
+    `при 50 000 001 вменён`);
+
+  /* --- #141. НЗ-Д10: группы — 60 дн. ------------------------------------------------ */
+  AN.seed();
+  const grp = AN.dueOf('b-4');
+  const grpRow = AN.state.schedule.find(r => r.id === grp.row);
+  ok(141, grp.required && grp.row === 'sc-grp-mid' && grp.grace === 60 && grp.due === '2026-08-29' &&
+      AN.srcOfTerm(grpRow) === 'решение проекта',
+    `НЗ-Д10: групповой заёмщик Группа «Достук»: 30.06.2026 + 60 дн. = ${grp.due}, подпись «${AN.srcOfTerm(grpRow)}». ` +
+    `Строка главная, у соседей групп нет`);
+
+  /* --- #142. НЗ-Д8: срок обзора — запись шаблона ------------------------------------ */
+  AN.seed();
+  AN.seedReviews();
+  const tp142 = REP.reportTemplate('ШО-04', TODAY);
+  const lead142 = AN.analysisLeads('review-missing').leads[0];
+  const cur142 = AN.setReviewCycle('ШО-04', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: 'приказ № 150 от 25.08.2026' });
+  AN.setRole(ADMIN);
+  const noOrd = AN.setReviewCycle('ШО-04', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: 'служебная записка' });
+  const pst142 = AN.setReviewCycle('ШО-04', { every: 'квартал', dueWd: 10, from: '2026-01-20', order: 'приказ № 150 от 25.08.2026' });
+  const bad142 = AN.setReviewCycle('ШО-04', { every: 'квартал', dueWd: 'полтора', from: '2026-09-01', order: 'приказ № 150 от 25.08.2026' });
+  const new142 = AN.setReviewCycle('ШО-04', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: 'приказ № 150 от 25.08.2026' });
+  const onOld = REP.cycleOn('ШО-04', '2026-03-31'), onNew = REP.cycleOn('ШО-04', '2026-09-30');
+  const leadAfter = AN.analysisLeads('review-missing');
+  const first09 = AN.setReviewCycle('ШО-09', { every: 'квартал', dueWd: '', from: TODAY, order: 'приказ № 151 от 21.08.2026' });
+  const leads09 = AN.analysisLeads('review-missing');
+  const tp09 = REP.reportTemplate('ШО-09', TODAY);
+  AN.go('schedule');
+  const scr142 = panel();
+  ok(142, tp142.cycle.dueWd === 15 && lead142.dueWd === 15 && lead142.dueBasis === 'приказ № 118 от 12.01.2026' &&
+      !cur142.ok && has(cur142.why, 'администратор') && !noOrd.ok && has(noOrd.why, 'приказ') &&
+      !pst142.ok && has(pst142.why, 'прошлая дата') && !bad142.ok && has(bad142.why, 'не число') && new142.ok &&
+      onOld.dueWd === 15 && onNew.dueWd === 10 && leadAfter.leads[0].dueWd === 15 && leadAfter.n === 1 &&
+      first09.ok && tp09.cycle.dueWd === null && leads09.n === 1 && !leads09.leads.some(x => x.obj === 'ШО-09') &&
+      has(scr142, 'Сроки обзоров по шаблонам') && has(scr142, '15 р.д. после закрытия периода') &&
+      has(scr142, 'внутренний акт · приказ № 118 от 12.01.2026') && has(scr142, 'приказом не назван'),
+    `НЗ-Д8: у ШО-04 срок 15 р.д. по приказу № 118, повод несёт его в записи. Новая запись 10 р.д. с 01.09.2026 ` +
+    `закрытый период не трогает: Q1 2026 — ${onOld.dueWd}, Q3 2026 — ${onNew.dueWd}; первая запись у ШО-09 поводов ` +
+    `за прошлое не заводит (их ${leads09.n}). Без приказа и прошлой датой — отказ`);
+
+  /* --- #143. ЗНП-4: подсветка вместо вида повода ------------------------------------ */
+  AN.seed();
+  AN.seedReviews();
+  const hl1 = AN.reviewLacksTasks('ОБ-1'), hl2 = AN.reviewLacksTasks('ОБ-2'), hl3 = AN.reviewLacksTasks('ОБ-3');
+  AN.setRole('Заведующий отделом анализа');
+  AN.go('reviews');
+  const reg143 = panel();
+  const pills = (reg143.match(/<span class="pill warn">поручений нет<\/span>/g) || []).length;
+  AN.setRole('Руководитель подразделения');
+  AN.openReview('ОБ-2');
+  const doc143 = panel();
+  const task143 = AN.taskFromReview('ОБ-2', { obj: 'p-06', what: 'вынести на кредитный комитет', due: '2026-09-30' });
+  const hlAfter = AN.reviewLacksTasks('ОБ-2');
+  AN.go('reviews');
+  const reg143b = panel();
+  ok(143, !hl1 && hl2 && !hl3 && pills === 1 && has(doc143, 'Обзор требует решения, поручений нет') &&
+      task143.ok && !hlAfter && !has(reg143b, '<span class="pill warn">поручений нет</span>'),
+    `ЗНП-4: подсвечен один обзор — ОБ-2 с выводом «требует решения руководства»: пилюля в реестре и плашка на ` +
+    `документе; ОБ-1 с «требует внимания» и черновик ОБ-3 без неё. Первое поручение снимает подсветку`);
+
+  /* --- #144. КЗ-48, НЗ-Д3: получение и документ — один факт -------------------------- */
+  AN.seed();
+  const docs1 = AN.analysisDocs('b-1').docs.filter(x => x.type === 'Пакет финансовых документов');
+  const docs2 = AN.analysisDocs('b-2').docs.filter(x => x.type === 'Пакет финансовых документов');
+  const docs5a = AN.analysisDocs('b-5').docs;
+  const q2 = AN.state.requests.find(q => q.id === 'ЗП-12');
+  AN.setRole('Ведущий куратор (Бекова Н.)');
+  AN.state.subj = 'b-1';
+  AN.go('borrower');
+  const scr144a = panel();
+  AN.state.subj = 'b-2';
+  AN.go('borrower');
+  const scr144b = panel();
+  const asked = AN.callSeam('заёмщик', 'analysisDocs', 'b-1');
+  const alien144 = AN.callSeam('классификация', 'analysisDocs', 'b-1');
+  const nobody = AN.analysisDocs('s-6');
+  ok(144, docs1.length === 1 && docs1[0].date === '2026-07-10' && docs1[0].ref === 'ЗП-11' && docs1[0].period === '1П 2026' &&
+      q2.got && q2.full === false && docs2.length === 0 && docs5a.length === 0 &&
+      asked.ok && asked.answer.n === 2 && !alien144.ok && nobody.ok && nobody.notBorrower && nobody.n === 0 &&
+      has(scr144a, 'Пакет финансовых документов от 10.07.2026') && has(scr144b, 'документа нет: пакет неполный'),
+    `КЗ-48: полное получение ЗП-11 от 10.07.2026 — документ той же даты; неполное ЗП-12 и неполученное ЗП-13 ` +
+    `документа не дают. Шов открыт заёмщику, классификации отказ, у поручителя документов нет`);
+
+  /* --- #145. КЗ-48: получили полный пакет — документ появился тем же действием -------- */
+  AN.seed();
+  AN.setRole('Ведущий куратор (Бекова Н.)');
+  const q13 = AN.state.requests.find(q => q.id === 'ЗП-13');
+  const before145 = AN.analysisDocs('b-5').n;
+  const got145 = AN.receiveDocs({ id: 'ЗП-13', full: true, at: '2026-08-20' });
+  const after145 = AN.analysisDocs('b-5').docs;
+  ok(145, before145 === 0 && got145.ok && after145.length === 1 && after145[0].ref === q13.id &&
+      after145[0].date === '2026-08-20' && after145[0].type === 'Пакет финансовых документов',
+    `КЗ-48: отметка полного получения ЗП-13 — и в ответе шва документ от ${after145[0] ? after145[0].date : '—'} ` +
+    `без второго действия и второй записи`);
+
+  /* --- #146. АН-128, АН-129: заключение и документ — один факт ------------------------ */
+  AN.seed();
+  const done146 = AN.analysisDone('b-1', '1П 2026', 'plan');
+  const an146 = () => AN.analysisDocs('b-1').docs.filter(x => x.type === 'Анализ финансово-хозяйственного состояния');
+  const first146 = an146();
+  const appl146 = AN.newAnalysis({ subj: 'b-2', report: 'r-202', occasion: 'appl' });
+  AN.setText(appl146.doc.no, 'Заявка: доход подтверждён.');
+  AN.setVerdict(appl146.doc.no, 'удовлетворительное');
+  const applOk = AN.approve(appl146.doc.no);
+  const b2docs = AN.analysisDocs('b-2').docs.filter(x => x.type === 'Анализ финансово-хозяйственного состояния');
+  const draftDoc = AN.analysisDocs('b-2').docs.some(x => x.ref === 'ФА-9');
+  const re146 = AN.reissue('ФА-7');
+  AN.setText(re146.doc.no, 'Переиздание на новой версии.');
+  AN.setVerdict(re146.doc.no, 'удовлетворительное');
+  const reOk = AN.approve(re146.doc.no);
+  const after146 = an146();
+  const stateJson146 = JSON.stringify(AN.state);
+  const noRecord = !stateJson146.includes('Анализ финансово-хозяйственного состояния') &&
+    !stateJson146.includes('Пакет финансовых документов');
+  ok(146, first146.length === 1 && first146[0].ref === 'ФА-7' && first146[0].ref === done146.no &&
+      first146[0].date === done146.at && first146[0].date === '2026-07-20' && first146[0].period === '1П 2026' &&
+      applOk.ok && !b2docs.some(x => x.ref === appl146.doc.no) && b2docs.length === 1 && b2docs[0].ref === 'ФА-6' && !draftDoc &&
+      reOk.ok && after146.length === 1 && after146[0].ref === 'ФА-7' && noRecord,
+    `АН-128: документ анализа b-1 — ${first146[0].ref} от ${first146[0].date} за ${first146[0].period}, те же номер и ` +
+    `дата, что у analysisDone. Заключение по заявке ${appl146.doc.no} и черновик ФА-9 документа не дают, переиздание ` +
+    `${re146.doc.no} второго не даёт. В состоянии модуля записи документа нет ни на какой глубине`);
+
+  /* --- #147. Экран без номеров решений ----------------------------------------------- */
+  AN.seed();
+  AN.setRole(ADMIN);
+  AN.setSchedule('sc-org-mid', { grace: 60, from: TODAY, why: 'решение отдела' });
+  AN.go('schedule');
+  const scr147 = panel();
+  const part147 = scr147.slice(scr147.indexOf('Строки расписания'), scr147.indexOf('Обязательства по всем заёмщикам'));
+  const codeRe = () => /(?<![\p{L}\d])(?:НЗ|АН|ЗНП|КЗ|ЗА|ИА)-Д?\d+|ADR-\d+/gu;
+  const codes = part147.match(codeRe()) || [];
+  ok(147, codeRe().test('(НЗ-14)') && codeRe().test(' АН-Д17') && part147.length > 500 && codes.length === 0 &&
+      has(part147, 'Сохранить новое значение') &&
+      has(part147, 'Сохранить срок обзора') && has(part147, 'счёт с периода 1П 2027'),
+    `на карточках расписания и сроков обзоров номеров решений нет (${codes.length}), а сохранение и первый период ` +
+    `новой записи показаны`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-09-21 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-11-05 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-09-21 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-11-05 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку analysis.html');
