@@ -2679,7 +2679,8 @@ function seedBorrowerDetails(){
     }
 
     /* ── документы (досье п.97) ── учредительные есть всегда, договорные — при наличии кредита */
-    if(!DOCS.some(d=>d.inn===inn)){
+    /* «Иссык-Куль Агро» на стенде — пример заёмщика с неполным досье: чужих документов ему не заводим. */
+    if(!DOCS.some(d=>d.inn===inn) && inn!=='02201199920021'){
       const by=EMP[curId].fio;
       const idBase='DOC-'+(++docSeq);
       const founderType = isJur?'Учредительные документы' : isIP?'Свидетельство ИП / патент' : 'Копия паспорта';
@@ -2768,7 +2769,7 @@ function seedBorrowerDetails(){
 /* dd.mm.yyyy → сравнимое число yyyymmdd; '—' и undefined → null. */
 function dnum(s){ if(!s || s==='—') return null; const [d,m,y]=s.split('.'); return +(y+m+d); }
 function dateLE(a,b){ const x=dnum(a), y=dnum(b); return x!==null && y!==null && x<=y; }
-function isActiveCredit(c,d){ return !c.closedAt || !dateLE(c.closedAt,d); }
+function isActiveCredit(c,d){ return (!c.date || dateLE(c.date,d)) && (!c.closedAt || !dateLE(c.closedAt,d)); }
 
 function catByDays(days){ return days<=5 ? 'low' : (days<=180 ? 'mid' : 'high'); }
 

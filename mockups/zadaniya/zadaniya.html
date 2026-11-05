@@ -2452,7 +2452,7 @@ function zmAt(o, d){
     repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
   evs.forEach(e=>{
     if(e.cat){ if(e.cat==='low') s.strip = null; else if(!s.strip) s.strip = e.t; s.cat = e.cat; s.catSince = e.t; } // средний → высокий — та же полоса
-    if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ s.repaid = null; s.activeSince = e.t; } } // новый кредит после погашения
+    if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ if(s.repaid.t!==e.t) s.activeSince = e.t; s.repaid = null; } } // новый кредит после погашения; в тот же день перерыва нет
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
     const fhsNeed = !!s.strip && anFhsNeed(s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
@@ -2995,7 +2995,7 @@ Object.assign(OWNER_CFG, {
     since:(s,d,x)=>x.since,
     traits:(s,d,x)=>Object.assign(zmTraits(x.x), {период:perText(x.x), срок:x.due}), // признаки — на конец периода, как и условие
     attrib:(s,p,d)=>{ // исполнитель — кто утвердил заключение; адресат — «исполнено», другой — «выполнил другой»
-      const doc = analysisDocs(s.id, d).find(e=>e.period===anPeriodName(p.sub.slice(0, 10)));
+      const doc = analysisDocs(s.id, d).find(e=>e.type===ZM_DOC.анализ && e.period===anPeriodName(p.sub.slice(0, 10)));
       if(doc) return {by:doc.by, how:`заключение ${doc.ref} от ${fmt(doc.date)} за ${doc.period}, утвердил ${emp(doc.by)?.name||doc.by}`};
       return {cancel:zmCancel(s)}; }}), // условие закончившегося периода не меняется: снять может только погашение заёмщика
   'pk-zm-recon-act':   ZMC({when:s=>s.unsigned.length>0,
@@ -6185,7 +6185,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
     <td class="small">срок — правило заданий</td><td class="small">полный пакет по запросу получает и отмечает модуль «Анализ»</td></tr>`);
   zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
     <td class="small">до ${fmt(x.due)} — расписание анализа</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
-  analysisDocs(s.id, d).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
+  analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.анализ || (s.strip && x.date>=s.strip)).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
   return `<div class="card">${head}

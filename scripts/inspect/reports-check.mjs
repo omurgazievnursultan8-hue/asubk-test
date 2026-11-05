@@ -7331,15 +7331,15 @@ const DEV = 'изменено — не утверждённый состав';
     `ОД-71: шов заданиям отдаёт день появления рядом с признаком: у близкого акта сверки ${T0}, у остальных пусто`);
 
   fresh();
-  const tp = RP.reportTemplate('t-pay04'), to = RP.reportTemplate('t-overdue'), oblBefore = RP.obligations().length;
-  RP.setFlags('t-pay04', { forReview: false }); const tpOff = RP.reportTemplate('t-pay04'), rOff = RP.addReviewCycle('t-pay04', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
+  const tp = RP.reportTemplate('t-overdue'), to = RP.reportTemplate('t-pay04'), oblBefore = RP.obligations().length;
+  RP.setFlags('t-overdue', { forReview: false }); const tpOff = RP.reportTemplate('t-overdue'), rOff = RP.addReviewCycle('t-overdue', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
   ok(667, tp.forReview && tp.cycle && tp.cycle.every === 'квартал' && tp.cycle.dueWd === 15 && tp.cycle.basis === 'приказ № 118 от 12.01.2026' && tp.cycle.since === '2026-01-12' && tp.cycleWhy === null && tp.cycles.length === 1 &&
         to.forReview && to.cycle === null && has(to.cycleWhy, 'приказом не объявлена') && RP.TPL('t-overdue').schedule.freq === 'ежемесячно' &&
         tpOff.cycle === null && has(tpOff.cycleWhy, 'пригоден для обзора') && !rOff.ok && has(rOff.why, 'пригодного для обзора') && RP.obligations().length === oblBefore,
-    `ОД-72: запись у отчёта: ФО-04 — ${tp.cycle?.every}, ${tp.cycle?.dueWd} р.д., ${tp.cycle?.basis}; ФО-01 сдаётся ежемесячно, а обзор: «${to.cycleWhy}»; признак снят — «${tpOff.cycleWhy}»; обязательств запись не порождает (${oblBefore})`);
+    `ОД-72: запись у отчёта: ФО-01 — ${tp.cycle?.every}, ${tp.cycle?.dueWd} р.д., ${tp.cycle?.basis}; ФО-04 сдаётся ежемесячно, а обзор: «${to.cycleWhy}»; признак снят — «${tpOff.cycleWhy}»; обязательств запись не порождает (${oblBefore})`);
 
   fresh();
-  const cyc = spec => RP.addReviewCycle('t-pay04', spec);
+  const cyc = spec => RP.addReviewCycle('t-overdue', spec);
   as('user'); const yU = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
   as('auth');
   const yEv = cyc({ every: 'неделя', dueWd: 10, from: '2026-09-01', order: ORD }), yDue = cyc({ every: 'квартал', dueWd: 'abc', from: '2026-09-01', order: ORD }), yZero = cyc({ every: 'квартал', dueWd: 0, from: '2026-09-01', order: ORD }),
@@ -7347,57 +7347,57 @@ const DEV = 'изменено — не утверждённый состав';
     yNoOrd = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: '' }), yWord = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: 'распоряжение устно' }),
     yDraft = RP.addReviewCycle('t-npl', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
   ok(668, [yU, yEv, yDue, yZero, yNoEv, yNoDate, yPast, yNoOrd, yWord, yDraft].every(r => !r.ok) && has(yU.why, 'уполномоченный') && has(yDue.why, 'не число рабочих дней') && has(yZero.why, 'не число рабочих дней') && has(yNoEv.why, 'некому считать') &&
-        has(yNoDate.why, 'дата начала обязательна') && has(yPast.why, 'прошлая дата запрещена') && has(yNoOrd.why, 'приказ') && has(yWord.why, 'приказ') && has(yDraft.why, 'утверждённой редакции') && RP.TPL('t-pay04').cycles.length === 1,
+        has(yNoDate.why, 'дата начала обязательна') && has(yPast.why, 'прошлая дата запрещена') && has(yNoOrd.why, 'приказ') && has(yWord.why, 'приказ') && has(yDraft.why, 'утверждённой редакции') && RP.TPL('t-overdue').cycles.length === 1,
     `НЗ-3, ОД-72: новая запись срока обзора: «${yPast.why}»; «${yNoOrd.why}»; «${yNoEv.why}»; ни один отказ записи не добавил`);
 
   const y1 = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
-  const atQ2 = RP.reportTemplate('t-pay04', '2026-06-30'), atQ3 = RP.reportTemplate('t-pay04', '2026-09-30'), atNow = RP.reportTemplate('t-pay04'), atOld = RP.reportTemplate('t-pay04', '2025-12-31');
-  const viaSeam = RP.callSeamOut('анализ', 'reportTemplate', { tid: 't-pay04', at: '2026-09-30' });
-  const ySame = cyc({ every: 'квартал', dueWd: 10, from: '2026-10-01', order: ORD }), yOff = cyc({ every: '', from: '2027-01-01', order: 'приказ № 300 от 01.12.2026' }), atOff = RP.reportTemplate('t-pay04', '2027-03-31');
+  const atQ2 = RP.reportTemplate('t-overdue', '2026-06-30'), atQ3 = RP.reportTemplate('t-overdue', '2026-09-30'), atNow = RP.reportTemplate('t-overdue'), atOld = RP.reportTemplate('t-overdue', '2025-12-31');
+  const viaSeam = RP.callSeamOut('анализ', 'reportTemplate', { tid: 't-overdue', at: '2026-09-30' });
+  const ySame = cyc({ every: 'квартал', dueWd: 10, from: '2026-10-01', order: ORD }), yOff = cyc({ every: '', from: '2027-01-01', order: 'приказ № 300 от 01.12.2026' }), atOff = RP.reportTemplate('t-overdue', '2027-03-31');
   ok(669, y1.ok && atQ2.cycle.dueWd === 15 && atNow.cycle.dueWd === 15 && atQ3.cycle.dueWd === 10 && atQ3.cycle.basis === ORD && atOld.cycle === null && has(atOld.cycleWhy, 'ещё не объявлена') && viaSeam.ok && viaSeam.data.cycle.dueWd === 10 &&
-        !ySame.ok && has(ySame.why, 'не отличается') && yOff.ok && atOff.cycle === null && has(atOff.cycleWhy, 'периодичность отменена') && RP.reportTemplate('t-pay04', '2026-12-31').cycle.dueWd === 10,
+        !ySame.ok && has(ySame.why, 'не отличается') && yOff.ok && atOff.cycle === null && has(atOff.cycleWhy, 'периодичность отменена') && RP.reportTemplate('t-overdue', '2026-12-31').cycle.dueWd === 10,
     `ОД-73: новая запись закрытые периоды не трогает: II квартал — ${atQ2.cycle.dueWd} р.д., III квартал — ${atQ3.cycle.dueWd} р.д.; период до первого приказа: «${atOld.cycleWhy}»; отмена приказом: «${atOff.cycleWhy}»`);
 
-  fresh(); RP.state.view = 'builder'; RP.state.sel.draft = 't-pay04';
+  fresh(); RP.state.view = 'builder'; RP.state.sel.draft = 't-overdue';
   const bA = V.builder.fn();
-  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', '2026-09-01'); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-pay04');
+  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', '2026-09-01'); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-overdue');
   const bA2 = V.builder.fn(), logC = RP.state.log[0].msg, clearedC = BFkeys => BFkeys.every(k => RP.state.sel.bf[k] === undefined);
   as('user'); const bU = V.builder.fn();
-  as('auth'); RP.doCancelCycle('t-pay04', '2026-09-01'); const bA3 = V.builder.fn(), rNow = RP.reportTemplate('t-pay04', '2026-09-30');
-  RP.state.sel.draft = 't-overdue'; const bOv = V.builder.fn(); RP.state.sel.draft = 't-recon'; const bRc = V.builder.fn();
+  as('auth'); RP.doCancelCycle('t-overdue', '2026-09-01'); const bA3 = V.builder.fn(), rNow = RP.reportTemplate('t-overdue', '2026-09-30');
+  RP.state.sel.draft = 't-pay04'; const bOv = V.builder.fn(); RP.state.sel.draft = 't-recon'; const bRc = V.builder.fn();
   ok(670, ['Обзор по приказу', 'Срок обзора', 'квартал, 15 р.д. после закрытия периода · с 12.01.2026', 'внутренний акт · приказ № 118 от 12.01.2026', 'Сохранить срок обзора', 'приказ № … от ДД.ММ.ГГГГ'].every(x => has(bA, x)) &&
         clearedC(['cyDue', 'cyFrom', 'cyOrder']) && has(bA2, '<td>01.09.2026</td><td>квартал, 10 р.д. после закрытия периода</td>') && has(bA2, 'ещё не вступила') && has(bA2, 'Отменить') && has(logC, 'с 01.09.2026') && has(logC, ORD) &&
         has(bU, 'Обзор по приказу') && has(bU, 'внутренний акт · ' + ORD) && !has(bU, 'Сохранить срок обзора') && !has(bU, 'Отменить') &&
         has(bA3, 'class="pill neutral">отменена</span>') && rNow.cycle.dueWd === 15 &&
         has(bOv, 'приказом не объявлена') && has(bOv, 'Сохранить срок обзора') && !has(bRc, 'Обзор по приказу') && !has(bRc, 'Сохранить срок обзора') && CLEAN(bA) && CLEAN(bU),
-    `ОД-72, ОД-70: карточка отчёта: срок обзора рядом с признаком, форма и отмена у уполномоченного, история всем; журнал «${logC}»; у ФО-01 — «приказом не объявлена», у бланка блока нет`);
+    `ОД-72, ОД-70: карточка отчёта: срок обзора рядом с признаком, форма и отмена у уполномоченного, история всем; журнал «${logC}»; у ФО-04 — «приказом не объявлена», у бланка блока нет`);
 
   fresh('user');
-  const dOk = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-pay04', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD }, by: 'Администратор анализа' });
-  const dPast = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-pay04', spec: { every: 'квартал', dueWd: 20, from: '2026-08-01', order: ORD }, by: 'Администратор анализа' });
-  const dOther = RP.callSeamOut('задачи', 'reviewCycleAdd', { tid: 't-pay04', spec: { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD } });
-  const dDirect = RP.addReviewCycle('t-pay04', { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD });
-  const dRec = RP.reportTemplate('t-pay04').cycles.slice(-1)[0];
+  const dOk = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-overdue', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD }, by: 'Администратор анализа' });
+  const dPast = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-overdue', spec: { every: 'квартал', dueWd: 20, from: '2026-08-01', order: ORD }, by: 'Администратор анализа' });
+  const dOther = RP.callSeamOut('задачи', 'reviewCycleAdd', { tid: 't-overdue', spec: { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD } });
+  const dDirect = RP.addReviewCycle('t-overdue', { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD });
+  const dRec = RP.reportTemplate('t-overdue').cycles.slice(-1)[0];
   ok(671, dOk.ok && dRec.by === 'Администратор анализа' && dRec.every === 'полугодие' && !dPast.ok && has(dPast.why, 'прошлая дата запрещена') && !dOther.ok && has(dOther.why, 'не задаёт') && !dDirect.ok && has(dDirect.why, 'уполномоченный'),
     `ОД-74: администратор анализа вносит ту же запись дверью с теми же отказами («${dPast.why}»), в записи видно кто внёс — «${dRec.by}»; другому модулю дверь закрыта, пользователю в карточке — отказ`);
 
   /* По ревью: очищенная дата — отказ, а не сегодня; несохранённое не уходит в другой отчёт; дверь без имени закрыта. */
   fresh(); const rec0 = RP.state.remindRecs.length;
   RP.rfSet('v', '8'); RP.rfSet('basis', 'б'); RP.rfSet('from', ''); RP.doRemind(); const remindCleared = RP.state.remindRecs.length === rec0;
-  RP.state.view = 'builder'; RP.state.sel.draft = 't-pay04'; V.builder.fn(); const cyc0 = RP.TPL('t-pay04').cycles.length;
-  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', ''); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-pay04'); const cycCleared = RP.TPL('t-pay04').cycles.length === cyc0;
-  RP.bfSet('cyEvery', 'месяц'); RP.state.sel.draft = 't-overdue'; const bLeak = V.builder.fn(); RP.doReviewCycle('t-overdue'); const noLeak = (RP.TPL('t-overdue').cycles || []).length === 0;
-  const dNoBy = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-pay04', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD } });
-  ok(672, remindCleared && cycCleared && noLeak && !has(bLeak, ORD) && !dNoBy.ok && has(dNoBy.why, 'кто её вносит') && RP.TPL('t-pay04').cycles.length === cyc0,
-    `по ревью волны 65: очищенная дата начала — отказ, а не сегодняшний день; несохранённый приказ ФО-04 в карточку ФО-01 не уходит и там не записывается; дверь анализа без имени: «${dNoBy.why}»`);
+  RP.state.view = 'builder'; RP.state.sel.draft = 't-overdue'; V.builder.fn(); const cyc0 = RP.TPL('t-overdue').cycles.length;
+  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', ''); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-overdue'); const cycCleared = RP.TPL('t-overdue').cycles.length === cyc0;
+  RP.bfSet('cyEvery', 'месяц'); RP.state.sel.draft = 't-pay04'; const bLeak = V.builder.fn(); RP.doReviewCycle('t-pay04'); const noLeak = (RP.TPL('t-pay04').cycles || []).length === 0;
+  const dNoBy = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-overdue', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD } });
+  ok(672, remindCleared && cycCleared && noLeak && !has(bLeak, ORD) && !dNoBy.ok && has(dNoBy.why, 'кто её вносит') && RP.TPL('t-overdue').cycles.length === cyc0,
+    `по ревью волны 65: очищенная дата начала — отказ, а не сегодняшний день; несохранённый приказ ФО-01 в карточку ФО-04 не уходит и там не записывается; дверь анализа без имени: «${dNoBy.why}»`);
 
-  /* ОД-Д8: ФО-26 из перечня снят и для обзора не годится; запись срока обзора живёт на ФО-04. */
-  fresh(); const pf = RP.reportTemplate('t-portfolio'), p4 = RP.reportTemplate('t-pay04'), ov = RP.reportTemplate('t-overdue');
+  /* ОД-Д8: ФО-26 из перечня снят и для обзора не годится; запись срока обзора живёт на ФО-01. */
+  fresh(); const pf = RP.reportTemplate('t-portfolio'), fo1 = RP.reportTemplate('t-overdue'), fo4 = RP.reportTemplate('t-pay04');
   as('auth'); const pfAdd = RP.addReviewCycle('t-portfolio', { every: 'квартал', dueWd: 15, from: '2026-09-01', order: ORD });
-  fresh(); RP.state.view = 'builder'; RP.state.sel.draft = 't-portfolio'; const bPf = V.builder.fn(); RP.state.sel.draft = 't-pay04'; const bP4 = V.builder.fn();
+  fresh(); RP.state.view = 'builder'; RP.state.sel.draft = 't-portfolio'; const bPf = V.builder.fn(); RP.state.sel.draft = 't-overdue'; const bFo1 = V.builder.fn();
   ok(673, !pf.forReview && pf.cycle === null && pf.cycles.length === 0 && !(RP.TPL('t-portfolio').cycles || []).length && !pfAdd.ok && has(pfAdd.why, 'пригодного для обзора') &&
-        p4.forReview && p4.cycles.length === 1 && p4.cycle.every === 'квартал' && p4.cycle.dueWd === 15 && p4.cycle.basis === 'приказ № 118 от 12.01.2026' && p4.cycle.since === '2026-01-12' &&
-        RP.TPL('t-pay04').form === 'ФО-04' && ov.cycle === null && has(bP4, 'квартал, 15 р.д. после закрытия периода · с 12.01.2026') && !has(bPf, 'квартал, 15 р.д. после закрытия периода') && CLEAN(bPf) && CLEAN(bP4),
+        fo1.forReview && fo1.cycles.length === 1 && fo1.cycle.every === 'квартал' && fo1.cycle.dueWd === 15 && fo1.cycle.basis === 'приказ № 118 от 12.01.2026' && fo1.cycle.since === '2026-01-12' &&
+        RP.TPL('t-overdue').form === 'ФО-01' && fo4.forReview && fo4.cycle === null && has(bFo1, 'квартал, 15 р.д. после закрытия периода · с 12.01.2026') && !has(bPf, 'квартал, 15 р.д. после закрытия периода') && CLEAN(bPf) && CLEAN(bFo1),
     `ОД-Д8: ФО-26 для обзора не годится и срока обзора не несёт («${pf.cycleWhy}»), запись приказа № 118 — у ФО-04; в карточке ФО-04 блок со сроком, в карточке ФО-26 его нет`);
 })();
 

@@ -7856,13 +7856,54 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   ZD.seed(); ZD.state.owner.anz.length = 0;
   const o3 = ZD.state.owner.zm.find(x => x.id === ZM3), o5 = ZD.state.owner.zm.find(x => x.id === ZM5);
   o5.ev.push({ t: '2027-01-20', cat: 'mid', debt: 60000000, by: null, how: 'средний риск' });
+  const late = { id: '09909200000099', name: 'Появился позже', ev: [{ t: '2027-02-01', cat: 'mid', debt: 60000000, by: null, how: 'первый кредит заёмщика, средний риск' }] };
+  ZD.state.owner.zm.push(late);
   ok(414, open(o3, '2027-01-04') === ZM_H2 && open(o3, '2027-07-01') === ZM_H2 + ',' + H1 && open(o5, '2027-02-01') === '' && open(o5, '2027-07-01') === H1 &&
-       ZD.zmAt(o3, '2027-01-04').activeSince === o3.ev[0].t,
-    `НЗ-Д14 — без полного погашения всё прежнее: «Ош-Курулуш» 04.01.2027 — 2П 2026, 01.07.2027 — оба периода; «Бишкек-Сүт», появившийся позже конца 2П 2026, — только 1П 2027`);
-  /* то же, что считает заёмщик на том же примере (borrower-check, НЗ-Д14) */
-  ok(415, ZD.zmAt(o, '2027-01-04').activeSince === '2025-06-10' && ZD.zmAt(o, '2027-04-01').activeSince === '2027-03-01' &&
-       open(o, '2027-01-04') === ZM_H2 && open(o, '2027-04-01') === '' && open(o, '2027-07-01') === H1,
-    `НЗ-Д14 — сверка с заёмщиком на «Талас-Дане»: до погашения 2П 2026 на месте, начало нового кредита 01.03.2027, после — 2П 2026 нет, 1П 2027 есть`);
+       ZD.zmAt(o3, '2027-01-04').activeSince === o3.ev[0].t &&
+       ZD.zmAt(late, '2027-07-01').activeSince === '2027-02-01' && open(late, '2027-02-02') === '' && open(late, '2027-07-01') === H1,
+    `НЗ-Д14 — без полного погашения всё прежнее: «Ош-Курулуш» 04.01.2027 — 2П 2026, 01.07.2027 — оба периода; «Бишкек-Сүт» стал средним в январе — только 1П 2027; заёмщик с первым кредитом 01.02.2027 — только 1П 2027`);
+  /* погашение и новый кредит в один день — перерыва нет, как у заёмщика (activeSinceOf) */
+  ZD.seed(); ZD.state.owner.anz.length = 0;
+  const same = ZD.state.owner.zm.find(x => x.id === ZM1), born = same.ev[0].t;
+  same.ev.push({ t: '2027-01-15', repaid: true, by: null, how: 'все кредиты заёмщика погашены' }, { t: '2027-01-15', debt: 60000000, by: 'E2', how: 'новый кредит выдан' });
+  const sameOk = !ZD.zmAt(same, '2027-02-01').repaid && ZD.zmAt(same, '2027-02-01').activeSince === born && open(same, '2027-02-01') === ZM_H2;
+  ZD.seed(); ZD.state.owner.anz.length = 0;
+  const next = ZD.state.owner.zm.find(x => x.id === ZM1);
+  next.ev.push({ t: '2027-01-15', repaid: true, by: null, how: 'все кредиты заёмщика погашены' }, { t: '2027-01-16', debt: 60000000, by: 'E2', how: 'новый кредит выдан' });
+  ok(415, sameOk && ZD.zmAt(next, '2027-02-01').activeSince === '2027-01-16' && open(next, '2027-02-01') === '',
+    `НЗ-Д14 — погашение и новый кредит 15.01.2027 в один день: перерыва нет, 2П 2026 остаётся; новый кредит на следующий день: 2П 2026 не считается`);
+})();
+
+/* Пакет и заключение за один период — разные факты; на карточке владельца «закрыто» только у пакета текущей полосы */
+(() => {
+  const note = x => (x.journal[x.journal.length - 1].how || '');
+  ZD.seed(); ZD.state.owner.anz.length = 0;
+  pollOn('2026-11-16', '2027-01-04');
+  const t = zmLast('pk-zm-fhs', ZM1, ZM_H2);
+  pkgGot(ZM1, '2П 2026', '2027-01-05', 'E2', 'ЗП-70');
+  anConc(ZM1, '2П 2026', '2027-01-11', 'E3');
+  pollOn('2027-01-05', '2027-01-10');
+  const openAfterPack = !!t && !ZD.isTerminal(t);
+  pollOn('2027-01-11');
+  ok(416, openAfterPack && ZD.isTerminal(t) && outc(t).outcome === 'исполнено' && outc(t).by === 'E3' && !/ЗП-70/.test(note(t)),
+    `пакет ЗП-70 за 2П 2026 задание по анализу за тот же период не закрывает и в итог не попадает; закрывает заключение, исполнитель — кто утвердил`);
+  ZD.seed(); ZD.state.owner.anz.length = 0;
+  const o = ZD.state.owner.zm.find(x => x.id === ZM1);
+  o.ev.push({ t: '2027-01-15', repaid: true, by: null, how: 'все кредиты заёмщика погашены' });
+  pollOn('2026-11-16', '2027-01-04');
+  const c = zmLast('pk-zm-fhs', ZM1, ZM_H2);
+  pkgGot(ZM1, '2П 2026', '2027-01-05', 'E2', 'ЗП-71');
+  pollOn('2027-01-15');
+  ok(417, !!c && ZD.isTerminal(c) && outc(c).outcome === 'снято' && !/ЗП-71/.test(note(c)),
+    `пакет ЗП-71 за 2П 2026 при полном погашении не превращает снятие задания по анализу в исполнение`);
+  ZD.seed();
+  at('2026-11-16'); ZD.runPoll(); ZD.state.viewer = 'E4';
+  const zm1 = () => { const x = zmLast('pk-zm-fin-package', ZM1); return ZD.renderOwnerCard(x, ZD.povodByKey(x.povodKey)).replace(/onclick='[^']*'/g, ''); };
+  const stale = zm1();
+  pkgGot(ZM1, '2025 год', '2026-11-16', 'E3', 'ЗП-52');
+  const fresh = zm1();
+  ok(418, !/ЗП-14/.test(stale) && /ЗП-52/.test(fresh) && /закрыто/.test(fresh),
+    `карточка заёмщика: пакет ЗП-14 от 25.02.2026 из прежней полосы не показан как закрытое обязательство; пакет ЗП-52 текущей полосы показан`);
 })();
 
 /* ---------- отчёт ---------- */
