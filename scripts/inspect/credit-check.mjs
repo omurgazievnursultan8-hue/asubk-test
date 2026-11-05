@@ -4869,6 +4869,18 @@ const payIn = (c, over) => CR.addPayment(c, Object.assign({ amount:1000, date:'0
   })();
 })();
 
+/* 206. ПОРОГ УВЕДОМЛЕНИЯ — ЗАПИСЬ НОРМЫ (НЗ-8): значение на дату, акт и пункт, выпуск новой записи
+   действует со своей даты, раньше неё прежнее значение; на чтение — наружу только функции. */
+(() => {
+  const r0 = CR.noticeNormAt('15.10.2026');
+  const rows = CR.NOTICE_NORM.concat([{ from:'01.01.2027', v:20, unit:'к.д.', act:'Порядок №41', point:'п. 15 пп. 1' }]);
+  const before = CR.noticeDaysAt('31.12.2026', rows), onDay = CR.noticeDaysAt('01.01.2027', rows);
+  const live = CR.noticeDaysAt('01.01.2027');             // живой список выпуском не менялся
+  ok(206, CR.noticeDaysAt('15.10.2026') === 30 && r0 && r0.unit === 'к.д.' && r0.act === 'Порядок №41' && r0.point === 'п. 15 пп. 1'
+          && before === 30 && onDay === 20 && live === 30 && CR.noticeNormAt('05.07.2026') === null,
+     `на дату ${CR.noticeDaysAt('15.10.2026')} ${r0 && r0.unit}, ${r0 && r0.act} ${r0 && r0.point} · выпуск с 01.01.2027: до ${before}, с даты ${onDay}, живой ${live} · до редакции ${CR.noticeNormAt('05.07.2026')}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
