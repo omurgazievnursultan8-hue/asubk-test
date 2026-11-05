@@ -4315,6 +4315,24 @@ test('W16-13 (НЗ-Д4, ЗЛН-9): роль в макете, экран оста
   eq(win.document.getElementById('btnNew').style.display, 'none', 'создавать предметы не может');
 });
 
+test('W16 (ЗЛН-6): порог обеспеченности на дату расчёта: снижение закрывает открытый повод, повышение даёт новые', () => {
+  const LACK = /Недостаточность обеспечения$/, act = 'Положение № 99, Прил. 1 §2.3';
+  const lack = (zt, obj) => zt.triggers().filter(x => LACK.test(x.type) && (!obj || x.obj === obj));
+  const a = load().zt;
+  eq(lack(a, 'К-133').length, 1, 'норма 120 %: повод есть');
+  has(lack(a, 'К-133')[0].text, '83,3%', 'обеспеченность 83,3 %');
+  eq(lack(a).length, 9, 'на стенде 9 поводов');
+  ok(a.paramRelease('coverLiquid', { v:1.1, from:'11.07.2026', act, why:'новая редакция' }).ok, 'выпуск 110 %');
+  eq(lack(a, 'К-133').length, 1, 'норма 110 %: повод остаётся');
+  has(lack(a, 'К-133')[0].text, '90,9%', 'обеспеченность 90,9 %');
+  const b = load().zt;
+  ok(b.paramRelease('coverLiquid', { v:1, from:'11.07.2026', act, why:'новая редакция' }).ok, 'выпуск 100 %');
+  eq(lack(b, 'К-133').length, 0, 'норма 100 %: повод закрылся');
+  const c = load().zt;
+  ok(c.paramRelease('coverLiquid', { v:1.5, from:'11.07.2026', act, why:'новая редакция' }).ok, 'выпуск 150 %');
+  ok(lack(c).length > 9, 'норма 150 %: поводов больше');
+});
+
 test('W16-14 (ЗЛН-8): ужесточение по риску подписано «решение проекта», числа те же', () => {
   const { win, zt } = load();
   win.renderRefbook();
