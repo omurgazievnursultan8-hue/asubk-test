@@ -1197,7 +1197,7 @@ const KIND_BASIS = {
   'pk-zl-ban-missing':['угроза без документа','Порядок №41 (весь текст)'],
   'pk-zl-committee':['угроза без документа','Порядок №41 п. 44'],
   'pk-zm-fin-package':['косвенно в нормах','Порядок №41 п. 6 пп. 5'],
-  'pk-zm-fhs':['косвенно в нормах','Порядок №41 п. 11 пп. 2'],
+  'pk-zm-fhs':['косвенно в нормах','Порядок №41 п. 11 пп. 2, п. 6 пп. 5'],
   'pk-zm-recon-act':['прямо в Порядке','Порядок №41 п. 9'],
   'pk-rep-obligation-due':['косвенно в нормах','Порядок №41 п. 12'],
   'pk-im-ssi-memo':['проект Инструкции','Инструкция (проект 11.05.2026) п. 8'],
@@ -2429,8 +2429,12 @@ function plDecisionAttrib(s, p, d){ // спорная пеня: решение �
   return {cancel:clear ? `${clear.how} — спорная пеня снимается без комиссии` : s.last.how};
 }
 /* заёмщик на дату: категория и полоса риска, суммарный остаток, документы досье и годовые акты — из фактов заёмщика */
-/* строка расписания анализа для среднего риска: порог, период и отсрочку объявляет анализ, заёмщик читает */
-const AN_FHS = {limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45};
+/* строки расписания анализа: порог, период и отсрочку объявляет анализ, заёмщик читает; у высокого риска порога нет */
+const AN_FHS = {
+  mid:{limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
+  high:{limit:null, act:'Порядок №41 п. 6 пп. 5', grace:45},
+};
+const anFhsNeed = (cat, debt)=>{ const r = AN_FHS[cat]; return !!r && (r.limit===null || debt>r.limit); };
 const ZM_ACT_DUE = '09-01';    // акт сверки на 1 января — до 1 сентября того же года
 const ZM_CAT = {low:'низкий риск', mid:'средний риск', high:'высокий риск'};
 const ZM_DOC = {пакет:'Пакет финансовых документов', анализ:'Анализ финансово-хозяйственного состояния'};
@@ -2445,7 +2449,7 @@ function zmAt(o, d){
     if(e.doc) s.docs.push(e);
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
-    const fhsNeed = s.cat==='mid' && !!s.strip && s.debt>AN_FHS.limit; // анализ нужен с дня, когда сошлись средний риск и остаток
+    const fhsNeed = !!s.strip && anFhsNeed(s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
     s.fhsSince = fhsNeed ? s.fhsSince || e.t : null;
   });
   // документ в досье считается по своей дате, не по дате внесения; документ пакета прежней полосы не в счёт, анализ считается по периоду
@@ -2472,7 +2476,7 @@ function zmFhsOpen(s, d){
     if(!x || !x.fhsSince) continue;
     const i = docs.findIndex(t=>t>=p.from);
     if(i!==-1){ docs.splice(i, 1); continue; }
-    out.push(Object.assign({key:`${p.from}..${p.to}`, since:dateMax(x.fhsSince, p.from), due:addDays(p.to, AN_FHS.grace)}, p));
+    out.push(Object.assign({key:`${p.from}..${p.to}`, since:dateMax(x.fhsSince, p.from), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat}, p));
   }
   return out;
 }
@@ -2971,8 +2975,7 @@ Object.assign(OWNER_CFG, {
     since:(s,d,x)=>x.since,
     traits:(s,d,x)=>Object.assign(zmTraits(s), {период:perText(x.x), срок:x.due}),
     done:(e,p)=>e.doc==='анализ' && (e.docDate||e.t)>=p.sub.slice(0, 10),
-    cancel:s=>s.cat==='high' ? `заёмщик переведён в высокий риск ${fmt(s.catSince)}: обязательный анализ — только в среднем риске`
-      : s.strip && s.debt<=AN_FHS.limit ? `суммарный остаток ${money(s.debt)} — не больше 50 млн` : zmCancel(s)}),
+    cancel:s=>s.strip && !anFhsNeed(s.cat, s.debt) ? `суммарный остаток ${money(s.debt)} — не больше 50 млн` : zmCancel(s)}),
   'pk-zm-recon-act':   ZMC({when:s=>s.unsigned.length>0,
     each:s=>s.unsigned.map(y=>({period:y, sub:y, since:`${y}-01-01`, due:`${y}-${ZM_ACT_DUE}`})),
     since:(s,d,x)=>x.since,
@@ -6160,7 +6163,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   const rows = [];
   if(OWNER_CFG['pk-zm-fin-package'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.пакет)}<div class="small">полоса риска с ${fmt(s.strip)}</div></td>
     <td class="small">срок — правило заданий</td><td>${btn('пакет', null, 'Пакет в досье')}</td></tr>`);
-  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">средний риск, остаток больше 50 млн</div></td>
+  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
     <td class="small">до ${fmt(x.due)} — расписание анализа</td><td>${btn('анализ', null, 'Анализ в досье')}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
@@ -6288,7 +6291,7 @@ const KIND_THRESHOLD = Object.assign({
   'pk-zl-ban-missing':()=>thrT(`срок ${ZL_BAN_WD} р.д. от удостоверения договора`),
   'pk-zl-committee':()=>thrT(`срок комитета ${ZL_COMMITTEE_DAYS} дн.`),
   'pk-an-no-review':()=>thrT('срок обзора называет шаблон анализа'),
-  'pk-zm-fhs':()=>thrT(`средний риск и долг больше ${AN_FHS.limit/1000000} млн сом`, AN_FHS.act),
+  'pk-zm-fhs':()=>thrT(`средний риск и долг больше ${AN_FHS.mid.limit/1000000} млн сом; высокий риск — всегда`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
   'pk-im-act-pending':()=>thrT(`больше ${IM_SET.act} к.д. без акта`),
   'pk-im-registration-pending':()=>thrT(`больше ${IM_SET.reg} к.д.`),
   'pk-im-topup-pending':()=>thrT(`больше ${IM_SET.topup} к.д.`),
