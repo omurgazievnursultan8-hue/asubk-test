@@ -158,3 +158,5 @@
 - Долги макета — `ЗНС-Д1`…`ЗНС-Д11` (канон заданий §14).
 
 **Уточнено [ADR-0327](./0327-zadanie-rabota-so-srokom-za-kotoryy-sprosyat-signal-bez-vala-i-ruchnogo-rezhima.md) (03.11.2026), `ЗНС-10`, `ЗНС-11`.** Порог свёртки и ручной режим сняты.
+
+**Уточнено [ADR-0333](./0333-porog-poyavleniya-u-modulya-znacheniya-s-datoy-norma-vypuskom.md) (05.11.2026), `НЗ-5`, `НЗ-6`.** Порог у заявок и программ меняется выпуском, а не администратором соседа.
