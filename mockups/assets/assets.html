@@ -15,6 +15,9 @@
   Состояние предложения, позиции и объекта не хранится: каждый раз вычисляется по
   опубликованным фактам на выбранную дату (ИМ-13, ИИ-2). Кнопки «сменить статус» нет.
 
+  Настройки: число, от которого зависит повод, — записи с датой и основанием; откуда число выводит запись;
+  число нормы на экране не правится; новое значение действует только на новые поводы (ИМ-102…ИМ-119).
+
   Шов для смоука: window.IM (и тот же объект как window.__im). Функции движка принимают
   явные аргументы и возвращают {ok, why} — тест не зависит от вёрстки.
 -->
@@ -516,62 +519,96 @@ const ASSIGN = [
   { obj: 'ИО-1', emp: 'Токтосунов Б.Э.', from: '2028-01-01', to: FAR, why: 'по правилу: г. Бишкек' },
 ];
 
-/* Настройки: пороги поводов и сроки ответа — у каждого значения источник (ИМ-15, ИМ-32). */
+/* Настройки: пороги поводов и сроки ответа (ИМ-15, ИМ-32). Число, от которого зависит, появится ли повод и к какому сроку,
+   хранится записями { from, v, why, by, act | order }; прежние записи не стираются (ИМ-102).
+   ОТКУДА ЧИСЛО задаёт запись (srcOf): act — норма (акт и пункт), order — внутренний акт (приказ Фонда), ни того ни другого —
+   решение проекта. Вручную подпись не выбирается. ЧИСЛО НОРМЫ на экране не правится: новая редакция — новая запись через выпуск
+   (paramRelease), старая остаётся для прошлых дел. Остальное правит заведующий Сектором (setParam).
+   Первая запись действует и на даты раньше себя: более ранних значений нет (ИМ-116). release — на чтение без акта (ИМ-107);
+   noNum — у строки нет своего числа (ИМ-113). */
+const INSTR = 'Инструкция (проект от 11.05.2026)';
+const num = (recs, x) => Object.defineProperties(Object.assign({ recs }, x), {
+  v: { enumerable: true, get() { return recOn(this).v; } }, src: { enumerable: true, get() { return srcOf(recOn(this)); } } });
+const normNum = (v, unit, point, x) => num([{ from: '2026-05-11', v, why: 'действующая редакция акта', by: '', act: `${INSTR}, ${point}` }], Object.assign({ unit }, x));
+const projNum = (v, unit, x) => num([{ from: '2026-01-01', v, why: 'ввод параметров', by: '' }], Object.assign({ unit }, x));
 const SETTINGS = {
   thr: [
-    { id: 'pk-im-offer-overdue',        obj: 'предложение', cond: 'срок ответа истёк, ответа нет',              v: 0,  unit: 'по сроку предложения', src: 'внутренний акт' },
-    { id: 'pk-im-ssi-memo',             obj: 'предложение судебного исполнителя', cond: 'записка председателю Комитета не внесена после регистрации', v: 1, unit: 'р.д.', src: 'Инструкция' },
-    { id: 'pk-im-act-pending',          obj: 'предложение', cond: 'позиция принята, акта нет дольше порога',      v: 30, unit: 'к.д.', src: 'внутренний акт' },
-    { id: 'pk-im-registration-pending', obj: 'объект',      cond: '«ждёт регистрации» дольше порога',            v: 60, unit: 'к.д.', src: 'внутренний акт' },
-    { id: 'pk-im-guard',                obj: 'объект (вещь)', cond: 'после перехода права нет расхода «Охрана и сохранность»', v: 5, unit: 'дн.', src: 'Инструкция' },
-    { id: 'pk-im-no-inspection',        obj: 'объект (вещь)', cond: 'с последнего осмотра прошло больше порога', v: 6,  unit: 'мес.', src: 'Инструкция' },
-    { id: 'pk-im-buyback-notice',       obj: 'объект (жильё, доля)', cond: 'уведомление о выкупе (извещение сособственников) не отправлено', v: 30, unit: 'дн.', src: 'Инструкция' },
-    { id: 'pk-im-not-listed',           obj: 'объект',      cond: 'нет первого объявления дольше порога от перехода права (у жилья и доли — от отказа)', v: 30, unit: 'к.д.', src: 'Инструкция' },
-    { id: 'pk-im-relist',               obj: 'объект',      cond: 'окно заявок истекло без продажи, нового объявления нет', v: 30, unit: 'к.д.', src: 'Инструкция' },
-    { id: 'pk-im-unsold',               obj: 'объект',      cond: 'объявлений подряд без заявок не меньше порога', v: 3,  unit: 'шт.', src: 'внутренний акт' },
-    { id: 'pk-im-application-pending',  obj: 'заявка на покупку', cond: 'заявка не вынесена на Комитет', v: 7, unit: 'р.д.', src: 'Инструкция' },
-    { id: 'pk-im-application-pending-buyback', obj: 'заявка на выкуп', cond: 'заявка на выкуп не вынесена на Комитет', v: 2, unit: 'р.д.', src: 'Инструкция' },
-    { id: 'pk-im-instalment-overdue',   obj: 'договор КП',  cond: 'платёж по графику не поступил дольше порога после даты', v: 5, unit: 'к.д.', src: 'внутренний акт' },
-    { id: 'pk-im-topup-due',            obj: 'объект',      cond: 'доплата «к выплате» не выплачена дольше порога или «удержана»', v: 30, unit: 'дн.', src: 'Инструкция' },
-    { id: 'pk-im-encumbrance-ending',   obj: 'объект',      cond: 'обременение кончается в пределах порога',     v: 30, unit: 'к.д.', src: 'внутренний акт' },
-    { id: 'pk-im-bankruptcy',           obj: 'предложение / залог обязанного лица', cond: 'взыскание опубликовало «признан банкротом», у лица есть залог, записки в Комитет нет', v: 10, unit: 'дн.', src: 'Инструкция' },
-    { id: 'pk-im-pledge-term',          obj: 'объект из залога (банкротство)', cond: 'до конца 3-летнего срока отчуждения осталось меньше порога', v: 90, unit: 'к.д.', src: 'Инструкция' },
-    { id: 'pk-im-claim-open',           obj: 'объект',      cond: 'требование к отчуждателю открыто дольше порога', v: 60, unit: 'к.д.', src: 'внутренний акт' },
+    projNum(0,  'по сроку предложения', { id: 'pk-im-offer-overdue',        obj: 'предложение', cond: 'срок ответа истёк, ответа нет', noNum: true }),
+    normNum(1,  'р.д.', 'п. 8',  { id: 'pk-im-ssi-memo',             obj: 'предложение судебного исполнителя', cond: 'записка председателю Комитета не внесена после регистрации' }),
+    projNum(30, 'к.д.',          { id: 'pk-im-act-pending',          obj: 'предложение', cond: 'позиция принята, акта нет дольше порога' }),
+    projNum(60, 'к.д.',          { id: 'pk-im-registration-pending', obj: 'объект',      cond: '«ждёт регистрации» дольше порога' }),
+    normNum(5,  'дн.',  'п. 25', { id: 'pk-im-guard',                obj: 'объект (вещь)', cond: 'после перехода права нет расхода «Охрана и сохранность»' }),
+    normNum(6,  'мес.', 'п. 27', { id: 'pk-im-no-inspection',        obj: 'объект (вещь)', cond: 'с последнего осмотра прошло больше порога' }),
+    normNum(30, 'дн.',  'п. 30', { id: 'pk-im-buyback-notice',       obj: 'объект (жильё, доля)', cond: 'уведомление о выкупе (извещение сособственников) не отправлено' }),
+    normNum(30, 'к.д.', 'п. 35', { id: 'pk-im-not-listed',           obj: 'объект',      cond: 'нет первого объявления дольше порога от перехода права (у жилья и доли — от отказа)' }),
+    normNum(30, 'к.д.', 'п. 35', { id: 'pk-im-relist',               obj: 'объект',      cond: 'окно заявок истекло без продажи, нового объявления нет' }),
+    projNum(3,  'шт.',           { id: 'pk-im-unsold',               obj: 'объект',      cond: 'объявлений подряд без заявок не меньше порога' }),
+    normNum(7,  'р.д.', 'п. 40', { id: 'pk-im-application-pending',  obj: 'заявка на покупку', cond: 'заявка не вынесена на Комитет' }),
+    normNum(2,  'р.д.', 'п. 71', { id: 'pk-im-application-pending-buyback', obj: 'заявка на выкуп', cond: 'заявка на выкуп не вынесена на Комитет' }),
+    projNum(5,  'к.д.',          { id: 'pk-im-instalment-overdue',   obj: 'договор КП',  cond: 'платёж по графику не поступил дольше порога после даты' }),
+    normNum(30, 'дн.',  'п. 46', { id: 'pk-im-topup-due',            obj: 'объект',      cond: 'доплата «к выплате» не выплачена дольше порога или «удержана»' }),
+    projNum(30, 'к.д.',          { id: 'pk-im-encumbrance-ending',   obj: 'объект',      cond: 'обременение кончается в пределах порога' }),
+    normNum(10, 'дн.',  'п. 17', { id: 'pk-im-bankruptcy',           obj: 'предложение / залог обязанного лица', cond: 'взыскание опубликовало «признан банкротом», у лица есть залог, записки в Комитет нет' }),
+    projNum(90, 'к.д.',          { id: 'pk-im-pledge-term',          obj: 'объект из залога (банкротство)', cond: 'до конца 3-летнего срока отчуждения (Инструкция, п. 17) осталось меньше порога', release: true }),
+    projNum(60, 'к.д.',          { id: 'pk-im-claim-open',           obj: 'объект',      cond: 'требование к отчуждателю открыто дольше порога' }),
   ],
-  /* Порог осмотра по виду (ИМ-56): заполняются только исключения; нет строки — умолчание pk-im-no-inspection. */
-  inspByKind: { cattle: { v: 1, src: 'внутренний акт' } },
+  /* Порог осмотра по виду (ИМ-56, ИМ-111): только исключения, чаще нормы. Запись с пустым значением снимает исключение; строки нет — умолчание pk-im-no-inspection. */
+  inspByKind: { cattle: projNum(1, 'мес.') },
   /* Рассрочка (ИМ-89, ИМ-90): ставка на полную цену, ставка после продления, 120 дней и публикации с перехода права —
      3 + 3 в газетах, на сайте Госфинхолдинга и на интернет-площадке; предельный срок по цене с расходами
-     (upTo — верхняя граница, не включая), продление не больше maxExt. */
-  instalment: { rate: { label: 'Ставка на полную цену', v: 3, unit: '%', src: 'Инструкция' }, extRate: { label: 'Ставка после продления', v: 5, unit: '%', src: 'Инструкция' },
-    minDays: { label: 'Дней от перехода права, не меньше', v: 120, unit: 'дн.', src: 'Инструкция' },
-    pubsRep: { label: 'Публикаций в республиканских газетах, не меньше', v: 3, unit: 'шт.', src: 'Инструкция' }, pubsLoc: { label: 'Публикаций в местных газетах, не меньше', v: 3, unit: 'шт.', src: 'Инструкция' },
-    pubsSite: { label: 'Публикаций на сайте Госфинхолдинга, не меньше', v: 1, unit: 'шт.', src: 'Инструкция' }, pubsNet: { label: 'Публикаций на интернет-площадке, не меньше', v: 1, unit: 'шт.', src: 'Инструкция' },
-    caps: [{ upTo: 1000000, years: 3 }, { upTo: 5000000, years: 5 }, { upTo: null, years: 10 }], capsSrc: 'Инструкция', maxExt: { label: 'Продление, всего не больше', v: 3, unit: 'года', src: 'Инструкция' } },
-  /* Вознаграждение риэлтора — наценка к цене объявления, не больше (ИМ-87). */
-  realtor: { v: 5, unit: '%', src: 'Инструкция' },
-  /* Сколько закрепление может держаться у заведующего отделом (ИМ-45); правится в справочнике кураторства. */
-  fallback: { offer: { v: 2, unit: 'р.д.', src: 'внутренний акт' }, object: { v: 10, unit: 'р.д.', src: 'внутренний акт' } },
+     (upTo — верхняя граница, не включая), продление не больше maxExt. На чтение (ИМ-109). */
+  instalment: { rate: normNum(3, '%', 'п. 58', { label: 'Ставка на полную цену' }), extRate: normNum(5, '%', 'п. 66', { label: 'Ставка после продления' }),
+    minDays: normNum(120, 'дн.', 'п. 57', { label: 'Дней от перехода права, не меньше' }),
+    pubsRep: normNum(3, 'шт.', 'п. 57', { label: 'Публикаций в республиканских газетах, не меньше' }), pubsLoc: normNum(3, 'шт.', 'п. 57', { label: 'Публикаций в местных газетах, не меньше' }),
+    pubsSite: normNum(1, 'шт.', 'п. 57', { label: 'Публикаций на сайте Госфинхолдинга, не меньше' }), pubsNet: normNum(1, 'шт.', 'пп. 34, 57', { label: 'Публикаций на интернет-площадке, не меньше' }),
+    caps: [{ upTo: 1000000, years: 3 }, { upTo: 5000000, years: 5 }, { upTo: null, years: 10 }], capsSrc: `норма · ${INSTR}, п. 63`, maxExt: normNum(3, 'года', 'п. 66', { label: 'Продление, всего не больше' }) },
+  /* Вознаграждение риэлтора — наценка к цене объявления, не больше (ИМ-87). На чтение (ИМ-109). */
+  realtor: normNum(5, '%', 'п. 36'),
+  /* Сколько закрепление может держаться у заведующего отделом (ИМ-45). Задания не создаёт: поле и роль, без записей (ИМ-112). */
+  fallback: { offer: { v: 2, unit: 'р.д.', src: 'решение проекта' }, object: { v: 10, unit: 'р.д.', src: 'решение проекта' } },
   deadline: {
-    pssi:    { v: 5,  unit: 'р.д.', src: 'Инструкция' },
-    spec:    { v: 5,  unit: 'р.д.', src: 'Инструкция' },
-    debtor:  { v: 30, unit: 'к.д.', src: 'внутренний акт' },
-    pledgor: { v: 30, unit: 'к.д.', src: 'внутренний акт' },
-    third:   { v: 30, unit: 'к.д.', src: 'внутренний акт' },
+    pssi:    normNum(5, 'р.д.', 'п. 9'),
+    spec:    normNum(5, 'р.д.', 'п. 16'),
+    debtor:  projNum(30, 'к.д.'),
+    pledgor: projNum(30, 'к.д.'),
+    third:   projNum(30, 'к.д.'),
   },
   /* Срок выплаты доплаты по источнику — со дня поступления выручки (Инструкция п. 46). */
   topupTerm: {
-    pssi:    { v: 30, unit: 'дн.', src: 'Инструкция' },
-    spec:    { v: 30, unit: 'дн.', src: 'Инструкция' },
-    debtor:  { v: 30, unit: 'дн.', src: 'Инструкция' },
-    pledgor: { v: 30, unit: 'дн.', src: 'Инструкция' },
-    third:   { v: 30, unit: 'дн.', src: 'Инструкция' },
+    pssi:    normNum(30, 'дн.', 'п. 46'),
+    spec:    normNum(30, 'дн.', 'п. 46'),
+    debtor:  normNum(30, 'дн.', 'п. 46'),
+    pledgor: normNum(30, 'дн.', 'п. 46'),
+    third:   normNum(30, 'дн.', 'п. 46'),
   },
 };
-const thr = id => SETTINGS.thr.find(t => t.id === id).v;
-/* Дата порога: от даты `from` плюс порог повода в его единицах (р.д. / мес. / дни). */
-const thrAfter = (from, id) => { const t = SETTINGS.thr.find(x => x.id === id); return t.unit === 'р.д.' ? addWork(from, t.v) : t.unit === 'мес.' ? addMonths(from, t.v) : addDays(from, t.v); };
-const inspThr = kind => (SETTINGS.inspByKind[kind] || {}).v || thr('pk-im-no-inspection');
+const recOn = (n, date = S.asOf) => n.recs.reduce((r, x) => x.from <= date ? x : r, n.recs[0]);
+const valOn = (n, date = S.asOf) => recOn(n, date).v;
+const srcOf = r => r.act ? 'норма · ' + r.act : r.order ? 'внутренний акт · ' + r.order : 'решение проекта';
+const thrNode = id => SETTINGS.thr.find(t => t.id === id);
+const thr = (id, date = S.asOf) => valOn(thrNode(id), date);
+/* Первый день, когда условие сошлось при значении этого дня (ИМ-103). dayOf(значение) — первый день условия при этом значении.
+   Запись отвечает за дни в своих границах: день раньше её начала — условие сошлось в день начала; день позже начала следующей
+   записи — считать по следующей. Повод, появившийся в день начала следующей записи, остаётся за прежней: он уже появился.
+   Так появившийся повод остаётся, а ещё не появившийся считается по новому значению. */
+function firstDay(recs, dayOf) {
+  for (let i = 0; i < recs.length; i++) {
+    const d = dayOf(recs[i].v), at = i && d < recs[i].from ? recs[i].from : d;
+    if (i === recs.length - 1 || at <= recs[i + 1].from) return { at, rec: recs[i] };
+  }
+}
+const addUnit = (from, v, unit) => unit === 'р.д.' ? addWork(from, v) : unit === 'мес.' ? addMonths(from, v) : addDays(from, v);
+/* Порог «дольше N от даты»: первый день сверх порога; atLeast — порог «не меньше N»: сам день порога. */
+const thrDay = (id, from, atLeast = false) => { const t = thrNode(id); return firstDay(t.recs, v => { const d = addUnit(from, v, t.unit); return atLeast ? d : addDays(d, 1); }); };
+/* Порог «за N к.д. до конца». */
+const thrDayBefore = (id, end) => firstDay(thrNode(id).recs, v => addDays(end, -v));
+const inspOn = (k, date = S.asOf) => SETTINGS.inspByKind[k] ? valOn(SETTINGS.inspByKind[k], date) : null;
+const inspThr = (k, date = S.asOf) => inspOn(k, date) || thr('pk-im-no-inspection', date);
+/* Порог осмотра вида: исключение на дату, иначе умолчание; записи двух строк складываются в одну шкалу дат. */
+function inspDay(k, from) {
+  const dates = [...new Set([...thrNode('pk-im-no-inspection').recs, ...(SETTINGS.inspByKind[k] || { recs: [] }).recs].map(r => r.from))].sort();
+  return firstDay(dates.map(d => ({ from: d, v: inspThr(k, d) })), v => addDays(addMonths(from, v), 1));
+}
 
 /* ------------------------------ состояние --------------------------- */
 const S = { asOf: TODAY, role: 'spec', view: 'offers', id: null, tab: 'char', seq: 1, objSeq: 11, form: null,
@@ -613,7 +650,7 @@ function seed() {
     pub(mkFact('act', '2027-03-12', { pos: 1, doc: 'Акт приёма-передачи № АП-3/27', objId: 'ИО-1' })));
   /* П-2 — ИМ-43: долг 1 000 000, оборудование 500 000 (акт 15.03), квартира 700 000 (переход права 01.06) */
   const p2 = off({ id: 'П-2', source: 'debtor', obligor: 'o_b', alien: 'ОсОО «Ак-Жол Агро»', alienKind: 'должник',
-    doc: { no: '№ ОТ-3/27', date: '2027-02-01' }, reg: '2027-02-01', deadline: '2027-03-03', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    doc: { no: '№ ОТ-3/27', date: '2027-02-01' }, reg: '2027-02-01', deadline: '2027-03-03', deadlineSrc: 'настройка (30 к.д., решение проекта)',
     positions: [
       P(1, 'equip', 'Линия розлива молока ЛР-12, 2015 г. в.', 500000, 'Чуйская обл.', 'Жайылский р-н', { char: { 'Заводской номер': 'ЛР12-15-0457' } }),
       P(2, 'flat', 'Квартира, г. Кара-Балта, ул. Ленина, 5, кв. 8', 700000, 'Чуйская обл.', 'Жайылский р-н', { housing: true, char: { 'Площадь': '48 м²' } }),
@@ -629,7 +666,7 @@ function seed() {
   p3.facts.push(mkFact('concl', '2028-02-10', { pos: 1, kind: 'Осмотр', text: 'Состояние хорошее, подъезд свободный' }));
   /* П-4 — вещь поручителя Z; кредит в USD, стоимость в KGS */
   const p4 = off({ id: 'П-4', source: 'debtor', obligor: 'o_z', alien: 'Жумабаев З.А.', alienKind: 'поручитель',
-    doc: { no: '№ ОТ-7/27', date: '2027-11-01' }, reg: '2027-11-01', deadline: '2027-12-01', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    doc: { no: '№ ОТ-7/27', date: '2027-11-01' }, reg: '2027-11-01', deadline: '2027-12-01', deadlineSrc: 'настройка (30 к.д., решение проекта)',
     positions: [P(1, 'equip', 'Зерносушилка ДСП-32, 2019 г. в.', 1200000, 'Чуйская обл.', 'Сокулукский р-н', { char: { 'Производительность': '32 т/ч' } })] });
   p4.facts.push(
     mkFact('decision', '2027-11-20', { organ: ORGANS[0], doc: 'Решение № 19/2027', by: 'sec', items: { 1: { v: 'accept' } } }),
@@ -656,7 +693,7 @@ function seed() {
     pub(mkFact('act', '2027-10-01', { pos: 1, doc: 'Акт № АП-12/27', objId: 'ИО-410' })));
   /* П-7 — залогодатель не должник; ИО-5 ждёт регистрации; акт на дом ждёт второго ключа */
   const p7 = off({ id: 'П-7', source: 'pledgor', obligor: 'o_s', alien: 'Токтогулов Р.А. (залогодатель)', alienKind: 'залогодатель',
-    doc: { no: '№ ОТ-1/28', date: '2027-12-10' }, reg: '2027-12-10', deadline: '2028-01-09', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    doc: { no: '№ ОТ-1/28', date: '2027-12-10' }, reg: '2027-12-10', deadline: '2028-01-09', deadlineSrc: 'настройка (30 к.д., решение проекта)',
     positions: [
       P(1, 'flat', 'Квартира, ул. Токтогула, 120, кв. 5', 2100000, 'г. Бишкек', 'Первомайский р-н', { pledge: 'ПЗ-104', housing: true, char: { 'Площадь': '62 м²' } }),
       P(2, 'house', 'Жилой дом, с. Таш-Добо, ул. Садовая, 7', 1300000, 'Чуйская обл.', 'Аламудунский р-н', { pledge: 'ПЗ-105', housing: true, char: { 'Площадь': '96 м²', 'Участок': '6 соток' } }),
@@ -754,7 +791,7 @@ function seed() {
     mkFact('payment', '2028-02-10', { contract: c8.id, amount: 72000, interest: 2400, by: 'acc' }));
   /* П-8 — отмена раннего принятия после позднего (С-32, ИМ-44) и куратор по позиции 1 (С-34, ИМ-46) */
   const p8 = off({ id: 'П-8', source: 'debtor', obligor: 'o_r', alien: 'Турдубаев А.Ж.', alienKind: 'должник',
-    doc: { no: '№ ОТ-5/27', date: '2027-02-01' }, reg: '2027-02-01', deadline: '2027-03-03', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    doc: { no: '№ ОТ-5/27', date: '2027-02-01' }, reg: '2027-02-01', deadline: '2027-03-03', deadlineSrc: 'настройка (30 к.д., решение проекта)',
     positions: [
       P(1, 'equip', 'Зерноочистительная машина ОВС-25, 2012 г. в.', 500000, 'Чуйская обл.', 'Кеминский р-н', { char: { 'Заводской номер': 'ОВС25-12-0832' } }),
       P(2, 'flat', 'Квартира, с. Нариман, ул. Ленина, 41, кв. 12', 700000, 'Ошская обл.', 'Кара-Суйский р-н', { housing: false, char: { 'Площадь': '58 м²', 'Назначение': 'используется под офис' } }),
@@ -776,7 +813,7 @@ function seed() {
   F('ИО-11', pub(mkFact('ret', '2027-09-10', { doc: 'Решение суда № 2-418/27 о недействительности принятия' })));
   /* П-9 — правило кураторства не называет работника: держит заведующий отделом (С-33, ИМ-45) */
   const p9 = off({ id: 'П-9', source: 'debtor', obligor: 'o_n', alien: 'Ниязов Б.К.', alienKind: 'должник',
-    doc: { no: '№ ОТ-2/28', date: '2028-02-20' }, reg: '2028-02-20', deadline: '2028-03-21', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    doc: { no: '№ ОТ-2/28', date: '2028-02-20' }, reg: '2028-02-20', deadline: '2028-03-21', deadlineSrc: 'настройка (30 к.д., решение проекта)',
     positions: [P(1, 'equip', 'Мини-трактор Kubota L3800, 2018 г. в.', 350000, 'Баткенская обл.', 'Лейлекский р-н')] });
   p9.facts.push(
     mkFact('decision', '2028-03-01', { organ: ORGANS[0], doc: 'Решение № 3/2028', by: 'sec', items: { 1: { v: 'accept' } } }),
@@ -961,18 +998,18 @@ function capOf(price) {
   return { years: c[i].years, band: lo == null ? 'до ' + m(hi) : hi == null ? 'от ' + m(lo) : `от ${lo / 1e6} до ${m(hi)}` };
 }
 function instalmentRule(id, asOf = S.asOf, price = null, extra = []) {
-  const cfg = SETTINGS.instalment; const st = objState(id, asOf); const since = st.transfer || null;
+  const cfg = Object.fromEntries(['minDays', 'pubsRep', 'pubsLoc', 'pubsSite', 'pubsNet'].map(k => [k, valOn(SETTINGS.instalment[k], asOf)])); const st = objState(id, asOf); const since = st.transfer || null;
   const base = +price > 0 ? +price : buybackPrice(id, asOf); const cap = capOf(base);
   const out = { maxYears: cap.years, band: cap.band, base, since, pubsRep: 0, pubsLoc: 0, pubsSite: 0, pubsNet: 0, days: 0 };
   if (!since) return Object.assign(out, { ok: false, why: 'право ещё не перешло к Фонду' });
   const F = live(obj(id).facts, asOf);
   const pubs = [...F.filter(f => f.t === 'announce').flatMap(f => f.pubs || []), ...F.filter(f => f.t === 'pubAdd'), ...extra].filter(p => p.date >= since && p.date <= asOf);
   const at = i => pubs.filter(p => p.place === PUB_PLACES[i]).length, rep = at(0), loc = at(1), site = at(2), net = at(3), d = days(since, asOf);
-  const why = [d < cfg.minDays.v ? `с перехода права ${fmt(since)} прошло ${d} дн., нужно не меньше ${cfg.minDays.v}` : '',
-    rep < cfg.pubsRep.v ? `в республиканских газетах объявление вышло ${times(rep)} из ${cfg.pubsRep.v}` : '',
-    loc < cfg.pubsLoc.v ? `в местных газетах — ${times(loc)} из ${cfg.pubsLoc.v}` : '',
-    site < cfg.pubsSite.v ? `на сайте Госфинхолдинга — ${times(site)} из ${cfg.pubsSite.v}` : '',
-    net < cfg.pubsNet.v ? `на интернет-площадке — ${times(net)} из ${cfg.pubsNet.v}` : ''].filter(Boolean);
+  const why = [d < cfg.minDays ? `с перехода права ${fmt(since)} прошло ${d} дн., нужно не меньше ${cfg.minDays}` : '',
+    rep < cfg.pubsRep ? `в республиканских газетах объявление вышло ${times(rep)} из ${cfg.pubsRep}` : '',
+    loc < cfg.pubsLoc ? `в местных газетах — ${times(loc)} из ${cfg.pubsLoc}` : '',
+    site < cfg.pubsSite ? `на сайте Госфинхолдинга — ${times(site)} из ${cfg.pubsSite}` : '',
+    net < cfg.pubsNet ? `на интернет-площадке — ${times(net)} из ${cfg.pubsNet}` : ''].filter(Boolean);
   return Object.assign(out, { ok: !why.length, why: why.join('; '), pubsRep: rep, pubsLoc: loc, pubsSite: site, pubsNet: net, days: d });
 }
 /* Условия рассрочки в заявке и договоре: первый взнос, срок, правило доступности и предельный срок. */
@@ -1059,7 +1096,7 @@ function topupAccount(src, alien, closed, asOf = S.asOf) {
 const topupAccountWhy = (src, closed, asOf = S.asOf) => src === 'pssi' ? (closed && closed <= asOf ? `исполнительное производство окончено ${fmt(closed)} — отчуждателю` : 'пока исполнительное производство открыто — на депозит ССИ')
   : src === 'spec' ? 'отчуждатель в банкротстве — на счёт у спецадминистратора' : 'отчуждателю';
 /* Срок выплаты по источнику (дни со дня поступления выручки); нет строки — порог повода. */
-const topupTerm = src => (SETTINGS.topupTerm[src] || { v: thr('pk-im-topup-due') }).v;
+const topupTerm = (src, date = S.asOf) => SETTINGS.topupTerm[src] ? valOn(SETTINGS.topupTerm[src], date) : thr('pk-im-topup-due', date);
 const TOPUP_ST = { none: 'нет', fixed: 'зафиксирована', due: 'к выплате', held: 'удержана', budget: 'к выплате через бюджет', paid: 'выплачена' };
 const TOPUP_PILL = { none: 'neutral', fixed: 'neutral', due: 'info', held: 'err', budget: 'warn', paid: 'ok' };
 const r2 = v => Math.round(v * 100) / 100;
@@ -1081,7 +1118,7 @@ function topupOf(id, asOf = S.asOf) {
   const r = allocation(o.obligor, asOf).rows.find(x => x.id === id); if (!r) return null;
   const F = live(o.facts, asOf); const pays = F.filter(f => f.t === 'topup').sort(byDate);
   const paid = r2(pays.reduce((a, f) => a + (+f.amount || 0), 0));
-  const of = offer(o.offer) || {}; const N = topupTerm(o.source);
+  const of = offer(o.offer) || {}; const N = topupTerm(o.source, asOf);
   const amount = r.notIncluded, expenses = expensesOf(id, asOf), payable = Math.max(0, r2(amount - expenses));
   const payableAt = d => Math.max(0, r2(amount - expensesOf(id, d)));   // к выплате по расходам на дату основания строки
   const t = { amount, date: r.date, distributed: r.distributed, value: r.value, to: o.alien, account: topupAccount(o.source, o.alien, of.proceedingClosed, asOf),
@@ -1100,12 +1137,12 @@ function topupOf(id, asOf = S.asOf) {
   /* Выплачено гасит строки по порядку; удержание и перенос срока — только у невыплаченных. Просрочка известна на asOf: начавшаяся позже её не видна. */
   let left = paid; const per = (OWNER_OVERDUE[o.alien] || []).filter(p => p.from <= asOf).sort((a, b) => a.from < b.from ? -1 : 1);
   const on = d => per.find(p => p.from <= d && p.to >= d) || null;
-  rows.forEach(w => { w.paid = r2(Math.min(w.sum, left)); left = r2(left - w.paid); w.rest = r2(w.sum - w.paid); w.from = w.base; w.dueBy = t.budget ? null : addDays(w.base, N); w.held = null;
+  rows.forEach(w => { w.paid = r2(Math.min(w.sum, left)); left = r2(left - w.paid); w.rest = r2(w.sum - w.paid); w.from = w.base; w.term = topupTerm(o.source, w.base); w.dueBy = t.budget ? null : addDays(w.base, w.term); w.held = null;
     if (w.rest > 0.005) {
       if (!w.dueBy) w.held = on(asOf);
       else for (let i = 0, p; i <= per.length && w.dueBy <= asOf && (p = on(w.dueBy)); i++) {   // просрочка на срок строки: длится — удержана, кончилась — срок от её конца
         if (p.to >= asOf) { w.held = p; break; }
-        w.restarted = p; w.from = p.to; w.dueBy = addDays(p.to, N);
+        w.restarted = p; w.from = p.to; w.dueBy = addDays(p.to, topupTerm(o.source, p.to));
       }
     }
     w.late = w.rest > 0.005 && !w.held && !!w.dueBy && w.dueBy < asOf; });
@@ -1322,7 +1359,7 @@ function gate(id, t, asOf = S.asOf) {
       const ci = contractInfo(id, asOf);
       if (!ci || !ci.active || ci.kind !== 'inst') return no('продлевается только действующая рассрочка');
       if (ci.complete) return no('договор оплачен полностью');
-      if (ci.extended && ci.extended.years >= SETTINGS.instalment.maxExt.v) return no(`рассрочка уже продлена на ${yrs(ci.extended.years)} — больше нельзя`);
+      if (ci.extended && ci.extended.years >= valOn(SETTINGS.instalment.maxExt, asOf)) return no(`рассрочка уже продлена на ${yrs(ci.extended.years)} — больше нельзя`);
       return yes;
     }
     case 'payment': case 'claim': case 'cterm': {
@@ -1404,7 +1441,7 @@ function objCheck(id, t, d, date) {
       if (!b && prev && +d.price < prev.a.price - 0.005) return `цена ниже прошлого объявления (${money(prev.a.price, o.ccy)}) — основание цены обязательно: отчёт оценщика или решение Комитета о цене`;
       if (d.realtor) {
         if (d.markup === '' || d.markup == null || isNaN(+d.markup)) return 'укажите наценку риэлтора, %';
-        if (+d.markup < 0 || +d.markup > SETTINGS.realtor.v) return `вознаграждение риэлтора — наценка к цене не больше ${SETTINGS.realtor.v} %`;
+        const rl = valOn(SETTINGS.realtor, date); if (+d.markup < 0 || +d.markup > rl) return `вознаграждение риэлтора — наценка к цене не больше ${rl} %`;
       }
       const enc = live(o.facts, date).find(f => f.t === 'encumbrance' && f.from <= date && f.to >= date);
       if (enc && !d.encMark) return `на дату объявления действует обременение «${enc.kind}» по ${fmt(enc.to)} — отметьте: продаётся с обременением или после снятия`;
@@ -1505,7 +1542,7 @@ function objCheck(id, t, d, date) {
       return need('buyer', 'price', 'doc');
     }
     case 'cextend': {
-      const ci = contractInfo(id, date); const mx = SETTINGS.instalment.maxExt.v, done = ci.extended ? ci.extended.years : 0;
+      const ci = contractInfo(id, date); const mx = valOn(SETTINGS.instalment.maxExt, date), done = ci.extended ? ci.extended.years : 0;
       if (!(+d.years > 0)) return 'укажите, на сколько лет продлевается рассрочка';
       if (+d.years + done > mx) return `продление — не больше чем на ${yrs(mx)}${done ? `, уже продлено на ${yrs(done)}` : ''}`;
       if (!d.committeeDoc) return 'нужно решение Комитета о продлении';
@@ -1605,12 +1642,12 @@ function addFact(target, t, data = {}, role = S.role) {
     if (b) { d.basis = b.f.id; d.buyer = d.buyer || b.buyer; d.price = +(d.price || b.price); d.kind = d.kind || (b.terms === 'inst' ? 'inst' : 'once');
       if (d.kind === 'inst' && b.app) { if (d.down == null || d.down === '') d.down = b.app.down; if (d.years == null || d.years === '') d.years = b.app.years; } }
     if (d.kind === 'inst') { ['down', 'years', 'n', 'rate'].forEach(k => { if (d[k] != null && d[k] !== '') d[k] = +d[k]; });
-      if (!d.n && d.years) d.n = Math.round(d.years * 12); if (!d.rate) d.rate = SETTINGS.instalment.rate.v;
+      if (!d.n && d.years) d.n = Math.round(d.years * 12); if (!d.rate) d.rate = valOn(SETTINGS.instalment.rate, date);
       d.schedule = instalmentSchedule(+d.price, d.down, d.years, d.n, d.first || addMonths(date, 1), d.rate, date); }
     else ['down', 'years', 'n', 'rate', 'first'].forEach(k => delete d[k]);
     d.ccy = d.ccy || obj(target).ccy; d.penalty = +(d.penalty || 0.1); }
   /* Продление рассрочки: остаток тела — поровну на оставшиеся платежи и продлённый срок, проценты с даты продления по повышенной ставке на ту же базу. */
-  if (t === 'cextend') { const ci = contractInfo(target, date); if (ci) { d.contract = ci.c.id; d.years = +d.years; d.rate = +(d.rate || SETTINGS.instalment.extRate.v);
+  if (t === 'cextend') { const ci = contractInfo(target, date); if (ci) { d.contract = ci.c.id; d.years = +d.years; d.rate = +(d.rate || valOn(SETTINGS.instalment.extRate, date));
     const rest = ci.schedule.filter(s => s.date > date), m = rest.length + Math.round(d.years * 12);
     const restBody = ci.price - ci.schedule.filter(s => s.date <= date).reduce((a, s) => a + s.amount, 0);
     if (d.years > 0 && m >= 1 && m <= 600) { const body = spread(restBody, m), pct = spread(ci.price * d.rate / 100 * m / 12, m), first = rest.length ? rest[0].date : addMonths(date, 1);
@@ -1762,12 +1799,12 @@ function registerOffer(d, role = S.role) {
   if (withPos && (!d.name || !(+d.value > 0))) return no('у позиции нужны вещь и стоимость принятия');
   const pos = withPos ? newPos(d.source, 1, d, d.region || 'г. Бишкек') : null;
   if (pos) { const w = retentionWhy(pos, pos.value, d.source); if (w) return no(w); }
-  const set = SETTINGS.deadline[d.source];
-  const deadline = d.deadline || (set.unit === 'р.д.' ? addWork(d.docDate, set.v) : addDays(d.docDate, set.v));
+  const set = SETTINGS.deadline[d.source], setRec = recOn(set, d.docDate);
+  const deadline = d.deadline || addUnit(d.docDate, setRec.v, set.unit);
   const id = 'П-' + (Math.max(...OFFERS.map(o => +o.id.slice(2))) + 1);
   const o = obl(d.obligor);
   OFFERS.push({ id, source: d.source, debtKind: 'budget', obligor: d.obligor, alien: d.alien || o.name, alienKind: d.alien ? SOURCES[d.source].alien : (o.role === 'поручитель' ? 'поручитель' : 'должник'),
-    doc: { no: d.docNo, date: d.docDate, file: d.file || '' }, reg: d.docDate, deadline, deadlineSrc: d.deadline ? 'документ' : `настройка (${set.v} ${set.unit}, ${set.src})`,
+    doc: { no: d.docNo, date: d.docDate, file: d.file || '' }, reg: d.docDate, deadline, deadlineSrc: d.deadline ? 'документ' : `настройка (${setRec.v} ${set.unit}, ${srcOf(setRec)})`,
     positions: pos ? [pos] : [], facts: [] });
   return { ok: true, why: '', id };
 }
@@ -1838,63 +1875,73 @@ const MONTHS = ['январь', 'февраль', 'март', 'апрель', '�
 const periodLabel = p => /^\d{4}-\d{2}$/.test(p) ? MONTHS[+p.slice(5) - 1] + ' ' + p.slice(0, 4) : /^\d{4}-\d{2}-\d{2}$/.test(p) ? fmt(p) : p;
 function triggers(asOf = S.asOf) {
   const out = []; const mon = asOf.slice(0, 7);
-  const add = (kind, id, period, text, to) => {
+  /* h — как появился: первый день и запись. Значение, по которому повод появился, — рядом, если оно уже не действует (ИМ-118). */
+  const add = (kind, id, period, text, to, h) => {
     const e = id.split(' ')[0]; if (termExtActive(offer(e) || obj(e), kind, asOf)) return;   // срок продлён — повода нет (п. 5)
+    const t = thrNode(kind), old = h && h.rec.v !== ('cur' in h ? h.cur : valOn(t, asOf)) ? ` · по порогу ${h.rec.v} ${t.unit}` : '';
     out.push({ kind, name: TRIG_NAME[kind], id, key: kind + ' · ' + id + ' · ' + period,
-      keyLabel: TRIG_NAME[kind] + ' · ' + id + ' · ' + periodLabel(period), text, to }); };
+      keyLabel: TRIG_NAME[kind] + ' · ' + id + ' · ' + periodLabel(period), text: text + old, to }); };
+  const onDay = h => h.at <= asOf ? h : null;
+  const hit = (kind, from, atLeast) => onDay(thrDay(kind, from, atLeast));
+  const hitBefore = (kind, end) => onDay(thrDayBefore(kind, end));
   OFFERS.forEach(of => {
     const st = offerState(of.id, asOf); if (st.code === 'none') return;
     if (st.overdue) add('pk-im-offer-overdue', of.id, of.deadline, `срок ответа ${fmt(of.deadline)} истёк, ответа нет`, curatorOf(of.id, asOf).emp);
-    if (of.source === 'pssi' && !live(of.facts, asOf).some(f => f.t === 'ssiMemo') && thrAfter(of.reg, 'pk-im-ssi-memo') < asOf)
-      add('pk-im-ssi-memo', of.id, of.reg, `предложение зарегистрировано ${fmt(of.reg)}, записки председателю Комитета нет`, 'отдел по работе с проблемными кредитами');
+    let h;
+    if (of.source === 'pssi' && !live(of.facts, asOf).some(f => f.t === 'ssiMemo') && (h = hit('pk-im-ssi-memo', of.reg)))
+      add('pk-im-ssi-memo', of.id, of.reg, `предложение зарегистрировано ${fmt(of.reg)}, записки председателю Комитета нет`, 'отдел по работе с проблемными кредитами', h);
     of.positions.forEach(p => { const o = posOutcome(of.id, p.n, asOf);
-      if (o.code === 'accepted' && !o.act && days(o.date, asOf) > thr('pk-im-act-pending'))
-        add('pk-im-act-pending', of.id + ' · поз. ' + p.n, mon, `решение «принять» ${fmt(o.date)}, акта нет ${days(o.date, asOf)} к.д.`, curatorOf(of.id, asOf).emp); });
+      if (o.code === 'accepted' && !o.act && (h = hit('pk-im-act-pending', o.date)))
+        add('pk-im-act-pending', of.id + ' · поз. ' + p.n, mon, `решение «принять» ${fmt(o.date)}, акта нет ${days(o.date, asOf)} к.д.`, curatorOf(of.id, asOf).emp, h); });
   });
   OBJECTS.forEach(o => {
-    const st = objState(o.id, asOf); const fl = flags(o.id, asOf); const k = kindOf(o.kind); const F = live(o.facts, asOf); const cur = curatorOf(o.id, asOf).emp;
-    if (st.code === 'wait' && days(st.since, asOf) > thr('pk-im-registration-pending')) add('pk-im-registration-pending', o.id, mon, `ждёт регистрации ${days(st.since, asOf)} к.д.`, cur);
+    const st = objState(o.id, asOf); const fl = flags(o.id, asOf); const k = kindOf(o.kind); const F = live(o.facts, asOf); const cur = curatorOf(o.id, asOf).emp; let h;
+    if (st.code === 'wait' && (h = hit('pk-im-registration-pending', st.since))) add('pk-im-registration-pending', o.id, mon, `ждёт регистрации ${days(st.since, asOf)} к.д.`, cur, h);
     const cl = claimOf(o.id, asOf);
-    if (cl && cl.open && days(cl.date, asOf) >= thr('pk-im-claim-open')) add('pk-im-claim-open', o.id, mon, `требование к ${cl.debtor} ${money(cl.rest, cl.ccy)} открыто ${days(cl.date, asOf)} к.д.`, cur);
+    if (cl && cl.open && (h = hit('pk-im-claim-open', cl.date, true))) add('pk-im-claim-open', o.id, mon, `требование к ${cl.debtor} ${money(cl.rest, cl.ccy)} открыто ${days(cl.date, asOf)} к.д.`, cur, h);
     /* Доплата (ИМ-79, ИМ-80): доля к выплате не выплачена дольше порога со дня поступления выручки или выплата удержана — и у проданного объекта. */
     const tp = topupOf(o.id, asOf);
     if (tp && tp.held) add('pk-im-topup-due', o.id, 'удержана с ' + fmt(tp.held.since), `выплата доплаты ${money(tp.unpaid, o.ccy)} удержана: ${tp.held.why}`, cur);
-    else if (tp) { const late = tp.open.filter(w => w.dueBy && thrAfter(w.from, 'pk-im-topup-due') < asOf);
-      if (late.length) add('pk-im-topup-due', o.id, 'выручка от ' + fmt(late[0].base), `доплата ${money(late.reduce((a, w) => a + w.rest, 0), o.ccy)} не выплачена (отчуждатель — ${o.alien}): ${late.length > 1 ? 'долей ' + late.length + ', первая' : 'доля'} от поступления ${fmt(late[0].base)}, срок был ${fmt(late[0].dueBy)}`, cur); }
+    else if (tp) { const late = tp.open.filter(w => w.dueBy && hit('pk-im-topup-due', w.from));
+      if (late.length) add('pk-im-topup-due', o.id, 'выручка от ' + fmt(late[0].base), `доплата ${money(late.reduce((a, w) => a + w.rest, 0), o.ccy)} не выплачена (отчуждатель — ${o.alien}): ${late.length > 1 ? 'долей ' + late.length + ', первая' : 'доля'} от поступления ${fmt(late[0].base)}, срок был ${fmt(late[0].dueBy)}`, cur, hit('pk-im-topup-due', late[0].from)); }
     if (['none', 'failed', 'removed', 'split'].includes(st.code)) return;
     /* Продажа (ИМ-86, ИМ-92, ИМ-94): первое и повторное объявление, объявления без заявок, заявки без решения Комитета, уведомление о выкупе. */
     if (st.transfer && (st.code === 'onbook' || st.code === 'listed')) {
       const an = announcements(o.id, asOf), apps = appsOf(o.id, asOf), pe = preempt(o.id, asOf), buyWait = apps.some(x => !x.f.ann && x.wait);
       const who = pe && pe.kind === 'housing' ? ['бывший владелец', 'не ответил', 'отказался'] : ['сособственники', 'не ответили', 'отказались'];
-      if (pe && !pe.notice && thrAfter(st.transfer, 'pk-im-buyback-notice') < asOf)
-        add('pk-im-buyback-notice', o.id, st.transfer, `${pe.kind === 'housing' ? 'жильё: бывшему владельцу уведомление о выкупе' : 'доля: сособственникам извещение'} не отправлено, право перешло ${fmt(st.transfer)} — ${days(st.transfer, asOf)} дн.`, cur);
+      if (pe && !pe.notice && (h = hit('pk-im-buyback-notice', st.transfer)))
+        add('pk-im-buyback-notice', o.id, st.transfer, `${pe.kind === 'housing' ? 'жильё: бывшему владельцу уведомление о выкупе' : 'доля: сособственникам извещение'} не отправлено, право перешло ${fmt(st.transfer)} — ${days(st.transfer, asOf)} дн.`, cur, h);
       if (st.code === 'onbook' && !an.length && !buyWait && !(pe && (pe.open || pe.consent))) { const from = pe ? pe.refusedAt : st.transfer;
-        if (thrAfter(from, 'pk-im-not-listed') < asOf) add('pk-im-not-listed', o.id, from, (pe ? `${who[0]} ${pe.silent ? who[1] + ' до ' + fmt(from) + ' — это отказ' : who[2] + ' ' + fmt(from)}` : `право перешло ${fmt(from)}`) + `, объявления о продаже нет ${days(from, asOf)} к.д.`, cur); }
+        if ((h = hit('pk-im-not-listed', from))) add('pk-im-not-listed', o.id, from, (pe ? `${who[0]} ${pe.silent ? who[1] + ' до ' + fmt(from) + ' — это отказ' : who[2] + ' ' + fmt(from)}` : `право перешло ${fmt(from)}`) + `, объявления о продаже нет ${days(from, asOf)} к.д.`, cur, h); }
       const last = an[an.length - 1];
       if (st.code === 'onbook' && last && !last.open && !last.gone && !buyWait) { const ci = contractInfo(o.id, asOf);
         const closedAt = last.ctr ? (ci && ci.terminated ? ci.terminated.date : null) : [last.windowEnd, ...last.apps.map(x => (x.res || x.dec || {}).date || '')].sort().pop();
-        if (closedAt && thrAfter(closedAt, 'pk-im-relist') < asOf) add('pk-im-relist', o.id, closedAt, (last.ctr ? `договор по объявлению от ${fmt(last.a.date)} расторгнут ${fmt(closedAt)}` : `окно заявок по объявлению от ${fmt(last.a.date)} закрылось ${fmt(closedAt)} без договора`) + `, нового объявления нет ${days(closedAt, asOf)} к.д.`, cur); }
-      let n = 0, first = null;
-      for (let i = an.length - 1; i >= 0; i--) { if (an[i].apps.length) break; if (an[i].open) continue; n++; first = an[i]; }
-      if (n && n >= thr('pk-im-unsold')) add('pk-im-unsold', o.id, first.a.date, `${n} ${[2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'объявления' : 'объявлений'} подряд без единой заявки, первое — ${fmt(first.a.date)}`, cur);
+        if (closedAt && (h = hit('pk-im-relist', closedAt))) add('pk-im-relist', o.id, closedAt, (last.ctr ? `договор по объявлению от ${fmt(last.a.date)} расторгнут ${fmt(closedAt)}` : `окно заявок по объявлению от ${fmt(last.a.date)} закрылось ${fmt(closedAt)} без договора`) + `, нового объявления нет ${days(closedAt, asOf)} к.д.`, cur, h); }
+      let n = 0, first = null; const closes = [];
+      for (let i = an.length - 1; i >= 0; i--) { if (an[i].apps.length) break; if (an[i].open) continue; n++; first = an[i]; closes.unshift([an[i].windowEnd, an[i].next && an[i].next.date, asOf].filter(Boolean).sort()[0]); }
+      /* Счётный порог (ИМ-105): k-е объявление подряд закрылось при значении того дня не больше k, либо закрытых уже не меньше значения на дату среза. */
+      const uk = closes.findIndex((d, k) => k + 1 >= thr('pk-im-unsold', d));
+      if (n && (uk >= 0 || n >= thr('pk-im-unsold', asOf))) add('pk-im-unsold', o.id, first.a.date, `${n} ${[2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'объявления' : 'объявлений'} подряд без единой заявки, первое — ${fmt(first.a.date)}`, cur, { rec: { v: thr('pk-im-unsold', uk >= 0 ? closes[uk] : asOf) } });
       apps.filter(x => !x.dec).forEach(x => { const kind = x.f.ann ? 'pk-im-application-pending' : 'pk-im-application-pending-buyback';
-        if (thrAfter(x.f.date, kind) < asOf) add(kind, o.id, `заявка ${fmt(x.f.date)} · ${x.f.applicant}`, `заявка ${x.f.applicant}${x.f.ann ? '' : ' на выкуп'} от ${fmt(x.f.date)} не вынесена на Комитет: прошло больше ${thr(kind)} р.д.`, cur); });
+        const ha = hit(kind, x.f.date);
+        if (ha) add(kind, o.id, `заявка ${fmt(x.f.date)} · ${x.f.applicant}`, `заявка ${x.f.applicant}${x.f.ann ? '' : ' на выкуп'} от ${fmt(x.f.date)} не вынесена на Комитет: прошло больше ${ha.rec.v} р.д.`, cur); });
     }
     if (k.cls === 'вещь' && st.code !== 'wait') { const li = F.filter(f => f.t === 'inspection').map(f => f.date).sort().pop() || st.transfer;
-      if (addMonths(li, inspThr(o.kind)) < asOf) add('pk-im-no-inspection', o.id, mon, `последний осмотр ${fmt(li)}, порог вида «${k.name}» ${inspThr(o.kind)} мес.`, cur); }
+      const hi = onDay(inspDay(o.kind, li));
+      if (hi) add('pk-im-no-inspection', o.id, mon, `последний осмотр ${fmt(li)}, порог вида «${k.name}» ${inspThr(o.kind, asOf)} мес.`, cur, Object.assign({ cur: inspThr(o.kind, asOf) }, hi)); }
     const ci = contractInfo(o.id, asOf);
-    if (ci && ci.active && !ci.complete && ci.odDays >= thr('pk-im-instalment-overdue')) add('pk-im-instalment-overdue', o.id, 'платёж от ' + fmt(ci.firstUnpaid), `просрочено ${money(ci.overdue, ci.ccy)}, ${ci.odDays} дн.`, cur);
-    if (fl.encumbered && days(asOf, fl.encumbered.to) <= thr('pk-im-encumbrance-ending')) add('pk-im-encumbrance-ending', o.id, mon, `«${fl.encumbered.kind}» кончается ${fmt(fl.encumbered.to)}`, cur);
-    if (k.cls === 'вещь' && ['onbook', 'listed', 'sold_once', 'sold_inst'].includes(st.code) && !isIntro(o) && thrAfter(st.transfer, 'pk-im-guard') < asOf
+    if (ci && ci.active && !ci.complete && ci.odDays > 0 && (h = hit('pk-im-instalment-overdue', ci.firstUnpaid, true))) add('pk-im-instalment-overdue', o.id, 'платёж от ' + fmt(ci.firstUnpaid), `просрочено ${money(ci.overdue, ci.ccy)}, ${ci.odDays} дн.`, cur, h);
+    if (fl.encumbered && (h = hitBefore('pk-im-encumbrance-ending', fl.encumbered.to))) add('pk-im-encumbrance-ending', o.id, mon, `«${fl.encumbered.kind}» кончается ${fmt(fl.encumbered.to)}`, cur, h);
+    if (k.cls === 'вещь' && ['onbook', 'listed', 'sold_once', 'sold_inst'].includes(st.code) && !isIntro(o) && (h = hit('pk-im-guard', st.transfer))
       && !F.some(f => f.t === 'expense' && f.item === GUARD_ITEM && f.date >= st.transfer))
-      add('pk-im-guard', o.id, st.transfer, `право перешло ${fmt(st.transfer)}, расхода «${GUARD_ITEM}» нет ${days(st.transfer, asOf)} дн.`, cur);
+      add('pk-im-guard', o.id, st.transfer, `право перешло ${fmt(st.transfer)}, расхода «${GUARD_ITEM}» нет ${days(st.transfer, asOf)} дн.`, cur, h);
     if (o.source === 'spec' && o.pledge && st.transfer) { const end = addMonths(st.transfer, 36);
-      if (days(asOf, end) <= thr('pk-im-pledge-term')) add('pk-im-pledge-term', o.id, st.transfer, `предмет залога ${o.pledge}: срок отчуждения до ${fmt(end)}${end < asOf ? ' — истёк' : ', осталось ' + days(asOf, end) + ' дн.'}`, cur); }
+      if ((h = hitBefore('pk-im-pledge-term', end))) add('pk-im-pledge-term', o.id, st.transfer, `предмет залога ${o.pledge}: срок отчуждения до ${fmt(end)}${end < asOf ? ' — истёк' : ', осталось ' + days(asOf, end) + ' дн.'}`, cur, h); }
   });
   /* Банкротство обязанного лица с залогом: ответ Взыскания, записки в Комитет нет (ИМ-101) */
-  BANKRUPT.forEach(b => { if (b.date > asOf || (b.memo && b.memo <= asOf) || thrAfter(b.date, 'pk-im-bankruptcy') >= asOf) return;
+  BANKRUPT.forEach(b => { const hb = hit('pk-im-bankruptcy', b.date); if (b.date > asOf || (b.memo && b.memo <= asOf) || !hb) return;
     const of = OFFERS.find(x => x.obligor === b.obl && x.reg <= asOf); const o_ = obl(b.obl);
-    add('pk-im-bankruptcy', of ? of.id : o_.name, b.date, `${o_.name} признан банкротом ${fmt(b.date)}, залог ${b.pledges.join(', ')}, записки в Комитет нет ${days(b.date, asOf)} дн.`, of ? curatorOf(of.id, asOf).emp : 'Сектор по работе с активами'); });
+    add('pk-im-bankruptcy', of ? of.id : o_.name, b.date, `${o_.name} признан банкротом ${fmt(b.date)}, залог ${b.pledges.join(', ')}, записки в Комитет нет ${days(b.date, asOf)} дн.`, of ? curatorOf(of.id, asOf).emp : 'Сектор по работе с активами', hb); });
   return out;
 }
 
@@ -2672,7 +2719,7 @@ function topupBlock(id, t) {
     <tr data-testid="topup-row" class="${w.late || w.held ? 'over' : ''}"><td><span class="mono">${fmt(w.base)}</span><div class="why">${esc(w.why)}</div></td><td class="num">${m(w.sum)}</td>
       <td class="mono nw">${w.dueBy ? fmt(w.dueBy) : '—'}${w.restarted ? `<div class="why">заново от конца просрочки ${fmt(w.restarted.to)}</div>` : !w.dueBy ? '<div class="why">из расходной части бюджета</div>' : ''}</td><td class="num">${m(w.paid)}</td><td>${rowSt(w)}</td></tr>`).join('')}</tbody></table>` : ''}
   <div class="why">Сумма фиксируется на дату перехода права и не меняется ни ценой продажи, ни судьбой вещи. Выплачивается из республиканского бюджета Возвратом в Платежах:
-    по мере поступления выручки — доля каждой оплаты в ${t.term} дней (Инструкция пп. 46, 48); без выручки — через расходную часть бюджета (п. 47). Продажу доплата не блокирует.</div></div>`;
+    по мере поступления выручки — доля каждой оплаты ${new Set([t.term, ...t.dueRows.map(w => w.term).filter(Boolean)]).size > 1 ? 'в срок, указанный в строке' : `в ${t.term} дней`} (Инструкция пп. 46, 48); без выручки — через расходную часть бюджета (п. 47). Продажу доплата не блокирует.</div></div>`;
 }
 /* Блок «Очередь выручки» (ИМ-91, ИИ-25): каждое поступление по договору — нарастающим итогом по четырём очередям; проценты — вне очереди. */
 function proceedsBlock(id) {
@@ -2764,38 +2811,147 @@ function viewContracts() {
 const canSet = (role = S.role) => role === 'head';
 const setGuard = () => canSet() ? null : no('настройки правит только заведующий Сектором по работе с активами');
 const SET_DIS = ' disabled title="правит только заведующий Сектором по работе с активами"';
-function viewSettings() {
-  const SRC = ['норма', 'Инструкция', 'внутренний акт'];
-  const dis = canSet() ? '' : SET_DIS;
-  /* число правится только у заведующего; у остальных — обычный текст */
-  const num = (path, v, unit) => canSet() ? `<input type="number" style="width:70px;height:28px" value="${esc(v)}" data-testid="set-${path}" onchange="IM.setVal('${path}',this.value)"> ${esc(unit || '')}` : `${esc(v)} ${esc(unit || '')}`;
-  const exc = KINDS.filter(k => k.cls === 'вещь' && SETTINGS.inspByKind[k.id]);
-  return `${canSet() ? '' : `<div class="banner info" data-testid="settings-readonly">Настройки правит заведующий Сектором по работе с активами. Роль «${esc(roleName(S.role))}» видит значения только для чтения.</div>`}
-  <div class="section-h">Пороги поводов</div>
-  <table class="cgrid"><thead><tr><th>Повод для Заданий</th><th>Объект</th><th>Условие</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>${SETTINGS.thr.map((t, i) => `
-    <tr><td>${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>
-    <td>${t.id === 'pk-im-offer-overdue' ? esc(t.unit) : `<input type="number" style="width:70px;height:28px" value="${t.v}"${dis} onchange="IM.setThr(${i},this.value)"> ${esc(t.unit)}`}</td>
-    <td><select class="quiet"${dis} onchange="IM.setThrSrc(${i},this.value)">${SRC.map(s => `<option${s === t.src ? ' selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
-  <details class="fold" style="margin-top:22px"${S.fInsp ? ' open' : ''} ontoggle="IM.fInsp(this.open)"><summary>Порог осмотра по виду<span class="small">· ${exc.length ? 'исключения: ' + exc.map(k => esc(k.name) + ' — ' + SETTINGS.inspByKind[k.id].v + ' мес.').join(', ') : 'исключений нет, везде умолчание'}</span></summary><div class="fold-b">
-  <table class="cgrid" data-testid="insp-by-kind"><thead><tr><th>Вид имущества</th><th>Порог «давно не осматривали»</th><th>Источник значения</th></tr></thead><tbody>${KINDS.filter(k => k.cls === 'вещь').map(k => { const x = SETTINGS.inspByKind[k.id];
-    return `<tr data-testid="insp-${k.id}"><td>${esc(k.name)}</td><td><input type="number" style="width:70px;height:28px" value="${x ? x.v : ''}" placeholder="${thr('pk-im-no-inspection')}"${dis} onchange="IM.setInspThr('${k.id}',this.value)"> мес.${x ? '' : ' <span class="small">умолчание</span>'}</td><td>${x ? esc(x.src) : '—'}</td></tr>`; }).join('')}</tbody></table>
-  <div class="why">Пустая строка — умолчание повода «${esc(TRIG_NAME['pk-im-no-inspection'])}» (${thr('pk-im-no-inspection')} мес.). Заполняются только исключения. Справочник видов Залога не трогается.</div></div></details>
-  <div class="section-h">Сколько можно оставаться без куратора</div>
-  <table class="cgrid" data-testid="fallback-limits"><thead><tr><th>Что</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>
-    ${[['offer', 'Предложение имущества'], ['object', 'Объект имущества']].map(([k, l]) => `<tr><td>${l}</td><td><input type="number" style="width:70px;height:28px" value="${SETTINGS.fallback[k].v}"${dis} onchange="IM.setFb('${k}',this.value)"> р.д.</td><td>${esc(SETTINGS.fallback[k].src)}</td></tr>`).join('')}
-  </tbody></table>
-  <div class="why">Если правило кураторства не называет работника, закрепление держит заведующий отделом. Дольше порога — реестры подсвечивают «куратора нет дольше порога». Значения правятся в справочнике Кураторства.</div>
-  <div class="section-h">Сроки ответа по источнику — если в документе источника срока нет</div>
-  <table class="cgrid"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.deadline).map(([k, d]) => `
-    <tr><td>${esc(SOURCES[k].name)}</td><td>${num('deadline.' + k, d.v, d.unit)}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
-  <div class="section-h">Срок выплаты доплаты по источнику — со дня поступления выручки</div>
-  <table class="cgrid" data-testid="topup-term"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.topupTerm).map(([k, d]) => `
-    <tr><td>${esc(SOURCES[k].name)}</td><td>${num('topupTerm.' + k, d.v, d.unit)}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
-  ${[['instalment', 'Рассрочка'], ['realtor', 'Риэлтор']].filter(([k]) => SETTINGS[k]).map(([k, title]) => { const x = SETTINGS[k];
-    const rows = x && x.v != null ? [[x.label || title, x, k]] : Object.entries(x).filter(([, y]) => y && typeof y === 'object' && y.v != null).map(([kk, y]) => [y.label || kk, y, k + '.' + kk]);
-    return `<div class="section-h">${title}</div><table class="cgrid" data-testid="settings-${k}"><thead><tr><th>Что</th><th>Значение</th><th>Источник значения</th></tr></thead><tbody>${rows.map(([l, y, path]) => `
-    <tr><td>${esc(l)}</td><td>${num(path, y.v, y.unit)}</td><td>${esc(y.src || '')}</td></tr>`).join('')}</tbody></table>`; }).join('')}`;
+const thrPath = t => 'thr.' + t.id.replace('pk-im-', '');
+const canEditNum = n => !n.noNum && !n.release && !n.recs[n.recs.length - 1].act;
+const showVal = (n, v) => v == null ? 'умолчание' : `${v} ${n.unit}`;
+const newBtn = path => `<button class="btn btn-secondary btn-sm" data-testid="new-${path}" onclick="IM.uiParam('${jsq(path)}')">Новое значение</button>`;
+/* Значение, откуда число, с какой даты; у заведующего — кнопка нового значения (btn: в таблице есть такой столбец). */
+function recCells(path, n, btn = true) {
+  const r = recOn(n);
+  return `<td class="nw1" data-testid="val-${path}">${esc(showVal(n, r.v))}</td><td data-testid="src-${path}">${esc(srcOf(r))}</td><td class="mono nw1">${fmt(r.from)}</td>${btn && canSet() ? `<td class="nw1">${canEditNum(n) ? newBtn(path) : ''}</td>` : ''}`;
 }
+/* История — под строкой, когда записей больше одной или есть отменённые. Будущую запись можно отменить (ИМ-115). */
+function recHist(path, n, cols) {
+  const last = n.recs[n.recs.length - 1], cur = recOn(n), gone = n.cancelled || [];
+  if (n.recs.length < 2 && !gone.length) return '';
+  const line = x => `с ${fmt(x.from)}: ${esc(showVal(n, x.v))}${x.v == null ? '' : ' · ' + esc(srcOf(x))} · ${esc(x.why)}${x.by ? ' · ' + esc(x.by) : ''}`;
+  const canCancel = x => x === last && n.recs.length > 1 && !x.act && x.from > TODAY && canSet();
+  return `<tr data-testid="hist-${path}"><td colspan="${cols}" class="small"><b>История</b>${n.recs.map(x =>
+    `<div>${line(x)}${x === cur ? ' <span class="pill info">действует</span>' : ''}${x.from > S.asOf ? ' <span class="pill warn">ещё не вступила</span>' : ''}${canCancel(x) ? ` <button class="btn btn-secondary btn-sm" data-testid="cancel-${path}" onclick="IM.uiCancelParam('${jsq(path)}')">Отменить</button>` : ''}</div>`).join('')}${gone.map(x =>
+    `<div>${line(x)} <span class="pill neutral">отменена ${fmt(x.cancelledOn)}</span> · ${esc(x.cancelledBy)}</div>`).join('')}</td></tr>`;
+}
+function viewSettings() {
+  const head = canSet(), cols = n => n + 3 + (head ? 1 : 0);
+  const srcHead = `<th>Откуда число</th><th class="nw1">Действует с</th>`, btnHead = head ? '<th></th>' : '';
+  const rows = (group, label) => Object.entries(SETTINGS[group]).map(([k, n]) => `
+    <tr data-testid="row-${group}.${k}"><td>${esc(label(k, n))}</td>${recCells(group + '.' + k, n)}</tr>${recHist(group + '.' + k, n, cols(1))}`).join('');
+  const dflt = thrNode('pk-im-no-inspection');
+  const exc = KINDS.filter(k => k.cls === 'вещь' && inspOn(k.id) != null);
+  return `${head ? '' : `<div class="banner info" data-testid="settings-readonly">Настройки правит заведующий Сектором по работе с активами. Роль «${esc(roleName(S.role))}» видит значения только для чтения.</div>`}
+  ${S.asOf !== TODAY ? `<div class="banner warn" data-testid="settings-asof">Значения на ${fmt(S.asOf)}, а не на сегодня (${fmt(TODAY)}). Новое значение вводится с сегодняшней даты или позже.</div>` : ''}
+  <div class="section-h">Пороги поводов</div>
+  <table class="cgrid" data-testid="thr-table"><thead><tr><th>Повод для Заданий</th><th>Объект</th><th>Условие</th><th>Порог</th>${srcHead}${btnHead}</tr></thead><tbody>${SETTINGS.thr.map(t => `
+    <tr data-testid="${thrPath(t)}"><td>${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>${t.noNum
+      ? `<td class="nw1">${esc(t.unit)}</td><td data-testid="src-${thrPath(t)}">срок из документа или таблицы сроков ответа</td><td>—</td>${head ? '<td></td>' : ''}`
+      : recCells(thrPath(t), t)}</tr>${recHist(thrPath(t), t, cols(3))}`).join('')}</tbody></table>
+  <div class="why">Новое значение действует только на новые поводы: появившиеся остаются, просрочка не снимается. Число нормы на экране не меняется: новая редакция акта вводится выпуском с датой, старая остаётся для прошлых дел.</div>
+  <details class="fold" style="margin-top:22px"${S.fInsp ? ' open' : ''} ontoggle="IM.fInsp(this.open)"><summary>Порог осмотра по виду<span class="small">· ${exc.length ? 'исключения: ' + exc.map(k => esc(k.name) + ' — ' + inspOn(k.id) + ' мес.').join(', ') : 'исключений нет, везде умолчание'}</span></summary><div class="fold-b">
+  <table class="cgrid" data-testid="insp-by-kind"><thead><tr><th>Вид имущества</th><th>Порог «давно не осматривали»</th>${srcHead}${btnHead}</tr></thead><tbody>${KINDS.filter(k => k.cls === 'вещь').map(k => { const n = SETTINGS.inspByKind[k.id], own = inspOn(k.id) != null, x = own ? n : dflt, path = 'insp.' + k.id;
+    return `<tr data-testid="insp-${k.id}"><td>${esc(k.name)}</td><td class="nw1" data-testid="val-${path}">${valOn(x)} мес.${own ? '' : ' <span class="small">умолчание</span>'}</td><td data-testid="src-${path}">${esc(srcOf(recOn(x)))}</td><td class="mono nw1">${fmt(recOn(x).from)}</td>${head ? `<td class="nw1">${newBtn(path)}</td>` : ''}</tr>${n ? recHist(path, n, cols(1)) : ''}`; }).join('')}</tbody></table>
+  <div class="why">Строка без своего значения — умолчание повода «${esc(TRIG_NAME['pk-im-no-inspection'])}» (${thr('pk-im-no-inspection')} мес.). Заполняются только исключения, реже умолчания нельзя. Справочник видов Залога не трогается.</div></div></details>
+  <div class="section-h">Сколько можно оставаться без куратора</div>
+  <table class="cgrid" data-testid="fallback-limits"><thead><tr><th>Что</th><th>Порог</th><th>Откуда число</th></tr></thead><tbody>
+    ${[['offer', 'Предложение имущества'], ['object', 'Объект имущества']].map(([k, l]) => `<tr><td>${l}</td><td>${head ? `<input type="number" style="width:70px;height:28px" value="${SETTINGS.fallback[k].v}" data-testid="fb-${k}" onchange="IM.setFb('${k}',this.value)"> р.д.` : SETTINGS.fallback[k].v + ' р.д.'}</td><td>${esc(SETTINGS.fallback[k].src)}</td></tr>`).join('')}
+  </tbody></table>
+  <div class="why">Если правило кураторства не называет работника, закрепление держит заведующий отделом. Дольше порога — реестры подсвечивают «куратора нет дольше порога». Заданий этот порог не создаёт.</div>
+  <div class="section-h">Сроки ответа по источнику — если в документе источника срока нет</div>
+  <table class="cgrid" data-testid="deadline-term"><thead><tr><th>Источник</th><th>Срок</th>${srcHead}${btnHead}</tr></thead><tbody>${rows('deadline', k => SOURCES[k].name)}</tbody></table>
+  <div class="why">Срок записывается в предложение при регистрации, по значению на дату его документа: новое значение на зарегистрированные предложения не действует.</div>
+  <div class="section-h">Срок выплаты доплаты по источнику — со дня поступления выручки</div>
+  <table class="cgrid" data-testid="topup-term"><thead><tr><th>Источник</th><th>Срок</th>${srcHead}</tr></thead><tbody>${Object.entries(SETTINGS.topupTerm).map(([k, n]) => `
+    <tr><td>${esc(SOURCES[k].name)}</td>${recCells('topupTerm.' + k, n, false)}</tr>${recHist('topupTerm.' + k, n, 4)}`).join('')}</tbody></table>
+  <div class="section-h">Рассрочка</div>
+  <table class="cgrid" data-testid="settings-instalment"><thead><tr><th>Что</th><th>Значение</th>${srcHead}</tr></thead><tbody>${Object.entries(SETTINGS.instalment).filter(([, n]) => n && n.recs).map(([k, n]) => `
+    <tr><td>${esc(n.label)}</td>${recCells('instalment.' + k, n, false)}</tr>${recHist('instalment.' + k, n, 4)}`).join('')}
+    <tr data-testid="settings-caps"><td>Предельный срок по цене с расходами</td><td>${SETTINGS.instalment.caps.map(c => capOf(c.upTo == null ? Infinity : c.upTo - 1)).map(x => `${esc(x.band)} — ${yrs(x.years)}`).join('; ')}</td><td>${esc(SETTINGS.instalment.capsSrc)}</td><td class="mono nw1">${fmt(SETTINGS.instalment.rate.recs[0].from)}</td></tr></tbody></table>
+  <div class="section-h">Риэлтор</div>
+  <table class="cgrid" data-testid="settings-realtor"><thead><tr><th>Что</th><th>Значение</th>${srcHead}</tr></thead><tbody>
+    <tr><td>Риэлтор</td>${recCells('realtor', SETTINGS.realtor, false)}</tr>${recHist('realtor', SETTINGS.realtor, 4)}</tbody></table>`;
+}
+
+/* Новое значение: дата начала сегодня или позже, основание обязательно, прежняя запись остаётся (НЗ-3). */
+function nodeOf(path) {
+  if (path.startsWith('thr.')) return thrNode('pk-im-' + path.slice(4)) || null;
+  if (path.startsWith('insp.')) { const k = path.slice(5); return KINDS.some(x => x.id === k && x.cls === 'вещь') ? (SETTINGS.inspByKind[k] || projNum(null, 'мес.')) : null; }
+  const n = path.split('.').reduce((a, k) => a && a[k], SETTINGS); return n && n.recs ? n : null;
+}
+function paramName(path) {
+  const [g, k] = path.split('.');
+  return g === 'thr' ? TRIG_NAME['pk-im-' + k] : g === 'insp' ? 'Порог осмотра · ' + kindOf(k).name : g === 'deadline' ? 'Срок ответа · ' + SOURCES[k].name
+    : g === 'topupTerm' ? 'Срок выплаты доплаты · ' + SOURCES[k].name : g === 'realtor' ? 'Наценка риэлтора' : nodeOf(path).label;
+}
+function paramDateRefusal(from, last) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '')) return 'дата начала обязательна: новое значение без даты не вводится';
+  if (from < TODAY) return `дата начала ${fmt(from)} раньше сегодняшней ${fmt(TODAY)}: прошлая дата запрещена, значение на прошлые поводы не меняется`;
+  if (from <= last.from) return `последняя запись действует с ${fmt(last.from)}: новая запись ставится позже неё`;
+  return null;
+}
+function setParam(path, spec = {}) {
+  const g = setGuard(); if (g) return g;
+  const n = nodeOf(path); if (!n) return no('такой настройки нет');
+  const last = n.recs[n.recs.length - 1], name = paramName(path);
+  if (n.noNum) return no(`«${name}»: своего числа нет, срок задаёт документ или таблица сроков ответа`);
+  if (last.act) return no(`«${name}»: число задаёт норма — ${last.act}. На экране оно не правится: новая редакция акта — новая запись с датой через выпуск, старая остаётся для прошлых дел`);
+  if (n.release) return no(`«${name}»: на чтение, смена через выпуск`);
+  const insp = path.startsWith('insp.'), raw = String(spec.v == null ? '' : spec.v).trim();
+  if (!(insp && raw === '') && !/^[1-9]\d*$/.test(raw)) return no(`значение «${raw}» — не целое положительное число`);
+  const v = raw === '' ? null : +raw;
+  const refused = paramDateRefusal(spec.from, last); if (refused) return no(refused);
+  const lim = insp ? thr('pk-im-no-inspection', spec.from) : null;
+  if (insp && v > lim) return no(`значение ${v} мес. реже нормы: осматривать не реже чем раз в ${lim} мес. (${INSTR}, п. 27)`);
+  const why = String(spec.why == null ? '' : spec.why).trim();
+  if (!why) return no('основание обязательно: на вопрос «почему изменили» система должна ответить');
+  const order = String(spec.order == null ? '' : spec.order).trim() || null;
+  if (order && !(/№\s*\S+/.test(order) && /\d{2}\.\d{2}\.\d{4}/.test(order))) return no('приказ указывается с номером и датой: «приказ № … от дд.мм.гггг». Приказа нет — оставьте поле пустым');
+  if (v === last.v && order === (last.order || null)) return no('значения те же, что в последней записи: новая запись ничего не меняет');
+  const rec = { from: spec.from, v, why, by: roleName(S.role) };
+  if (order) rec.order = order;
+  n.recs.push(rec);
+  if (insp) SETTINGS.inspByKind[path.slice(5)] = n;
+  return { ok: true, why: '', rec };
+}
+/* Запись, которая ещё не вступила, ни на что не подействовала: её можно отменить, иначе опечатка в годе закрывает число.
+   В истории она остаётся (ИМ-115). Новая редакция акта на экране не отменяется. */
+function cancelParam(path) {
+  const g = setGuard(); if (g) return g;
+  const n = nodeOf(path); if (!n) return no('такой настройки нет');
+  const last = n.recs[n.recs.length - 1];
+  if (n.recs.length < 2 || last.from <= TODAY) return no('отменить можно только запись, которая ещё не вступила');
+  if (last.act) return no(`новая редакция акта на экране не отменяется: ${last.act}`);
+  n.recs.pop();
+  (n.cancelled = n.cancelled || []).push(Object.assign({}, last, { cancelledOn: TODAY, cancelledBy: roleName(S.role) }));
+  return { ok: true, why: '', rec: last };
+}
+/* Выпуск: новая редакция акта. На экране этой операции нет. Старая запись остаётся для прошлых дел (ИМ-119). */
+function paramRelease(path, spec = {}) {
+  const n = nodeOf(path); if (!n) return no('такой настройки нет');
+  if (n.noNum) return no('у этой строки своего числа нет');
+  const last = n.recs[n.recs.length - 1], act = String(spec.act == null ? '' : spec.act).trim();
+  if (!act && !n.release) return no('новая редакция нормы без акта и пункта не вводится');
+  const refused = paramDateRefusal(spec.from, last); if (refused) return no(refused);
+  const why = String(spec.why == null ? '' : spec.why).trim();
+  if (!why) return no('основание обязательно: на вопрос «почему изменили» система должна ответить');
+  if (!(+spec.v > 0) || (n.unit !== '%' && !Number.isInteger(+spec.v))) return no(`значение «${spec.v}» — не положительное число${n.unit === '%' ? '' : ' или не целое'}`);
+  const rec = { from: spec.from, v: +spec.v, why, by: 'выпуск' };
+  if (act) rec.act = act;
+  n.recs.push(rec);
+  if (path.startsWith('insp.')) SETTINGS.inspByKind[path.slice(5)] = n;
+  return { ok: true, why: '', rec };
+}
+function uiParam(path) {
+  const g = setGuard(); if (g) { toast(g.why, 'err'); return g; }
+  const n = nodeOf(path); if (!n) return no('такой настройки нет');
+  const insp = path.startsWith('insp.'), x = insp && inspOn(path.slice(5), TODAY) == null ? thrNode('pk-im-no-inspection') : n, cur = recOn(x, TODAY), last = n.recs[n.recs.length - 1];
+  openForm('Новое значение · ' + paramName(path), [
+    { id: 'pv', label: 'Новое значение, ' + n.unit, type: 'number', value: last.v == null ? '' : last.v, req: !insp, hint: insp ? 'Пусто — вернуть умолчание' : '' },
+    { id: 'pfrom', label: 'Действует с', type: 'date', value: TODAY, req: true },
+    { id: 'porder', label: 'Приказ — если есть', ph: 'приказ № 12 от 10.03.2028', wide: true },
+    { id: 'pwhy', label: 'Основание — почему меняем', type: 'textarea', req: true, wide: true }],
+    v => { const r = setParam(path, { v: v.pv, from: v.pfrom, order: v.porder, why: v.pwhy }); if (r.ok) r.msg = `Новое значение с ${fmt(r.rec.from)}: новые поводы считаются по нему, появившиеся остаются`; return r; },
+    esc(`Сейчас: ${showVal(x, cur.v)} · ${srcOf(cur)} · с ${fmt(cur.from)}. Новое значение действует только на новые поводы: появившиеся остаются, просрочка не снимается.`));
+  S.form.submit = 'Сохранить новое значение'; renderModal(); return yes;
+}
+function uiCancelParam(path) { const r = cancelParam(path); toast(r.ok ? `Запись с ${fmt(r.rec.from)} отменена, действует прежнее значение` : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
 
 /* ---------------------------- формы -------------------------------- */
 /* Документ в форме — номер · дата · файл (у осмотра ещё «Фото и видео»). Файл в макете выбирается без загрузки, в факте хранится имя. */
@@ -2807,7 +2963,7 @@ function expandDocs(fields) {
 }
 function openForm(title, fields, onSubmit, note) { S.form = { title, fields: expandDocs(fields), onSubmit, note, err: '', errField: null }; renderModal(); }
 /* Ошибка показывается у поля, к которому относится; остальное — общей строкой. */
-const FIELD_ERR = [[/площадку публикации/, 'place'], [/наценк|риэлтор/, 'markup'], [/публикац/, 'pub0'], [/финансовый анализ/, 'fin'], [/первый взнос/, 'down'],
+const FIELD_ERR = [[/дата начала|последняя запись/, 'pfrom'], [/приказ/, 'porder'], [/основание обязательно/, 'pwhy'], [/значени|реже нормы/, 'pv'], [/площадку публикации/, 'place'], [/наценк|риэлтор/, 'markup'], [/публикац/, 'pub0'], [/финансовый анализ/, 'fin'], [/первый взнос/, 'down'],
   [/срок рассрочки|предельный срок|на сколько лет|продление — не больше/, 'years'], [/основание цены|по цене оценщика|выберите основанием/, 'basis'], [/новую цену объявления/, 'amount'],
   [/цену объявления|цену заявки|ниже цены объявления|цена выкупа|цену продажи|цена — из|ниже основания/, 'price'], [/условия/, 'terms'], [/вид договора/, 'kind'],
   [/действующему объявлению|окно заявок|выкуп без объявления — только|заявка на выкуп уже|согласия на выкуп нет/, 'via'], [/заявител/, 'applicant'],
@@ -3100,7 +3256,7 @@ function myFactsCard() {
 /* ------------------------- навигация / шов ------------------------- */
 Object.assign(IM, {
   S, TODAY, KINDS, SOURCES, EXP_ITEMS, GOV_GROUNDS, DEBT_KINDS, PLEDGE_TORGI, BANKRUPT, ORGANS, TERM_REASONS, ROLES, OBL, OFFERS, OBJECTS, KEY, ROLE_OF, SETTINGS, ASSIGN, WITHDRAW_AFTER_ACT, RETURN_SOLD,
-  posValue, posVal, reportOn, retentionWhy, termExtActive, thrAfter, offer, obj, objState, objValue, flags, posOutcome, offerState, offerCounts, offerAnswer, expectedTopups, planDate, allocation, topupOf, proceeds, proceedsChrono, salePays, OWNER_OVERDUE, ownerOverdue, topupAccount, topupTerm, TOPUP_ST,
+  posValue, posVal, reportOn, retentionWhy, termExtActive, thrDay, thrDayBefore, recOn, valOn, srcOf, nodeOf, setParam, cancelParam, paramRelease, uiParam, uiCancelParam, offer, obj, objState, objValue, flags, posOutcome, offerState, offerCounts, offerAnswer, expectedTopups, planDate, allocation, topupOf, proceeds, proceedsChrono, salePays, OWNER_OVERDUE, ownerOverdue, topupAccount, topupTerm, TOPUP_ST,
   contractInfo, announcements, appsOf, saleBases, preempt, instalmentRule, instalmentSchedule, buybackPrice, consentPrice, debtNow, expensesOf, noticeTerm,
   PUB_PLACES, TERMS, ENC_MARKS, NOTICE_CH, COMMITTEE_V, CONTRACT_ONLY, LISTED_CLOSE, reallocNeeded, birthOf, gate, canRole, addFact, publish, rejectPending, pending, registerOffer, editPosition, addPosition, addIntro,
   splitValues, triggers, curatorOf, neighbours, caseJournal, result, migrationControl,
@@ -3118,16 +3274,10 @@ Object.assign(IM, {
   setF(k, v) { S.f[k] = v; render(); },
   openDocFile(name) { toast('Файл «' + name + '» открывается из документооборота', ''); },
   uiPrint(label, id) { toast('Бланк «' + label + '» подготовлен к печати: ' + id, 'ok'); },
-  setThr(i, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.thr[i].v = +v; render(); return yes; },
-  setFb(k, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.fallback[k].v = +v; render(); return yes; },
-  setThrSrc(i, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; } SETTINGS.thr[i].src = v; render(); return yes; },
-  setInspThr(k, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; }
-    if (v === '' || !(+v > 0)) delete SETTINGS.inspByKind[k]; else SETTINGS.inspByKind[k] = { v: +v, src: (SETTINGS.inspByKind[k] || {}).src || 'внутренний акт' }; render(); return yes; },
-  /* срок ответа, срок выплаты доплаты, правила рассрочки, наценка риэлтора: путь вида 'deadline.pssi', 'instalment.rate', 'realtor' */
-  setVal(path, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; }
-    const node = path.split('.').reduce((a, k) => a && a[k], SETTINGS); if (!node || node.v == null) return no('нет такой настройки');
+  /* Сколько без куратора: заданий не создаёт, поле и роль (ИМ-112). */
+  setFb(k, v) { const g = setGuard(); if (g) { toast(g.why, 'err'); render(); return g; }
     if (!(+v > 0)) { toast('значение должно быть больше нуля', 'err'); render(); return no('значение должно быть больше нуля'); }
-    node.v = +v; render(); return yes; },
+    SETTINGS.fallback[k].v = +v; render(); return yes; },
   uiPublishDraft(id) { const r = publishDraft(id); toast(r.ok ? 'Вводный объект ' + r.id + ' заведён' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
   closeForm() { S.form = null; renderModal(); },
   pickFile, syncShow, withdrawFact, resubmitFact, discardFact, revisePending, drafts,
