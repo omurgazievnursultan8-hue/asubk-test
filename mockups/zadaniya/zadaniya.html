@@ -212,6 +212,7 @@ table.cgrid tbody tr[data-hl][onclick]:hover td{ background:var(--surface-hover)
 table.qgrid{ table-layout:fixed; }
 table.qgrid thead th{ padding:7px 10px; cursor:pointer; user-select:none; overflow:hidden; text-overflow:ellipsis; }
 table.qgrid tbody td{ padding:6px 10px; line-height:19px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
+table.qgrid tbody td.thr-cell{ white-space:normal; }
 table.qgrid tbody tr[data-t], table.qgrid tbody tr[data-g], table.qgrid tbody tr[data-s]{ cursor:pointer; }
 table.qgrid tbody tr[data-t]:not(.over):hover td, table.qgrid tbody tr[data-s]:hover td{ background:var(--surface-hover); }
 table.qgrid tbody tr.band td{ background:var(--surface-panel); color:var(--text-heading); font-weight:var(--weight-semibold); padding:5px 10px; }
@@ -634,15 +635,18 @@ const PL_STEPS = [
    sum:'сумма поступления', addr:'pl-accountant', dueN:5, act:'Опознать поступление',
    where:'платежи, лента поступлений: привязка к кредиту рождает платёж датой поступления; чужие деньги — возврат отправителю, денег не было — сторно'},
 ];
-/* виды заёмщика: его обязательства по Порядку — ведущему куратору заёмщика; гасит документ в досье или подписанный акт.
-   Пакет и анализ — «вид · заёмщик», срок от начала полосы риска; акт сверки — «вид · заёмщик · год», до 1 сентября */
+/* виды заёмщика: его обязательства по Порядку — ведущему куратору заёмщика. Пакет гасит полное получение по запросу (ответ анализа), анализ — утверждённое
+   плановое заключение за период, акт — подпись обеих сторон.
+   Пакет — «вид · заёмщик», срок от начала полосы риска; анализ — «вид · заёмщик · период», порог и срок из расписания анализа;
+   акт сверки — «вид · заёмщик · год», до 1 сентября */
 const ZM_STEPS = [
   {id:'pk-zm-fin-package', title:'Нужен пакет финансовых документов', traits:['категория','полоса_с'], dueN:10,
    act:'Запросить и получить полный пакет финансовых документов',
-   where:'заёмщик, досье: документ «Пакет финансовых документов», датированный не раньше начала полосы риска'},
-  {id:'pk-zm-fhs',         title:'Анализ финансово-хозяйственного состояния не проведён', traits:['категория','полоса_с'], dueN:14,
+   where:'заёмщик: пакет финансовых документов, полностью полученный по запросу не раньше начала полосы риска (ответ модуля «Анализ»)'},
+  {id:'pk-zm-fhs',         title:'Анализ финансово-хозяйственного состояния не проведён', traits:['категория','полоса_с','период','срок'], periodic:true,
+   named:'расписание анализа: конец полугодия + 45 дн.',
    act:'Провести анализ финансово-хозяйственного состояния',
-   where:'заёмщик, досье: документ «Анализ финансово-хозяйственного состояния», датированный не раньше начала полосы риска'},
+   where:'анализ: плановое заключение за период задания ведёт и утверждает ведущий куратор заёмщика, в досье вручную не вносится'},
   {id:'pk-zm-recon-act',   title:'Акт сверки на 1 января не подписан', traits:['год','на_дату','акт'], dueN:0, periodic:true,
    act:'Составить и подписать с заёмщиком акт сверки на 1 января',
    where:'заёмщик, акты сверки: годовой акт на 1 января, подписанный обеими сторонами'},
@@ -801,7 +805,7 @@ function seedPovodKinds(){ return [
   // Заёмщик: обязательство по Порядку — ведущему куратору заёмщика; акт сверки — периодический, за каждый год свой
   ...ZM_STEPS.map(x=>Object.assign({id:x.id, title:x.title, objectType:'borrower', traits:x.traits, sumAttr:'суммарный остаток по кредитам',
     sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-16', activatedAt:'2026-11-16', ownerExec:true},
-    x.periodic ? {periodic:true, periodAbsorb:'нет', dueDateName:'1 сентября'} : {})),
+    x.periodic ? Object.assign({periodic:true, periodAbsorb:'нет'}, x.named ? {} : {dueDateName:'1 сентября'}) : {})),
   // Реструктуризация: сроки п. 18 по заявке — куратору основного кредита заявки; ключ без периода — до факта в заявке
   ...RS_STEPS.map(x=>({id:x.id, title:x.title, objectType:'rs-application', traits:x.traits, sumAttr:'остаток задолженности по кредитам заявки',
     sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-23', activatedAt:'2026-11-23', ownerExec:true})),
@@ -944,9 +948,8 @@ const A_HEAD_TO = {by:'должность', who:'руководитель под
 const A_HEAD_AN = {by:'должность', who:'заведующий отделом анализа', unit:'Отдел анализа'};
 const Q_DOC_REG  = {by:'очередь', role:'doc-registrar'};
 const Q_DOC_ARCH = {by:'очередь', role:'doc-archivist'};
-const DOC_SRC = 'умолчание документооборота'; // 1/2/3/5 р.д. — значения правил по умолчанию, меняет администратор заданий
 const AP_NORM = 'Типовое положение, п. 66';
-const ACT_SRC = 'внутренний акт'; // сроки шагов не заданы ни ТЗ, ни Порядком — значение правила, настраивается
+const PROJECT_SRC = 'решение проекта'; // ни нормы, ни акта Фонда нет: значение правила, настраивается
 function seedRules(){ return [
   {id:'rule-overdue',   kind:'pk-overdue',        action:'act-overdue',  addressee:A_CHIEF,  dueN:2, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
   {id:'rule-rejected',  kind:'pk-rejected',       action:'act-rejected', addressee:A_AUTHOR, dueN:1, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
@@ -960,13 +963,13 @@ function seedRules(){ return [
   {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        addressee:A_CUR_MOD,  controller:'post-admin', dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Статистика»')]},
   // Отчётность
   {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      addressee:A_CUR_REP,  dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Отчётность»')]},
-  {id:'rule-rep-due',             kind:'pk-rep-obligation-due',     action:'act-rep-due',          addressee:Q_REP,      dueN:0, dueUnit:'beforeDate', dueSource:ACT_SRC, editions:[ed('2026-10-05','ответ отчётности по обязательствам: от «близко» до выпуска')]},
+  {id:'rule-rep-due',             kind:'pk-rep-obligation-due',     action:'act-rep-due',          addressee:Q_REP,      dueN:0, dueUnit:'beforeDate', dueSource:PROJECT_SRC, editions:[ed('2026-10-05','ответ отчётности по обязательствам: от «близко» до выпуска')]},
   // Госрешение
-  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
-  {id:'rule-gd-revise', kind:'gd-revise',               action:'act-gd-revise', addressee:N_GD_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
+  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:5,  dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
+  {id:'rule-gd-revise', kind:'gd-revise',               action:'act-gd-revise', addressee:N_GD_AUTHOR, dueN:10, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
   // Кредитные программы
-  {id:'rule-lp-review',   kind:'lp-review',   action:'act-lp-review', addressee:Q_LP,        dueN:5,  dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
-  {id:'rule-lp-revise',   kind:'lp-revise',   action:'act-lp-revise', addressee:N_LP_AUTHOR, dueN:10, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
+  {id:'rule-lp-review',   kind:'lp-review',   action:'act-lp-review', addressee:Q_LP,        dueN:5,  dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
+  {id:'rule-lp-revise',   kind:'lp-revise',   action:'act-lp-revise', addressee:N_LP_AUTHOR, dueN:10, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
   // Заявки
   ...[
     ['ap-confirm',        'act-ap-confirm',        Q_AP_GF,     {dueN:2}],
@@ -980,7 +983,7 @@ function seedRules(){ return [
     ['ap-register',       'act-ap-register',       A_CUR_AP,    {dueN:10}],
     ['ap-stuck-new',      'act-ap-stuck',          A_CUR_AP,    {dueN:5}],
   ].map(([kind, action, addressee, x])=>Object.assign({id:'rule-'+kind, kind, action, addressee,
-    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-09-01','подключение модуля «Заявки»')]}, x)),
+    dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Заявки»')]}, x)),
   // Документооборот
   ...[
     ['doc-revise',   'act-doc-revise',   N_DOC('автор документа'),      {dueN:3}],
@@ -995,7 +998,7 @@ function seedRules(){ return [
     ['doc-file',     'act-doc-file',     Q_DOC_ARCH,                    {dueN:5}],
     ['doc-return',   'act-doc-return',   N_DOC('получивший оригинал'),  {dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок выдачи'}],
   ].map(([kind, action, addressee, x])=>Object.assign({id:'rule-'+kind, kind, action, addressee,
-    dueUnit:'workday', dueSource:DOC_SRC, editions:[ed('2026-09-01','подключение модуля «Документооборот»')]}, x)),
+    dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Документооборот»')]}, x)),
   // Имущество: порог появления повода — настройка модуля имущества, здесь только срок задания
   ...[
     ['pk-im-offer-overdue',        'act-im-offer',  2],
@@ -1007,8 +1010,8 @@ function seedRules(){ return [
     ['pk-im-unsold',               'act-im-unsold', 15],
     ['pk-im-instalment-overdue',   'act-im-inst',   5],
   ].map(([kind, action, dueN])=>({id:'rule-'+kind, kind, action, addressee:A_CUR_IM, dueN,
-    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-10-01','подключение модуля «Имущество»')]})),
-  // Имущество по Инструкции: срок Инструкции уже истёк к появлению повода (это порог соседа) — срок задания короткий, «внутренний акт»
+    dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-10-01','подключение модуля «Имущество»')]})),
+  // Имущество по Инструкции: срок Инструкции уже истёк к появлению повода (это порог соседа) — срок задания короткий, решение проекта
   ...[
     ['pk-im-ssi-memo',            'act-im-ssi-memo',   1,  {by:'очередь', role:'im-opk'}],
     ['pk-im-guard',               'act-im-guard',      2],
@@ -1019,10 +1022,10 @@ function seedRules(){ return [
     ['pk-im-bankruptcy',          'act-im-bankruptcy', 2,  {by:'очередь', role:'im-sector'}],
     ['pk-im-pledge-term',         'act-im-pledge',     10],
   ].map(([kind, action, dueN, addressee])=>({id:'rule-'+kind, kind, action, addressee:addressee || A_CUR_IM, dueN,
-    dueUnit:'workday', dueSource:ACT_SRC, editions:[ed(IM_INSTR,'выпуск по Инструкции о принятии имущества')]})),
+    dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed(IM_INSTR,'выпуск по Инструкции о принятии имущества')]})),
   // Анализ: срок — от даты состояния (утверждение обзора, закрытие периода); у периода срок называет шаблон, пусто — значение правила
   {id:'rule-pk-an-no-review', kind:'pk-an-no-review', action:'act-an-no-review', addressee:A_HEAD_AN, dueN:20,
-   dueUnit:'workday', dueBase:'состояние', ownDue:'поле шаблона «N р.д. после закрытия периода»', dueSource:ACT_SRC,
+   dueUnit:'workday', dueBase:'состояние', ownDue:'поле шаблона «N р.д. после закрытия периода»', dueSource:PROJECT_SRC,
    editions:[ed('2026-10-01','подключение модуля «Анализ»')]},
   // Взыскание: срок — шаблона взыскания (Порядок, закон или проект); правилом не настраивается, продления в заданиях нет
   ...VZ_STEPS.map(([kind, , , , , unit])=>({id:'rule-'+kind, kind, action:'act-'+kind.slice(3), addressee:unit ? {by:'очередь', role:unit} : A_CUR_VZ, dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок шаблона взыскания',
@@ -1031,22 +1034,23 @@ function seedRules(){ return [
   // где дату держит залог (запрет, комитет), срок называет он и продления нет; иначе — значение правила, продление — общим порядком
   ...ZL_STEPS.filter(noHL).map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='zl' ? A_CUR_ZL : x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr},
     editions:[ed('2026-11-02','подключение модуля «Залог»')]},
-    x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named} : {dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC})),
+    x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named} : {dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC})),
   // Платежи: порог появления (3 р.д. ожидания) — настройка платежей; срок — значение правила, продление — общим порядком
-  ...PL_STEPS.filter(noHL).map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC,
+  ...PL_STEPS.filter(noHL).map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC,
     editions:[ed('2026-11-10','подключение модуля «Платежи»')]})),
-  // Заёмщик: пакет и анализ — срок от начала полосы риска (прижатого к вводу вида), значение правила; акт сверки — до 1 сентября
-  // (п. 9), дата, прошедшая к выдаче, — 1 р.д. от выдачи
+  // Заёмщик: пакет — срок от начала полосы риска (прижатого к вводу вида), значение правила; анализ — срок называет расписание анализа;
+  // акт сверки — до 1 сентября (п. 9), дата, прошедшая к выдаче, — 1 р.д. от выдачи
   ...ZM_STEPS.map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_ZM,
     editions:[ed('2026-11-16','подключение модуля «Заёмщик»')]},
-    x.periodic ? {dueN:x.dueN, dueUnit:'beforeDate', dueSource:'Порядок, п. 9'} : {dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:ACT_SRC})),
+    x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named}
+      : x.periodic ? {dueN:x.dueN, dueUnit:'beforeDate', dueSource:'Порядок, п. 9'} : {dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:PROJECT_SRC})),
   // Реструктуризация: срок называет реструктуризация по норме-справочнику (п. 18) в редакции на дату якоря; продления в заданиях нет
   ...RS_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_CR,
     dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок по норме реструктуризации (п. 18)',
     editions:[ed('2026-11-23','подключение модуля «Реструктуризация»')]})),
   // Классификация: срок нормой не задан — значение правила от выдачи, продление — общим порядком
   ...CL_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:{by:'очередь', role:'cl-inspector'},
-    dueN:x.dueN, dueUnit:'workday', dueSource:ACT_SRC, editions:[ed('2026-11-30','подключение модуля «Классификация»')]})),
+    dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-11-30','подключение модуля «Классификация»')]})),
 ]; }
 function ed(from, basis){ return {n:1, from, by:'выпуск 1', basis, release:1}; } // начальные деловые значения ставит выпуск
 /* правило — деловая половина вида: поля прода меняются только новой редакцией с датой начала и основанием;
@@ -1194,7 +1198,7 @@ const KIND_BASIS = {
   'pk-zl-ban-missing':['угроза без документа','Порядок №41 (весь текст)'],
   'pk-zl-committee':['угроза без документа','Порядок №41 п. 44'],
   'pk-zm-fin-package':['косвенно в нормах','Порядок №41 п. 6 пп. 5'],
-  'pk-zm-fhs':['косвенно в нормах','Порядок №41 п. 11 пп. 2'],
+  'pk-zm-fhs':['косвенно в нормах','Порядок №41 п. 11 пп. 2, п. 6 пп. 5'],
   'pk-zm-recon-act':['прямо в Порядке','Порядок №41 п. 9'],
   'pk-rep-obligation-due':['косвенно в нормах','Порядок №41 п. 12'],
   'pk-im-ssi-memo':['проект Инструкции','Инструкция (проект 11.05.2026) п. 8'],
@@ -1419,8 +1423,9 @@ function seedObligationsRecipients(mk){ return [
 ]; }
 const REP_LOANS = 'Сведения о выданных кредитах за месяц';
 /* обязательство на дату: сдано (в срок / с опозданием) окончательным выпуском, снято с расписания, иначе ожидается или просрочено;
-   «срок близко» — отметка отчётности по её настройке «напоминать за N к.д. до срока» */
-function repSoonDays(){ return state.neighborSet.rp.soonDays; }
+   «срок близко» — отметка отчётности по её настройке «напоминать за N к.д. до срока», значение на дату появления */
+function repSoonDays(d){ return thrOn('rp.soonDays', d); }
+const repSoonFrom = due=>thrFirst('rp.soonDays', v=>addDays(due, -v));
 function obligationAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const s = {id:o.id, form:o.form, dept:o.dept, deptName:o.deptName, period:o.period, due:o.due, role:o.role, rec:o.rec, recName:recName(o.rec),
@@ -1429,7 +1434,7 @@ function obligationAt(o, d){
     if(e.issue){ if(e.to!==o.rec) s.others.push(e); else if(!s.issued) s.issued=e; } // выпуск другому получателю срок не закрывает
     if(e.removed && !s.removed) s.removed=e; s.last=e; }
   s.state = s.removed ? 'снято' : s.issued ? (s.issued.t<=o.due ? 'сдано' : 'сдано с опозданием') : d>o.due ? 'просрочено' : 'ожидается';
-  s.soon = s.state==='ожидается' && daysBetween(d, o.due)<=repSoonDays();
+  s.soon = s.state==='ожидается' && repSoonFrom(o.due)<=d;
   return s;
 }
 function repIssue(id, by, to){ // демо отчётности: окончательный выпуск; срок закрывает только выпуск объявленному получателю
@@ -1788,37 +1793,37 @@ function seedOwnerObjects(){ return {
      извещение и решение — факты залога, которые гасят повод */
   zl: [
     ZLI('З-301', 'Склад, г. Токмок', 'недвижимость', 'КД-2025/310', 4200000, '2025-03-10',
-      {surveyMonths:12, revalMonths:24, appr:'2026-01-15', policy:{no:'СП-1182', till:'2027-03-01'}, ban:{regNo:'ЗП-77310', date:'2025-03-14'}},
-      [{t:'2025-09-15', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
+      {revalMonths:24, appr:'2026-01-15', policy:{no:'СП-1182', till:'2027-03-01'}, ban:{regNo:'ЗП-77310', date:'2025-03-14'}},
+      [{t:'2024-09-15', survey:'в норме', by:'E33', how:'акт обследования перед приёмом в залог: в норме'}]),
     ZLI('З-302', 'Трактор МТЗ-82', 'техника', 'КД-2025/310', 1150000, '2025-03-10',
-      {surveyMonths:6, revalMonths:12, appr:'2026-03-02', policy:{no:'СП-1183', till:'2026-10-20'}, ban:{regNo:'ГАИ-5521', date:'2025-03-12'}},
-      [{t:'2026-06-10', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
+      {revalMonths:12, appr:'2026-03-02', policy:{no:'СП-1183', till:'2026-10-20'}, ban:{regNo:'ГАИ-5521', date:'2025-03-12'}},
+      [{t:'2025-12-10', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
     ZLI('З-303', 'Жилой дом, с. Беловодское', 'недвижимость', 'КД-2025/311', 2800000, '2026-10-28',
-      {surveyMonths:12, revalMonths:24, appr:'2026-10-12', policy:{no:'СП-1240', till:'2027-10-28'}}, []),
+      {revalMonths:24, appr:'2026-10-12', policy:{no:'СП-1240', till:'2027-10-28'}}, []),
     ZLI('З-304', 'Нежилое помещение, г. Бишкек', 'недвижимость', 'КД-2024/318', 3600000, '2024-04-22',
-      {surveyMonths:12, revalMonths:24, appr:'2025-12-01', policy:{no:'СП-0954', till:'2027-04-22'}, ban:{regNo:'ЗП-61877', date:'2024-04-25'}},
+      {revalMonths:24, appr:'2025-12-01', policy:{no:'СП-0954', till:'2027-04-22'}, ban:{regNo:'ЗП-61877', date:'2024-04-25'}},
       [{t:'2026-04-20', survey:'в норме', by:'E34', how:'акт обследования: в норме'},
        {t:'2026-10-15', released:true, by:null, how:'кредит КД-2024/318 погашен — предмет освобождён'}]),
     ZLI('З-305', 'Зерно на складе, 300 т', 'товары в обороте', 'КД-2025/311', 1500000, '2025-09-05',
-      {surveyMonths:3, revalMonths:6, appr:'2026-04-20', policy:{no:'СП-1201', till:'2027-09-05'}, ban:{regNo:'ЗП-80412', date:'2025-09-09'}},
-      [{t:'2026-09-30', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
+      {revalMonths:6, appr:'2026-04-20', policy:{no:'СП-1201', till:'2027-09-05'}, ban:{regNo:'ЗП-80412', date:'2025-09-09'}},
+      [{t:'2025-12-30', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
     ZLI('З-306', 'Оборудование цеха', 'оборудование', 'КД-2023/322', 2900000, '2023-11-14',
-      {surveyMonths:12, revalMonths:24, appr:'2025-11-10', policy:{no:'СП-0712', till:'2027-11-14'}, ban:{regNo:'ЗП-50091', date:'2023-11-17'}, ccy:'KGS'},
+      {revalMonths:24, appr:'2025-11-10', policy:{no:'СП-0712', till:'2027-11-14'}, ban:{regNo:'ЗП-50091', date:'2023-11-17'}, ccy:'KGS'},
       [{t:'2026-05-12', survey:'в норме', by:'E34', how:'акт обследования: в норме'}]),
     ZLI('З-307', 'Автомобиль Toyota Hilux', 'техника', 'КД-2025/310', 1900000, '2025-03-10',
-      {surveyMonths:6, revalMonths:24, appr:'2025-09-20', policy:{no:'СП-0713', till:'2027-01-10'}, ban:{regNo:'ГАИ-3307', date:'2025-03-12'},
+      {revalMonths:24, appr:'2025-09-20', policy:{no:'СП-0713', till:'2027-01-10'}, ban:{regNo:'ГАИ-3307', date:'2025-03-12'},
        missing:['технический паспорт', 'справка ГАИ об отсутствии обременений']},
-      [{t:'2026-08-03', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
+      [{t:'2026-02-03', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
     ZLI('З-308', 'Овцы, 120 голов', 'скот', 'КД-2025/311', 2000000, '2025-09-05',
-      {surveyMonths:3, revalMonths:6, appr:'2026-07-01', insurable:false, ban:{regNo:'АО-1120', date:'2025-09-08'}},
+      {revalMonths:6, appr:'2026-07-01', insurable:false, ban:{regNo:'АО-1120', date:'2025-09-08'}},
       [{t:'2026-07-28', survey:'в норме', by:'E34', how:'акт обследования: в норме'},
        {t:'2026-10-27', survey:'утрата', by:'E34', how:'акт обследования: пало 40 голов — утрата части предмета'}]),
-    ZLK('КД-2025/310', 'ОсОО «Токмок-Агро»', 'KGS', '2030-03-10', 1.2, '2025-03-10', 3900000, 7250000, [{item:'З-301', till:'2027-06-30'}], []),
+    ZLK('КД-2025/310', 'ОсОО «Токмок-Агро»', 'KGS', '2030-03-10', 1.2, '2025-03-10', 3900000, 7250000, [{item:'З-301', till:'2027-06-30'}], [], 'Неплатёжеспособные'),
     ZLK('КД-2025/311', 'КФХ «Ала-Тоо»', 'KGS', '2031-09-05', 1.2, '2025-09-05', 5000000, 6300000, [],
-      [{t:'2026-10-27', pledge:5400000, by:null, how:'залоговая стоимость пересчитана: утрата части предмета З-308'}]),
+      [{t:'2026-10-27', pledge:5400000, by:null, how:'залоговая стоимость пересчитана: утрата части предмета З-308'}], 'Неплатёжеспособные'),
     ZLK('КД-2024/318', 'ОсОО «Ош-Сервис»', 'KGS', '2029-04-22', 1.2, '2024-04-22', 2600000, 3600000, [],
-      [{t:'2026-10-15', repaid:true, by:'E25', how:'кредит погашен полностью'}]),
-    ZLK('КД-2023/322', 'ОсОО «Нарын-Курулуш»', 'USD', '2028-11-14', 1.2, '2023-11-14', 2100000, 2900000, [], []),
+      [{t:'2026-10-15', repaid:true, by:'E25', how:'кредит погашен полностью'}], 'Платёжеспособные'),
+    ZLK('КД-2023/322', 'ОсОО «Нарын-Курулуш»', 'USD', '2028-11-14', 1.2, '2023-11-14', 2100000, 2900000, [], [], 'Платёжеспособные'),
     ZLS('ДП-401', 'Абдыкалыков Т.С.', 'КД-2025/310', '2025-03-10', '2026-12-15'),
     ZLS('ДП-402', 'ОсОО «Кара-Суу Строй»', 'КД-2024/318', '2024-04-22', '2029-04-22'),
     ZLS('ДП-403', 'Жээнбеков А.Т.', 'КД-2023/322', '2023-11-14', '2026-10-31'),
@@ -1829,6 +1834,13 @@ function seedOwnerObjects(){ return {
   zm: seedBorrowers(),
   rs: seedRestructuring(),
   cl: seedClassification(),
+  /* заключения анализа по заёмщикам (для ответа «документы досье»): период — название из записи анализа, повод, дата утверждения
+     (черновик — null), кто утвердил */
+  anz: [
+    {no:'ФА-7', subj:'01105201910011', period:'2П 2026', occasion:'plan', approvedAt:'2027-01-11', by:'E3'},
+    // пакет финансовых документов: запрос ЗП-…, получен полностью; неполное получение записью не становится
+    {no:'ЗП-14', subj:'01105201910011', period:'2025 год', occasion:AN_PACK, approvedAt:'2026-02-25', by:'E3'},
+  ],
   /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
      на приказ, редакция на дату; пусто — периодичность не объявлена */
   ant: [
@@ -1858,8 +1870,8 @@ function ZLI(id, name, kind, credit, pledge, reg, x, ev){ // предмет: д�
   return Object.assign({type:'item', id, name, kind, credit, pledge, ccy:'KGS', insurable:true, missing:[], policy:null, ban:null}, x,
     {ev:[{t:reg, reg:true, by:'E33', how:`договор залога по ${credit} удостоверен нотариально`}].concat(ev)});
 }
-function ZLK(id, borrower, ccy, till, req, issued, od, pledge, leases, ev){ // кредит: остаток долга и залоговая стоимость
-  return {type:'credit', id, borrower, ccy, till, req, leases,
+function ZLK(id, borrower, ccy, till, req, issued, od, pledge, leases, ev, group){ // кредит: остаток долга, залоговая стоимость, группа платёжеспособности
+  return {type:'credit', id, borrower, ccy, till, req, leases, group,
     ev:[{t:issued, od, pledge, by:'E2', how:`кредит ${id} выдан, обеспечение зарегистрировано`}].concat(ev)};
 }
 function ZLS(id, guarantor, credit, from, till){ // договор поручительства
@@ -1988,12 +2000,11 @@ function PLK(id, borrower, issued, ev){ // кредит: резерв и ава�
 function PLP(id, credit, receipt, amount, op, ev){ // платёж по шлюзу: действует сразу, датой операции
   return {type:'payment', id, credit, receipt, amount, channel:'шлюз', ev:[{t:op, by:null, how:`платёж ${id} по шлюзу: ${money(amount)}, поступление ${receipt}`}].concat(ev)};
 }
-/* заёмщик: категория риска и её полоса, снимок суммарного остатка, документы досье, годовые акты сверки. Ведущего куратора
+/* заёмщик: категория риска и её полоса, снимок суммарного остатка, годовые акты сверки. Ведущего куратора
    называет кураторство — ответом на дату */
 function seedBorrowers(){ return [
   ZMB('01105201910011', 'ОсОО «Талас-Дан»', '2025-06-10', 64200000, [
     {t:'2026-02-16', cat:'mid', by:null, how:'1-й день просрочки: средний кредитный риск'},
-    {t:'2026-02-25', doc:'пакет', by:'E3', how:'в досье: «Пакет финансовых документов» за 2025 год'},
     {t:'2026-04-06', cat:'low', by:null, how:'просрочка погашена: низкий кредитный риск'},
     {t:'2026-05-20', act:{year:'2026', stage:'подписан'}, by:'E3', how:'акт сверки на 01.01.2026 подписан обеими сторонами'},
     {t:'2026-11-02', cat:'mid', by:null, how:'1-й день просрочки: средний кредитный риск'}]),
@@ -2139,9 +2150,9 @@ const IM_SET = {act:30, reg:60, topup:30, inspMonths:6, inspByKind:{'скот':1
   // сроки Инструкции о принятии имущества — с даты выпуска; источник порога — пункт Инструкции
   ssiMemo:1, guard:5, notice:30, listed:30, relist:30, app:7, appBuyback:2, topupDue:30, bankruptcy:10, pledgeYears:3, pledgeDays:90};
 const IM_SRC = {ssiMemo:'1 р.д. · Инструкция п. 8', guard:'5 дн. · Инструкция п. 25', notice:'30 дн. · Инструкция п. 30',
-  listed:'30 к.д. · Инструкция п. 35', listedOld:'6 мес. · внутренний акт', relist:'30 к.д. · Инструкция п. 35',
+  listed:'30 к.д. · Инструкция п. 35', listedOld:'6 мес. · решение проекта', relist:'30 к.д. · Инструкция п. 35',
   app:'7 р.д. · Инструкция п. 40', appBuyback:'2 р.д. · Инструкция п. 71', topupDue:'30 дн. · Инструкция п. 46',
-  bankruptcy:'10 дн. · Инструкция п. 17', pledge:'90 к.д. до конца трёх лет · Инструкция п. 17'};
+  bankruptcy:'10 дн. · Инструкция п. 17', pledge:'90 к.д. до конца трёх лет · решение проекта; 3 года — Инструкция п. 17'};
 /* «нет первого объявления»: до выпуска — 6 мес. от перехода права; с выпуска — 30 к.д., у жилья и доли — от отказа
    по преимущественному праву. Повод, возникший по старому порогу до выпуска, своей даты не меняет */
 function imListedDue(s, d){
@@ -2240,9 +2251,9 @@ function creditAt(o, d){
   }
   return s;
 }
-const CR_NOTICE_DAYS = 30; // за сколько к.д. до платежа куратор решает об уведомлении — порог кредита, задания его не настраивают
-/* строки графика, до которых 30 к.д. или меньше: срок не наступил, платёж не внесён; уведомление заёмщику повод не гасит */
-function crDue(s, d){ return s.schedule.filter(x=>x.date>d && kd(d, x.date)<=CR_NOTICE_DAYS && !s.paid[x.date]); }
+/* строки графика, до которых дошёл порог кредита (норма): срок не наступил, платёж не внесён; уведомление заёмщику повод не гасит */
+const crNoticeFrom = date=>thrFirst('cr.noticeDays', v=>addDays(date, -v));
+function crDue(s, d){ return s.schedule.filter(x=>x.date>d && crNoticeFrom(x.date)<=d && !s.paid[x.date]); }
 /* требование по взысканию на дату: журнал мер, решения органа, пауза и закрытие — факты владельца */
 function vzAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
@@ -2306,12 +2317,14 @@ const ZL_APPR_MONTHS = 12;     // срок годности отчёта об о
 const ZL_SURETY_WARN = 60;     // за сколько к.д. до конца срока поручительство «истекает» — настройка залога
 const ZL_COMMITTEE_DAYS = 10;  // срок рассмотрения договора комитетом, к.д. — настройка залога
 const ZL_BAN_WD = 5;           // запрет — в N р.д. от нотариального удостоверения
+const ZL_SURVEY = {            // интервал обследования, мес.: группа платёжеспособности × движимость; норма, у залога на чтение
+  'Платёжеспособные':{immovable:36, movable:24}, 'Неплатёжеспособные':{immovable:24, movable:12}};
 function zlAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
   if(o.type==='item'){
     const s = {type:'item', id:o.id, name:o.name, kind:o.kind, credit:o.credit, pledge:o.pledge, ccy:o.ccy, reg:o.ev[0].t, encumbered:true,
-      insurable:o.insurable, surveyMonths:o.surveyMonths, revalMonths:o.revalMonths,
+      insurable:o.insurable, revalMonths:o.revalMonths,
       released:null, lastSurvey:null, appr:o.appr, report:o.apprReport||'отчёт при оформлении', policy:o.policy, ban:o.ban, banOff:null,
       missing:o.missing.slice(), loss:null, notice:null, last};
     evs.forEach(e=>{
@@ -2324,11 +2337,13 @@ function zlAt(o, d){
       if(e.doc) s.missing = s.missing.filter(x=>x!==e.doc);
       if(e.restoreNotice) s.notice = e;
     });
-    s.nextSurvey = addMonths(s.lastSurvey || s.reg, o.surveyMonths);
+    const k = state.owner.zl.find(x=>x.type==='credit' && x.id===o.credit);
+    s.group = k ? k.group : 'Платёжеспособные'; s.movable = o.kind!=='недвижимость';
+    s.surveyMonths = ZL_SURVEY[s.group][s.movable ? 'movable' : 'immovable'];
+    s.nextSurvey = addMonths(s.lastSurvey || s.reg, s.surveyMonths);
     s.nextReval = addMonths(s.appr, o.revalMonths);
     s.apprTill = addMonths(s.appr, ZL_APPR_MONTHS);
     s.banDue = addWorkdays(s.reg, ZL_BAN_WD);
-    const k = state.owner.zl.find(x=>x.type==='credit' && x.id===o.credit);
     s.creditCcy = k ? k.ccy : s.ccy;
     return s;
   }
@@ -2364,7 +2379,6 @@ const zlItem = (s, f)=>s.type==='item' && s.encumbered && f(s);
 const zlStale = (s, d)=>s.apprTill<d;
 const zlCancelItem = s=>s.type==='item' && !s.encumbered ? `предмет ${s.id} освобождён: ${s.released.how}` : null;
 /* платежи на дату: платёж, поступление или кредит — состояние выводится из фактов платежей */
-const PL_AWAIT_WD = 3;        // напоминание об ожидании — с N-го р.д. от даты операции, настройка платежей
 const PL_PENALTY_DAY = 0.001; // демо: спорная пеня за день от суммы платежа — её считает расчётное ядро
 const plPaysOf = credit=>state.owner.pl.filter(x=>x.type==='payment' && x.credit===credit);
 function plAt(o, d){
@@ -2380,7 +2394,7 @@ function plAt(o, d){
       if(e.restore) s.restored = e;
       if(e.decision) s.decision = e;
     });
-    s.awaitFrom = addWorkdays(s.op, PL_AWAIT_WD);
+    s.awaitFrom = addWorkdays(s.op, thrOn('pl.awaitWd', s.op)); // значение на дату операции
     s.penalty = s.storno ? Math.round(s.amount*PL_PENALTY_DAY*kd(s.op, s.storno.t)) : 0;
     s.phase = s.restored ? 'подтверждён (восстановлен)' : s.storno ? 'сторнирован' : s.confirmed ? 'подтверждён' : 'ожидает подтверждения';
     const k = ownerObj('pl', o.credit); s.borrower = k ? k.borrower : '—';
@@ -2421,28 +2435,31 @@ function plDecisionAttrib(s, p, d){ // спорная пеня: решение �
     .map(x=>x.restored || x.late).filter(e=>e.t>=from).sort((a, b)=>a.t<b.t ? -1 : 1).pop();
   return {cancel:clear ? `${clear.how} — спорная пеня снимается без комиссии` : s.last.how};
 }
-/* заёмщик на дату: категория и полоса риска, суммарный остаток, документы досье и годовые акты — из фактов заёмщика */
-const ZM_FHS_LIMIT = 50000000; // анализ обязателен в среднем риске при долге больше 50 млн — порог заёмщика
+/* заёмщик на дату: категория и полоса риска, суммарный остаток и годовые акты — из фактов заёмщика; пакет — из ответа анализа */
+/* строки расписания анализа: порог, период и отсрочку объявляет анализ, заёмщик читает; у высокого риска порога нет */
+const AN_FHS = {
+  mid:{limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
+  high:{limit:null, act:'Порядок №41 п. 6 пп. 5', grace:45},
+};
+const anFhsNeed = (cat, debt)=>{ const r = AN_FHS[cat]; return !!r && (r.limit===null || debt>r.limit); };
 const ZM_ACT_DUE = '09-01';    // акт сверки на 1 января — до 1 сентября того же года
 const ZM_CAT = {low:'низкий риск', mid:'средний риск', high:'высокий риск'};
 const ZM_DOC = {пакет:'Пакет финансовых документов', анализ:'Анализ финансово-хозяйственного состояния'};
 function zmAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
-  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, docs:[], acts:{},
+  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
     repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
   evs.forEach(e=>{
     if(e.cat){ if(e.cat==='low') s.strip = null; else if(!s.strip) s.strip = e.t; s.cat = e.cat; s.catSince = e.t; } // средний → высокий — та же полоса
-    if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ s.repaid = null; s.activeSince = e.t; } } // новый кредит после погашения
-    if(e.doc) s.docs.push(e);
+    if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ if(s.repaid.t!==e.t) s.activeSince = e.t; s.repaid = null; } } // новый кредит после погашения; в тот же день перерыва нет
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
-    const fhsNeed = s.cat==='mid' && !!s.strip && s.debt>ZM_FHS_LIMIT; // анализ нужен с дня, когда сошлись средний риск и остаток
+    const fhsNeed = !!s.strip && anFhsNeed(s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
     s.fhsSince = fhsNeed ? s.fhsSince || e.t : null;
   });
-  // документ в досье считается по своей дате, не по дате внесения; документ прежней полосы не в счёт
-  const inStrip = kind=>s.strip ? s.docs.filter(e=>e.doc===kind && (e.docDate || e.t)>=s.strip).pop() || null : null;
-  s.pack = inStrip('пакет'); s.fhs = inStrip('анализ');
+  // пакет приходит ответом анализа и считается по своей дате; пакет прежней полосы не в счёт
+  s.pack = s.strip ? analysisDocs(o.id, d).filter(x=>x.type===ZM_DOC.пакет && x.date>=s.strip)[0] || null : null;
   // акт нужен за каждый год, на 1 января которого заёмщик был действующим; погасил всё — больше не действующий,
   // прежние годы закрыл акт о полном погашении; новый кредит — годы считаются заново
   s.years = [];
@@ -2451,6 +2468,34 @@ function zmAt(o, d){
   s.signed = y=>!!s.acts[y] && s.acts[y].act.stage==='подписан';
   s.unsigned = s.years.filter(y=>!s.signed(y));
   return s;
+}
+function halfOf(d){ const y = d.slice(0, 4); return d.slice(5, 7)<='06' ? {from:`${y}-01-01`, to:`${y}-06-30`} : {from:`${y}-07-01`, to:`${y}-12-31`}; }
+/* ответ анализа «документы досье» на дату, зеркало шва analysisDocs: вид, дата, номер, период и кто утвердил. Считается из заключений:
+   только утверждённое плановое, одно на период — первое из заведённых, как в analysisDone; заключение по заявке, черновик и переиздание документа не дают */
+const AN_PLAN = 'plan', AN_PACK = 'pack';
+const anPeriodName = from=>`${from.slice(5, 7)<='06' ? '1П' : '2П'} ${from.slice(0, 4)}`; // как период назван в записях анализа
+function analysisDocs(subj, d){
+  const docs = [];
+  state.owner.anz.filter(a=>a.subj===subj && a.occasion===AN_PLAN && a.approvedAt && a.approvedAt<=d)
+    .forEach(a=>{ if(!docs.some(x=>x.type===ZM_DOC.анализ && x.period===a.period)) docs.push({type:ZM_DOC.анализ, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}); });
+  // пакет: только полное получение по запросу (номер запроса, дата получения, период запроса); by — кто отметил получение
+  state.owner.anz.filter(a=>a.subj===subj && a.occasion===AN_PACK && a.approvedAt && a.approvedAt<=d)
+    .forEach(a=>docs.push({type:ZM_DOC.пакет, date:a.approvedAt, ref:a.no, period:a.period, by:a.by}));
+  return docs.sort((a, b)=>a.date<b.date ? -1 : a.date>b.date ? 1 : 0);
+}
+/* открытые периоды анализа ФХС: только закончившиеся, условие читается на конец периода, задание появляется на следующий день;
+   за идущий период задания нет, период до ввода вида не входит; закрывает заключение именно за этот период */
+function zmFhsOpen(s, d){
+  const out = [], o = ownerObj('zm', s.id);
+  if(s.repaid) return out;
+  const docs = analysisDocs(s.id, d).filter(e=>e.type===ZM_DOC.анализ);
+  for(let p = halfOf(kindOf('pk-zm-fhs').activatedAt||d); p.to<d; p = halfOf(addDays(p.to, 1))){
+    if(p.to<s.activeSince) continue; // период закончился раньше начала нового кредита после полного погашения: не считается
+    const x = zmAt(o, p.to), name = anPeriodName(p.from);
+    if(!x || !x.fhsSince || docs.some(e=>e.period===name)) continue;
+    out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:addDays(p.to, 1), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat, strip:x.strip, debt:x.debt}, p));
+  }
+  return out;
 }
 function zmActText(e){ return e ? `${e.act.stage}${e.act.agreement ? ' · '+e.act.agreement : ''} с ${fmt(e.t)}` : 'не составлен'; }
 function zmCancel(s){
@@ -2608,8 +2653,34 @@ function docExecDone(s){ // исполнение и отправка закон�
   return exec.every(r=>s.reviewed[r.emp]) && Object.values(s.res).filter(r=>!r.parent).every(r=>r.state==='closed') && acq.every(r=>s.acq[r.emp]);
 }
 function resKey(r, who){ return `doc-execute|resolution:${r.id}·исполнитель:${who}|`; }
-/* пороги появления повода — настройки соседей: программы «Истекает» за N к.д. до «Даты по», заявки «застряла» после N р.д. */
-function expiringDays(){ return state.neighborSet.lp.expiringDays; }
+/* порог появления — записи модуля-владельца: значение с датой начала и основанием. Откуда число задаёт запись: act — норма (акт и пункт),
+   order — настоящий внутренний акт, иначе решение проекта. Первая запись действует и для более ранних дат.
+   Задания читают; thrNew — демо модуля: прошлая дата и пустое основание отбиты, норма и модуль без экрана настроек — только выпуском */
+const THR_SCREEN = {rp:true}; // из модулей с записями экран настроек есть только у отчётности
+function thrVals(path){ const [m, f] = path.split('.'); return state.neighborSet[m][f]; }
+function thrRecOn(path, d){ return thrVals(path).reduce((cur, r)=>r.from<=d ? r : cur); }
+function thrOn(path, d){ return thrRecOn(path, d||state.today).v; }
+/* повод считается по значению на дату появления: первый день, когда условие выполнено при значении этого дня; reach(v) — день условия при значении v.
+   Поднятый порог появившееся не снимает, сниженный ловит подошедшее с даты начала */
+function thrFirst(path, reach){
+  const a = thrVals(path);
+  for(let i=0; i<a.length; i++){
+    const x = i ? dateMax(reach(a[i].v), a[i].from) : reach(a[0].v);
+    if(i===a.length-1 || x<a[i+1].from) return x;
+  }
+}
+function thrNew(path, x, release){
+  const cur = thrRecOn(path, state.today), a = thrVals(path);
+  if(!(x.basis||'').trim()) throw new Error('основание обязательно');
+  if(!x.from || x.from<state.today) throw new Error('дата начала не раньше сегодняшней');
+  if(!release && (x.act || cur.act || !THR_SCREEN[path.split('.')[0]])) throw new Error('это число меняется выпуском');
+  a.push({from:x.from, v:x.v, basis:x.basis.trim(), act:x.act||null, order:x.order||null});
+  a.sort((p, q)=>p.from<q.from ? -1 : p.from>q.from ? 1 : 0);
+  return a;
+}
+function thrSrcText(x){ return x.act ? 'норма · '+x.act : x.order ? 'внутренний акт · '+x.order : PROJECT_SRC; }
+function expiringDays(d){ return thrOn('lp.expiringDays', d); }
+const expiringFrom = to=>thrFirst('lp.expiringDays', v=>addDays(to, -v));
 const NO_APPS = 'не принимаются';
 /* программа принимает заявки: «Действует», основание «Действует», «Дата по» не прошла; иначе — почему и с какого дня */
 function programBlock(lpId, d){
@@ -2630,7 +2701,8 @@ function apSpecOn(s, d){ return curatorOn('специалист заявки', s
 function apExpiredDocs(s, d){ return s.docs.filter(x=>x.validTo<d && !s.renewed[x.name]); }
 function apWaitsOther(s){ return s.gf==='handed' || (s.gf==='confirmed' && s.depts.some(k=>!s.concl[k])); } // работа у ГФ или отдела
 function quorumOf(s){ return Math.floor(s.com.members.length/2)+1; }
-function apStuckWd(){ return state.neighborSet.ap.stuckWd; }
+function apStuckWd(d){ return thrOn('ap.stuckWd', d); }
+const apStuckFrom = s=>thrFirst('ap.stuckWd', v=>addWorkdays(s.last.t, v));
 const AP = x=>Object.assign({src:'ap', objectType:'application', cur:true}, x);
 const DOC = x=>Object.assign({src:'doc', objectType:'document'}, x);
 const IMO = x=>Object.assign({src:'imo', objectType:'offer', cur:true}, x);
@@ -2656,8 +2728,8 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
   'lp-review':        {src:'lp', objectType:'program', when:s=>s.status==='На рассмотрении'},
   'lp-revise':        {src:'lp', objectType:'program', when:s=>s.status==='На доработке'},
   'lp-expiring':      {src:'lp', objectType:'program',
-    when:(s,d)=>s.status==='Действует' && !!s.dateTo && d<=s.dateTo && daysBetween(d, s.dateTo)<=expiringDays(),
-    since:s=>addDays(s.dateTo, -expiringDays()),
+    when:(s,d)=>s.status==='Действует' && !!s.dateTo && d<=s.dateTo && expiringFrom(s.dateTo)<=d,
+    since:s=>expiringFrom(s.dateTo),
     traits:(s,d)=>({дата_по:s.dateTo, дней_до:daysBetween(d, s.dateTo)})},
   'lp-expired':       {src:'lp', objectType:'program',
     when:(s,d)=>s.status==='Действует' && !!s.dateTo && d>s.dateTo,
@@ -2687,9 +2759,9 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     since:(s,d)=>dateMax(s.created, programBlock(s.program, d).since),
     traits:(s,d)=>({программа:s.program, причина:programBlock(s.program, d).why, заявки:NO_APPS}),
     done:e=>!!e.program || e.status==='Отозвана', cancel:(s,d)=>programAccepts(s.program, d) ? 'программа снова принимает заявки' : null}),
-  'ap-stuck-new':   AP({when:(s,d)=>s.status==='Новый' && !apWaitsOther(s) && workdaysBetween(s.last.t, d)>=apStuckWd(),
-    since:s=>addWorkdays(s.last.t, apStuckWd()),
-    traits:(s,d)=>({без_событий_раб_дней:workdaysBetween(s.last.t, d), последнее:s.last.how}), done:()=>true}),
+  'ap-stuck-new':   AP({when:(s,d)=>s.status==='Новый' && !apWaitsOther(s) && apStuckFrom(s)<=d,
+    since:s=>apStuckFrom(s),
+    traits:(s,d)=>({без_событий_раб_дней:workdaysBetween(s.last.t, d), порог:`${apStuckWd(apStuckFrom(s))} р.д.`, последнее:s.last.how}), done:()=>true}),
   'ap-doc-expired': AP({when:(s,d)=>!AP_FINAL.includes(s.status) && apExpiredDocs(s, d).length>0,
     since:(s,d)=>apExpiredDocs(s, d).map(x=>addDays(x.validTo, 1)).sort()[0],
     traits:(s,d)=>({документы:apExpiredDocs(s, d).map(x=>x.name).join('; '), группа:s.group ? s.group+' чл.' : 'нет'}), done:e=>!!e.renewed}),
@@ -2817,11 +2889,11 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
   // Отчётность: обязательство не закрыто выпуском — от «срок близко» (отметка отчётности) до окончательного выпуска
   'pk-rep-obligation-due': {src:'rp', objectType:'obligation',
     when:s=>s.soon || s.state==='просрочено',
-    since:s=>addDays(s.due, -repSoonDays()), // один повод от «близко» до выпуска: в день срока состояние не начинается заново
+    since:s=>repSoonFrom(s.due), // один повод от «близко» до выпуска: в день срока состояние не начинается заново
     each:s=>[{role:s.role, due:s.due}],
     traits:(s,d)=>({форма:s.form, подразделение:s.deptName, получатель:s.recName, период:s.period, срок:s.due,
       состояние:s.state==='просрочено' ? 'просрочено' : 'срок близко'}),
-    done:(e,p)=>!!e.issue && e.to===ownerObj('rp', p.ownerId||p.objectId).rec, cancel:s=>s.removed ? s.removed.how : !s.issued && !s.soon && s.state==='ожидается' ? 'срок сдачи ещё не близко по настройке отчётности' : null},
+    done:(e,p)=>!!e.issue && e.to===ownerObj('rp', p.ownerId||p.objectId).rec, cancel:s=>s.removed ? s.removed.how : null},
   'pk-an-no-review': {src:'ant', objectType:'template', when:()=>true,
     each:(s,d)=>anMissing(s, d).map(x=>({period:`${x.from}..${x.to}`, sub:`${x.from}..${x.to}`, since:x.closed, dueN:x.c.dueWd||null, x})),
     since:(s,d,x)=>x.since,
@@ -2831,7 +2903,7 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
       return r ? {by:r.approvedBy, how:`обзор ${r.id} по всему портфелю за ${perText(r.period)} утверждён`} : {cancel:s.last.how}; }},
   // Кредит: ключ «вид · кредит · дата платежа»; сигнал куратору при появлении, отпадает с внесением или датой платежа
   'pk-cr-payment-due': {src:'cr', objectType:'credit', cur:true, when:(s,d)=>crDue(s, d).length>0,
-    each:(s,d)=>crDue(s, d).map(x=>({period:x.date, sub:x.date, since:addDays(x.date, -CR_NOTICE_DAYS), x})),
+    each:(s,d)=>crDue(s, d).map(x=>({period:x.date, sub:x.date, since:crNoticeFrom(x.date), x})),
     since:(s,d,x)=>x.since,
     traits:(s,d,x)=>({заёмщик:s.borrower, дата_платежа:x.x.date, сумма:x.x.amount, дней_до:kd(d, x.x.date)})},
   // Взыскание: ключ «вид · требование · база»; срок — шаблона; гасит мера, исполняющая обязательство; паузу и закрытие называет взыскание
@@ -2844,7 +2916,7 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     cancel:(s,d)=>vzCancel(s, d, n)}])),
   // Залог: ключ «вид · предмет» (кредит, поручительство, договор) без периода — состояние длится до факта у залога
   'pk-zl-survey-overdue':  ZLC({when:(s,d)=>zlItem(s, s=>s.nextSurvey<d), since:s=>addDays(s.nextSurvey, 1),
-    traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.kind})`, сумма:s.pledge}), done:e=>!!e.survey}),
+    traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.group.toLowerCase()}, ${s.movable ? 'движимое' : 'недвижимое'})`, сумма:s.pledge}), done:e=>!!e.survey}),
   'pk-zl-reval-overdue':   ZLC({when:(s,d)=>zlItem(s, s=>s.nextReval<d && !zlStale(s, d)), since:s=>addDays(s.nextReval, 1),
     traits:s=>({предмет:s.name, плановая_дата:s.nextReval, интервал:`${s.revalMonths} мес. (${s.kind})`, сумма:s.pledge}), done:e=>!!e.reval}),
   'pk-zl-appraisal-stale': ZLC({when:(s,d)=>zlItem(s, s=>zlStale(s, d)), since:s=>addDays(s.apprTill, 1),
@@ -2908,17 +2980,24 @@ Object.assign(OWNER_CFG, {
     done:e=>!!e.bind || !!e.refund, cancel:s=>s.storno ? s.storno.how : null}),
 });
 PL_STEPS.forEach(x=>{ OWNER_CFG[x.id].objectType = x.objectType; });
-// Заёмщик: пакет и анализ — «вид · заёмщик» без периода, база срока — начало полосы риска (у анализа — день, когда остаток
-// в среднем риске стал больше 50 млн, если позже); акт сверки — «вид · заёмщик · год»
+// Заёмщик: пакет — «вид · заёмщик» без периода, база срока — начало полосы риска; анализ — «вид · заёмщик · период», срок называет
+// расписание анализа; акт сверки — «вид · заёмщик · год»
 const ZMC = x=>Object.assign({src:'zm', objectType:'borrower', cur:true}, x);
 const zmTraits = s=>({категория:ZM_CAT[s.cat], полоса_с:s.strip, сумма:s.debt});
 Object.assign(OWNER_CFG, {
   'pk-zm-fin-package': ZMC({when:s=>!!s.strip && !s.pack, since:s=>s.strip, traits:zmTraits,
-    done:e=>e.doc==='пакет', cancel:s=>zmCancel(s)}),
-  'pk-zm-fhs':         ZMC({when:s=>!!s.fhsSince && !s.fhs, since:s=>s.fhsSince, traits:zmTraits,
-    done:e=>e.doc==='анализ',
-    cancel:s=>s.cat==='high' ? `заёмщик переведён в высокий риск ${fmt(s.catSince)}: обязательный анализ — только в среднем риске`
-      : s.strip && s.debt<=ZM_FHS_LIMIT ? `суммарный остаток ${money(s.debt)} — не больше 50 млн` : zmCancel(s)}),
+    attrib:(s,p,d)=>{ // исполнитель — кто отметил получение пакета; адресат — «исполнено», другой — «выполнил другой»
+      const strip = zmAt(ownerObj('zm', s.id), appearedOn(p))?.strip || s.strip;
+      const q = strip && analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.пакет && x.date>=strip)[0];
+      return q ? {by:q.by, how:`пакет получен полностью по запросу ${q.ref} от ${fmt(q.date)} за ${q.period}`} : {cancel:zmCancel(s)}; }}),
+  'pk-zm-fhs':         ZMC({when:(s,d)=>zmFhsOpen(s, d).length>0,
+    each:(s,d)=>zmFhsOpen(s, d).map(x=>({period:x.key, sub:x.key, since:x.since, due:x.due, x})),
+    since:(s,d,x)=>x.since,
+    traits:(s,d,x)=>Object.assign(zmTraits(x.x), {период:perText(x.x), срок:x.due}), // признаки — на конец периода, как и условие
+    attrib:(s,p,d)=>{ // исполнитель — кто утвердил заключение; адресат — «исполнено», другой — «выполнил другой»
+      const doc = analysisDocs(s.id, d).find(e=>e.type===ZM_DOC.анализ && e.period===anPeriodName(p.sub.slice(0, 10)));
+      if(doc) return {by:doc.by, how:`заключение ${doc.ref} от ${fmt(doc.date)} за ${doc.period}, утвердил ${emp(doc.by)?.name||doc.by}`};
+      return {cancel:zmCancel(s)}; }}), // условие закончившегося периода не меняется: снять может только погашение заёмщика
   'pk-zm-recon-act':   ZMC({when:s=>s.unsigned.length>0,
     each:s=>s.unsigned.map(y=>({period:y, sub:y, since:`${y}-01-01`, due:`${y}-${ZM_ACT_DUE}`})),
     since:(s,d,x)=>x.since,
@@ -3369,11 +3448,10 @@ function plStep(id, by, step, arg){
           {t:d, by, confirm:{line:'по поступлению '+s.id}, how:`платёж подтверждён строкой реестра ЦК поступления ${s.id}`}]});
   }
 }
-/* факт в карточке заёмщика (демо соседа): документ в досье и подпись годового акта вносит сотрудник отраслевого
-   департамента — ведущий куратор, его замещающий, руководитель или коллега; кто именно — атрибуция факта */
+/* факт в карточке заёмщика (демо соседа): подпись годового акта вносит сотрудник отраслевого департамента — ведущий куратор,
+   его замещающий, руководитель или коллега; кто именно — атрибуция факта. Пакет и документ анализа руками не вносятся:
+   они приходят ответом анализа */
 const ZM_FACTS = {
-  'пакет':        {ev:dd=>({doc:'пакет', docDate:dd}),  how:dd=>`в досье: «${ZM_DOC.пакет}» от ${fmt(dd)}`},
-  'анализ':       {ev:dd=>({doc:'анализ', docDate:dd}), how:dd=>`в досье: «${ZM_DOC.анализ}» от ${fmt(dd)}`},
   'акт подписан': {ev:y=>({act:{year:y, stage:'подписан'}}), how:y=>`акт сверки на 01.01.${y} подписан обеими сторонами`},
 };
 const ZM_DEPT = 'Сопровождение'; // отраслевой департамент: ведёт мониторинг заёмщика
@@ -3382,16 +3460,15 @@ function zmStepError(id, by, step, arg){
   const d = state.today, s = zmAt(ownerObj('zm', id), d), f = ZM_FACTS[step];
   if(!s) return 'заёмщика нет';
   if(!f) return `шага «${step}» у заёмщика нет`;
-  // записи карточки — документ в досье и акт; риск, остаток и погашение — события соседей, не записи карточки
-  const later = ownerObj('zm', id).ev.filter(e=>e.t>d && (e.doc || e.act)).map(e=>e.t).sort()[0];
+  // записи карточки — акт; риск, остаток и погашение — события соседей, не записи карточки
+  const later = ownerObj('zm', id).ev.filter(e=>e.t>d && e.act).map(e=>e.t).sort()[0];
   if(later) return `в карточке заёмщика уже есть запись от ${fmt(later)}: задним числом не вносится`;
   if(step==='акт подписан' && (s.years.indexOf(arg)===-1 || s.signed(arg))) return `акта на 01.01.${arg} заёмщик не должен или он уже подписан`;
-  if(step!=='акт подписан' && arg && arg>d) return 'дата документа позже сегодняшней';
   return zmDeptOk(by) ? null : 'документ заёмщика вносит сотрудник отраслевого департамента';
 }
 function zmStep(id, by, step, arg){
   const err = zmStepError(id, by, step, arg); if(err) throw new Error(err);
-  const f = ZM_FACTS[step], a = step==='акт подписан' ? arg : arg || state.today; // у документа — его дата
+  const f = ZM_FACTS[step], a = arg;
   ownerObj('zm', id).ev.push(Object.assign({t:state.today, by, how:f.how(a)}, f.ev(a)));
 }
 /* факт в заявке на реструктуризацию (демо соседа): пакет, возврат, вынос на комитет и письмо вносит сотрудник отраслевого
@@ -3524,7 +3601,14 @@ function seedState(){
     sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false, collection:false, collateral:false, payments:false, borrower:false, restructuring:false, classification:false}, // недоступность на источник, не глобально
     owner: seedImInstr(Object.assign(seedOwnerObjects(), {rp: seedObligations()})), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
     statCleared: false, // демо: сосед статистики снова отвечает
-    neighborSet: {lp:{expiringDays:30}, ap:{stuckWd:10}, rp:{soonDays:7}}, // настройки соседей (демо): задания их только читают
+    standThr: false,    // демо: заявки подняли порог «застряла» с даты среза
+    neighborSet: { // пороги модулей (демо): значения с датой начала, задания только читают
+      lp:{expiringDays:[{from:'2026-09-01', v:30, basis:'подключение модуля «Кредитные программы»'}]},
+      ap:{stuckWd:[{from:'2026-09-01', v:10, basis:'подключение модуля «Заявки»'}]},
+      rp:{soonDays:[{from:'2026-09-01', v:7, basis:'подключение модуля «Отчётность»'}]},
+      pl:{awaitWd:[{from:'2026-09-01', v:3, basis:'подключение модуля «Платежи»'}]},
+      cr:{noticeDays:[{from:'2026-07-06', v:30, act:'Порядок №41 п. 15 пп. 1', basis:'Порядок №41 от 06.07.2026'}]},
+    },
     seq: 1,
   };
   initRegistry();
@@ -4319,7 +4403,8 @@ function plDescribe(p){ // платежи: платёж, поступление 
 }
 function zmDescribe(p){ // заёмщик; у акта сверки — год
   const o = ownerObj('zm', p.ownerId||p.objectId);
-  return o ? `заёмщик ${o.name} · ИНН ${o.id}${p.sub ? ` · акт сверки на 01.01.${p.sub}` : ''}` : p.objectId;
+  const tail = !p.sub ? '' : p.kind==='pk-zm-fhs' ? ` · за ${perText({from:p.sub.slice(0, 10), to:p.sub.slice(12)})}` : ` · акт сверки на 01.01.${p.sub}`;
+  return o ? `заёмщик ${o.name} · ИНН ${o.id}${tail}` : p.objectId;
 }
 function rsDescribe(p){ // заявка на реструктуризацию · заёмщик · кредиты заявки
   const o = ownerObj('rs', p.ownerId||p.objectId);
@@ -4449,7 +4534,7 @@ function releaseTaskKind(kindId, no, x){
   if(k.genus!=='подсветка') throw new Error('заданием выпуск делает вид подсветки');
   k.genus = 'надзор'; k.activatedAt = state.today; k.basis = x.basis || k.basis;
   state.actions.push(Object.assign({id:'act-'+kindId, importance:'средняя', needsProof:false}, x.action));
-  const r = Object.assign({id:'rule-'+kindId, kind:kindId, action:'act-'+kindId, dueUnit:'workday', dueSource:ACT_SRC,
+  const r = Object.assign({id:'rule-'+kindId, kind:kindId, action:'act-'+kindId, dueUnit:'workday', dueSource:PROJECT_SRC,
     editions:[{n:1, from:state.today, by:'выпуск '+no, basis:'выпуск '+no, release:no,
       values:{dueN:x.rule.dueN==null ? null : x.rule.dueN, controller:x.rule.controller||null, importance:x.rule.importance||null, author:x.rule.author||postOfUnit(k.ownerDept).id}}]}, x.rule);
   state.rules.push(r);
@@ -4882,7 +4967,7 @@ function setViewer(v){ state.viewer=v; groupOpen = {}; groupPick = {}; groupOff 
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
 const STAND_START = '2026-09-01';   // первый день с соседями и всеми четырьмя демо-поручениями
 const STAND_OPEN = '2026-10-01';    // на этой дате страница открывается
-const STAND_DATES = ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-03-01'];
+const STAND_DATES = ['2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-09','2026-09-10','2026-09-15','2026-09-16','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-08','2026-10-09','2026-10-12','2026-10-14','2026-10-15','2026-10-16','2026-10-20','2026-10-22','2026-10-26','2026-10-30','2026-11-02','2026-11-05','2026-12-07','2026-12-09','2026-12-14','2026-12-16','2027-01-04','2027-03-01'];
 function standDates(d){ const out = []; for(let x=STAND_START; x<=d; x=addDays(x, 1)) out.push(x); return out; }
 /* поручения стенда со своей историей: сданные и с запросом продления. Каждое событие — в свою дату, до даты среза его нет.
    Сценарии смоука на seed и опросе их не видят; решения ждут Токтогулов, Эсенгулов, Мамбетов, Орозбаева, Абдразакова */
@@ -4919,10 +5004,11 @@ function goToDate(d){
   const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, ruleQ:state.ruleQ, ruleMod:state.ruleMod, ruleSt:state.ruleSt, hlOpen:state.hlOpen,
     runsTab:state.runsTab, povQ:state.povQ, povKind:state.povKind, povSt:state.povSt,
     qTab:state.qTab, qSearch:state.qSearch, qSort:state.qSort, closedFilter:state.closedFilter,
-    pollScope:state.pollScope, sourceDown:state.sourceDown, statCleared:state.statCleared};
+    pollScope:state.pollScope, sourceDown:state.sourceDown, statCleared:state.statCleared, standThr:state.standThr};
   seedState();
   Object.assign(state, keep, {statCleared:false});
   state.today = d;
+  if(state.standThr) thrNew('ap.stuckWd', {v:60, from:d, basis:'выпуск: порог поднят'}, true);
   const scenes = {};
   standDates(d).forEach(x=>{
     state.today = x;
@@ -4943,6 +5029,7 @@ function goToDate(d){
 function toggleDown(sourceId, v){ state.sourceDown[sourceId]=v; goToDate(state.today); }
 function setPollScope(v){ state.pollScope=v; goToDate(state.today); }
 function setStatCleared(v){ state.statCleared=v; goToDate(state.today); }
+function setStandThr(v){ state.standThr=v; goToDate(state.today); }
 
 /* пункты меню: настройка и журнал прогонов — только у администратора заданий */
 function menuItems(){
@@ -4966,7 +5053,8 @@ function renderStand(){
     <label>Круг опроса <select onchange="ZD.setPollScope(this.value)">${[['все','все подключённые'],['первый выпуск','первый выпуск — механизм и взыскание'],['механизм','только механизм']].map(([v,l])=>opt(v, l, state.pollScope)).join('')}</select></label>
     <details${standDownOpen ? ' open' : ''}><summary onclick="ZD.standToggle(!this.parentNode.open)">Имитация недоступности${down.length ? ': '+esc(down.map(x=>x.name).join(', ')) : ''}</summary>
       <div class="stand-down">${SOURCES.map(x=>`<label><input type="checkbox" ${state.sourceDown[x.id] ? 'checked' : ''} onchange="ZD.toggleDown('${x.id}', this.checked)"> ${esc(x.name)}</label>`).join('')}
-        <label><input type="checkbox" ${state.statCleared ? 'checked' : ''} onchange="ZD.setStatCleared(this.checked)"> модуль «взыскание» снова отвечает Статистике</label></div>
+        <label><input type="checkbox" ${state.statCleared ? 'checked' : ''} onchange="ZD.setStatCleared(this.checked)"> модуль «взыскание» снова отвечает Статистике</label>
+        <label><input type="checkbox" ${state.standThr ? 'checked' : ''} onchange="ZD.setStandThr(this.checked)"> заявки подняли порог «застряла» до 60 р.д. с даты среза</label></div>
     </details>`;
 }
 function render(){
@@ -5948,7 +6036,7 @@ function renderCrCard(id){ // кредит у владельца: график, 
   const btn = (step, date, label)=>`<button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.crStep('${esc(o.id)}', ZD.state.viewer, '${step}', '${date}'))">${label}</button>`;
   const line = x=>{ const p = s.paid[x.date], n = s.notices[x.date], left = kd(d, x.date);
     const st = p ? `внесён ${fmt(p.t)}` : n ? `заёмщик уведомлён ${fmt(n.t)} · ${who(n.by)}` : left<=0 ? 'срок наступил'
-      : left<=CR_NOTICE_DAYS ? `<span class="pill warn">через ${left} дн.</span>` : '';
+      : crNoticeFrom(x.date)<=d ? `<span class="pill warn">через ${left} дн.</span>` : '';
     return `<tr><td>${fmt(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td class="small">${st}</td>
       <td>${!p && !n && left>0 ? btn('уведомить', x.date, 'Уведомить заёмщика') : ''}${!p ? btn('платёж', x.date, 'Платёж зачислен') : ''}</td></tr>`; };
   return `<div class="card">${head}
@@ -6094,9 +6182,10 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   const btn = (step, arg, label)=>`<button class="btn btn-secondary btn-sm" onclick='ZD.ui(()=>ZD.zmStep(${JSON.stringify(o.id)}, ZD.state.viewer, ${JSON.stringify(step)}, ${JSON.stringify(arg)}))'>${esc(label)}</button>`;
   const rows = [];
   if(OWNER_CFG['pk-zm-fin-package'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.пакет)}<div class="small">полоса риска с ${fmt(s.strip)}</div></td>
-    <td class="small">срок — правило заданий</td><td>${btn('пакет', null, 'Пакет в досье')}</td></tr>`);
-  if(OWNER_CFG['pk-zm-fhs'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.анализ)}<div class="small">средний риск, остаток больше 50 млн</div></td>
-    <td class="small">срок — правило заданий</td><td>${btn('анализ', null, 'Анализ в досье')}</td></tr>`);
+    <td class="small">срок — правило заданий</td><td class="small">полный пакет по запросу получает и отмечает модуль «Анализ»</td></tr>`);
+  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
+    <td class="small">до ${fmt(x.due)} — расписание анализа</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
+  analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.анализ || (s.strip && x.date>=s.strip)).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
   return `<div class="card">${head}
@@ -6112,7 +6201,7 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
       : '<div class="small">открытых обязательств нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Документ в досье и подпись акта вносит сотрудник отраслевого департамента; документ прежней полосы риска не в счёт. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Подпись акта вносит сотрудник отраслевого департамента; пакет финансовых документов приходит ответом анализа, только при полном получении по запросу, вручную не вносится; пакет прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
 }
 const RS_OUTCOME = {возврат:'возвращена без рассмотрения', отпала:'отпала: кредит погашен', отказ:'отказ'};
 function renderRsCard(id){ // заявка на реструктуризацию у владельца: сроки п. 18 — подсветка без исполнителя и без флага просрочки
@@ -6191,49 +6280,62 @@ const OWNER_SCREENS = [
   {label:'Кураторство', page:'kuratorstvo/kuratorstvo.html', hint:'Экран модуля «Кураторство» в новой вкладке: закрепления ведёт он, задания только читают'},
   {label:'Производственный календарь', page:'docflow/docflow.html', hint:'Общий справочник системы. Своего экрана в макетах нет: на чтение он показан в настройках документооборота, откроется в новой вкладке'},
 ];
-/* настройка модуля-владельца; у заявок и программ порог есть, а экрана в их макетах пока нет */
+/* экран настроек, где правятся числа заданий, есть у четырёх модулей; у остальных порог меняется выпуском */
 const OWNER_SET = {
-  orgstruct:{name:'Оргструктура', page:'org-structure/org-structure.html'}, statistics:{name:'Статистика', page:'statistics/statistics.html'},
-  reports:{name:'Отчётность', page:'reports/reports.html'}, gosresh:{name:'Госрешение', page:'decision/decisions.html'},
-  programs:{name:'Кредитные программы', page:'loan-program/loan-program.html', noScreen:true}, apps:{name:'Заявки', page:'loan-application/loan-application.html', noScreen:true},
-  docs:{name:'Документооборот', page:'docflow/docflow.html'}, assets:{name:'Имущество', page:'assets/assets.html'}, analysis:{name:'Анализ', page:'analysis/analysis.html'},
-  credit:{name:'Кредит', page:'loan-credit/credit.html'}, collection:{name:'Взыскание', page:'collection/collection.html'}, collateral:{name:'Залог', page:'collateral/zalog.html'},
-  payments:{name:'Платежи', page:'payments/payments.html'}, borrower:{name:'Заёмщик', page:'borrower/borrower.html'},
-  restructuring:{name:'Реструктуризация', page:'restructuring/restructuring.html'}, classification:{name:'Классификация', page:'classification/classification.html'},
+  reports:{name:'Отчётность', page:'reports/reports.html', who:'уполномоченный по отчётности'},
+  assets:{name:'Имущество', page:'assets/assets.html', who:'заведующий Сектором'},
+  collateral:{name:'Залог', page:'collateral/zalog.html', who:'Администратор справочников'},
+  analysis:{name:'Анализ', page:'analysis/analysis.html', who:'администратор расписания'},
 };
-const ownerSetOf = k=>{ const s = sourceOfKind(k.id); return s ? OWNER_SET[s.id]||null : null; };
-/* порог появления: значение держит модуль-владелец, здесь только показ; у своих видов — порог механизма, правится выпуском */
+const ownerSetOf = k=>{ if(k.id==='pk-zm-fhs') return OWNER_SET.analysis; const s = sourceOfKind(k.id); return s ? OWNER_SET[s.id]||null : null; };
+/* порог: значение и откуда число; значение держит модуль-владелец, здесь только показ; у своих видов — порог механизма */
+const thrT = (text, act)=>({text, act:act||null});
+const thrR = (path, text)=>{ const r = thrRecOn(path, state.today); return {text:text(r.v), act:r.act, order:r.order, path, val:text}; };
+const thrI = key=>{ const [text, act] = IM_SRC[key].split(' · '); return thrT(text, act===PROJECT_SRC ? null : act); };
+const vzAct = n=>{ const p = VZ_TPL[n].point; return p==='срок проекта' ? null : p.indexOf('п. ')===0 ? 'Порядок №41 '+p : p; };
+const ZL_NORM = 'Положение о работе с залогом';
 const KIND_THRESHOLD = Object.assign({
-  'pk-overdue':()=>`${OVERDUE_WD} р.д. после срока`,
-  'pk-await-long':()=>`дольше ${AWAIT_THRESHOLD_WD} р.д.`,
-  'pk-ext-pending':()=>`дольше ${EXT_PENDING_WD} р.д.`,
-  'pk-neighbor-silent':()=>`${SILENT_NIGHTS} ночи подряд`,
-  'ap-stuck-new':()=>`${apStuckWd()} р.д. без событий`,
-  'pk-rep-obligation-due':()=>`за ${repSoonDays()} к.д. до срока сдачи`,
-  'pk-pl-await':()=>`с ${PL_AWAIT_WD}-го р.д. от даты операции`,
-  'pk-zl-survey-overdue':()=>'интервал обследования по виду предмета',
-  'pk-zl-coverage':()=>'порог обеспеченности кредита',
-  'pk-zl-surety-expiring':()=>`за ${ZL_SURETY_WARN} к.д. до конца срока`,
-  'pk-zm-fhs':()=>`средний риск и долг больше ${ZM_FHS_LIMIT/1000000} млн сом`,
-  'pk-im-act-pending':()=>`больше ${IM_SET.act} к.д. без акта`,
-  'pk-im-registration-pending':()=>`больше ${IM_SET.reg} к.д.`,
-  'pk-im-topup-pending':()=>`больше ${IM_SET.topup} к.д.`,
-  'pk-im-no-inspection':()=>`${IM_SET.inspMonths} мес., скот и зерно ${IM_SET.inspByKind['скот']} мес.`,
-  'pk-im-not-listed':()=>state.today<IM_INSTR ? IM_SRC.listedOld : IM_SRC.listed,
-  'pk-im-unsold':()=>`${IM_SET.unsold} объявления без заявок`,
-  'pk-im-instalment-overdue':()=>`от ${IM_SET.inst} к.д. просрочки`,
-  'pk-im-ssi-memo':()=>IM_SRC.ssiMemo,
-  'pk-im-guard':()=>IM_SRC.guard,
-  'pk-im-buyback-notice':()=>IM_SRC.notice,
-  'pk-im-relist':()=>IM_SRC.relist,
-  'pk-im-application-pending':()=>`${IM_SRC.app}; выкуп ${IM_SRC.appBuyback}`,
-  'pk-im-topup-due':()=>IM_SRC.topupDue,
-  'pk-im-bankruptcy':()=>IM_SRC.bankruptcy,
-  'pk-im-pledge-term':()=>IM_SRC.pledge,
-}, Object.fromEntries(VZ_STEPS.map(([kind, n])=>[kind, ()=>`${VZ_TPL[n].gap ? `через ${VZ_TPL[n].gap} дн. после: ` : 'после: '}${VZ_TPL[n].base}`])));
+  'pk-overdue':()=>thrT(`${OVERDUE_WD} р.д. после срока`),
+  'pk-await-long':()=>thrT(`дольше ${AWAIT_THRESHOLD_WD} р.д.`),
+  'pk-ext-pending':()=>thrT(`дольше ${EXT_PENDING_WD} р.д.`),
+  'pk-neighbor-silent':()=>thrT(`${SILENT_NIGHTS} ночи подряд`),
+  'ap-stuck-new':()=>thrR('ap.stuckWd', v=>`${v} р.д. без событий`),
+  'lp-expiring':()=>thrR('lp.expiringDays', v=>`за ${v} к.д. до «Даты по»`),
+  'pk-rep-obligation-due':()=>thrR('rp.soonDays', v=>`за ${v} к.д. до срока сдачи`),
+  'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
+  'pk-cr-payment-due':()=>thrR('cr.noticeDays', v=>`за ${v} к.д. до платежа`),
+  'pk-zl-survey-overdue':()=>thrT(`${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
+  'pk-zl-coverage':()=>thrT('120 %, движимое неликвидное 150 %', `${ZL_NORM}, Прил. 1 §2.3–2.4`),
+  'pk-zl-reval-overdue':()=>thrT('интервал переоценки предмета'),
+  'pk-zl-appraisal-stale':()=>thrT(`${ZL_APPR_MONTHS} мес. от даты отчёта`),
+  'pk-zl-surety-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
+  'pk-zl-ban-missing':()=>thrT(`срок ${ZL_BAN_WD} р.д. от удостоверения договора`),
+  'pk-zl-committee':()=>thrT(`срок комитета ${ZL_COMMITTEE_DAYS} дн.`),
+  'pk-an-no-review':()=>thrT('срок обзора называет шаблон анализа'),
+  'pk-zm-fhs':()=>thrT(`на следующий день после конца полугодия, если на его конец средний риск и долг больше ${AN_FHS.mid.limit/1000000} млн сом или высокий риск`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
+  'pk-im-act-pending':()=>thrT(`больше ${IM_SET.act} к.д. без акта`),
+  'pk-im-registration-pending':()=>thrT(`больше ${IM_SET.reg} к.д.`),
+  'pk-im-topup-pending':()=>thrT(`больше ${IM_SET.topup} к.д.`),
+  'pk-im-no-inspection':()=>thrT(`${IM_SET.inspMonths} мес., скот и зерно ${IM_SET.inspByKind['скот']} мес.`, 'Инструкция п. 27; скот и зерно — решение проекта'),
+  'pk-im-not-listed':()=>thrI(state.today<IM_INSTR ? 'listedOld' : 'listed'),
+  'pk-im-unsold':()=>thrT(`${IM_SET.unsold} объявления без заявок`),
+  'pk-im-instalment-overdue':()=>thrT(`от ${IM_SET.inst} к.д. просрочки`),
+  'pk-im-encumbrance-ending':()=>thrT(`за ${IM_SET.enc} к.д. до конца`),
+  'pk-im-claim-open':()=>thrT(`от ${IM_SET.claim} к.д.`),
+  'pk-im-ssi-memo':()=>thrI('ssiMemo'),
+  'pk-im-guard':()=>thrI('guard'),
+  'pk-im-buyback-notice':()=>thrI('notice'),
+  'pk-im-relist':()=>thrI('relist'),
+  'pk-im-application-pending':()=>thrT(`${IM_SET.app} р.д., выкуп ${IM_SET.appBuyback} р.д.`, 'Инструкция п. 40, п. 71'),
+  'pk-im-topup-due':()=>thrI('topupDue'),
+  'pk-im-bankruptcy':()=>thrI('bankruptcy'),
+  'pk-im-pledge-term':()=>thrI('pledge'),
+}, Object.fromEntries(VZ_STEPS.map(([kind, n])=>[kind, ()=>thrT(`${VZ_TPL[n].gap ? `через ${VZ_TPL[n].gap} дн. после: ` : 'после: '}${VZ_TPL[n].base}`, vzAct(n))])));
 function appearOf(k){
-  const f = KIND_THRESHOLD[k.id], s = sourceOfKind(k.id);
-  return {text:k.title, thr:f ? f() : null, set:f && s && s.id!=='self' ? ownerSetOf(k) : null};
+  const f = KIND_THRESHOLD[k.id], x = f ? f() : null;
+  if(!x) return {text:k.title, thr:null, src:null, norm:false, set:null, vals:[]};
+  const vals = x.path ? thrVals(x.path).map(r=>`${x.val(r.v)}, с ${fmt(r.from)}: ${r.basis}`) : [];
+  return {text:k.title, thr:x.text, src:thrSrcText(x), norm:!!x.act, set:ownerSetOf(k), vals};
 }
 /* состояние на дату: вид приходит не введённым, снятый — выключен рубильником, выведенный — выпуском */
 const RULE_STATES = [['в действии','В действии'],['не введён','Не введены'],['выведен','Выведенные'],['снят','Снятые'],['все','Все']];
@@ -6255,16 +6357,19 @@ function ruleRows(){
 function ruleHit(x, q){
   if(!q) return true;
   const ap = appearOf(x.k);
-  return [x.a.label, x.k.title, x.mod, ruleAddr(x.r), dueShort(x.r), ap.thr||''].join(' ').toLowerCase().indexOf(q)!==-1;
+  return [x.a.label, x.k.title, x.mod, ruleAddr(x.r), dueShort(x.r), ap.thr||'', ap.src||''].join(' ').toLowerCase().indexOf(q)!==-1;
 }
 function rulesShown(rows){
   const q = state.ruleQ.trim().toLowerCase();
   return (rows||ruleRows()).filter(x=>(!state.ruleMod || x.mod===state.ruleMod) && (state.ruleSt==='все' || x.st===state.ruleSt) && ruleHit(x, q));
 }
-function thrHtml(ap){
-  if(!ap.set) return `<span class="small">${esc(ap.thr)}</span>`;
-  const hint = `Порог задаёт модуль «${ap.set.name}»${ap.set.noScreen ? '. Экрана настройки в его макете пока нет' : ''}. Откроется в новой вкладке`;
-  return `<a class="q-case" href="../${ap.set.page}" target="_blank" title="${esc(hint)}" onclick="event.stopPropagation()">${esc(ap.thr)}</a>`;
+const thrLink = (set, label)=>`<a class="q-case" href="../${set.page}" target="_blank" title="Настройка модуля «${esc(set.name)}», откроется в новой вкладке" onclick="event.stopPropagation()">${esc(label)}</a>`;
+function thrHtml(ap){ return `${ap.set ? thrLink(ap.set, ap.thr) : `<span class="small">${esc(ap.thr)}</span>`} <span class="small">· ${esc(ap.src)}</span>`; }
+/* как меняется порог: на экране модуля, на чтение или выпуском */
+function thrHow(ap){
+  const link = ap.set ? thrLink(ap.set, `Настройка модуля «${ap.set.name}»`)+' · ' : '';
+  return ap.norm ? `${link}на чтение, новая редакция акта приходит выпуском`
+    : ap.set ? `${link}правит ${esc(ap.set.who)}: новое значение с датой начала и основанием` : 'выпуском';
 }
 function ruleSince(k, st){
   if(st==='выведен') return `<span class="pill neutral">выведен ${fmt(k.retiredAt)}</span>`;
@@ -6279,7 +6384,7 @@ function ruleRow(x){
     <td>${esc(x.mod)}</td>
     <td title="${tip(ruleAddr(r))}">${esc(ruleAddr(r))}</td>
     <td title="${tip(dueText(r, true))}">${esc(dueShort(r))}</td>
-    <td title="${tip(k.title+(ap.thr ? ' · '+ap.thr : ''))}">${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td>
+    <td${ap.thr ? ' class="thr-cell"' : ''} title="${tip(k.title+(ap.thr ? ` · ${ap.thr} · ${ap.src}` : ''))}">${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td>
     <td>${ruleSince(k, st)}</td>
     <td>${r.edN}${pend ? ` <span class="pill warn" title="Ждёт редакция ${pend.n} с ${fmt(pend.from)}">ждёт ${pend.n}</span>` : ''}</td>
   </tr>`;
@@ -6325,7 +6430,7 @@ const TRAIT_NAME = {с:'с какой даты', до:'до какой даты'
 const TAKE_WORD = {'нужно':'исполнитель принимает задание', 'через очередь':'берут из очереди', 'не нужно':'принимать не нужно, работа начата сразу'};
 /* панель правила; у не администратора — только чтение, поверх той страницы, откуда пришёл */
 function renderRulePanel(id){
-  const r = ruleById(id), k = kindOf(r.kind), a = actionOf(r.action), admin = isTasksAdmin(state.viewer), st = ruleStateOf(k), ap = appearOf(k), set = ownerSetOf(k);
+  const r = ruleById(id), k = kindOf(r.kind), a = actionOf(r.action), admin = isTasksAdmin(state.viewer), st = ruleStateOf(k), ap = appearOf(k);
   const holder = p=>emp(postHolderOn(p, state.today))?.name||'должность вакантна';
   const line = (label, html)=>`<div class="k">${esc(label)}</div><div class="v">${html}</div>`;
   const traits = (k.traits||[]).map(x=>TRAIT_NAME[x] || x.replace(/_/g, ' ').replace('раб дней', 'рабочих дней')).join(', ');
@@ -6335,7 +6440,6 @@ function renderRulePanel(id){
   const lock = st==='выведен' ? `Выведен выпуском ${fmt(k.retiredAt)}: вернуть может только выпуск.` : st==='в действии' && !switchable(k) ? 'Выключается только выпуском.' : '';
   const acts = !admin ? `<div class="banner info" style="margin-top:12px">Только чтение. Правит администратор заданий: ${esc(holder('post-admin'))}</div>`
     : `<div class="btn-row" data-edit style="margin-top:12px">${st==='выведен' ? '' : btn('askRule', r.id, 'Изменить', 'btn-primary')}${off}</div>${lock ? `<div class="small" style="margin-top:6px">${lock}</div>` : ''}`;
-  const sets = set ? `<a class="q-case" href="../${set.page}" target="_blank" title="Откроется в новой вкладке">Настройка модуля «${esc(set.name)}»</a>${set.noScreen ? ' <span class="small">экрана настройки в его макете пока нет</span>' : ''}` : '';
   const switches = k.switches.length ? `<div class="section-h">Ввод в действие и выключение</div>
     <table class="cgrid"><thead><tr><th>Дата</th><th>Что</th><th>Кто</th><th>Основание</th></tr></thead>
     <tbody>${k.switches.slice().reverse().map(x=>`<tr><td>${fmt(x.t)}</td><td>${esc(x.ev)}</td><td>${esc(emp(x.by)?.name||x.by)}</td><td>${esc(x.basis)}</td></tr>`).join('')}</tbody></table>` : '';
@@ -6345,7 +6449,9 @@ function renderRulePanel(id){
     <div class="drawer-b">
       <div class="kv kv-top">
         ${line('Когда появляется', `${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}`)}
-        ${line('Модуль', `${esc(ownerOfKind(k.id))}${sets ? ' · '+sets : ''}`)}
+        ${ap.thr ? line('Как меняется', `${thrHow(ap)}<div class="small">Новое значение действует только на новые поводы</div>`) : ''}
+        ${ap.vals.length>1 ? line('Значения порога', ap.vals.map(esc).join('<br>')) : ''}
+        ${line('Модуль', esc(ownerOfKind(k.id)))}
         ${line('Кому', esc(ruleAddr(r)))}
         ${line('Кто поручил', `${esc(postOf(r.author).title)} <span class="small">${esc(holder(r.author))}</span>`)}
         ${line('Контролёр', r.controller ? esc(controllerText(r.controller)) : '<span class="small">нет: исполнение подтверждает отпадение причины</span>')}
@@ -6410,11 +6516,11 @@ function askKindOn(id){
 function renderHighlightTab(){
   const hl = highlightsOn(state.today), total = hl.reduce((a, x)=>a+x.count, 0), lit = hl.filter(x=>x.count).length;
   const rows = hl.map(x=>{
-    const k = kindOf(x.kind), open = state.hlOpen===x.kind;
+    const k = kindOf(x.kind), open = state.hlOpen===x.kind, ap = appearOf(k);
     const items = open ? x.rows.map(r=>`<tr class="grp-item" data-hl-obj="${esc(r.key)}"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)}${Object.keys(r.traits||{}).length ? ' · '+esc(traitsText(r.traits)) : ''}</td>
         <td><button class="linky" onclick="ZD.openHighlight('${k.id}', this.closest('tr').dataset.hlObj)">Открыть</button></td></tr>`).join('') : '';
     return `<tr data-hl="${k.id}"${x.count ? ` onclick="ZD.toggleHl('${k.id}')"` : ''}>
-      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
+      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
       <td>${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}</td>
       <td>${x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
   }).join('');
@@ -6438,9 +6544,9 @@ function renderNotifSettings(admin){
   const rows = NOTIF_KINDS.map(k=>{ const c = state.notifSettings[k]; return `<tr data-n="${k}"><td>${esc(NOTIF_SPEC[k].title)}</td><td>${esc(NOTIF_SPEC[k].who)}</td><td>${esc(c.text)}</td><td>${esc(c.channels.join(', '))}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k}')">Изменить</button></td>` : ''}</tr>`; }).join('');
   const sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
   const sigRows = sigKinds.map(k=>{
-    const c = state.signals[k.id], on = activeOn(k, state.today), last = k.switches.slice(-1)[0];
+    const c = state.signals[k.id], on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
     const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button> <button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
-    return `<tr data-sig="${k.id}"><td>${esc(k.title)}<div class="small">${esc(k.basis.source)}</div></td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">нет куратора — руководитель подразделения-владельца</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
+    return `<tr data-sig="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">нет куратора — руководитель подразделения-владельца</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
       <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
   }).join('');
   const changed = (h, f)=>f==='text' ? `текст: было «${h.was.text}»` : f==='channels' ? `способ: было ${h.was.channels.join(', ')}` : `получатели: было ${h.was.recipients.map(recipText).join('; ')}`;
@@ -6751,14 +6857,14 @@ return {
   editSignal, releaseSignal, releaseTaskKind, signalRecipients, SIGNAL_CHANNELS,
   ownerStep:savedAt(src=>src==='gd' ? 'gosresh' : 'programs', ownerStep), lpExtend:savedAt('programs', lpExtend), lpChangeBase:savedAt('programs', lpChangeBase),
   gdAttachDoc:savedAt('gosresh', gdAttachDoc), ownerAt,
-  ownerOfKind, sourceOfKind, expiringDays, renderOwnerCard,
+  ownerOfKind, sourceOfKind, expiringDays, renderOwnerCard, thrOn, thrNew, thrFirst, thrVals, setStandThr, KIND_THRESHOLD,
 
   apStep:savedAt('apps', apStep), programAccepts, addMonths,
   docStep:savedAt('docs', docStep), docSignBatch:savedDocSignBatch, stepByKey, signerOn, DOC_KINDS,
   imStep, IM_KINDS, IM_INSTR, IM_SECTOR, curationOn,
-  zlStep, zlAt, ZL_KINDS,
+  zlStep, zlAt, ZL_SURVEY, ZL_KINDS,
   plStep, plAt, plNotices, PL_KINDS, deptHead,
-  zmStep, zmAt, ZM_KINDS,
+  zmStep, zmAt, zmFhsOpen, analysisDocs, AN_FHS, ZM_KINDS,
   rsStep, rsAt, RS_KINDS, RS_NORM,
   clStep, clAt, CL_KINDS,
   tasksByBasis, reviewTaskDraft, anStep, AN_KINDS,

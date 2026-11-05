@@ -1,5 +1,6 @@
 // Смоук-проверка мокапа заёмщика (mockups/borrower/borrower.html) на jsdom.
 // Спецификация: docs/superpowers/specs/2026-07-23-borrower-rework-design.md.
+// Волна 1, блок ФХС в конце файла: анализ ФХС по расписанию анализа, закрывает заключение за период, пакет — по правилу заданий (НЗ-9, НЗ-17, НЗ-19, НЗ-26, НЗ-27, НЗ-28, АН-128, КЗ-42…КЗ-51).
 // Запуск: node scripts/inspect/borrower-check.mjs
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { readFileSync } from 'node:fs';
@@ -169,8 +170,9 @@ ok('12. Средний + долг >50млн → О-1 и О-2 (ветка 2)',
   /О-1/.test(codes('02201199920021')) && /О-2/.test(codes('02201199920021')));
 ok('13. Средний + долг <50млн → только О-1, О-2 нет (ветка 3)',
   /О-1/.test(codes('03301199930031')) && !/О-2/.test(codes('03301199930031')));
-ok('14. Высокий → О-1 есть, О-2 нет (порог О-2 только для Среднего)',
-  /О-1/.test(codes('01204199910016')) && !/О-2/.test(codes('01204199910016')));
+ok('14. Высокий → О-1 и О-2, порога у высокого риска нет: остаток ветки 1 меньше 50 млн (НЗ-26)',
+  /О-1/.test(codes('01204199910016')) && /О-2/.test(codes('01204199910016'))
+  && g.ev("totalDebt('01204199910016', TODAY)") < 50000000);
 ok('15. addWorkdays пропускает выходные и праздники',
   g.ev("addWorkdays('06.03.2026', 3)")==='12.03.2026');   // 06.03 пт → пн 09, 08.03 празд(вс), 10,11,12 → +3 раб. = 12.03
 ok('16. просроченное О-1 → статус «срок вышел» (ветка 4)',
@@ -236,14 +238,16 @@ ok('F3. О-4 повторяющееся: у ветки 1 несколько ме
 ok('F4. вынос за поздний месяц НЕ закрывает пропущенный (май исполнен, июнь просрочен)',
   g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').status")==='исполнено'
   && g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='06.2026').status")==='срок вышел');
-ok('F5. факт закрытия приходит из модуля-источника: О-1 — документ досье, О-4 — решение комитета',
-  g.ev("DOCS.some(x=>x.id===obligations('02201199920021',TODAY).find(o=>o.code==='О-1').closing.id)")
+ok('F5. факт закрытия приходит из модуля-источника: О-1 — полученный пакет, О-2 — заключение анализа (оба — ответ анализа), О-4 — решение комитета',
+  g.ev("AN_DOCS.some(x=>x.ref===obligations('02201199920021',TODAY).find(o=>o.code==='О-1').closing.ref)")
+  && g.ev("AN_DOCS.some(x=>x.ref===obligations('02201199920021',TODAY).find(o=>o.code==='О-2').closing.ref)")
   && g.ev("COMMITTEE_REFS.some(r=>r.id===obligations('01204199910016',TODAY).find(o=>o.code==='О-4'&&o.period==='05.2026').closing.id)"));
-ok('F6. два обязательства одной полосы расходятся по факту (ветка 2: О-1 закрыто, О-2 нет)',
+ok('F6. обязательства расходятся по факту (ветка 2: О-1 закрыто пакетом; у О-2 первое полугодие закрыто заключением, идущее открыто)',
   g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').status")==='исполнено'
-  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').status")==='срок вышел'
-  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').period")
-   === g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-2').period"));
+  && g.ev("obligations('02201199920021',TODAY).filter(o=>o.code==='О-2').map(o=>o.status).join()")==='исполнено,в срок'
+  && g.ev("obligations('02201199920021',TODAY).find(o=>o.code==='О-1').period")==='09.06.2026'
+  && g.ev("obligations('02201199920021',TODAY).filter(o=>o.code==='О-2').map(o=>o.period).join()")
+   === '01.01.2026..30.06.2026,01.07.2026..31.12.2026');
 ok('F7. «исполнено» бывает только с фактом закрытия, датированным не позже даты среза',
   g.ev(`SUBJECTS.map(s=>s.inn).every(i=>obligations(i,TODAY)
         .filter(o=>o.status==='исполнено').every(o=>o.closing && dateLE(o.closing.date, TODAY)))`));
@@ -416,7 +420,7 @@ ok('R3. плитка категории показывает Высокий (и�
    и органы просмотра — дату среза, выбор строк, размер страницы — то есть была
    ложной по смыслу, хотя падала по букве. */
 const MIRRORS = ['CREDITS','FACTORS','EVENTS_RAW','OVERLAYS','PROCESSES','ASSIGN','CONFLICTS',
-  'PLEDGE_IX','PLEDGE_AGR','PLEDGE_OBJ','ACTS','DOCS','CHECKS_EXT','RELATED','BLACKLIST'];
+  'PLEDGE_IX','PLEDGE_AGR','PLEDGE_OBJ','ACTS','DOCS','AN_DOCS','CHECKS_EXT','RELATED','BLACKLIST'];
 ok('26a. ни один редактор не наведён на зеркальный массив (И-5)',
   h.$$('[data-edits]').every(e => !MIRRORS.includes(e.getAttribute('data-edits'))));
 ok('26b. внутри зеркал нет немаркированных input/select (И-5)',
@@ -1025,13 +1029,14 @@ ok('Б-3/КЗ-12. сводка по кредитам — один режим д�
     return f.ev("creditsSummaryCard('09901199990091')") === now; })());
 
 // Б-4 · дата обязательства не подменяется сегодняшней при проверке порога 50 млн.
-ok('Б-4. obligations не подмешивает TODAY: порог О-2 считается на дате обязательства',
+ok('Б-4. obligations не подмешивает TODAY: порог О-2 считается на дате условия периода (идущий — срез, закрытый — конец)',
   (() => { const f = mk();
     f.ev("window.__td = []; (function(){ const orig = totalDebt;"
        + " window.totalDebt = function(inn, d){ window.__td.push(d); return orig(inn, d); }; })();");
     f.ev("obligations('02201199920021','01.07.2026')");             // Иссык-Куль Агро: Средний, долг 55,7 млн
     const seen = JSON.parse(f.ev("JSON.stringify(window.__td)"));
-    return seen.length > 0 && seen.every(d => d === '01.07.2026'); })());
+    return seen.includes('01.07.2026') && seen.includes('30.06.2026')
+      && seen.every(d => d === '01.07.2026' || d === '30.06.2026'); })());
 
 // Б-5 · витрина и итог вкладки «Кредиты» складывают одно и то же множество.
 const money = t => { const m = String(t).match(/([\d\s ]+)/); return m ? Number(m[1].replace(/[\s ]/g,'')) : null; };
@@ -1192,7 +1197,7 @@ ok('КЗ-13. «Требует внимания» — топ-3 по сроку, �
     const dates = rows.map(r => (/до (\d{2}\.\d{2}\.\d{4})/.exec(r.textContent) || [])[1]).filter(Boolean);
     return open > 3 && rows.length === 3 && dates.length === 3
       && dates.every((d, i) => !i || num(dates[i-1]) <= num(d))
-      && /ещё 1/.test(panel0(cAts).textContent); })());
+      && /и ещё 3 срока —/.test(panel0(cAts).textContent); })());
 ok('КЗ-13. очередь на комитет ушла с витрины — у коллегиального органа свой адрес',
   (() => { const f = card('05501199950051');
     return f.ev("committeeQueue('05501199950051', TODAY).length") > 0
@@ -1429,7 +1434,7 @@ ok('КЗ-27. строку заголовит пункт Порядка; внут
   (() => { const f = oblTab('01204199910016');
     const wrap = f.$('#oblWrap');
     const first = oblRows(f,0).map(tr => cellText(tr,0));
-    return first.every(t => /^п\.\d/.test(t)) && !/О-\d/.test(wrap.innerHTML); })());
+    return first.every(t => /^п\.\s?\d/.test(t)) && !/О-\d/.test(wrap.innerHTML); })());
 
 ok('КЗ-27 / И-7. у действующего — «где закрывается», у исполненного — сам факт из модуля-источника',
   (() => { const f = oblTab('01204199910016');
@@ -1442,13 +1447,13 @@ ok('КЗ-27 / И-7. у действующего — «где закрывает�
 ok('КЗ-27. следствие периода в подаче: за соседний месяц факт есть, на пропущенный не переносится',
   (() => { const f = oblTab('01204199910016');
     const open = oblRows(f,0).map(tr => ({ p: cellText(tr,1), s: cellText(tr,3) }));
-    const june = open.find(r => /06\.2026/.test(r.p));
-    const july = open.find(r => /07\.2026/.test(r.p));      // срок ещё не настал — период не пропущен
+    const june = open.find(r => /^за 06\.2026/.test(r.p));
+    const july = open.find(r => /^за 07\.2026/.test(r.p));  // срок ещё не настал — период не пропущен
     const closed = oblRows(f,1).map(tr => cellText(tr,1));
     return !!june && /факт есть за/.test(june.p) && /05\.2026/.test(june.p)
       && /на этот период он не переносится/.test(june.p)
       && !!july && /в срок/.test(july.s) && !/факт есть за/.test(july.p)
-      && closed.some(t => /05\.2026/.test(t)) && !closed.some(t => /06\.2026/.test(t)); })());
+      && closed.some(t => /^за 05\.2026/.test(t)) && !closed.some(t => /^за 06\.2026/.test(t)); })());
 
 /* ── Вкладка 5 «Взыскание»: КЗ-28…КЗ-30 + хвост Б-10 ───────────────────────────
    ADR-0002: единица работы — ТРЕБОВАНИЕ = дело × кредит × обязанное лицо. Строка
@@ -2259,6 +2264,277 @@ ok('СБ-14.5 ГЗПМ (группа совместного риска, КЗ-39)
   g.ev("Array.isArray(GROUPS) && GROUPS.length > 0"));
 ok('СБ-14.6 SUBJECTS остаётся зеркалом и данные не потеряны (ADR-0014)',
   g.ev("SUBJECTS.length") >= 30);
+
+/* ── Волна 1: анализ ФХС по расписанию анализа, пакет — по правилу заданий ──────
+   Те же примеры, что в макете заданий (zadaniya-check #389, #390, #395, #396, #397). Заёмщик-образец
+   заведён в песочнице: долг — кредитами, риск — факторами комитета с датами, документы — в досье,
+   заключения — записями ответа анализа. Стенд заёмщика живёт на 13.07.2026, а примеры лежат позже,
+   поэтому даты передаются явно. */
+const FHS_INN = '99900000000001';
+const DOC_AN = 'Анализ финансово-хозяйственного состояния', DOC_PACK = 'Пакет финансовых документов';
+const fhsBox = (credits, factors, docs = [], concl = [], packs = []) => {
+  const f = mk();
+  credits.forEach((c, i) => f.ev(`CREDITS.push({ id:'C-FHS-${i}', no:'КР-FHS-${i}', inn:'${FHS_INN}', amount:${c.debt}, currency:'KGS',
+    ${c.closedAt ? `closedAt:'${c.closedAt}',` : ''} ${c.date ? `date:'${c.date}',` : ''} debt:{ current:{principal:${c.debt},interest:0,penalty:0,fees:0,costs:0},
+    overdue:{principal:0,interest:0,penalty:0,fees:0,costs:0} }, program:'т', kind:'т' })`));
+  factors.forEach(x => f.ev(`FACTORS.push({ creditId:'C-FHS-${x.credit || 0}', level:'${x.level}', type:'т', committeeRef:'т', from:'${x.from}'${x.to ? `, to:'${x.to}'` : ''} })`));
+  docs.forEach((x, i) => f.ev(`DOCS.push({ id:'D-FHS-${i}', inn:'${FHS_INN}', scope:{kind:'заёмщик', ref:'${FHS_INN}'},
+    type:'${x.type}', date:'${x.date}', ownerModule:'borrower', file:'т.pdf', by:'Бекова А. С.' })`));
+  concl.forEach(x => f.ev(`AN_DOCS.push({ inn:'${FHS_INN}', type:'${x.type || DOC_AN}', date:'${x.date}', ref:'${x.ref}', period:'${x.period}' })`));
+  packs.forEach(x => f.ev(`AN_DOCS.push({ inn:'${FHS_INN}', type:'${DOC_PACK}', date:'${x.date}', ref:'${x.ref}', period:'${x.period || '2025 год'}' })`));
+  return f;
+};
+const fhsRows = (f, d) => JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','${d}').filter(o=>o.code==='О-2'))`));
+const fhsSum  = (f, d) => fhsRows(f, d).map(o => o.period + ' ' + o.dueDate + ' ' + o.status).join(' | ');
+const H2_26 = '01.07.2026..31.12.2026', H1_27 = '01.01.2027..30.06.2027';
+const M60 = [{ debt:60000000 }], MID_0915 = [{ level:'mid', from:'15.09.2026' }];
+
+ok('ФХС. НЗ-9: перевод 15.09.2026, долг 60 млн — один период, срок 14.02.2027 вместо 05.10.2026, ключ с периодом, +14 р.д. нет',
+  (() => { const f = fhsBox(M60, MID_0915), r = fhsRows(f, '16.11.2026');
+    return r.length === 1 && r[0].period === H2_26 && r[0].dueDate === '14.02.2027' && r[0].status === 'в срок'
+      && r[0].strip === '15.09.2026' && r[0].from === '01.07.2026' && r[0].to === '31.12.2026'
+      && r[0].periodLabel === 'за 01.07.2026—31.12.2026' && /конец полугодия \+ 45 дн\./.test(r[0].srcHint)
+      && !/14|р\.д\./.test(r[0].srcHint) && !/\+14/.test(HTML); })());
+ok('ФХС. НЗ-9: период повторяется: с 01.01.2027 вторая строка со сроком 14.08.2027; срок вышел только после своей даты',
+  (() => { const f = fhsBox(M60, MID_0915);
+    return fhsSum(f, '04.01.2027') === H2_26 + ' 14.02.2027 в срок | ' + H1_27 + ' 14.08.2027 в срок'
+      && fhsSum(f, '14.02.2027').startsWith(H2_26 + ' 14.02.2027 в срок')
+      && fhsSum(f, '15.02.2027').startsWith(H2_26 + ' 14.02.2027 срок вышел'); })());
+ok('ФХС. АН-128: дата заключения не считается: заключение за 1П 2026 от 20.07.2026 лежит внутри второго полугодия и его не закрывает',
+  fhsSum(fhsBox(M60, MID_0915, [], [{ period:'1П 2026', date:'2026-07-20', ref:'ФА-1' }]), '18.11.2026') === H2_26 + ' 14.02.2027 в срок');
+ok('ФХС. ровно 50 млн не вменяет, 50 млн + 1 вменяет (норма: «более»)',
+  fhsRows(fhsBox([{ debt:50000000 }], [{ level:'mid', from:'10.11.2026' }]), '16.11.2026').length === 0
+  && fhsRows(fhsBox([{ debt:50000001 }], [{ level:'mid', from:'10.11.2026' }]), '16.11.2026').length === 1);
+ok('ФХС. НЗ-19: снижение долга в январе снимает только идущий период, закрытый остаётся',
+  (() => { const f = fhsBox([{ debt:40000000 }, { debt:20000000, closedAt:'11.01.2027' }], MID_0915);
+    return fhsSum(f, '10.01.2027') === H2_26 + ' 14.02.2027 в срок | ' + H1_27 + ' 14.08.2027 в срок'
+      && fhsSum(f, '11.01.2027') === H2_26 + ' 14.02.2027 в срок'; })());
+ok('ФХС. НЗ-19: условие закрытого периода — на его конец: вышел из риска до конца — периода нет; вышел после — период остаётся',
+  (() => { const out = fhsBox(M60, [{ level:'mid', from:'15.09.2026', to:'20.12.2026' }]);
+    const stay = fhsBox(M60, [{ level:'mid', from:'15.09.2026', to:'15.01.2027' }]);
+    const r = fhsRows(stay, '20.01.2027');
+    return fhsRows(out, '18.12.2026').length === 1 && fhsRows(out, '04.01.2027').length === 0
+      && r.length === 1 && r[0].period === H2_26 && r[0].condAt === '31.12.2026' && r[0].riskAt === 'mid'
+      && stay.ev(`catOfBorrower('${FHS_INN}','20.01.2027')`) === 'low'; })());
+ok('ФХС. КЗ-42: период, закончившийся до начала строки расписания, не входит: первый — первое полугодие 2026',
+  (() => { const f = fhsBox(M60, [{ level:'mid', from:'01.06.2025' }]);
+    return fhsRows(f, '13.07.2026').map(o => o.period).join() === '01.01.2026..30.06.2026,' + H2_26
+      && fhsRows(f, '13.07.2026')[0].dueDate === '14.08.2026'; })());
+ok('ФХС. АН-128: заключение за свой период закрывает только его: ФА-7 от 20.01.2027 за 1П 2027 — первое 2027 исполнено, второе 2026 открыто, с 15.02.2027 срок вышел; за 2П 2026 от 11.01.2027 — только второе 2026',
+  (() => { const later = fhsBox(M60, MID_0915, [], [{ period:'1П 2027', date:'2027-01-20', ref:'ФА-7' }]);
+    const earlier = fhsBox(M60, MID_0915, [], [{ period:'2П 2026', date:'2027-01-11', ref:'ФА-8' }]);
+    const ra = fhsRows(later, '20.01.2027'), rb = fhsRows(earlier, '20.01.2027');
+    return ra.map(o => o.period + ' ' + o.status).join() === H2_26 + ' в срок,' + H1_27 + ' исполнено'
+      && ra[0].closing === null && ra[1].closing.ref === 'ФА-7' && ra[1].closing.date === '20.01.2027' && ra[1].closing.period === '1П 2027'
+      && fhsRows(later, '19.01.2027').map(o => o.status + ' ' + (o.closing === null)).join() === 'в срок true,в срок true'
+      && fhsSum(later, '14.02.2027').startsWith(H2_26 + ' 14.02.2027 в срок')
+      && fhsSum(later, '15.02.2027').startsWith(H2_26 + ' 14.02.2027 срок вышел')
+      && rb.map(o => o.period + ' ' + o.status).join() === H2_26 + ' исполнено,' + H1_27 + ' в срок'
+      && rb[0].closing.ref === 'ФА-8' && rb[1].closing === null; })());
+ok('ФХС. АН-128: заключение за другой период не закрывает: 1П 2026 и «2025 год» оставляют второе полугодие открытым; запись пакета за тот же период анализ не закрывает',
+  (() => { const f = fhsBox(M60, MID_0915, [], [
+      { period:'1П 2026', date:'2026-11-18', ref:'ФА-1' }, { period:'2025 год', date:'2026-11-18', ref:'ФА-2' },
+      { period:'2П 2026', date:'2026-11-18', ref:'ПЗ-1', type:DOC_PACK }]);
+    return fhsSum(f, '18.11.2026') === H2_26 + ' 14.02.2027 в срок' && fhsRows(f, '18.11.2026')[0].closing === null
+      && f.ev(`analysisDocs('${FHS_INN}','18.11.2026').length`) === 3; })());
+ok('ФХС. АН-128: ручного внесения нет: документ этого вида в досье период не закрывает, у стенда таких нет; в досье секция только на чтение с номером, датой и периодом, в процент не входит',
+  (() => { const manual = fhsBox(M60, MID_0915, [{ date:'25.01.2027', type:DOC_AN }]);
+    const f = card('02201199920021'); f.ev("switchTab(tabIx('документы'))");
+    const sec = f.$$('.tabpanel.active .section').find(s => /Документы анализа/.test(s.querySelector('.section-head').textContent));
+    const row = sec ? [...sec.querySelectorAll('tbody tr')].find(tr => /Анализ финансово/.test(cellText(tr,0))) : null;
+    const stats = f.ev("JSON.stringify(dossierStats('02201199920021'))");
+    f.ev("AN_DOCS.length = 0");
+    return manual.ev(`DOCS.some(x => x.inn === '${FHS_INN}' && x.type === OBLIG_DOC['О-2'])`)
+      && fhsRows(manual, '01.02.2027').map(o => o.status + ' ' + (o.closing === null)).join() === 'в срок true,в срок true'
+      && !g.ev("DOCS.some(x => x.type === OBLIG_DOC['О-2'])")
+      && !!row && /Анализ финансово-хозяйственного состояния/.test(cellText(row,0)) && cellText(row,1) === '1П 2026' && cellText(row,2) === 'ФА-21' && cellText(row,3) === '03.07.2026'
+      && !sec.querySelector('input, select, textarea, button, [data-edits]') && !/приложить/.test(sec.textContent)
+      && /вручную не вносятся/.test(sec.textContent)
+      && stats === f.ev("JSON.stringify(dossierStats('02201199920021'))")
+      && !/Анализ в досье/.test(HTML); })());
+ok('ФХС. АН-128: заёмщик читает четыре поля ответа анализа (пятое, кто исполнил, нужно заданиям), вид как у владельца (analysis.html, AN.analysisDocs); заключение действует со своей даты, срез раньше его не видит',
+  (() => { const own = readFileSync(resolve('mockups/analysis/analysis.html'), 'utf8');
+    const r = JSON.parse(g.ev("JSON.stringify(analysisDocs('02201199920021', TODAY))"));
+    const ik = d => JSON.parse(g.ev(`JSON.stringify(obligations('02201199920021','${d}').filter(o=>o.code==='О-2').map(o=>o.status))`));
+    const a = r.find(x => /^Анализ/.test(x.type)), p = r.find(x => /^Пакет/.test(x.type));
+    return r.length === 2 && r.every(x => Object.keys(x).join() === 'type,date,ref,period')
+      && a.date === '2026-07-03' && a.ref === 'ФА-21' && a.period === '1П 2026'
+      && own.includes(`const DOC_ANALYSIS = '${a.type}'`) && own.includes(`const DOC_PACKAGE  = '${p.type}'`)
+      && p.date === '2026-06-18' && /^ЗП-\d+$/.test(p.ref) && p.period === '2025 год'
+      && /\.map\(q => \(\{type:DOC_PACKAGE, date:q\.got, ref:q\.id, period:q\.period, by:q\.gotBy\}\)\)/.test(own) && /docs\.push\(\{type:DOC_ANALYSIS, date:d\.at, ref:d\.no, period:per, by:/.test(own)
+      && JSON.parse(g.ev("JSON.stringify(analysisDocs('02201199920021','02.07.2026'))")).length === 1
+      && ik('02.07.2026').join() === 'в срок,в срок' && ik('03.07.2026').join() === 'исполнено,в срок'; })());
+ok('ФХС. НЗ-26: высокий риск без порога: 9,8 млн — строка, срок тот же, норма п. 6 пп. 5',
+  (() => { const r = fhsRows(fhsBox([{ debt:9800000 }], [{ level:'high', from:'17.11.2026' }]), '17.11.2026');
+    return r.length === 1 && r[0].dueDate === '14.02.2027' && r[0].clause === 'п. 6 пп. 5' && r[0].condText === 'высокий риск'; })());
+ok('ФХС. НЗ-26: средний → высокий не снимает и ключ не меняет; высокий → средний при остатке не больше 50 млн снимает идущий',
+  (() => { const up = fhsBox(M60, [{ level:'mid', from:'15.09.2026' }, { level:'high', from:'17.11.2026' }]);
+    const a = fhsRows(up, '16.11.2026'), b = fhsRows(up, '18.11.2026');
+    const down = fhsBox([{ debt:9800000 }], [{ level:'high', from:'17.11.2026', to:'18.11.2026' }, { level:'mid', from:'18.11.2026' }]);
+    return a.length === 1 && b.length === 1 && a[0].period === b[0].period && a[0].dueDate === b[0].dueDate
+      && a[0].riskAt === 'mid' && b[0].riskAt === 'high' && a[0].clause === 'п. 11 пп. 2' && b[0].clause === 'п. 6 пп. 5'
+      && fhsRows(down, '17.11.2026').length === 1 && fhsRows(down, '18.11.2026').length === 0; })());
+ok('ФХС. НЗ-27: анализ считается по периоду, пакет по полосе: две полосы в одном полугодии — одна строка анализа и одно заключение за период; пакет нужен снова',
+  (() => { const f = fhsBox(M60, [{ level:'mid', from:'05.07.2026', to:'01.08.2026' }, { level:'mid', from:'01.10.2026' }],
+      [], [{ period:'2П 2026', date:'2027-01-11', ref:'ФА-3' }], [{ date:'2026-07-21', ref:'ЗП-31' }]);
+    const r = fhsRows(f, '05.11.2026'), after = fhsRows(f, '15.01.2027');
+    const pack = JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','05.11.2026').find(o=>o.code==='О-1'))`));
+    return r.length === 1 && r[0].period === H2_26 && r[0].status === 'в срок'
+      && after.length === 2 && after[0].period === H2_26 && after[0].status === 'исполнено' && after[0].closing.date === '11.01.2027'
+      && pack.period === '01.10.2026' && pack.closing === null
+      && fhsSum(f, '04.01.2027').endsWith(H1_27 + ' 14.08.2027 в срок'); })());
+ok('ФХС. КЗ-46: нет действующих кредитов на срез — строк нет ни за идущий, ни за закрытый период',
+  (() => { const f = fhsBox([{ debt:60000000, closedAt:'20.01.2027' }], MID_0915);
+    return fhsRows(f, '19.01.2027').length === 2 && fhsRows(f, '20.01.2027').length === 0; })());
+ok('ФХС. КЗ-45: копий чисел анализа нет: правка одной записи двигает порог, срок и подпись',
+  (() => { const f = fhsBox(M60, MID_0915);
+    f.ev("AN_FHS.mid.grace = 60");
+    const r = fhsRows(f, '16.11.2026');
+    f.ev("AN_FHS.mid.limit = 70000000");
+    const off = fhsRows(f, '16.11.2026').length === 0;
+    f.ev("AN_FHS.mid.limit = 30000000");
+    const low = fhsRows(f, '16.11.2026');
+    return r[0].dueDate === '01.03.2027' && /\+ 60 дн\./.test(r[0].srcHint) && off
+      && low.length === 1 && /больше 30 млн/.test(low[0].condText); })());
+ok('ФХС. КЗ-45: запись — ответ анализа: начало, порог, отсрочка и пункт совпадают со строками владельца (analysis.html, SCHEDULE)',
+  (() => { const own = readFileSync(resolve('mockups/analysis/analysis.html'), 'utf8');
+    const row = id => (new RegExp(`\\{id:'${id}',[^\\n]*\\}`).exec(own) || [''])[0];
+    const mid = row('sc-org-mid'), high = row('sc-org-high');
+    const iso = g.ev("AN_FHS.since").split('.').reverse().join('-');
+    return mid.includes(`limit:${g.ev("AN_FHS.mid.limit")},`) && mid.includes(`grace:${g.ev("AN_FHS.mid.grace")},`)
+      && mid.includes(`since:'${iso}'`) && mid.includes("basis:'Порядок №41 п. 11 пп. 2'") && g.ev("AN_FHS.mid.clause") === 'п. 11 пп. 2'
+      && high.includes('limit:null,') && g.ev("AN_FHS.high.limit") === null && high.includes(`grace:${g.ev("AN_FHS.high.grace")},`)
+      && high.includes(`since:'${iso}'`) && high.includes("basis:'Порядок №41 п. 6 пп. 5'") && g.ev("AN_FHS.high.clause") === 'п. 6 пп. 5'; })());
+ok('ФХС. КЗ-45: запись — ответ заданий: срок пакета совпадает с видом владельца (zadaniya.html, ZM_STEPS)',
+  /id:'pk-zm-fin-package'[^\n]*dueN:10\b/.test(readFileSync(resolve('mockups/zadaniya/zadaniya.html'), 'utf8')) && g.ev("ZD_PACK_RULE.n") === 10);
+ok('ФХС. НЗ-17, КЗ-45: срок пакета — значение одной записи, подпись «решение проекта»; правка записи двигает срок',
+  (() => { const f = mk(), inn = '04401199940041';
+    const o = () => JSON.parse(f.ev(`JSON.stringify(obligations('${inn}', TODAY).find(o=>o.code==='О-1'))`));
+    const a = o();
+    f.ev("ZD_PACK_RULE.n = 5");
+    const b = o();
+    return /^\+10 р\.д\. от перевода/.test(a.srcHint) && /решение проекта$/.test(a.srcHint) && !/внутренний акт/.test(a.srcHint)
+      && a.dueDate === f.ev(`addWorkdays('${a.period}', 10)`) && b.dueDate === f.ev(`addWorkdays('${a.period}', 5)`)
+      && /^\+5 р\.д\./.test(b.srcHint); })());
+ok('ФХС. ЗЦ-Д2: пункт нормы из записи: средний риск п. 11 пп. 2, высокий п. 6 пп. 5, пакет п. 6 пп. 5; «п.12(2)» в макете нет',
+  g.ev("obligations('02201199920021',TODAY).filter(o=>o.code==='О-2').map(o=>o.clause).join()") === 'п. 11 пп. 2,п. 11 пп. 2'
+  && g.ev("obligations('01204199910016',TODAY).filter(o=>o.code==='О-2').map(o=>o.clause).join()") === 'п. 6 пп. 5,п. 6 пп. 5'
+  && g.ev("obligations('01204199910016',TODAY).find(o=>o.code==='О-1').clause") === 'п. 6 пп. 5'
+  && !/п\.\s?12\(2\)/.test(HTML));
+ok('ФХС. КЗ-43, КЗ-44, КЗ-51: вкладка ветки 2: первое полугодие исполнено заключением (номер и дата), идущее действует (нужно заключение за период, делается в модуле «Анализ», возможно после конца периода); условие и его дата в строке',
+  (() => { const f = oblTab('02201199920021');
+    const open = oblRows(f,0).find(tr => /за 01\.07\.2026—31\.12\.2026/.test(cellText(tr,1)));
+    const done = oblRows(f,1).find(tr => /за 01\.01\.2026—30\.06\.2026/.test(cellText(tr,1)));
+    return !!open && !!done
+      && /^п\. 11 пп\. 2/.test(cellText(open,0)) && /средний риск, остаток больше 50 млн · на 13\.07\.2026/.test(cellText(open,1))
+      && /^14\.02\.2027/.test(cellText(open,2)) && /конец полугодия \+ 45 дн\. · расписание анализа/.test(cellText(open,2))
+      && /в срок/.test(cellText(open,3)) && /где закрывается/.test(cellText(open,4))
+      && /нужно плановое заключение за 2П 2026: ведётся и утверждается в модуле «Анализ», возможно после 31\.12\.2026/.test(cellText(open,4))
+      && /средний риск, остаток больше 50 млн · на 30\.06\.2026/.test(cellText(done,1))
+      && /^14\.08\.2026/.test(cellText(done,2)) && /Анализ финансово-хозяйственного состояния/.test(cellText(done,4))
+      && /заключение ФА-21 от 03\.07\.2026 за 1П 2026/.test(cellText(done,4))
+      && !/нужно плановое заключение/.test(cellText(done,4))
+      && !/НЗ-\d|КЗ-\d|АН-\d|ADR-|О-\d/.test(f.$('#oblWrap').innerHTML); })());
+ok('ФХС. КЗ-51: закончившийся период без заключения: «возможно после» нет, в строке нужно заключение и модуль; ссылка ведёт в модуль «Анализ»',
+  (() => { const f = fhsBox(M60, MID_0915), r = fhsRows(f, '04.01.2027');
+    return r[0].period === H2_26 && r[0].closeIn === 'модуль «Анализ»' && !/возможно после/.test(r[0].closeNeed)
+      && /нужно плановое заключение за 2П 2026: ведётся и утверждается в модуле «Анализ»/.test(r[0].closeNeed)
+      && /возможно после 30\.06\.2027/.test(r[1].closeNeed); })());
+ok('ФХС. КЗ-47: у закрывающих фактов внесшего нет: в ответе анализа четыре поля у пакета и у заключения; ввода документов на вкладке нет',
+  (() => { const pick = code => JSON.parse(g.ev(`JSON.stringify(obligations('02201199920021',TODAY).find(o=>o.code==='${code}'&&o.closing).closing)`));
+    const f = oblTab('02201199920021');
+    return Object.keys(pick('О-1')).join() === 'type,date,ref,period' && Object.keys(pick('О-2')).join() === 'type,date,ref,period'
+      && !f.$('#oblWrap input, #oblWrap select, #oblWrap textarea, #oblWrap [data-edits]'); })());
+ok('ФХС. КЗ-48: у пакета и анализа свой факт: заключение не закрывает пакет, пакет не закрывает анализ',
+  (() => { const row = (f, code, d) => JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','${d}').find(o=>o.code==='${code}'))`));
+    const a = fhsBox(M60, MID_0915, [], [{ period:'2П 2026', date:'2027-01-11', ref:'ФА-4' }]), p = fhsBox(M60, MID_0915, [], [], [{ date:'2026-10-01', ref:'ЗП-40' }]);
+    return row(a, 'О-1', '15.01.2027').closing === null && row(a, 'О-2', '15.01.2027').closing.ref === 'ФА-4'
+      && row(p, 'О-2', '16.11.2026').closing === null && row(p, 'О-1', '16.11.2026').closing.date === '01.10.2026'
+      && row(p, 'О-1', '16.11.2026').req === 'запрос и получение пакета фин. документов'; })());
+ok('ФХС. АН-130: полное получение пакета по запросу закрывает О-1: дата получения, номер запроса, период запроса; до даты получения срез не закрыт',
+  (() => { const f = fhsBox(M60, MID_0915, [], [], [{ date:'2026-10-01', ref:'ЗП-40' }]);
+    const o = d => JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','${d}').find(o=>o.code==='О-1'))`));
+    return o('16.11.2026').status === 'исполнено' && o('16.11.2026').closing.ref === 'ЗП-40' && o('16.11.2026').closing.period === '2025 год'
+      && o('30.09.2026').status !== 'исполнено' && o('30.09.2026').closing === null; })());
+ok('ФХС. АН-130: нет записи в ответе (неполное получение или запроса нет) — О-1 остаётся открытым',
+  (() => { const f = fhsBox(M60, MID_0915), o = JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','16.11.2026').find(o=>o.code==='О-1'))`));
+    return o.closing === null && o.status === 'срок вышел' && /нужно полное получение пакета по запросу/.test(o.closeNeed) && o.closeIn === 'модуль «Анализ»'; })());
+ok('ФХС. АН-130: запись раньше начала полосы риска не закрывает; запись в день начала полосы закрывает',
+  (() => { const o = (f) => JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','16.11.2026').find(o=>o.code==='О-1'))`));
+    const before = fhsBox(M60, MID_0915, [], [], [{ date:'2026-09-14', ref:'ЗП-41' }]), onDay = fhsBox(M60, MID_0915, [], [], [{ date:'2026-09-15', ref:'ЗП-42' }]);
+    return o(before).closing === null && o(onDay).closing.ref === 'ЗП-42'; })());
+ok('ФХС. АН-130: пакет не вносится вручную: запись в досье О-1 не закрывает, у стенда записей этого вида в досье нет, вид шва — как у владельца',
+  (() => { const own = readFileSync(resolve('mockups/analysis/analysis.html'), 'utf8');
+    const f = fhsBox(M60, MID_0915, [{ date:'01.10.2026', type:DOC_PACK }]);
+    const o = JSON.parse(f.ev(`JSON.stringify(obligations('${FHS_INN}','16.11.2026').find(o=>o.code==='О-1'))`));
+    return o.closing === null && !g.ev("DOCS.some(x => x.type === OBLIG_DOC['О-1'])")
+      && own.includes(`const DOC_PACKAGE  = '${DOC_PACK}'`) && !/закрывает документ досье|досье документов/.test(HTML); })());
+ok('ФХС. АН-130: на вкладке документов пакет показан в секции документов анализа с номером запроса, датой и периодом, только чтение; в ленте — запись о получении',
+  (() => { const f = card('02201199920021'); f.ev("switchTab(tabIx('документы'))");
+    const sec = f.$$('.tabpanel.active .section').find(s => /Документы анализа/.test(s.querySelector('.section-head').textContent));
+    const row = sec ? [...sec.querySelectorAll('tbody tr')].find(tr => /^Пакет/.test(cellText(tr,0))) : null;
+    const hist = g.ev("JSON.stringify(historyItems('02201199920021').filter(i=>i.cat==='doc'&&/Пакет/.test(i.title)).map(i=>[i.date,i.body]))");
+    const done = oblRows(oblTab('02201199920021'), 1).map(tr => cellText(tr,4)).find(t => /ЗП-14/.test(t)) || '';
+    return !!row && cellText(row,1) === '2025 год' && cellText(row,2) === 'ЗП-14' && cellText(row,3) === '18.06.2026'
+      && !sec.querySelector('input, select, textarea, button, [data-edits]')
+      && hist === JSON.stringify([['18.06.2026','получен полностью по запросу ЗП-14 за 2025 год · модуль «Анализ»']])
+      && /пакет получен полностью по запросу ЗП-14 от 18\.06\.2026/.test(done); })());
+ok('ФХС. НЗ-Д14: полное погашение 15.01.2027 и новый кредит 01.03.2027 — период 2П 2026 больше не считается, 1П 2027 считается; до погашения оба периода на месте',
+  (() => { const f = fhsBox([{ debt:60000000, closedAt:'15.01.2027' }, { debt:60000000, date:'01.03.2027' }],
+      [{ level:'mid', from:'15.09.2026' }, { level:'mid', from:'01.03.2027', credit:1 }]);
+    return fhsRows(f, '10.01.2027').map(o => o.period).join() === H2_26 + ',' + H1_27
+      && fhsRows(f, '01.04.2027').map(o => o.period).join() === H1_27
+      && f.ev(`activeSinceOf('${FHS_INN}','01.04.2027')`) === '01.03.2027'; })());
+ok('ФХС. НЗ-Д14: заёмщик без полного погашения не меняется: перекрывающиеся кредиты — начала нового кредита нет, периоды те же; на стенде ни у кого',
+  (() => { const f = fhsBox([{ debt:30000000, closedAt:'15.01.2027' }, { debt:30000000, date:'01.12.2026' }],
+      [{ level:'mid', from:'15.09.2026' }]);
+    return f.ev(`activeSinceOf('${FHS_INN}','01.04.2027')`) === null && f.ev(`activeSinceOf('${FHS_INN}','10.01.2027')`) === null
+      && fhsRows(f, '10.01.2027').map(o => o.period).join() === H2_26 + ',' + H1_27
+      && g.ev("SUBJECTS.every(s => activeSinceOf(s.inn, TODAY) === null)"); })());
+ok('ФХС. НЗ-Д14: кредит действует только с даты договора: между погашением и новым кредитом обязательств нет, долг не включает невыданный кредит',
+  (() => { const f = fhsBox([{ debt:60000000, closedAt:'15.01.2027' }, { debt:60000000, date:'01.03.2027' }],
+      [{ level:'mid', from:'15.09.2026' }]);
+    const low = fhsBox([{ debt:30000000 }, { debt:30000000, date:'01.03.2027' }], [{ level:'mid', from:'15.09.2026' }]);
+    return fhsRows(f, '20.01.2027').length === 0 && fhsRows(f, '28.02.2027').length === 0
+      && f.ev(`totalDebt('${FHS_INN}','10.01.2027')`) === 60000000
+      && low.ev(`totalDebt('${FHS_INN}','31.12.2026')`) === 30000000
+      && !fhsRows(low, '01.04.2027').some(o => o.period === H2_26); })());
+ok('ФХС. НЗ-Д14: погашение и новый кредит в один день — перерыва нет, 2П 2026 остаётся, как у заданий; новый кредит на следующий день — 2П 2026 не считается',
+  (() => { const same = fhsBox([{ debt:60000000, closedAt:'15.01.2027' }, { debt:60000000, date:'15.01.2027' }], [{ level:'mid', from:'15.09.2026' }]);
+    const next = fhsBox([{ debt:60000000, closedAt:'15.01.2027' }, { debt:60000000, date:'16.01.2027' }], [{ level:'mid', from:'15.09.2026' }]);
+    return same.ev(`activeSinceOf('${FHS_INN}','01.02.2027')`) === null
+      && fhsRows(same, '01.02.2027').some(o => o.period === H2_26)
+      && next.ev(`activeSinceOf('${FHS_INN}','01.02.2027')`) === '16.01.2027'
+      && !fhsRows(next, '01.02.2027').some(o => o.period === H2_26); })());
+ok('ФХС. АН-130: снятие записи пакета с досье не заводит заёмщику чужих документов: у «Иссык-Куль Агро» досье прежнее, 2 из 16',
+  (() => { const st = g.ev("JSON.stringify(dossierStats('02201199920021'))");
+    return g.ev("DOCS.filter(d => d.inn === '02201199920021').length") === 0 && /"met":2\b/.test(st) && /"req":16\b/.test(st); })());
+ok('ФХС. КЗ-50: лента и досье: заключение видно и когда строк анализа нет; у заёмщика без заключения секции нет',
+  (() => { const f = fhsBox([{ debt:60000000, closedAt:'20.01.2027' }], MID_0915, [], [{ period:'2П 2026', date:'2027-01-11', ref:'ФА-5' }]);
+    const none = card('01204199910016'); none.ev("switchTab(tabIx('документы'))");
+    const hist = g.ev("JSON.stringify(historyItems('02201199920021').filter(i=>i.cat==='doc'&&/Анализ финансово/.test(i.title)).map(i=>[i.date,i.body]))");
+    return fhsRows(f, '20.01.2027').length === 0 && f.ev(`analysisDocs('${FHS_INN}','20.01.2027').length`) === 1
+      && !/Документы анализа/.test(none.$('.tabpanel.active').textContent)
+      && hist === JSON.stringify([['03.07.2026','заключение ФА-21 за 1П 2026 · модуль «Анализ»']]); })());
+ok('ФХС. КЗ-50: заёмщик без кредитов и документов: заключение всё равно видно в досье',
+  (() => { const f = fhsBox([], [], [], [{ period:'1П 2026', date:'2026-07-03', ref:'ФА-9' }]);
+    const html = f.ev(`docsTab('${FHS_INN}')`);
+    return f.ev(`DOCS.concat(CREDITS).some(x => x.inn === '${FHS_INN}')`) === false
+      && /Документы анализа/.test(html) && /ФА-9/.test(html); })());
+ok('ФХС. витрина: у ветки 1 анализ даёт два срока, они входят в общий счёт и не занимают слоты раньше более близких',
+  (() => { const obs = cAts.ev("JSON.stringify(openObligations('01204199910016', TODAY).filter(o=>o.code==='О-2').map(o=>o.dueDate))");
+    const all = cAts.ev("openObligations('01204199910016', TODAY).length");
+    return obs === JSON.stringify(['14.08.2026','14.02.2027']) && all === 6
+      && new RegExp('всего открыто ' + all).test(panel0(cAts).textContent)
+      && !/14\.08\.2026|14\.02\.2027/.test([...panel0(cAts).querySelectorAll('.att-item')].map(x => x.textContent).join(' ')); })());
+ok('ФХС. срез назад: на 20.06.2026 у ветки 2 один идущий период, условие на дату среза',
+  (() => { const r = JSON.parse(g.ev("JSON.stringify(obligations('02201199920021','20.06.2026').filter(o=>o.code==='О-2'))"));
+    return r.length === 1 && r[0].period === '01.01.2026..30.06.2026' && r[0].condAt === '20.06.2026' && r[0].status === 'в срок' && r[0].closing === null; })());
+ok('ФХС. стенд на 13.07.2026: О-2 — 30 строк у 15 заёмщиков; 28 высокого риска, 2 среднего; 1 исполнена; срок ни у кого не вышел',
+  (() => { const r = JSON.parse(g.ev("JSON.stringify(SUBJECTS.flatMap(s=>obligations(s.inn,TODAY)).filter(o=>o.code==='О-2'))"));
+    return r.length === 30 && new Set(r.map(o => o.inn)).size === 15
+      && r.filter(o => o.riskAt === 'high').length === 28 && r.filter(o => o.riskAt === 'mid').length === 2
+      && r.filter(o => o.status === 'исполнено').length === 1 && !r.some(o => o.status === 'срок вышел'); })());
 
 console.log(`\n${n - fails}/${n} PASS`);
 process.exit(fails ? 1 : 0);

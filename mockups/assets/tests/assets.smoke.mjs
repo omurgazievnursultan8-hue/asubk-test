@@ -1,5 +1,6 @@
 // Смоук макета «Имущество Фонда». Источник ожиданий — ASUBK-imushchestvo-logika.md §18 (матрица приёмки,
-// 56 сценариев) и §14 (инварианты ИИ-1…ИИ-25). Запуск: node mockups/assets/tests/assets.smoke.mjs
+// 56 сценариев) и §14 (инварианты ИИ-1…ИИ-25). Блок «Волна 5» — настройки заданий: НЗ-2, НЗ-3, НЗ-4, НЗ-11, НЗ-17, ИМ-102…ИМ-119.
+// Запуск: node mockups/assets/tests/assets.smoke.mjs
 import { group, ck, digits, report } from './harness.mjs';
 
 const low = s => String(s || '').toLowerCase();
@@ -24,7 +25,7 @@ function mkObj(IM, o) {
   const steps = [IM.addFact(r.id, 'decision', { date, organ: IM.ORGANS[0], doc: 'Реш. ' + n, items: { 1: { v: 'accept' } } }, 'sec'), key(IM, r.id, 'act', { pos: 1, date, doc: 'Акт ' + n }, 'spec')];
   steps.forEach(s => { if (!s.ok) throw new Error('mkObj: ' + s.why); });
   const id = IM.posOutcome(r.id, 1).obj;
-  if (IM.KINDS.find(k => k.id === kind).reg) { const g = key(IM, id, 'reg', { date, doc: 'Выписка ' + n }, 'spec'); if (!g.ok) throw new Error('mkObj/reg: ' + g.why); }
+  if (!o.noReg && IM.KINDS.find(k => k.id === kind).reg) { const g = key(IM, id, 'reg', { date, doc: 'Выписка ' + n }, 'spec'); if (!g.ok) throw new Error('mkObj/reg: ' + g.why); }
   return { of: r.id, id, obl: oid, name: IM.obj(id).alien };
 }
 const place = (IM, i) => IM.PUB_PLACES[i];
@@ -636,7 +637,7 @@ group('Даты ДД.ММ.ГГГГ, субъекты из списка, валю
   ck('расход в USD хранится в валюте документа', e.ok && e.fact.ccy === 'USD' && has(IM.money(e.fact.amount, e.fact.ccy), 'USD'), e.fact);
   ck('расход в другой валюте не складывается в результат', IM.result('ИО-2').expenses === 8000 && IM.result('ИО-2').expOther.length === 1, IM.result('ИО-2'));
   ck('П-1: срок ответа 15.01.2027 (5 р.д. от 10.01)', IM.offer('П-1').deadline === '2027-01-15');
-  ck('18 порогов поводов; у каждого источник «норма», «Инструкция» или «внутренний акт»', IM.SETTINGS.thr.length === 18 && IM.SETTINGS.thr.every(t => ['норма', 'Инструкция', 'внутренний акт'].includes(t.src)), IM.SETTINGS.thr.map(t => t.src));
+  ck('18 порогов поводов; у каждого подпись из записи: норма с актом и пунктом или решение проекта', IM.SETTINGS.thr.length === 18 && IM.SETTINGS.thr.every(t => /^норма · Инструкция \(проект от 11\.05\.2026\), пп?\. \d+/.test(t.src) || t.src === 'решение проекта'), IM.SETTINGS.thr.map(t => t.src));
   IM.go('settings');
   const txt = doc.getElementById('panel').textContent;
   ck('в интерфейсе нет технических id поводов (только в подсказке)', !/pk-im-/.test(txt));
@@ -737,8 +738,8 @@ group('ИИ-21: отмена принятия не правит опублико
 });
 
 group('С-33: куратора в ячейке нет — держит заведующий отделом до порога', ({ IM, doc }) => {
-  ck('пороги в настройках: предложение 2 р.д., объект 10 р.д., «внутренний акт»',
-    IM.SETTINGS.fallback.offer.v === 2 && IM.SETTINGS.fallback.object.v === 10 && IM.SETTINGS.fallback.offer.src === 'внутренний акт' && IM.SETTINGS.fallback.object.src === 'внутренний акт');
+  ck('пороги в настройках: предложение 2 р.д., объект 10 р.д., «решение проекта»',
+    IM.SETTINGS.fallback.offer.v === 2 && IM.SETTINGS.fallback.object.v === 10 && IM.SETTINGS.fallback.offer.src === 'решение проекта' && IM.SETTINGS.fallback.object.src === 'решение проекта');
   const r = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'ПР-1', docDate: '2027-03-03', name: 'Мини-трактор', value: 100000, kind: 'equip', region: 'Баткенская обл.' }, 'spec');
   ck('предложение зарегистрировано 03.03.2027', r.ok, r.why);
   const c4 = IM.curatorOf(r.id, '2027-03-04'), c5 = IM.curatorOf(r.id, '2027-03-05');
@@ -849,7 +850,7 @@ group('С-37: требование к отчуждателю после отме
   ck('08.11.2027 (59 к.д.) повода нет', !t8);
   ck('09.11.2027 (60 к.д.) — повод pk-im-claim-open', !!t9, t9);
   ck('адресат — куратор ИО-12', t9 && t9.to === IM.curatorOf('ИО-12', '2027-11-09').emp, t9 && t9.to);
-  ck('порог 60 к.д., источник «внутренний акт»', (() => { const s = IM.SETTINGS.thr.find(t => t.id === 'pk-im-claim-open'); return s && s.v === 60 && s.unit === 'к.д.' && s.src === 'внутренний акт'; })());
+  ck('порог 60 к.д., подпись «решение проекта»', (() => { const s = IM.SETTINGS.thr.find(t => t.id === 'pk-im-claim-open'); return s && s.v === 60 && s.unit === 'к.д.' && s.src === 'решение проекта'; })());
   ck('погашение больше остатка — отказ', !IM.addFact('ИО-12', 'claimPaid', { date: '2027-12-01', amount: 250000, doc: 'Поступление' }, 'spec').ok);
   ck('погашение без ссылки на поступление — отказ', !IM.addFact('ИО-12', 'claimPaid', { date: '2027-12-01', amount: 200000 }, 'spec').ok);
   ck('погашение вводит специалист (юрист — нет)', !IM.addFact('ИО-12', 'claimPaid', { date: '2027-12-01', amount: 200000, doc: 'П' }, 'lawyer').ok);
@@ -906,11 +907,11 @@ group('С-39: порог осмотра по виду — скот 1 мес., о
   ck('05.02: повод по скоту есть', tr.some(t => t.id === c.id), tr.map(t => t.id));
   ck('05.02: по офису нет', !tr.some(t => t.id === f.id));
   IM.go('settings');
-  const inp = doc.querySelector('[data-testid=insp-cattle] input');
-  ck('UI: в настройках таблица «вид → порог», у скота 1', !!doc.querySelector('[data-testid=insp-by-kind]') && inp && inp.value === '1');
-  ck('UI: пустая строка — умолчание', doc.querySelector('[data-testid=insp-flat] input').value === '' && has(doc.querySelector('[data-testid=insp-flat]').textContent, 'умолчание'));
-  IM.setRole('head'); IM.setInspThr('cattle', '');
-  ck('очистили исключение — скот по умолчанию, повода 05.02 нет', IM.inspThr('cattle') === 6 && !IM.triggers('2028-02-05').some(t => t.kind === 'pk-im-no-inspection' && t.id === c.id));
+  const cell = k => doc.querySelector('[data-testid="val-insp.' + k + '"]').textContent;
+  ck('UI: в настройках таблица «вид → порог», у скота 1 мес.', !!doc.querySelector('[data-testid=insp-by-kind]') && has(cell('cattle'), '1 мес.') && !has(cell('cattle'), 'умолчание'));
+  ck('UI: строка без своего значения — умолчание 6 мес.', has(cell('flat'), '6 мес.') && has(cell('flat'), 'умолчание'));
+  IM.setRole('head'); const off = IM.setParam('insp.cattle', { v: '', from: '2028-03-15', why: 'скот продан, исключение не нужно' });
+  ck('ИМ-111: исключение снято записью — скот по умолчанию, повод 05.02 по прежнему значению остался', off.ok && IM.inspThr('cattle') === 6 && IM.inspThr('cattle', '2028-02-05') === 1 && IM.triggers('2028-02-05').some(t => t.kind === 'pk-im-no-inspection' && t.id === c.id), off);
 });
 
 group('С-40: автомобиль — право с регистрацией в органе учёта; земельный участок — регистрацией', ({ IM, doc }) => {
@@ -1487,7 +1488,7 @@ group('С-55: предложение с видом долга «поручите
 
 group('С-56: взыскание публикует «признан банкротом» по лицу с залогом 01.03 → без записки в Комитет — повод', ({ IM }) => {
   const thr = IM.SETTINGS.thr.find(t => t.id === 'pk-im-bankruptcy');
-  ck('порог 10 дней, источник «Инструкция»', thr && thr.v === 10 && thr.unit === 'дн.' && thr.src === 'Инструкция', thr);
+  ck('порог 10 дней, подпись «норма», п. 17', thr && thr.v === 10 && thr.unit === 'дн.' && has(thr.src, 'норма') && has(thr.src, 'п. 17'), thr);
   const b = IM.BANKRUPT.find(x => x.obl === 'o_s');
   ck('сид: Садыкова Г.Н. признана банкротом 01.03.2028, залог ПЗ-104/105, записки нет', b && b.date === '2028-03-01' && b.pledges.length === 2 && !b.memo, b);
   const tr = d => IM.triggers(d).filter(x => x.kind === 'pk-im-bankruptcy' && x.id === 'П-7');
@@ -1513,7 +1514,7 @@ group('ИИ-22: сумма доплаты фиксируется на перех
   ck('вторая половина — после следующей оплаты', IM.gate(id, 'topup', '2027-07-02').ok && !IM.addFact(id, 'topup', { date: '2027-07-02', amount: 225001, doc: 'В' }, 'acc').ok);
   ck('выплата 225 000', IM.addFact(id, 'topup', { date: '2027-07-02', amount: 225000, doc: 'В-1' }, 'acc').ok && IM.topupOf(id, '2027-07-03').unpaid === 0);
   ck('следующей выплаты до новой оплаты нет', !IM.gate(id, 'topup', '2027-07-03').ok);
-  ck('сроки по источнику — в настройках (30 дней, «Инструкция»)', Object.values(IM.SETTINGS.topupTerm).every(x => x.v === 30 && x.src === 'Инструкция') && Object.keys(IM.SETTINGS.topupTerm).length === 5);
+  ck('сроки по источнику — в настройках (30 дней, норма, п. 46)', Object.values(IM.SETTINGS.topupTerm).every(x => x.v === 30 && has(x.src, 'норма') && has(x.src, 'п. 46')) && Object.keys(IM.SETTINGS.topupTerm).length === 5);
   const p1 = IM.topupOf('ИО-1', '2027-04-10');
   ck('депозит ССИ, пока исполнительное производство открыто; после окончания (30.06.2027) — отчуждателю', p1.account === 'депозит ССИ' && IM.topupOf('ИО-1', '2027-07-10').account === 'Асанов Т.Б.', [p1.account, IM.topupOf('ИО-1', '2027-07-10').account]);
 });
@@ -1600,8 +1601,8 @@ group('Волна 4, реквизиты: роли, поводы ssi-memo / guard
   ck('«Иное» без пояснения — отказ', !IM.addFact('ИО-2', 'expense', { item: 'Иное', amount: 1, doc: 'д' }, 'spec').ok && IM.addFact('ИО-2', 'expense', { item: 'Иное', note: 'Коммунальные', amount: 1, doc: 'д' }, 'spec').ok);
   ck('«Страхование» без решения Комитета о согласовании — отказ', !IM.addFact('ИО-2', 'expense', { item: 'Страхование', amount: 1, doc: 'д' }, 'spec').ok && IM.addFact('ИО-2', 'expense', { item: 'Страхование', committeeDoc: 'Решение № 4', amount: 1, doc: 'д' }, 'spec').ok);
   ck('обращение в госсобственность — основание из закрытого перечня п. 50 (3 пункта)', IM.GOV_GROUNDS.length === 3 && !IM.addFact('ИО-2', 'gift', { doc: 'д' }, 'spec').ok && !IM.addFact('ИО-2', 'gift', { doc: 'д', ground: 'по желанию' }, 'spec').ok && IM.addFact('ИО-2', 'gift', { doc: 'д', ground: IM.GOV_GROUNDS[1] }, 'spec').ok);
-  const dt = IM.SETTINGS.thr.filter(t => t.src === 'Инструкция').map(t => t.id);
-  ck('пороги с источником «Инструкция»: ssi-memo, guard, no-inspection, buyback-notice, not-listed, relist, application-pending(+buyback), topup-due, bankruptcy, pledge-term', ['pk-im-ssi-memo', 'pk-im-guard', 'pk-im-no-inspection', 'pk-im-buyback-notice', 'pk-im-not-listed', 'pk-im-relist', 'pk-im-application-pending', 'pk-im-application-pending-buyback', 'pk-im-topup-due', 'pk-im-bankruptcy', 'pk-im-pledge-term'].every(k => dt.includes(k)), dt);
+  const dt = IM.SETTINGS.thr.filter(t => has(t.src, 'норма')).map(t => t.id);
+  ck('норма у порогов: ssi-memo, guard, no-inspection, buyback-notice, not-listed, relist, application-pending(+buyback), topup-due, bankruptcy; 90 к.д. — решение проекта', dt.length === 10 && ['pk-im-ssi-memo', 'pk-im-guard', 'pk-im-no-inspection', 'pk-im-buyback-notice', 'pk-im-not-listed', 'pk-im-relist', 'pk-im-application-pending', 'pk-im-application-pending-buyback', 'pk-im-topup-due', 'pk-im-bankruptcy'].every(k => dt.includes(k)) && IM.SETTINGS.thr.find(t => t.id === 'pk-im-pledge-term').src === 'решение проекта', dt);
   const txt = ['offers', 'objects', 'settings', 'queue'].map(v => { IM.go(v); return doc.getElementById('panel').textContent; }).join(' ') + doc.body.textContent;
   ck('в интерфейсе нет «Управления по работе с активами» и «начальника Управления»', !/Управлени[еяюи] по работе с активами|начальник[а-я]* Управлени/i.test(txt));
 });
@@ -1681,11 +1682,11 @@ group('UI волны 4: доплата, очередь выручки, «Объ�
   IM.go('settings');
   const rowsThr = doc.querySelectorAll('#panel table.cgrid')[0].querySelectorAll('tbody tr');
   ck('«Настройки»: 18 порогов поводов', rowsThr.length === 18, rowsThr.length);
-  const instr = [...rowsThr].filter(r => r.querySelector('select.quiet') && r.querySelector('select.quiet').value === 'Инструкция').length;
-  ck('у порогов — источник значения «Инструкция» (11) / «внутренний акт» (7)', instr === 11 && [...rowsThr].filter(r => r.querySelector('select.quiet').value === 'внутренний акт').length === 7, instr);
-  ck('«Настройки»: сроки выплаты доплаты по источникам (5 строк, 30 дн., «Инструкция»)', doc.querySelectorAll('[data-testid=topup-term] tbody tr').length === 5 && [...doc.querySelectorAll('[data-testid=topup-term] tbody tr')].every(r => r.querySelector('input').value === '30' && has(r.textContent, 'дн.') && has(r.textContent, 'Инструкция')));
-  ck('«Настройки»: рассрочка — ставка 3 %, после продления 5 %, 120 дней, 3 + 3 публикации, предельные сроки', ['3', '5', '120'].every(s => [...q('[data-testid=settings-instalment]').querySelectorAll('input')].some(i => i.value === s)) && has(txt('[data-testid=settings-instalment]'), 'Инструкция') && has(txt('[data-testid=settings-instalment]'), '%') && q('[data-testid=settings-realtor] input').value === '5');
-  ck('«Настройки»: наценка риэлтора 5 %, «Инструкция»', has(txt('[data-testid=settings-realtor]'), 'Инструкция'));
+  const instr = [...rowsThr].filter(r => has(r.textContent, 'норма · Инструкция')).length;
+  ck('у порогов — подпись «норма · Инструкция» (10) / «решение проекта» (7) / без своего числа (1)', instr === 10 && [...rowsThr].filter(r => has(r.textContent, 'решение проекта')).length === 7 && [...rowsThr].filter(r => has(r.textContent, 'срок из документа')).length === 1, instr);
+  ck('«Настройки»: сроки выплаты доплаты по источникам (5 строк, 30 дн., норма, п. 46)', doc.querySelectorAll('[data-testid=topup-term] tbody tr').length === 5 && [...doc.querySelectorAll('[data-testid=topup-term] tbody tr')].every(r => has(r.textContent, '30 дн.') && has(r.textContent, 'п. 46')));
+  ck('«Настройки»: рассрочка — ставка 3 %, после продления 5 %, 120 дней, 3 + 3 публикации, предельные сроки', ['3 %', '5 %', '120 дн.', 'до 1 млн — 3 года', 'от 1 до 5 млн — 5 лет', 'от 5 млн — 10 лет'].every(s => has(txt('[data-testid=settings-instalment]'), s)) && has(txt('[data-testid=settings-instalment]'), 'норма · Инструкция') && has(txt('[data-testid=settings-realtor]'), '5 %'));
+  ck('«Настройки»: наценка риэлтора 5 %, норма, п. 36', has(txt('[data-testid=settings-realtor]'), 'п. 36'));
   /* форма объявления и регистрации */
   IM.setRole('spec'); IM.openObject('ИО-2', 'char');
   IM.uiFact('ИО-2', 'announce');
@@ -1727,7 +1728,7 @@ group('Правки после ревью волны 4: выкуп и преим
   const a3 = ann(IM, g.id, '2027-08-10', 2400000, { terms: 'both', pubs: [P('2027-08-10', 2), P('2027-08-10', 3)] });
   ck('с сайтом и площадкой — объявление с рассрочкой открыто', a3.ok && IM.instalmentRule(g.id, '2027-08-10').ok, a3.why);
   const S_ = IM.SETTINGS.instalment;
-  ck('настройки: сайт и площадка — не меньше 1 публикации, источник «Инструкция»', S_.pubsSite.v === 1 && S_.pubsNet.v === 1 && S_.pubsSite.src === 'Инструкция' && S_.pubsNet.src === 'Инструкция');
+  ck('настройки: сайт и площадка — не меньше 1 публикации, норма', S_.pubsSite.v === 1 && S_.pubsNet.v === 1 && has(S_.pubsSite.src, 'норма') && has(S_.pubsNet.src, 'норма'));
   ck('сид остаётся валидным: ИО-1 на 06.09.2027 и ИО-8 на 18.11.2027 — рассрочка доступна', IM.instalmentRule('ИО-1', '2027-09-06').ok && IM.instalmentRule('ИО-8', '2027-11-18').ok, [IM.instalmentRule('ИО-1', '2027-09-06').why, IM.instalmentRule('ИО-8', '2027-11-18').why]);
   IM.go('settings');
   ck('«Настройки» показывают сайт и площадку и подписывают параметры рассрочки по-русски', has(txt('[data-testid=settings-instalment]'), 'сайте Госфинхолдинга') && has(txt('[data-testid=settings-instalment]'), 'интернет-площадке') && !/\b(rate|pubsRep|minDays)\b/.test(txt('[data-testid=settings-instalment]')), txt('[data-testid=settings-instalment]'));
@@ -1878,20 +1879,19 @@ group('ТЗ 22 · 15.11: карточка объекта — «Опублико�
 });
 
 group('ТЗ 22 · 15.14: настройки правит только заведующий Сектором', ({ IM, doc }) => {
-  const t0 = IM.SETTINGS.thr[0].v;
+  const NEW = { v: 90, from: '2028-03-15', why: 'проверка роли' };
   ['spec', 'sec', 'lawyer', 'acc', 'probl'].forEach(role => {
     IM.setRole(role); IM.go('settings');
-    const ins = [...doc.querySelectorAll('#panel input[type=number], #panel select')];
-    ck(role + ': поля настроек недоступны, есть пометка «только для чтения»', ins.length > 0 && ins.every(i => i.disabled) && !!doc.querySelector('[data-testid=settings-readonly]'), ins.filter(i => !i.disabled).length);
-    ck(role + ': порог, срок ответа и наценка риэлтора не меняются', !IM.setThr(0, 99).ok && !IM.setThrSrc(0, 'норма').ok && !IM.setFb('offer', 99).ok && !IM.setInspThr('cattle', 9).ok && !IM.setVal('deadline.spec', 9).ok && !IM.setVal('realtor', 9).ok
-      && IM.SETTINGS.thr[0].v === t0 && IM.SETTINGS.deadline.spec.v === 5 && IM.SETTINGS.realtor.v === 5);
+    ck(role + ': полей и кнопок настроек нет, есть пометка «только для чтения»', doc.querySelectorAll('#panel input, #panel select, #panel table button').length === 0 && !!doc.querySelector('[data-testid=settings-readonly]'));
+    ck(role + ': порог, срок ответа, исключение осмотра и порог куратора не меняются', !IM.setParam('thr.registration-pending', NEW).ok && !IM.setParam('deadline.debtor', NEW).ok && !IM.setParam('insp.cattle', { v: 2, from: '2028-03-15', why: 'x' }).ok && !IM.setFb('offer', 99).ok
+      && IM.SETTINGS.thr.find(t => t.id === 'pk-im-registration-pending').recs.length === 1 && IM.SETTINGS.deadline.debtor.recs.length === 1 && IM.SETTINGS.inspByKind.cattle.recs.length === 1 && IM.SETTINGS.fallback.offer.v === 2);
+    ck(role + ': окно нового значения не открывается, запись не отменяется', !IM.uiParam('thr.registration-pending').ok && !IM.S.form && !IM.cancelParam('thr.registration-pending').ok);
   });
   IM.setRole('head'); IM.go('settings');
-  const ins = [...doc.querySelectorAll('#panel input[type=number], #panel select')];
-  ck('заведующий: поля доступны, пометки нет', ins.length > 0 && ins.every(i => !i.disabled) && !doc.querySelector('[data-testid=settings-readonly]'));
-  ck('заведующий меняет порог, срок ответа, срок выплаты, ставку рассрочки и наценку риэлтора', IM.setThr(0, t0 + 1).ok && IM.setVal('deadline.spec', 6).ok && IM.setVal('topupTerm.debtor', 31).ok && IM.setVal('instalment.rate', 4).ok && IM.setVal('realtor', 4).ok
-    && IM.SETTINGS.thr[0].v === t0 + 1 && IM.SETTINGS.deadline.spec.v === 6 && IM.SETTINGS.topupTerm.debtor.v === 31 && IM.SETTINGS.instalment.rate.v === 4 && IM.SETTINGS.realtor.v === 4);
-  ck('значение ноль и меньше не принимается', !IM.setVal('realtor', 0).ok && IM.SETTINGS.realtor.v === 4);
+  ck('заведующий: кнопки нового значения есть, пометки нет', doc.querySelectorAll('#panel [data-testid^=new-]').length > 0 && !doc.querySelector('[data-testid=settings-readonly]'));
+  ck('заведующий меняет порог и срок ответа записью', IM.setParam('thr.registration-pending', NEW).ok && IM.setParam('deadline.debtor', { v: 40, from: '2028-03-15', why: 'проверка роли' }).ok
+    && IM.SETTINGS.thr.find(t => t.id === 'pk-im-registration-pending').v === 90 && IM.SETTINGS.deadline.debtor.v === 40);
+  ck('порог куратора заведующий правит полем; ноль и меньше не принимается', IM.setFb('offer', 3).ok && IM.SETTINGS.fallback.offer.v === 3 && !IM.setFb('offer', 0).ok && IM.SETTINGS.fallback.offer.v === 3);
 });
 
 group('ТЗ 22 · 15.15: миграция — разделить и снять черновик', ({ IM, doc }) => {
@@ -1918,6 +1918,236 @@ group('ТЗ 22 · 15.15: миграция — разделить и снять �
   ck('на экране: состояние, основание и «платёж передан в разбор платежей»', has(doc.querySelector('[data-testid="draft-Ч-3.1"]').textContent, 'снят с основанием') && has(doc.querySelector('[data-testid="draft-Ч-3.1"]').textContent, 'разбор платежей') && !doc.querySelector('[data-testid="draft-drop-Ч-3.1"]'));
   IM.dropDraft('Ч-3.2', { basis: 'иное по решению', doc: 'Решение № 6/28' }, 'head');
   ck('снят Ч-3.2 — Ч-3 больше не блокирует, остаётся расхождение Кадырова', !IM.migrationReport().why.some(w => has(w, 'Ч-3')) && IM.migrationReport().blocked);
+});
+
+/* ---------- Волна 5: настройки заданий (НЗ-2, НЗ-3, НЗ-4, НЗ-11, НЗ-17, ИМ-102…ИМ-119) ---------- */
+const TODAY_ = '2028-03-15';
+const thrOf = (IM, id) => IM.SETTINGS.thr.find(t => t.id === id);
+const trigOn = (IM, d, kind, id) => IM.triggers(d).filter(t => t.kind === kind && t.id.startsWith(id));
+const PROJ = ['pk-im-act-pending', 'pk-im-registration-pending', 'pk-im-unsold', 'pk-im-instalment-overdue', 'pk-im-encumbrance-ending', 'pk-im-claim-open'];
+const POINTS = { 'pk-im-ssi-memo': 'п. 8', 'pk-im-guard': 'п. 25', 'pk-im-no-inspection': 'п. 27', 'pk-im-buyback-notice': 'п. 30', 'pk-im-not-listed': 'п. 35', 'pk-im-relist': 'п. 35', 'pk-im-application-pending': 'п. 40', 'pk-im-application-pending-buyback': 'п. 71', 'pk-im-topup-due': 'п. 46', 'pk-im-bankruptcy': 'п. 17' };
+const pathOf = id => 'thr.' + id.replace('pk-im-', '');
+
+group('Волна 5 · НЗ-4, НЗ-11: числа Инструкции на чтение с актом и пунктом', ({ IM, doc }) => {
+  ck('НЗ-11: 10 порогов Инструкции — у каждого свой пункт в подписи', Object.entries(POINTS).every(([id, p]) => thrOf(IM, id).src === 'норма · Инструкция (проект от 11.05.2026), ' + p), IM.SETTINGS.thr.map(t => [t.id, t.src]));
+  IM.setRole('head'); IM.go('settings');
+  ck('НЗ-4: у заведующего у строк нормы нет кнопки нового значения, значение и пункт видны', Object.entries(POINTS).every(([id, p]) => { const r = doc.querySelector('[data-testid="' + pathOf(id) + '"]'); return r && !r.querySelector('button') && !r.querySelector('input') && has(r.textContent, p) && has(r.textContent, thrOf(IM, id).v + ' ' + thrOf(IM, id).unit); }));
+  const refused = Object.keys(POINTS).map(id => IM.setParam(pathOf(id), { v: 99, from: TODAY_, why: 'x' }));
+  ck('НЗ-4: заведующий число нормы не правит, отказ называет акт и выпуск', refused.every(r => !r.ok && has(r.why, 'норма') && has(r.why, 'выпуск')), refused.map(r => r.why));
+  ck('НЗ-4: значения норм не изменились', Object.keys(POINTS).every(id => thrOf(IM, id).recs.length === 1));
+  ck('ИМ-108: срок ответа ССИ и спецадминистратора 5 р.д. — норма, пп. 9 и 16, на чтение', has(IM.SETTINGS.deadline.pssi.src, 'п. 9') && has(IM.SETTINGS.deadline.spec.src, 'п. 16') && !IM.setParam('deadline.pssi', { v: 9, from: TODAY_, why: 'x' }).ok && !IM.setParam('deadline.spec', { v: 9, from: TODAY_, why: 'x' }).ok && !doc.querySelector('[data-testid="new-deadline.pssi"]') && !!doc.querySelector('[data-testid="new-deadline.debtor"]'));
+  ck('ИМ-108: срок выплаты доплаты — норма, п. 46, на чтение', !IM.setParam('topupTerm.debtor', { v: 31, from: TODAY_, why: 'x' }).ok && doc.querySelectorAll('[data-testid=topup-term] button, [data-testid=topup-term] input').length === 0);
+  ck('ИМ-109: рассрочка и риэлтор на чтение: полей и кнопок нет, ставка не правится', doc.querySelectorAll('[data-testid=settings-instalment] button, [data-testid=settings-instalment] input, [data-testid=settings-realtor] button, [data-testid=settings-realtor] input').length === 0 && !IM.setParam('instalment.rate', { v: 4, from: TODAY_, why: 'x' }).ok && !IM.setParam('realtor', { v: 4, from: TODAY_, why: 'x' }).ok && IM.SETTINGS.instalment.rate.v === 3 && IM.SETTINGS.realtor.v === 5);
+  ck('ИМ-109: пункты рассрочки и риэлтора названы', has(IM.SETTINGS.instalment.rate.src, 'п. 58') && has(IM.SETTINGS.instalment.extRate.src, 'п. 66') && has(IM.SETTINGS.instalment.minDays.src, 'п. 57') && has(IM.SETTINGS.instalment.maxExt.src, 'п. 66') && has(IM.SETTINGS.realtor.src, 'п. 36') && has(doc.querySelector('[data-testid=settings-caps]').textContent, 'п. 63'));
+});
+
+group('Волна 5 · НЗ-17, НЗ-11: подпись задаёт запись, выбора источника нет', ({ IM, doc }) => {
+  ck('НЗ-11: IM.setThrSrc снят, старых путей правки нет', IM.setThrSrc === undefined && IM.setThr === undefined && IM.setVal === undefined && IM.setInspThr === undefined);
+  IM.setRole('head'); IM.go('settings');
+  ck('НЗ-11: на экране нет выпадающих списков источника', doc.querySelectorAll('#panel select').length === 0);
+  ck('НЗ-17: на экране нет подписи «внутренний акт», акта нет ни у одного числа', !has(doc.getElementById('panel').textContent, 'внутренний акт'));
+  ck('НЗ-17: 6 порогов — «решение проекта», значения прежние', PROJ.every(id => thrOf(IM, id).src === 'решение проекта') && PROJ.map(id => thrOf(IM, id).v).join() === '30,60,3,5,30,60');
+  ck('НЗ-17: сроки ответа должника, залогодателя и третьего лица — «решение проекта», порог скота — тоже', ['debtor', 'pledgor', 'third'].every(k => IM.SETTINGS.deadline[k].src === 'решение проекта' && IM.SETTINGS.deadline[k].v === 30) && IM.SETTINGS.inspByKind.cattle.src === 'решение проекта');
+  IM.openOffer('П-2');
+  const card = doc.getElementById('panel').textContent;
+  ck('НЗ-17: в карточке срока ответа подпись «решение проекта», не «внутренний акт»', has(card, 'настройка (30 к.д., решение проекта)') && !has(card, 'внутренний акт'), card.slice(0, 300));
+  const r = IM.registerOffer({ source: 'pssi', obligor: 'o_n', docNo: 'Т-1', docDate: TODAY_ }, 'probl');
+  ck('НЗ-17: новое предложение ССИ подписывает срок нормой с пунктом', r.ok && has(IM.offer(r.id).deadlineSrc, 'норма · Инструкция') && has(IM.offer(r.id).deadlineSrc, 'п. 9'), IM.offer(r.id) && IM.offer(r.id).deadlineSrc);
+  IM.go('settings');
+  const o = IM.setParam('thr.registration-pending', { v: 60, from: '2028-03-20', why: 'издан приказ', order: 'приказ № 12 от 10.03.2028' });
+  ck('НЗ-17: издан приказ — то же значение новой записью, подпись «внутренний акт» с номером и датой', o.ok && has(IM.srcOf(o.rec), 'внутренний акт · приказ № 12 от 10.03.2028'), o);
+  ck('НЗ-17: до начала записи подпись прежняя, с её даты — приказ', IM.srcOf(IM.recOn(thrOf(IM, 'pk-im-registration-pending'), '2028-03-19')) === 'решение проекта' && has(IM.srcOf(IM.recOn(thrOf(IM, 'pk-im-registration-pending'), '2028-03-20')), 'приказ № 12'));
+  ck('ИМ-114: приказ без номера и даты — отказ', !IM.setParam('thr.unsold', { v: 4, from: TODAY_, why: 'x', order: 'приказ директора' }).ok);
+});
+
+group('Волна 5 · ИМ-107: 90 к.д. — число проекта, правит заведующий с датой и основанием; 3 года — п. 17', ({ IM, doc }) => {
+  const P = 'thr.pledge-term', t = thrOf(IM, 'pk-im-pledge-term');
+  const pt = d => IM.triggers(d).filter(x => x.kind === 'pk-im-pledge-term' && x.id === 'ИО-410');
+  ck('ИМ-107: 90 к.д., «решение проекта», условие называет п. 17', t.v === 90 && t.src === 'решение проекта' && has(t.cond, '3-летнего') && has(t.cond, 'п. 17'), t);
+  ck('ИМ-107: не заведующий не правит', !IM.setParam(P, { v: 120, from: TODAY_, why: 'x' }).ok);
+  IM.setRole('head'); IM.go('settings');
+  ck('ИМ-107: у заведующего кнопка есть; без даты, с прошлой датой и без основания — отказ', !!doc.querySelector(`[data-testid="new-${P}"]`) && !IM.setParam(P, { v: 120, from: '', why: 'x' }).ok && !IM.setParam(P, { v: 120, from: '2028-03-14', why: 'x' }).ok && !IM.setParam(P, { v: 120, from: TODAY_, why: '' }).ok);
+  ck('ИМ-107: при 90 к.д. повод появляется 03.07.2030', !pt('2030-07-02').length && pt('2030-07-03').length === 1, [pt('2030-07-02'), pt('2030-07-03')]);
+  ck('ИМ-107: 120 к.д. с даты: подпись прежняя, повод раньше, не раньше порога', IM.setParam(P, { v: 120, from: TODAY_, why: 'напоминать раньше' }).ok && thrOf(IM, 'pk-im-pledge-term').src === 'решение проекта' && !pt('2030-06-02').length && pt('2030-06-03').length === 1, [pt('2030-06-02'), pt('2030-06-03')]);
+  ck('ИМ-107: снижение до 30 к.д. после появления повод не снимает (НЗ-2)', IM.setParam(P, { v: 30, from: '2030-08-01', why: 'x' }).ok && pt('2030-08-02').length === 1, pt('2030-08-02'));
+  ck('ИМ-107: выпуск без акта теперь отказан: нормы здесь нет', !IM.paramRelease(P, { v: 60, from: '2031-01-01', why: 'x' }).ok);
+  ck('ИМ-113: у «Срок ответа истёк» нет числа, кнопки и правки', !doc.querySelector('[data-testid="new-thr.offer-overdue"]') && has(doc.querySelector('[data-testid="thr.offer-overdue"]').textContent, 'срок из документа') && !IM.setParam('thr.offer-overdue', { v: 3, from: TODAY_, why: 'x' }).ok);
+});
+
+group('Волна 5 · НЗ-3: новое значение — дата и основание, история рядом', ({ IM, doc }) => {
+  IM.setRole('head'); IM.go('settings');
+  const P = 'thr.registration-pending', node = thrOf(IM, 'pk-im-registration-pending');
+  ck('НЗ-3: прошлая дата — отказ, называет дату', (r => !r.ok && has(r.why, 'прошлая дата') && has(r.why, '14.03.2028'))(IM.setParam(P, { v: 90, from: '2028-03-14', why: 'x' })));
+  ck('НЗ-3: без даты — отказ', (r => !r.ok && has(r.why, 'дата начала обязательна'))(IM.setParam(P, { v: 90, from: '', why: 'x' })));
+  ck('НЗ-3: без основания — отказ', (r => !r.ok && has(r.why, 'основание обязательно'))(IM.setParam(P, { v: 90, from: TODAY_, why: '  ' })));
+  ck('НЗ-3: не целое и не положительное — отказ', !IM.setParam(P, { v: 0, from: TODAY_, why: 'x' }).ok && !IM.setParam(P, { v: -5, from: TODAY_, why: 'x' }).ok && !IM.setParam(P, { v: 1.5, from: TODAY_, why: 'x' }).ok && !IM.setParam(P, { v: '', from: TODAY_, why: 'x' }).ok);
+  ck('НЗ-3: то же значение без приказа — отказ', (r => !r.ok && has(r.why, 'те же'))(IM.setParam(P, { v: 60, from: TODAY_, why: 'x' })));
+  ck('НЗ-3: отказы записей не добавили', node.recs.length === 1);
+  const ok = IM.setParam(P, { v: 90, from: TODAY_, why: 'регистратор работает дольше' });
+  ck('НЗ-3: дата сегодня и основание — запись, прежняя не стёрта, роль записана', ok.ok && node.recs.length === 2 && node.recs[0].v === 60 && node.recs[1].v === 90 && node.recs[1].why === 'регистратор работает дольше' && has(node.recs[1].by, 'заведующий'), node.recs);
+  IM.go('settings');
+  const h = doc.querySelector('[data-testid="hist-thr.registration-pending"]');
+  ck('НЗ-3: история под строкой: обе записи, основание, «действует»', !!h && has(h.textContent, '60 к.д.') && has(h.textContent, '90 к.д.') && has(h.textContent, 'регистратор работает дольше') && has(h.textContent, 'действует'), h && h.textContent);
+  ck('НЗ-3: в строке значение 90 к.д., дата начала 15.03.2028', has(doc.querySelector('[data-testid="val-thr.registration-pending"]').textContent, '90 к.д.') && has(doc.querySelector('[data-testid="thr.registration-pending"]').textContent, '15.03.2028'));
+  ck('НЗ-3: новая запись ставится только позже последней', (r => !r.ok && has(r.why, 'позже'))(IM.setParam(P, { v: 100, from: TODAY_, why: 'x' })));
+  ck('ИМ-117: сдвиг даты состояния не открывает правку задним числом', (() => { IM.setAsOf('01.01.2028'); const r = IM.setParam('thr.unsold', { v: 4, from: '2028-01-01', why: 'x' }); const b = !!doc.querySelector('[data-testid=settings-asof]'); IM.setAsOf('15.03.2028'); return !r.ok && has(r.why, 'прошлая дата') && b; })());
+  /* окно из строки */
+  doc.querySelector('[data-testid="new-thr.unsold"]').click();
+  ck('ИМ-114: окно: значение, действует с, приказ, основание; подсказка «только на новые поводы»', !!IM.S.form && ['pv', 'pfrom', 'porder', 'pwhy'].every(id => IM.S.form.fields.some(f => f.id === id)) && has(doc.getElementById('modal').textContent, 'только на новые поводы') && has(doc.getElementById('modal').textContent, '3 шт.'));
+  const bad = IM.submitForm({ pv: '4', pfrom: '10.03.2028', porder: '', pwhy: 'x' });
+  ck('ИМ-114: прошлая дата — отказ у поля «Действует с», окно не закрыто', !bad.ok && !!IM.S.form && !!doc.querySelector('[data-testid=form-err][data-field=pfrom]'), bad);
+  const good = IM.submitForm({ pv: '4', pfrom: '20.03.2028', porder: '', pwhy: 'объявлений стало больше' });
+  ck('ИМ-114: сохранено из окна: дата разобрана, окно закрыто', good.ok && !IM.S.form && thrOf(IM, 'pk-im-unsold').recs[1].from === '2028-03-20', good);
+  /* отмена */
+  const hu = () => doc.querySelector('[data-testid="hist-thr.unsold"]');
+  ck('ИМ-115: будущая запись помечена «ещё не вступила», строка показывает прежнее значение', has(hu().textContent, 'ещё не вступила') && has(doc.querySelector('[data-testid="val-thr.unsold"]').textContent, '3 шт.'));
+  doc.querySelector('[data-testid="cancel-thr.unsold"]').click();
+  ck('ИМ-115: отмена не вступившей: значение прежнее, в истории с пометкой, новую запись снова можно поставить', thrOf(IM, 'pk-im-unsold').recs.length === 1 && has(hu().textContent, 'отменена 15.03.2028') && IM.setParam('thr.unsold', { v: 4, from: '2028-03-16', why: 'x' }).ok);
+  ck('ИМ-115: вступившую запись и норму не отменить', !IM.cancelParam('thr.registration-pending').ok && !IM.cancelParam('thr.guard').ok);
+  const rel = IM.paramRelease('thr.guard', { v: 7, from: '2028-04-01', act: 'Инструкция, решение Правления № 5 от 20.03.2028, п. 25', why: 'новая редакция' });
+  ck('ИМ-119: выпуск: новая запись с актом, отмена на экране запрещена', rel.ok && !IM.cancelParam('thr.guard').ok && has(IM.srcOf(IM.recOn(thrOf(IM, 'pk-im-guard'), '2028-04-01')), 'решение Правления № 5'));
+  ck('ИМ-119: выпуск без акта, с прошлой датой и без основания — отказ', !IM.paramRelease('thr.relist', { v: 7, from: '2028-04-01', why: 'x' }).ok && !IM.paramRelease('thr.relist', { v: 7, from: '2028-03-01', act: 'А', why: 'x' }).ok && !IM.paramRelease('thr.relist', { v: 7, from: '2028-04-01', act: 'А', why: '' }).ok);
+});
+
+group('Волна 5 · НЗ-2: новое значение действует только на новые поводы (стенд, 15.03.2028)', ({ IM }) => {
+  const baseKeys = IM.triggers(TODAY_).map(t => t.key).join('|');
+  IM.setRole('head');
+  /* Регистрация 60 → 90 с 15.03.2028 */
+  ck('стенд: ИО-5 ждёт регистрации 65 к.д., повод есть', trigOn(IM, TODAY_, 'pk-im-registration-pending', 'ИО-5').length === 1 && has(trigOn(IM, TODAY_, 'pk-im-registration-pending', 'ИО-5')[0].text, '65 к.д.'));
+  ck('НЗ-2: 60 → 90 к.д. с 15.03.2028', IM.setParam('thr.registration-pending', { v: 90, from: TODAY_, why: 'x' }).ok);
+  const r5 = trigOn(IM, TODAY_, 'pk-im-registration-pending', 'ИО-5');
+  ck('НЗ-2: ИО-5 (65 к.д. < 90) остаётся, виден порог появления 60', r5.length === 1 && has(r5[0].text, 'по порогу 60 к.д.'), r5);
+  ck('НЗ-2: через месяц повод ИО-5 тот же (просрочка не снимается)', trigOn(IM, '2028-04-15', 'pk-im-registration-pending', 'ИО-5').length === 1);
+  /* новый объект: акт 10.03.2028, ждёт регистрации */
+  const nid = mkObj(IM, { debt: 100000, value: 500000, kind: 'flat', date: '2028-03-10', noReg: true }).id;
+  ck('новый объект ждёт регистрации с 10.03.2028', IM.objState(nid, TODAY_).code === 'wait' && IM.objState(nid, TODAY_).since === '2028-03-10', IM.objState(nid, TODAY_));
+  ck('НЗ-2: новый повод по новому значению: 90 к.д. — появляется 09.06.2028, а не 10.05.2028', IM.thrDay('pk-im-registration-pending', '2028-03-10').at === '2028-06-09' && !trigOn(IM, '2028-05-20', 'pk-im-registration-pending', nid).length && trigOn(IM, '2028-06-09', 'pk-im-registration-pending', nid).length === 1, IM.thrDay('pk-im-registration-pending', '2028-03-10'));
+  ck('ИМ-118: у нового повода подписи старого порога нет', !has((trigOn(IM, '2028-06-09', 'pk-im-registration-pending', nid)[0] || {}).text, 'по порогу'));
+  ck('НЗ-2: прочие поводы стенда на 15.03.2028 те же, ни один не исчез', IM.triggers(TODAY_).map(t => t.key).filter(k => !k.includes(nid)).join('|') === baseKeys);
+});
+
+group('Волна 5 · НЗ-2: подъём всех шести порогов втрое с сегодняшней даты — 20 поводов стенда остаются', ({ IM }) => {
+  const keys = d => IM.triggers(d).map(t => t.key).sort().join('|');
+  const today = keys(TODAY_);
+  ck('стенд: 20 поводов на 15.03.2028', IM.triggers(TODAY_).length === 20);
+  IM.setRole('head');
+  const ok = PROJ.every(id => IM.setParam(pathOf(id), { v: thrOf(IM, id).v * 3, from: TODAY_, why: 'проверка' }).ok);
+  ck('НЗ-2: записи приняты, на 15.03.2028 те же 20 ключей — ни один не исчез и не прибавился', ok && keys(TODAY_) === today, [ok, IM.triggers(TODAY_).length]);
+});
+
+group('Волна 5 · ИМ-103: порог «дольше N» и «не меньше N», снижение, день начала записи', ({ IM }) => {
+  IM.setRole('head');
+  ck('стенд: ИО-8 просрочка 5 дн., повод появился сегодня', trigOn(IM, TODAY_, 'pk-im-instalment-overdue', 'ИО-8').length === 1 && IM.contractInfo('ИО-8', TODAY_).odDays === 5);
+  ck('ИМ-103: 5 → 10 к.д. с 15.03.2028', IM.setParam('thr.instalment-overdue', { v: 10, from: TODAY_, why: 'x' }).ok);
+  const o8 = trigOn(IM, TODAY_, 'pk-im-instalment-overdue', 'ИО-8');
+  ck('ИМ-103: повод ИО-8, появившийся в день начала записи, остаётся, виден порог 5', o8.length === 1 && has(o8[0].text, 'по порогу 5 к.д.'), o8);
+  ck('ИМ-103: ИО-1 (55 дн.) остаётся', trigOn(IM, TODAY_, 'pk-im-instalment-overdue', 'ИО-1').length === 1);
+  ck('ИМ-103: платёж 20.03.2028 считается по 10 к.д.: 30.03.2028, а не 25.03.2028', IM.thrDay('pk-im-instalment-overdue', '2028-03-20', true).at === '2028-03-30');
+  /* подъём с будущей даты: повод, наступающий раньше неё, остаётся за старым значением */
+  ck('НЗ-2: подъём акта 30 → 60 к.д. с 01.04.2028: решение 10.02.2028 появилось 12.03.2028 и остаётся; решение 15.03.2028 считается по 60 к.д., 15.05.2028', IM.setParam('thr.act-pending', { v: 60, from: '2028-04-01', why: 'x' }).ok && IM.thrDay('pk-im-act-pending', '2028-02-10').at === '2028-03-12' && IM.thrDay('pk-im-act-pending', '2028-03-15').at === '2028-05-15', [IM.thrDay('pk-im-act-pending', '2028-02-10').at, IM.thrDay('pk-im-act-pending', '2028-03-15').at]);
+  ck('НЗ-2: решение 01.03.2028 — по 30 к.д. первый день 01.04.2028 совпал с началом записи: повод остаётся за прежним значением', IM.thrDay('pk-im-act-pending', '2028-03-01').at === '2028-04-01' && IM.thrDay('pk-im-act-pending', '2028-03-01').rec.v === 30, IM.thrDay('pk-im-act-pending', '2028-03-01'));
+  ck('НЗ-2: решение 02.03.2028 — по 30 к.д. был бы 02.04.2028, позже начала записи: считается по 60 к.д., 02.05.2028', IM.thrDay('pk-im-act-pending', '2028-03-02').at === '2028-05-02' && IM.thrDay('pk-im-act-pending', '2028-03-02').rec.v === 60, IM.thrDay('pk-im-act-pending', '2028-03-02'));
+  ck('П-5 и П-7 на 15.03.2028 остаются при будущей записи', trigOn(IM, TODAY_, 'pk-im-act-pending', 'П-5').length === 2 && trigOn(IM, TODAY_, 'pk-im-act-pending', 'П-7').length === 1);
+  /* снижение: не задним числом */
+  ck('ИМ-103: снижение регистрации 60 → 10 к.д. с 20.03.2028', IM.setParam('thr.registration-pending', { v: 10, from: '2028-03-20', why: 'x' }).ok);
+  ck('ИМ-103: при снижении повод появляется в день начала записи, не задним числом', IM.thrDay('pk-im-registration-pending', '2028-03-01').at === '2028-03-20', IM.thrDay('pk-im-registration-pending', '2028-03-01'));
+  ck('ИМ-103: при снижении после начала — по новому значению', IM.thrDay('pk-im-registration-pending', '2028-03-25').at === '2028-04-05', IM.thrDay('pk-im-registration-pending', '2028-03-25'));
+  /* «за N до конца» */
+  ck('стенд: ИО-7 «Аренда» кончается 10.04.2028, осталось 26 к.д., повод есть', trigOn(IM, TODAY_, 'pk-im-encumbrance-ending', 'ИО-7').length === 1);
+  ck('ИМ-103: обременение 30 → 10 к.д. с 15.03.2028', IM.setParam('thr.encumbrance-ending', { v: 10, from: TODAY_, why: 'x' }).ok);
+  ck('ИМ-103: ИО-7 остаётся, виден порог 30', has((trigOn(IM, TODAY_, 'pk-im-encumbrance-ending', 'ИО-7')[0] || {}).text, 'по порогу 30 к.д.'));
+  ck('ИМ-103: конец 30.05.2028: предупреждение 20.05.2028 вместо 30.04.2028', IM.thrDayBefore('pk-im-encumbrance-ending', '2028-05-30').at === '2028-05-20');
+});
+
+group('Волна 5 · ИМ-105: счётный порог объявлений', ({ IM }) => {
+  const f = mkObj(IM, { debt: 100000, value: 1000000, kind: 'equip', date: '2027-04-05' });
+  ['2027-05-10', '2027-07-15', '2027-09-20'].forEach(d => ann(IM, f.id, d, 1000000));
+  IM.setRole('head');
+  const un = d => trigOn(IM, d, 'pk-im-unsold', f.id);
+  ck('три объявления без заявок к 15.03.2028 — повод', un(TODAY_).length === 1);
+  ck('ИМ-105: 3 → 5 с 15.03.2028: появившийся повод остаётся, виден порог 3', IM.setParam('thr.unsold', { v: 5, from: TODAY_, why: 'x' }).ok && un(TODAY_).length === 1 && has(un(TODAY_)[0].text, 'по порогу 3 шт.'), un(TODAY_));
+  const g = mkObj(IM, { debt: 100000, value: 1000000, kind: 'equip', date: '2027-04-05' });
+  ['2027-05-10', '2027-07-15'].forEach(d => ann(IM, g.id, d, 1000000));
+  ck('два объявления при пороге 3 — повода нет', !trigOn(IM, TODAY_, 'pk-im-unsold', g.id).length);
+  const h = mkObj(IM, { debt: 100000, value: 1000000, kind: 'equip', date: '2027-04-05' });
+  ['2027-05-10', '2027-07-15'].forEach(d => ann(IM, h.id, d, 1000000));
+  ck('ИМ-105: снижение порога на будущую дату поднимает объект с двумя закрытыми с этого дня, не раньше', IM.setParam('thr.unsold', { v: 2, from: '2028-03-20', why: 'x' }).ok && !trigOn(IM, '2028-03-19', 'pk-im-unsold', h.id).length && trigOn(IM, '2028-03-20', 'pk-im-unsold', h.id).length === 1);
+});
+
+group('Волна 5 · ИМ-111: порог осмотра по виду записью, реже нормы нельзя', ({ IM, doc }) => {
+  IM.setRole('head'); IM.go('settings');
+  ck('ИМ-111: вид с умолчанием показывает норму, п. 27', has(doc.querySelector('[data-testid="src-insp.flat"]').textContent, 'п. 27') && has(doc.querySelector('[data-testid="val-insp.flat"]').textContent, 'умолчание'));
+  ck('ИМ-111: скот — своё значение, «решение проекта»', doc.querySelector('[data-testid="src-insp.cattle"]').textContent === 'решение проекта' && has(doc.querySelector('[data-testid="val-insp.cattle"]').textContent, '1 мес.'));
+  const r = IM.setParam('insp.flat', { v: 9, from: TODAY_, why: 'x' });
+  ck('ИМ-111: 9 мес. реже нормы — отказ называет п. 27', !r.ok && has(r.why, 'реже нормы') && has(r.why, 'п. 27'), r);
+  ck('ИМ-111: исключение без основания и прошлой датой — отказ', !IM.setParam('insp.flat', { v: 2, from: TODAY_, why: '' }).ok && !IM.setParam('insp.flat', { v: 2, from: '2028-03-01', why: 'x' }).ok);
+  ck('ИМ-111: новый вид — 2 мес. с 15.03.2028 по записи', IM.setParam('insp.flat', { v: 2, from: TODAY_, why: 'квартиры пустуют' }).ok && IM.inspThr('flat') === 2 && IM.inspThr('flat', '2028-03-14') === 6);
+  ck('ИМ-111: снять исключение — пустым значением; второй раз то же значение отказано', IM.setParam('insp.flat', { v: '', from: '2028-03-20', why: 'x' }).ok && IM.inspThr('flat', '2028-03-20') === 6 && !IM.setParam('insp.flat', { v: '', from: '2028-03-21', why: 'x' }).ok);
+  IM.go('settings');
+  const hist = doc.querySelector('[data-testid="hist-insp.flat"]');
+  ck('ИМ-111: у строки история с основанием, снятие названо «умолчание»', !!hist && has(hist.textContent, 'квартиры пустуют') && has(hist.textContent, 'умолчание'), hist && hist.textContent);
+  /* НЗ-2 для осмотра: ИО-1 — квартира, осмотр 20.05.2027, повод появился 21.11.2027 */
+  ck('НЗ-2: ИО-1 (осмотр 20.05.2027, порог 6 мес.) остаётся, текст называет 6 мес.', has((trigOn(IM, TODAY_, 'pk-im-no-inspection', 'ИО-1')[0] || {}).text, '6 мес.'));
+  const c = IM.addIntro({ name: 'КРС', kind: 'cattle', value: 400000, transfer: '2027-06-01', obligor: 'o_lx', doc: 'В' }, 'spec');
+  IM.addFact(c.id, 'inspection', { date: '2028-03-10', who: 'А', cond: 'норма', doc: 'Акт' }, 'spec');
+  ck('стенд: скот с осмотром 10.03.2028 — порог 1 мес.: 11.04.2028', (() => { const hit = trigOn(IM, '2028-04-11', 'pk-im-no-inspection', c.id).length === 1; return hit && !trigOn(IM, '2028-04-10', 'pk-im-no-inspection', c.id).length; })());
+  ck('ИМ-111: скот 1 → 3 мес. с 15.03.2028: повод 11.06.2028, текст называет 3 мес.', IM.setParam('insp.cattle', { v: 3, from: TODAY_, why: 'x' }).ok && !trigOn(IM, '2028-06-10', 'pk-im-no-inspection', c.id).length && has((trigOn(IM, '2028-06-11', 'pk-im-no-inspection', c.id)[0] || {}).text, '3 мес.'));
+});
+
+group('Волна 5 · ИМ-104: срок, записанный в дело, — значение на дату события', ({ IM }) => {
+  IM.setRole('head');
+  const dl0 = IM.offer('П-2').deadline;
+  ck('ИМ-104: срок ответа должника 30 → 45 к.д. с 15.03.2028', IM.setParam('deadline.debtor', { v: 45, from: TODAY_, why: 'x' }).ok);
+  ck('ИМ-104: зарегистрированное предложение срок не меняет', IM.offer('П-2').deadline === dl0);
+  const a = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'Т-2', docDate: '2028-03-14' }, 'spec');
+  const b = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'Т-3', docDate: '2028-03-15' }, 'spec');
+  ck('ИМ-104: документ 14.03.2028 — 30 к.д. (13.04.2028), подпись прежняя; документ 15.03.2028 — 45 к.д. (29.04.2028)', IM.offer(a.id).deadline === '2028-04-13' && has(IM.offer(a.id).deadlineSrc, '30 к.д.') && IM.offer(b.id).deadline === '2028-04-29' && has(IM.offer(b.id).deadlineSrc, '45 к.д.'), [IM.offer(a.id).deadline, IM.offer(b.id).deadline]);
+  const rel = IM.paramRelease('topupTerm.debtor', { v: 45, from: '2028-04-01', act: 'Инструкция, новая редакция, п. 46', why: 'новая редакция' });
+  ck('ИМ-104, НЗ-4: выпуск срока выплаты: поступление до даты — 30 дней, с даты — 45 дней', rel.ok && IM.topupTerm('debtor', '2028-03-31') === 30 && IM.topupTerm('debtor', '2028-04-01') === 45);
+  const rr = IM.paramRelease('instalment.rate', { v: 4, from: '2028-04-01', act: 'Инструкция, новая редакция, п. 58', why: 'новая редакция' });
+  ck('НЗ-4: выпуск ставки: старая запись для прошлых дел', rr.ok && IM.valOn(IM.SETTINGS.instalment.rate, '2028-03-31') === 3 && IM.valOn(IM.SETTINGS.instalment.rate, '2028-04-01') === 4);
+});
+
+group('Волна 5 · после ревью: срок доплаты в карточке, порог осмотра в тексте, отказ без следа', ({ IM, doc }) => {
+  const term = () => { IM.openObject('ИО-1'); return doc.getElementById('panel').textContent; };
+  ck('ИМ-104: срок доплаты в карточке ИО-1 — 30 дней', has(term(), 'доля каждой оплаты в 30 дней'));
+  IM.paramRelease('topupTerm.pssi', { v: 45, from: '2028-04-01', act: 'Инструкция, новая редакция, п. 46', why: 'новая редакция' });
+  IM.setAsOf('10.04.2028');
+  ck('ИМ-104: на 10.04.2028 срок новой редакции 45 дней: карточка не приписывает его строке с поступлением по 30 дням', has(term(), 'в срок, указанный в строке') && !has(term(), 'в 45 дней'));
+  IM.setAsOf('15.03.2028');
+  IM.setRole('head');
+  const c = IM.addIntro({ name: 'КРС', kind: 'cattle', value: 400000, transfer: '2027-06-01', obligor: 'o_lx', doc: 'В' }, 'spec');
+  IM.addFact(c.id, 'inspection', { date: '2028-01-10', who: 'А', cond: 'норма', doc: 'Акт' }, 'spec');
+  ck('ИМ-118: скот 1 мес., осмотр 10.01.2028 — повод есть', trigOn(IM, TODAY_, 'pk-im-no-inspection', c.id).length === 1 && !has(trigOn(IM, TODAY_, 'pk-im-no-inspection', c.id)[0].text, 'по порогу'));
+  IM.setParam('insp.cattle', { v: 3, from: TODAY_, why: 'проверка' });
+  const t = trigOn(IM, TODAY_, 'pk-im-no-inspection', c.id)[0];
+  ck('ИМ-118: скот 1 → 3 мес. с 15.03.2028: повод остаётся, текст называет 3 мес. и «по порогу 1 мес.»', !!t && has(t.text, 'порог вида «Скот» 3 мес.') && has(t.text, 'по порогу 1 мес.'), t);
+  const f = IM.addIntro({ name: 'Склад', kind: 'nonres', value: 900000, transfer: '2027-06-01', obligor: 'o_lx', doc: 'В' }, 'spec');
+  IM.addFact(f.id, 'inspection', { date: '2028-03-01', who: 'А', cond: 'норма', doc: 'Акт' }, 'spec');
+  IM.setParam('insp.nonres', { v: 1, from: TODAY_, why: 'проверка' });
+  const nr = trigOn(IM, '2028-04-02', 'pk-im-no-inspection', f.id)[0];
+  ck('ИМ-118: исключение 1 мес. при умолчании 6: у повода по исключению лишней подписи нет', !!nr && has(nr.text, 'порог вида') && has(nr.text, '1 мес.') && !has(nr.text, 'по порогу'), nr);
+  IM.setParam('insp.flat', { v: 9, from: TODAY_, why: 'x' }); IM.uiParam('insp.grain'); const opened = !!IM.S.form; IM.closeForm();
+  ck('ИМ-111: отказ и открытие окна строку вида не создают', opened && !IM.SETTINGS.inspByKind.flat && !IM.SETTINGS.inspByKind.grain);
+  ck('ИМ-119: выпуск у строки без числа и нецелые дни — отказ; ставка может быть дробной', !IM.paramRelease('thr.offer-overdue', { v: 3, from: '2028-04-01', act: 'А', why: 'x' }).ok && !IM.paramRelease('thr.guard', { v: 1.5, from: '2028-04-01', act: 'А', why: 'x' }).ok && IM.paramRelease('instalment.rate', { v: 3.5, from: '2028-04-01', act: 'А', why: 'x' }).ok);
+});
+
+group('Волна 5 · ИМ-112: «Сколько без куратора» — поле и роль', ({ IM, doc }) => {
+  IM.setRole('head'); IM.go('settings');
+  const fb = doc.querySelector('[data-testid=fallback-limits]');
+  ck('ИМ-112: поля у заведующего, подпись «решение проекта», записи и кнопки нет', fb.querySelectorAll('input').length === 2 && fb.querySelectorAll('button').length === 0 && has(fb.textContent, 'решение проекта') && !IM.SETTINGS.fallback.offer.recs);
+  ck('ИМ-112: фразы о справочнике кураторства нет', !has(doc.getElementById('panel').textContent, 'правятся в справочнике'));
+  ck('ИМ-112: подъём снимает подсветку сразу: задания нет, это только реестр', IM.curatorOf('П-9').over && IM.setFb('offer', 30).ok && !IM.curatorOf('П-9').over);
+});
+
+group('Волна 5 · интерфейс настроек чистый', ({ IM, doc }) => {
+  IM.setRole('head'); IM.go('settings');
+  IM.setParam('thr.claim-open', { v: 90, from: '2028-04-01', why: 'пример основания' });
+  IM.go('settings');
+  const html = doc.getElementById('panel').innerHTML;
+  ck('нет кодов pk-im-, номеров решений и ADR', !/pk-im|ИМ-\d|НЗ-\d|ЗЛН-\d|ADR/.test(html), (html.match(/.{20}(pk-im|ИМ-\d|НЗ-\d|ADR).{10}/) || [])[0]);
+  ck('заголовок столбца «Откуда число» и «Действует с» во всех таблицах значений', ['thr-table', 'insp-by-kind', 'deadline-term', 'topup-term', 'settings-instalment', 'settings-realtor'].every(id => { const t = doc.querySelector('[data-testid=' + id + '] thead').textContent; return has(t, 'Откуда число') && has(t, 'Действует с'); }));
+  ck('слова «Источник значения» и выбора источника нет', !has(doc.getElementById('panel').textContent, 'Источник значения') && doc.querySelectorAll('#panel select').length === 0);
 });
 
 report();

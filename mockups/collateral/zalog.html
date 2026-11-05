@@ -98,8 +98,8 @@
        дополняется основаниями — повторно не накладывается. ОТСУТСТВИЕ запрета при живом
        залоге — ДЕФЕКТ ОФОРМЛЕНИЯ (триггер), НАЛИЧИЕ с отметкой — признак защищённости.
        Снятие ПОД ГЕЙТОМ: пока по предмету живы доли, снять нельзя; при полном погашении —
-       реквизит акта сверки (releaseValid, ПБК п.2.2). Срок наложения — BAN_DEADLINE_DAYS
-       (внутренний параметр, в ПОЛ/Прил.1-Прил.3 отсутствует), орган — свой на каждый вид залога.
+       реквизит акта сверки (releaseValid, ПБК п.2.2). Срок наложения — PARAMS.banDays
+       (в ПОЛ/Прил.1-Прил.3 отсутствует), орган — свой на каждый вид залога.
        Сторонний арест (суд, налоговая) в модуле НЕ моделируется.
      • плановый контроль (обследование / переоценка) — ВЫЧИСЛЯЕМЫЙ ОВЕРЛЕЙ по датам,
        не статус. Просрочка контроля — расчёт от сегодняшней даты.
@@ -127,7 +127,7 @@
     Р-2  СТОП-ЛИСТ §3.5 (PROHIBITED_KINDS): «Скот/поголовье» удалён из видов; «Товары в
          обороте» требуют подтверждения непопадания под §3.5; стоп-лист виден в справочнике.
     Р-3  ПЕРИОДИЧНОСТЬ ОБСЛЕДОВАНИЯ по матрице «группа платёжеспособности × движимость»
-         (Прил.2 §2.3, SURVEY_MATRIX); группа — worst-of по заёмщикам; банкрот → «по договору
+         (Прил.2 §2.3, PARAMS.surveyMatrix); группа — worst-of по заёмщикам; банкрот → «по договору
          со спецадминистратором», авто-просрочка не поднимается. Интервал ПЕРЕОЦЕНКИ — вне положения.
     Р-4  СОГЛАСИЕ на действия БЕЗ снятия запрета (§8, Прил.3 §4): it.ban не трогается; при
          необходимости — триггер переоценки за счёт залогодателя.
@@ -205,7 +205,7 @@
   «Документы» · «История»; «Документы» больше не значит «гейты»):
     Р-46 СТРАХОВАНИЕ ШИРЕ ТЕХНИКИ (§3.4): ось INSURANCE_KINDS вместо isTech — недвижимость,
          имущественный комплекс и ТМЦ уходили в залог без полиса и без сигнала.
-    Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ (APPRAISAL_VALID_MONTHS = 12): apprValidTill/apprStale;
+    Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ (PARAMS.appraisal, 12 мес.): apprValidTill/apprStale;
          устаревший отчёт выглядел действующим. Новая переоценка кладёт отчёт в комплект.
     Р-48 ОЦЕНЩИК КАК РЕКВИЗИТ (не только номер отчёта): appraiser + apprLicense на карточке,
          в форме переоценки (обязателен) и колонкой в журнале переоценок.
@@ -467,6 +467,16 @@
       гарантии). Нечего делить — нечего показывать процентом. Поэтому coverage() данные
       поручительства не читает вовсе — регресс-инвариант Р-24; слой параллельный,
       показывается отдельной строкой «Поручительство (вне индекса обеспеченности)».
+
+  НАСТРОЙКИ ЗАДАНИЙ (волна 16, ЗЛН-1…ЗЛН-15; НЗ-2, НЗ-3, НЗ-4, НЗ-10, НЗ-17, НЗ-Д4; ADR-0333):
+    • Числа, от которых зависит повод, — записи PARAMS: значение, дата начала, основание, акт или приказ.
+      Откуда число выводится из записи (paramSrc). Новое значение действует только на новые поводы (paramDue).
+    • Поручительство, запрет, комитет, годность отчёта, интервалы переоценки: новое значение окном
+      с датой и основанием, прошлая дата запрещена, история рядом со строкой (setParam); запись, которая
+      ещё не вступила, отменяется и остаётся в истории (cancelParam).
+    • Пороги обеспеченности, матрица обследования, возраст техники, износ, возраст поручителя — норма,
+      на чтение с актом и пунктом; новая редакция идёт выпуском (paramRelease), значение проверяется.
+    • Правит роль «Администратор справочников»; остальным экран на чтение.
 -->
 <style>
 :root{
@@ -1218,6 +1228,7 @@ table.grid tfoot .sum-ccy{ margin-left:14px; font-variant-numeric:tabular-nums; 
               <option>Заведующий отделом залогового обеспечения</option>
               <option>Начальник Департамента администрирования кредитов</option>
               <option>Комитет по администрированию бюджетных кредитов</option>
+              <option>Администратор справочников</option>
               <option>Наблюдатель</option>
             </select>
             <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
@@ -1362,7 +1373,7 @@ table.grid tfoot .sum-ccy{ margin-left:14px; font-variant-numeric:tabular-nums; 
       <!-- ============ REFBOOK VIEW (регламентные параметры обеспечения) ============ -->
       <section class="view" id="view-refbook">
         <div class="content" style="overflow:auto;">
-          <div id="refbookPanel" style="padding:18px 24px 24px;max-width:1100px;"></div>
+          <div id="refbookPanel" style="padding:18px 24px 24px;max-width:1500px;"></div>
         </div>
         <div class="footer" id="refbookFooter"></div>
       </section>
@@ -1438,6 +1449,7 @@ const STAND_DATE_SEED = TODAY;
 const d2n = s => { const [d,m,y] = String(s).split('.').map(Number); return new Date(y, m-1, d); };
 const n2d = dt => `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`;
 const addMonths = (s,m) => { const dt = d2n(s); dt.setMonth(dt.getMonth()+m); return n2d(dt); };
+const addCalDays = (s,n) => { const dt = d2n(s); dt.setDate(dt.getDate()+n); return n2d(dt); };
 const isOverdue = s => s && d2n(s) < d2n(TODAY);
 const daysLeft  = s => Math.round((d2n(s) - d2n(TODAY)) / 86400000);
 const isDate = s => /^\d{2}\.\d{2}\.\d{4}$/.test(String(s||'').trim());
@@ -1475,10 +1487,10 @@ const fmtRaw = n => Number(n||0).toFixed(2).replace('.',',');
    movable — движимое имущество (техника, ТМЦ). На этот признак смотрят: гейт возраста и
             страховки техники (Р-7), матрица периодичности обследования (Р-3), стоп-лист §3.5 (Р-2).
    liquidityRank — ранг ликвидности для гейта замены (Р-6, §8): замена ликвидного залога на
-            менее ликвидный не допускается. Числовая шкала, правится администратором в справочнике.
-   Периодичность ОБСЛЕДОВАНИЯ здесь НЕ хранится — она в SURVEY_MATRIX (группа
-   платёжеспособности × движимость, Прил.2 §2.3). reval — интервал ПЕРЕОЦЕНКИ —
-   положением НЕ регламентирован: это внутренний параметр (Р-3 п.5), не смешивать с обследованием.
+            менее ликвидный не допускается. Числовая шкала, на экране на чтение, смена выпуском.
+   Периодичность ОБСЛЕДОВАНИЯ здесь НЕ хранится — она в PARAMS.surveyMatrix (группа
+   платёжеспособности × движимость, Прил.2 §2.3). reval — начальное значение интервала ПЕРЕОЦЕНКИ,
+   дальше он живёт записями PARAMS['reval:…']; положением НЕ регламентирован, не смешивать с обследованием.
    «Кредитный портфель» — ликвидный вид залога в справочнике (liquid:true, Прил.1 §2.3).
    tech — физически изнашиваемая техника (транспорт/оборудование/сельхозтехника): на этот
    признак смотрит гейт формы «Год выпуска»/«Страховой полис» (Р-7, isTech). Он у́же, чем
@@ -1524,7 +1536,6 @@ const PROHIBITED_KINDS = [
    т.к. предмет мог быть принят до Р-18 либо его состояние могло измениться между приёмом
    и регистрацией. Земля с/х назначения и износ ≥ предела — жёсткие отказы без права
    комитета на допуск (committeeCanOverride:false); прочие пункты блокируют без этого поля. */
-let WEAR_LIMIT = 70;
 function stopListCheck(f){
   /* КП-4 (ADR-0008, §4.1): вещь, уже обременённая залогом в пользу третьего лица, в залог
      НЕ ПРИНИМАЕТСЯ — Холдинг всегда залогодержатель первой очереди. Раньше такое обременение
@@ -1535,8 +1546,8 @@ function stopListCheck(f){
     return { block:true, committeeCanOverride:false, msg:'Приём отклонён (§4.1, Закон КР «О залоге»): предмет обременён залогом в пользу третьего лица. Холдинг принимает имущество только в первую очередь — обременение должно быть снято до приёма.' };
   if (f.landPurpose === 'сельскохозяйственного назначения')
     return { block:true, committeeCanOverride:false, msg:'Приём отклонён (Прил.1 §3.5, Закон КР «О залоге» п.3 ст.6): земли сельскохозяйственного назначения в залог не принимаются.' };
-  if (typeof f.wearPct === 'number' && f.wearPct >= WEAR_LIMIT)
-    return { block:true, committeeCanOverride:false, msg:`Приём отклонён (Прил.1 §3.5): физический износ ${f.wearPct}% при пределе ${WEAR_LIMIT}%.` };
+  if (typeof f.wearPct === 'number' && f.wearPct >= paramOn('wear'))
+    return { block:true, committeeCanOverride:false, msg:`Приём отклонён (Прил.1 §3.5): физический износ ${f.wearPct}% при пределе ${paramOn('wear')}%.` };
   if (f.morallyObsolete === true) return { block:true, msg:'Приём отклонён (Прил.1 §3.5): морально устаревшее оборудование.' };
   if (f.circulable === false) return { block:true, msg:'Приём отклонён (Прил.1 §3.5): имущество изъято/ограничено в обороте.' };
   // ТМЦ — три флага; каждый снятый блокирует с цитатой пункта
@@ -1582,12 +1593,7 @@ function leaseCoversCredit(item, credit){
 }
 
 /* ПОРОГИ ОБЕСПЕЧЕННОСТИ (Прил.1 §2.3–2.4). Порог — ФУНКЦИЯ состава обеспечения кредита
-   (requiredCover), а не единая константа. Значения правятся администратором в справочнике. */
-let COVER_LIQUID     = 1.2;  // ликвидные виды (недвижимость, кредитный портфель) — ≥ 120%
-let COVER_MOVABLE    = 1.5;  // движимая неликвидная техника/оборудование/ТМЦ — ≥ 150%
-let LIQUID_SHARE_MIN = 0.8;  // при движимом неликвидном залоге доля ликвида ≥ 80% суммы кредита
-let COVER_GUARANTEE    = 1.0;// Прил.1 §2.3: банковская гарантия в валюте кредита — ≥ 100% (справочник §16, норматив)
-let COVER_GUARANTEE_FX = 1.2;// Прил.1 §2.3: гарантия в валюте ≠ валюте кредита — ≥ 120% (справочник §16, норматив)
+   (requiredCover), а не единая константа. Значения — записи нормы в PARAMS. */
 const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупреждения об истечении гарантии, дней
 
 /* Р-46 СТРАХОВАНИЕ — не только техника. §3.4 требует страхования предмета залога;
@@ -1599,10 +1605,8 @@ const GUAR_WARN_DAYS = 60;     // Р-11: горизонт предупрежде
 let INSURANCE_KINDS = ['Транспортное средство','Оборудование','Сельхозтехника',
   'Недвижимое имущество','Имущественный комплекс','Незавершённое строительство','Товары в обороте'];
 
-/* Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ. ВНУТРЕННИЙ параметр (нормативно срок не задан):
-   после него оценочная стоимость считается неактуальной — тот же горизонт, что у
-   REQ_DOCS['залог'] карточки заёмщика (12 мес.), чтобы зеркало и источник не расходились. */
-let APPRAISAL_VALID_MONTHS = 12;
+/* Р-47 СРОК ГОДНОСТИ ОТЧЁТА ОБ ОЦЕНКЕ. Запись PARAMS.appraisal (нормативно срок не задан):
+   после него оценочная стоимость считается неактуальной. Карточка заёмщика держит тот же горизонт. */
 
 /* Р-56 ОБЯЗАТЕЛЬНЫЙ КОМПЛЕКТ ДОКУМЕНТОВ ПРЕДМЕТА (досье п.97).
    Раньше вложения были плоским списком «тег + имя файла»: состав комплекта нигде не
@@ -1613,7 +1617,8 @@ let APPRAISAL_VALID_MONTHS = 12;
    validMonths — срок годности документа (отсутствует → бессрочный). */
 const FILE_REQ_COMMON = [
   { t:'Правоустанавливающий документ' },
-  { t:'Отчёт об оценке', validMonths:12 },
+  /* Годность отчёта — запись, а не число в коде: строка комплекта и карточка читают одно значение. */
+  { t:'Отчёт об оценке', param:'appraisal', get validMonths(){ return paramOn('appraisal'); } },
 ];
 const FILE_REQ_BY_KIND = {
   'Недвижимое имущество':        [{ t:'Технический паспорт' }, { t:'Страховой полис', validMonths:12 }],
@@ -1628,14 +1633,11 @@ const FILE_REQ_BY_KIND = {
   'Кредитный портфель':          [{ t:'Реестр уступаемых прав требования' }],
 };
 
-/* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению. Справочный параметр. */
-const TECH_AGE_LIMIT = { 'СНГ':15, 'Дальнее зарубежье':20 };
+/* ТЕХНИКА (Прил.1 §2.5, Р-7): предельный срок эксплуатации по происхождению — записи нормы в PARAMS. */
 const CUR_YEAR = Number(TODAY.slice(6));
-/* Срок наложения запрета на отчуждение после нотариального удостоверения договора.
-   ВНУТРЕННИЙ параметр модуля (в ПОЛ/Прил.1-Прил.3 отсутствует — нормативно срок не задан;
-   администратор правит в справочнике) — до его истечения залог юридически оформлен,
+/* Срок наложения запрета на отчуждение после нотариального удостоверения договора — запись
+   PARAMS.banDays (в ПОЛ/Прил.1-Прил.3 срок не задан). До его истечения залог юридически оформлен,
    но фактически НЕ защищён от продажи залогодателем. */
-let BAN_DEADLINE_DAYS = 5;   // рабочих дней (правится в справочнике)
 /* Р-32: порог предупреждения о резком падении оценочной стоимости при переоценке.
    ВНУТРЕННИЙ параметр (нормативно не задан) — падение оценочной более чем на столько
    процентов относительно предыдущей несторнированной переоценки требует подтверждения в
@@ -1658,7 +1660,7 @@ const organOf = it => (KINDS[it.kind]||{}).organ || '—';
    ПИН одного человека живёт в двух местах и расходится при первой же правке в модуле-владельце.
    solvency — ЗЕРКАЛО событийной ручной оси группы платёжеспособности из модуля
    заёмщика (Прил.2 §2.3). Здесь read-only: залоговый модуль его не редактирует, только
-   читает для расчёта периодичности обследования (SURVEY_MATRIX). Значения:
+   читает для расчёта периодичности обследования (PARAMS.surveyMatrix). Значения:
    'Платёжеспособные' | 'Неплатёжеспособные' | 'Предприятия-банкроты'.
    type / birthDate / contacts / address — ПАСПОРТНАЯ часть того же зеркала (ПР-1),
    тоже read-only. Это единственные факты о лице, которые допуск §9.1/§9.2 читает
@@ -1690,15 +1692,71 @@ const solvencyOf = inn => (CLIENTS.find(c=>c.inn===inn)||{}).solvency || null;
 const subject = inn => CLIENTS.find(c=>c.inn===inn) || null;
 const subjectIsPerson = inn => (subject(inn)||{}).type === 'физическое';
 
-/* МАТРИЦА ПЕРИОДИЧНОСТИ ОБСЛЕДОВАНИЯ (Прил.2 §2.3) — «группа платёжеспособности ×
-   движимое/недвижимое», в месяцах. Для банкротов интервал не задан числом:
-   обследование «по договору со спецадминистратором». Правится администратором в справочнике
-   ВМЕСТО прежних KINDS[kind].survey. */
-const SURVEY_MATRIX = {
-  'Платёжеспособные':     { immovable:36, movable:24 },
-  'Неплатёжеспособные':   { immovable:24, movable:12 },
-  'Предприятия-банкроты': { immovable:null, movable:null },   // по договору со спецадминистратором
+/* ЗНАЧЕНИЯ С ДАТОЙ. Число, от которого зависит, появится ли повод и к какому сроку, хранится
+   записями { from, v, why, by, act | order }; прежние записи не стираются.
+   ОТКУДА ЧИСЛО задаёт запись: act — норма (акт и пункт), order — внутренний акт (приказ Фонда),
+   ни того ни другого — решение проекта (paramSrc). Вручную подпись не выбирается.
+   ЧИСЛО НОРМЫ на экране не правится: новая редакция — новая запись через выпуск (paramRelease),
+   старая остаётся для прошлых дел. Остальное правит администратор справочников: новое значение,
+   дата начала не раньше сегодняшней, основание (setParam).
+   НОВОЕ ЗНАЧЕНИЕ ДЕЙСТВУЕТ ТОЛЬКО НА НОВЫЕ ПОВОДЫ. Точка отсчёта известна при появлении (запрет,
+   комитет, договор поручительства) — значение на эту дату, paramOn(key, дата). Повод наступает,
+   когда дата дойдёт (поручительство, переоценка, отчёт, обследование) — paramDue.
+   Первая запись действует и на даты раньше себя: более ранних значений нет. */
+const POL22 = 'Положение о работе с залогом № 22';
+const projRecs = v => [{ from:'01.01.2026', v, why:'ввод параметров', by:'' }];
+const normRecs = (v, point) => [{ from:'12.12.2025', v, why:'действующая редакция акта', by:'', act:`${POL22}, ${point}` }];
+const asPct = v => Math.round(v*100)+' %';
+const pct0 = v => Math.round(v*100)+'%';
+const PARAMS = {
+  surWarn:   { name:'Договор поручительства: предупреждать об окончании срока за', unit:'к.д.', recs:projRecs(60) },
+  banDays:   { name:'Запрет на отчуждение: срок наложения после удостоверения договора', unit:'р.д.', recs:projRecs(5) },
+  committee: { name:'Договор на комитете: срок решения', unit:'дн.', recs:projRecs(10) },
+  appraisal: { name:'Отчёт об оценке годен', unit:'мес.', recs:projRecs(12) },
+  coverLiquid:      { name:'Ликвидный залог (недвижимость, кредитный портфель)', fmt:asPct, recs:normRecs(1.2, 'Прил. 1 §2.3–2.4') },
+  coverMovable:     { name:'Движимый неликвидный залог (техника, ТМЦ)', fmt:asPct, recs:normRecs(1.5, 'Прил. 1 §2.3–2.4') },
+  liquidShare:      { name:'Минимальная доля ликвида при движимом неликвидном залоге', fmt:asPct, recs:normRecs(0.8, 'Прил. 1 §2.3–2.4') },
+  coverGuarantee:   { name:'Банковская гарантия в валюте кредита', fmt:asPct, recs:normRecs(1.0, 'Прил. 1 §2.3') },
+  coverGuaranteeFx: { name:'Банковская гарантия в иной валюте', fmt:asPct, recs:normRecs(1.2, 'Прил. 1 §2.3') },
+  /* Матрица периодичности обследования — «группа платёжеспособности × движимое/недвижимое», месяцы.
+     Для банкротов интервал числом не задан: обследование «по договору со спецадминистратором». */
+  surveyMatrix: { name:'Периодичность обследования', recs:normRecs({
+      'Платёжеспособные':     { immovable:36, movable:24 },
+      'Неплатёжеспособные':   { immovable:24, movable:12 },
+      'Предприятия-банкроты': { immovable:null, movable:null },
+    }, 'Прил. 2 §2.3'),
+    fmt:m => ['Платёжеспособные','Неплатёжеспособные'].flatMap(g => [m[g].immovable, m[g].movable]).join('/')+' мес.' },
+  'techAge:СНГ':               { name:'Предельный срок эксплуатации техники: СНГ', unit:'лет', recs:normRecs(15, 'Прил. 1 §2.5') },
+  'techAge:Дальнее зарубежье': { name:'Предельный срок эксплуатации техники: дальнее зарубежье', unit:'лет', recs:normRecs(20, 'Прил. 1 §2.5') },
+  wear:      { name:'Предел физического износа техники', fmt:v => v+' %', recs:normRecs(70, 'Прил. 1 §3.5') },
+  surAgeMin: { name:'Минимальный возраст поручителя — физлица', unit:'лет', recs:normRecs(18, '§9.1') },
+  surAgeMax: { name:'Максимальный возраст поручителя — физлица', unit:'лет', recs:normRecs(70, '§9.1') },
 };
+/* Интервал переоценки у вида — такая же запись; в KINDS остаётся только начальное значение до этой строки. */
+Object.keys(KINDS).forEach(k => {
+  PARAMS['reval:'+k] = { name:'Переоценка: '+k, unit:'мес.', recs:projRecs(KINDS[k].reval) };
+  delete KINDS[k].reval;
+});
+const recOn = (key, date) => { const d = d2n(date || TODAY), recs = PARAMS[key].recs;
+  return recs.reduce((r, x) => d2n(x.from) <= d ? x : r, recs[0]); };
+const paramOn = (key, date) => recOn(key, date).v;
+const paramSrc = r => r.act ? 'норма · '+r.act : r.order ? 'внутренний акт · '+r.order : 'решение проекта';
+/* Когда наступает повод, который наступает с датой. dueOf(значение) — дата по этому значению.
+   Запись ведёт счёт в своих границах: дата раньше начала записи означает, что условие выполнилось
+   в день её начала; дата позже конца записи — считать по следующей. Так наступивший по прежнему
+   значению повод остаётся, а ненаступивший считается по новому. */
+function paramDueRec(key, dueOf){
+  const recs = PARAMS[key].recs;
+  for(let i = 0; i < recs.length; i++){
+    const due = dueOf(recs[i].v);
+    if(due == null) continue;
+    const at = i && d2n(due) < d2n(recs[i].from) ? recs[i].from : due;
+    if(i === recs.length-1 || d2n(at) < d2n(recs[i+1].from)) return { at, rec:recs[i] };
+  }
+  return null;
+}
+const paramDue = (key, dueOf) => { const r = paramDueRec(key, dueOf); return r ? r.at : null; };
+const techAgeLim = origin => paramOn(PARAMS['techAge:'+origin] ? 'techAge:'+origin : 'techAge:СНГ');
 const clientName = inn => (CLIENTS.find(c=>c.inn===inn)||{}).name || inn;
 
 /* Кредиты — читаются из кредитного модуля (здесь: срез, нужный залогу).
@@ -1737,7 +1795,7 @@ const CREDITS = [
   /* Р-10/Р-11 demo (доработано §17 п.1): кредит обеспечен ТОЛЬКО банковской гарантией (иная
      форма, В-1=А: гарантия живёт на кредите через otherSecurity, не залоговым договором) —
      обеспеченность целиком из idxGuar. Гарантия в ИНОЙ валюте (USD), чем кредит (KGS) → курсовой порог 120%
-     (guaranteeReq/COVER_GUARANTEE_FX, Прил.1 §2.3): 132000 ÷ (200000×1.2) = 0,55 < 1 —
+     (guaranteeReq, PARAMS.coverGuaranteeFx, Прил.1 §2.3): 132000 ÷ (200000×1.2) = 0,55 < 1 —
      реальный расчёт даёт НЕ обеспечен (не mirror-хак), поднимается триггер «Недостаточность
      обеспечения». */
   { id:'К-95', num:'Дог. №95 от 01.06.2026', inn:'01705199200338', amount:200000, currency:'KGS', status:'Действующий', overdue:false, riskCategory:'Низкий',
@@ -2330,7 +2388,7 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   // Р-10/Р-11 (§17 п.1): кредит К-95 обеспечен ТОЛЬКО банковской гарантией (иная форма).
   // Р-28 (В-1=А): залоговый договор без предметов не заводится — гарантия живёт на кредите
   // (К-95.otherSecurity), залогового договора нет вовсе. Гарантия в валюте USD при кредите в
-  // KGS → курсовой порог 120% (COVER_GUARANTEE_FX, Прил.1 §2.3) даёт индекс ≈0,55 — обеспеченность
+  // KGS → курсовой порог 120% (PARAMS.coverGuaranteeFx, Прил.1 §2.3) даёт индекс ≈0,55 — обеспеченность
   // НЕ закрыта; triggers() сканирует такие кредиты со стороны кредита и поднимает триггер
   // «Недостаточность обеспечения» без несуществующего договора.
 
@@ -2577,7 +2635,7 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
   ITEMS.push(replItem);
 
   // §17 п.8 (Р-17): трактор 2008 года, происхождение СНГ → возраст 18 лет (CUR_YEAR=2026)
-  // превышает лимит 15 лет для СНГ (TECH_AGE_LIMIT). securityRole:'основной' по умолчанию →
+  // превышает лимит 15 лет для СНГ (PARAMS['techAge:СНГ']). securityRole:'основной' по умолчанию →
   // techAgeCheck НЕ блокирует, уходит на решение комитета (needCommittee=true); при смене
   // роли на «дополнительный» в форме редактирования — жёсткий блок без права комитета на допуск.
   const tractorItem = normalizeItem({ id:'П-020', kind:'Сельхозтехника', name:'Трактор МТЗ-82.1', pledger:'22105198800047',
@@ -2600,7 +2658,7 @@ const contract = id => CONTRACTS.find(c=>c.id===id);
     revals:[{date:'10.07.2026', appraised:50000, report:'ОЦ-2026/105', note:'первичная оценка'}], surveys:[],
     history:[{when:'10.07.2026 10:00', what:'Попытка приёма отклонена стоп-листом: земли сельскохозяйственного назначения (Прил.1 §3.5, Закон КР «О залоге» п.3 ст.6)', who:'Залоговый специалист'}] });
   ITEMS.push(landItem);
-  // §17 п.9 (Р-18): оборудование с физическим износом 78% ≥ предела WEAR_LIMIT=70% —
+  // §17 п.9 (Р-18): оборудование с физическим износом 78% ≥ предела PARAMS.wear = 70% —
   // отказ по стоп-листу (Прил.1 §3.5), также без права комитета на допуск.
   const wornItem = normalizeItem({ id:'П-022', kind:'Оборудование', name:'Линия фасовки (износ 78%)', pledger:'22105198800047',
     pledgerType:'Прочее ЮЛ', ident:'Инв. № ОБ-9012', appraised:35000, apprDate:'10.07.2026', apprReport:'ОЦ-2026/106',
@@ -3111,12 +3169,6 @@ CREDITS.push({ id:'К-105', num:'Дог. №105 от 01.07.2026', inn:'203081977
    одна: ДОГОВОР ПОРУЧИТЕЛЬСТВА (ДП-NNN) — обеспечительный договор (ADR-0005) и
    одновременно ребро M:N «лицо × кредит».
    ============================================================ */
-/* Регламентные параметры поручительства (правятся в справочнике «Регламентные параметры
-   обеспечения»). Возрастной диапазон §9.1 был зашит числами 18/70 в теле гейта. */
-let SUR_AGE_MIN = 18;              // норматив §9.1
-let SUR_AGE_MAX = 70;              // норматив §9.1
-let SUR_EXPIRY_WARN_DAYS = 60;     // внутренний: за сколько дней до истечения срока поднимать триггер
-
 /* УДАЛЁННЫЙ РЕЕСТР ПОРУЧИТЕЛЕЙ (ПР-1). Здесь стоял GUARANTORS — ПРЧ-001…ПРЧ-005 со своими
    ФИО, ПИН, датой рождения, контактами и адресом. Это был ВТОРОЙ ЭКЗЕМПЛЯР субъекта: те же
    лица уже описаны в CLIENTS, и Осмонов Б.Т. существовал в файле дважды, с двумя ПИН,
@@ -3354,16 +3406,17 @@ function suretyGates(s){
   }
   const person = subjectIsPerson(s.guarantor);
   const age = person ? ageAt(subj.birthDate, s.date) : null;
+  const ageMin = paramOn('surAgeMin', isDate(s.date) ? s.date : TODAY), ageMax = paramOn('surAgeMax', isDate(s.date) ? s.date : TODAY);
   const gfh = gfhOverdueOf(s.guarantor);
   const na = (cond, why) => ({ ok:true, na:true, result:'неприменимо', basis:why });
   const rows = [];
   rows.push(!person
     ? { ...D[0], ...na(true, 'поручитель — юридическое лицо, возрастной ценз §9.1 к нему не применяется') }
-    : { ...D[0], ok: age !== null && age >= SUR_AGE_MIN && age <= SUR_AGE_MAX, na:false,
+    : { ...D[0], ok: age !== null && age >= ageMin && age <= ageMax, na:false,
         result: age === null ? 'не пройден: дата рождения субъекта не заполнена в реестре лиц'
-          : (age >= SUR_AGE_MIN && age <= SUR_AGE_MAX ? `пройден — ${age} ${plural(age,'год','года','лет')} на дату договора`
-             : `не пройден: ${age} ${plural(age,'год','года','лет')} на дату договора при диапазоне ${SUR_AGE_MIN}–${SUR_AGE_MAX}`),
-        basis: `возраст считается НА ДАТУ ДОГОВОРА (${s.date}), а не на сегодня: допуск — снимок на момент заключения (ПР-2). Диапазон правится в справочнике «Регламентные параметры обеспечения»` });
+          : (age >= ageMin && age <= ageMax ? `пройден — ${age} ${plural(age,'год','года','лет')} на дату договора`
+             : `не пройден: ${age} ${plural(age,'год','года','лет')} на дату договора при диапазоне ${ageMin}–${ageMax}`),
+        basis: `возраст считается НА ДАТУ ДОГОВОРА (${s.date}), а не на сегодня: допуск — снимок на момент заключения. Диапазон задаёт норма, он показан в «Регламентных параметрах обеспечения»` });
   rows.push(!person
     ? { ...D[1], ...na(true, 'подтверждение дохода §9.1 — требование к физическому лицу') }
     : { ...D[1], ok: docFilled(s.docs.income), na:false,
@@ -3408,7 +3461,8 @@ function suretyTerm(s){
   if(!s.till) return { state:'без срока', days:null, label:'срок не указан' };
   const d = daysLeft(s.till);
   if(d < 0)  return { state:'истёк',    days:d, label:`истёк ${Math.abs(d)} ${plural(Math.abs(d),'день','дня','дней')} назад` };
-  if(d <= SUR_EXPIRY_WARN_DAYS) return { state:'истекает', days:d, label:`истекает через ${d} ${plural(d,'день','дня','дней')}` };
+  const warnFrom = paramDue('surWarn', v => addCalDays(s.till, -v));
+  if(d2n(warnFrom) <= d2n(TODAY)) return { state:'истекает', days:d, warnFrom, label:`истекает через ${d} ${plural(d,'день','дня','дней')}` };
   return { state:'действует', days:d, label:`до ${s.till}` };
 }
 /* Четыре основания прекращения. `need(s)` — предусловие, которое модуль может проверить;
@@ -3549,18 +3603,19 @@ function requiredCover(creditId, cs){
       + (cr.kmDecision.num || '—') + ' от ' + (cr.kmDecision.date || '—') + ' (Прил.1 §2.6)' };
   const hasMovableIlliquid = creditItems(cs, creditId).some(it => isMovable(it) && !isLiquid(it));
   return hasMovableIlliquid
-    ? { req: COVER_MOVABLE, source: 'Прил.1 §2.4 (движимый неликвидный залог)' }
-    : { req: COVER_LIQUID,  source: 'Прил.1 §2.3 (ликвидный залог)' };
+    ? { req: paramOn('coverMovable'), movableIlliquid: true, source: 'Прил.1 §2.4 (движимый неликвидный залог)' }
+    : { req: paramOn('coverLiquid'),  movableIlliquid: false, source: 'Прил.1 §2.3 (ликвидный залог)' };
 }
-/* Доля ЛИКВИДНОГО залога (Р-1 п.3). Применяется только когда порог = 150% (в составе
-   обеспечения есть движимый неликвидный предмет): тогда доля ликвида должна быть ≥ 80%.
+/* Доля ЛИКВИДНОГО залога (Р-1 п.3). Применяется только когда в составе обеспечения есть
+   движимый неликвидный предмет: тогда доля ликвида должна быть не ниже PARAMS.liquidShare.
+   Признак берётся из состава, а не из равенства порогов: новая редакция может их сравнять.
    ADR-0011: база — та же сумма под риском, что у индекса, а не сумма договора. Спека
    (ASUBK-zalog-logika.md, Р-1) формулирует правило как «≥ 80 % суммы кредита», то есть
    доля меряется от ОБЯЗАТЕЛЬСТВА, а не от состава залога; сменив базу обязательства, мы
    обязаны сменить её и здесь — иначе две подпроверки одного гейта считаются от разных
    величин. Как следствие, по мере погашения доля ликвида растёт и гейт §2.4 смягчается —
    ровно то же поведение, что у самого индекса, и по той же причине. */
-const liquidShareApplies = (creditId, cs) => requiredCover(creditId, cs).req === COVER_MOVABLE;
+const liquidShareApplies = (creditId, cs) => Boolean(requiredCover(creditId, cs).movableIlliquid);
 function liquidShare(creditId, cs){
   const base = atRiskOf(credit(creditId));
   const liq = cs.reduce((s,c)=> s + c.allocs.filter(a=>a.credit===creditId)
@@ -3575,7 +3630,7 @@ function guaranteeReq(cr){
   const g = cr && cr.otherSecurity;
   if(!g || g.type !== 'банковская гарантия') return null;
   const cc = cr.currency || 'KGS', gc = g.currency || 'KGS';
-  return gc === cc ? COVER_GUARANTEE : COVER_GUARANTEE_FX;
+  return paramOn(gc === cc ? 'coverGuarantee' : 'coverGuaranteeFx');
 }
 /* Гарантия истекла — сравнение till с TODAY (мокап-дата, см. d2n/TODAY выше).
    Гарантия без till (не заполнена) не считается истёкшей. */
@@ -3644,7 +3699,7 @@ function coverage(cs, creditId){
   const covOk = ratio >= req;
   const liqApplies = liquidShareApplies(creditId, cs);
   const liqShare = liqApplies ? liquidShare(creditId, cs) : null;
-  const liqOk = liqApplies ? liqShare >= LIQUID_SHARE_MIN - 1e-9 : true;
+  const liqOk = liqApplies ? liqShare >= paramOn('liquidShare') - 1e-9 : true;
   const secPledge = sum;
   const idxPledge = secPledge / (base * req);
   let idxGuar = 0, gReq = null;
@@ -3778,7 +3833,7 @@ function contractGates(c){
         : (adm.valid ? `недообеспечение ДОПУЩЕНО комитетом (${pct(c.undercovered.ratio)} при пороге ${pct(c.undercovered.req)}, ${c.undercovered.date})`
         : (adm.has ? `не пройден, допуск комитета НЕДЕЙСТВИТЕЛЕН — ${adm.reason}`
         : `не пройден: ${gate.rows.filter(r=>!r.ok).map(r=>`${r.id} — индекс ${pct(r.index)} при пороге ${pct(r.req)}`).join(', ')}`)),
-      basis: 'индекс обеспеченности ≥ 100% и (если применима) доля ликвида ≥ 80%' },
+      basis: `индекс обеспеченности ≥ 100% и (если применима) доля ликвида ≥ ${pct0(paramOn('liquidShare'))}` },
   ];
   const fails = rows.filter(r => !r.ok);
   return { rows, fails, ok: !fails.length,
@@ -3914,12 +3969,12 @@ const lienCls = s => s==='в залоге' ? 'info' : s==='реализуетс�
    — это и есть дефект оформления (дыра в обеспечении), а не норма.
    ============================================================ */
 /* Дедлайн наложения: нотариальная дата САМОГО РАННЕГО зарегистрированного
-   договора, обременяющего предмет, + BAN_DEADLINE_DAYS рабочих дней. */
+   договора, обременяющего предмет, + значение PARAMS.banDays на эту дату. */
 function banDeadline(it){
   const cs = CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id) && isDate(c.notaryDate));
   if(!cs.length) return null;
   const earliest = cs.map(c=>c.notaryDate).sort((a,b)=>d2n(a)-d2n(b))[0];
-  return addBusinessDays(earliest, BAN_DEADLINE_DAYS);
+  return addBusinessDays(earliest, paramOn('banDays', earliest));
 }
 /* Зарегистрированные договоры, обременяющие предмет — основания запрета. */
 const banContracts = it => CONTRACTS.filter(c => isActive(c) && c.allocs.some(a=>a.item===it.id)).map(c=>c.id);
@@ -3967,7 +4022,7 @@ function banPill(it, short){
    может быть третьим лицом). При нескольких группах — строжайшая (наименьший интервал, worst-of).
    Переоценка (nextReval) — интервал НЕ из положения: внутренний параметр (Р-3 п.5). */
 const movableOf = it => isMovable(it);
-const surveyInterval = (group, movable) => { const r = SURVEY_MATRIX[group]; if(!r) return undefined;
+const surveyInterval = (group, movable, matrix) => { const r = (matrix || paramOn('surveyMatrix'))[group]; if(!r) return undefined;
   return movable ? r.movable : r.immovable; };
 /* Группа платёжеспособности предмета: worst-of по заёмщикам зарегистрированных договоров.
    → { group, interval, bankrupt } либо null, если предмет никого не обеспечивает. */
@@ -3993,8 +4048,8 @@ function borrowerSolvency(it){
 let RISK_TIGHTENING   = { 'Низкий':1.0, 'Средний':0.5, 'Высокий':0.25 }; // ПОР п.10 — ужесточение периодичности по категории риска
 let SURVEY_MIN_MONTHS = 3;                                               // нижний предел интервала после ужесточения
 let RISK_TIGHTENING_APPROVAL = { approved:true, req:'СЗ зампреда №СЗ-2026/07 от 09.07.2026', date:'09.07.2026' }; // ПОР п.10: ужесточение — с согласования зампреда
-function effectiveInterval(group, movable, riskCat, approval){
-  const base = surveyInterval(group, movable);
+function effectiveInterval(group, movable, riskCat, approval, matrix){
+  const base = surveyInterval(group, movable, matrix);
   if (base == null) return undefined;               // банкрот (null) / неизвестная группа (undefined) — оба через `==`
   if (!approval || !approval.approved || !riskCat) return base;
   const k = RISK_TIGHTENING[riskCat] ?? 1.0;
@@ -4019,14 +4074,23 @@ function itemRiskCategory(it){
    Интервал — ДЕЙСТВУЮЩИЙ (effectiveInterval, Р-22/ПОР п.10), не базовый матричный: при
    риске «Низкий» либо отсутствии согласования зампреда effectiveInterval вернёт базовый
    интервал без изменений — поведение для нетронутых ужесточением предметов сохраняется. */
-function nextSurvey(it){
+function surveyRule(it){
   const s = borrowerSolvency(it);
   if(!s || s.interval == null) return null;
-  const eff = effectiveInterval(s.group, movableOf(it), itemRiskCategory(it), RISK_TIGHTENING_APPROVAL);
-  if(eff == null) return null;
-  return addMonths(it.lastSurvey, eff);
+  const risk = itemRiskCategory(it), mv = movableOf(it);
+  const r = paramDueRec('surveyMatrix', m => {
+    const eff = effectiveInterval(s.group, mv, risk, RISK_TIGHTENING_APPROVAL, m);
+    return eff == null ? null : addMonths(it.lastSurvey, eff);
+  });
+  return r && { at:r.at, group:s.group, risk, interval:surveyInterval(s.group, mv, r.rec.v),
+                eff:effectiveInterval(s.group, mv, risk, RISK_TIGHTENING_APPROVAL, r.rec.v) };
 }
-const nextReval = it => addMonths(it.lastReval, (KINDS[it.kind]||{reval:24}).reval);
+function nextSurvey(it){ const r = surveyRule(it); return r ? r.at : null; }
+const revalRule = it => PARAMS['reval:'+it.kind] ? paramDueRec('reval:'+it.kind, v => addMonths(it.lastReval, v)) : null;
+const nextReval = it => { const r = revalRule(it); return r ? r.at : addMonths(it.lastReval, 24); };
+/* Интервал, по которому посчитан план этого предмета; его и показывают рядом с датой. */
+const revalMonths = it => { const r = revalRule(it);
+  return r ? r.rec.v : (PARAMS['reval:'+it.kind] ? paramOn('reval:'+it.kind) : null); };
 /* ПЗ-Д8: ПРОСРОЧКА переоценки существует только у обременённого предмета — та же охрана,
    что у обследования (nextSurvey возвращает null, когда предмет никого не обеспечивает) и
    у соседних триггеров Р-47/Р-48/Р-49. Плановая дата считается всегда и показывается всегда;
@@ -4064,11 +4128,12 @@ const insuredMissing    = it => insuranceRequired(it) && !insuredPresent(it);
 const policyExpired     = it => insuranceRequired(it) && insuredPresent(it)
                                 && Boolean(it.insured.till) && isOverdue(it.insured.till);
 
-/* ---- Р-47 АКТУАЛЬНОСТЬ ОЦЕНКИ. Отчёт об оценке годен APPRAISAL_VALID_MONTHS от даты
+/* ---- Р-47 АКТУАЛЬНОСТЬ ОЦЕНКИ. Отчёт об оценке годен PARAMS.appraisal от даты
    отчёта; просроченный отчёт означает, что залоговая стоимость в расчёте обеспеченности опирается
    на устаревшую оценочную. Это не то же самое, что nextReval (плановый интервал переоценки
    по виду залога): интервал — «когда переоценивать», годность — «можно ли ещё верить цифре». */
-const apprValidTill = it => it.apprDate ? addMonths(it.apprDate, APPRAISAL_VALID_MONTHS) : null;
+const apprRule = it => it.apprDate ? paramDueRec('appraisal', v => addMonths(it.apprDate, v)) : null;
+const apprValidTill = it => { const r = apprRule(it); return r ? r.at : null; };
 const apprStale     = it => { const t = apprValidTill(it); return Boolean(t) && isOverdue(t); };
 
 /* ---- Р-56 ДОСЬЕ ПРЕДМЕТА: обязательный комплект + фактические вложения.
@@ -4102,9 +4167,12 @@ function filePrevVersions(it, type){
 function fileStatusOf(req, doc){
   if(!doc) return { code:'missing', label:'нет', cls:'high' };
   if(req.validMonths){
-    const till = addMonths(doc.docDate || doc.when, req.validMonths);
-    if(till && isOverdue(till)) return { code:'expired', label:'истёк '+till, cls:'mid', till };
-    return { code:'ok', label:'есть', cls:'low', till };
+    const base = doc.docDate || doc.when;
+    const rule = req.param ? paramDueRec(req.param, v => addMonths(base, v)) : null;
+    const till = req.param ? (rule ? rule.at : null) : addMonths(base, req.validMonths);
+    const months = rule ? rule.rec.v : req.validMonths;
+    if(till && isOverdue(till)) return { code:'expired', label:'истёк '+till, cls:'mid', till, months };
+    return { code:'ok', label:'есть', cls:'low', till, months };
   }
   return { code:'ok', label:'есть', cls:'low' };
 }
@@ -4179,7 +4247,7 @@ function admissionChecks(it){
   const till = apprValidTill(it);
   push(apprStale(it) ? 'warn' : 'ok', 'Актуальность оценки',
     apprStale(it) ? 'отчёт устарел ' + till : 'годен до ' + (till || '—'),
-    'отчёт ' + (it.apprReport || '—') + ' от ' + (it.apprDate || '—') + ' · срок годности ' + APPRAISAL_VALID_MONTHS + ' мес.'
+    'отчёт ' + (it.apprReport || '—') + ' от ' + (it.apprDate || '—') + ' · срок годности ' + (apprRule(it) ? apprRule(it).rec.v : paramOn('appraisal')) + ' мес.'
       + (it.appraiser ? ' · оценщик: ' + it.appraiser + (it.apprLicense ? ' (лиц. ' + it.apprLicense + ')' : '') : ' · оценщик не указан'), 1);
 
   /* ⑤ Страхование (Р-46) — по всем видам из INSURANCE_KINDS, не только по технике. */
@@ -4239,7 +4307,7 @@ function admissionChecks(it){
   const nr = nextReval(it);
   push(isOverdue(nr) ? 'warn' : 'ok', 'Переоценка в сроке',
     isOverdue(nr) ? 'просрочена на ' + Math.abs(daysLeft(nr)) + ' дн.' : 'до ' + nr,
-    'интервал по виду «' + it.kind + '» — ' + ((KINDS[it.kind] || {}).reval || '—') + ' мес.', 1);
+    'интервал по виду «' + it.kind + '» — ' + (revalMonths(it) ?? '—') + ' мес.', 1);
 
   /* ⑪ КП-14: валюта оценки предмета против валюты обеспечиваемых кредитов. Раньше вопрос
      не мог возникнуть — валюта предмета ВЫВОДИЛАСЬ из кредитов и совпадала по построению.
@@ -4283,7 +4351,7 @@ const admissionContract = it => CONTRACTS.filter(c => (isActive(c)||isDraftish(c
 /* ---- ТЕХНИКА (Р-7, Прил.1 §2.5, §3.4). Возраст и страховка — производные проверки.
    Страхование выражено через общую ось Р-46 (INSURANCE_KINDS), техника — её подмножество. */
 const techAge       = it => (isTech(it) && it.year) ? CUR_YEAR - it.year : null;
-const techAgeLimit  = it => TECH_AGE_LIMIT[it.origin] ?? TECH_AGE_LIMIT['СНГ'];
+const techAgeLimit  = it => techAgeLim(it.origin);
 const techInsuredOk = it => !isTech(it) || insuredPresent(it);
 const techPolicyExpired = it => isTech(it) && policyExpired(it);
 /* Р-23 (ПОР п.12 п.п.2): модуль залога НЕ трогает категорию кредитного риска — он лишь
@@ -4305,7 +4373,7 @@ function riskFactorCandidates(){
 /* Р-17 (Прил.1 §2.5, §3.4): возраст сверх лимита блокирует ЖЁСТКО только «дополнительный» залог;
    «основной» залог сверх лимита не блокируется на приёме — уходит на решение комитета. */
 function techAgeCheck({securityRole, origin, age}){
-  const lim = TECH_AGE_LIMIT[origin] ?? 15;
+  const lim = techAgeLim(origin);
   if (age <= lim) return { block:false, needCommittee:false };
   if (securityRole === 'дополнительный')
     return { block:true, needCommittee:false, msg:`Приём отклонён (Прил.1 §2.5): срок эксплуатации ${age} лет превышает лимит ${lim} лет для «${origin}»` };
@@ -4313,15 +4381,9 @@ function techAgeCheck({securityRole, origin, age}){
 }
 
 /* Р-19 (ПОЛ §11): срок, после которого незавершённый маршрут кредитно-залоговых документов
-   поднимает контрольный триггер (см. triggers() / docRouteIncomplete). ВНУТРЕННИЙ параметр
-   модуля — в ПОЛ/Прил.1-Прил.3 конкретный срок не задан, правится администратором в справочнике. */
+   поднимает контрольный триггер (см. triggers() / docRouteIncomplete). В ПОЛ/Прил.1-Прил.3
+   конкретный срок не задан; на появление задания не влияет, правится полем в справочнике. */
 let DOC_ROUTE_DAYS = 30;
-
-/* Р-35 (ПОР): срок, после которого договор, ожидающий решения комитета по
-   администрированию бюджетных кредитов («На рассмотрении комитета»), поднимает
-   критичность триггера очереди со средней на высокую. ВНУТРЕННИЙ параметр —
-   в положениях конкретный SLA не задан, правится администратором в справочнике. */
-let COMMITTEE_SLA = 10;
 
 /* ТРИГГЕРЫ. Собираются из состояния; не хранятся. Триггер «недостаточность
    обеспечения» уходит во взыскание отдельным треком по причине «обеспечение» —
@@ -4345,10 +4407,10 @@ function triggers(){
          нулевые; порог гарантии в иной валюте (120%) помечается. */
       if(cov.index < 1 - 1e-9){
         const seg = [`залог ${pct(cov.idxPledge)}`];
-        if(cov.gReq != null) seg.push(`банковская гарантия ${pct(cov.idxGuar)} (порог гарантии ${pct(cov.gReq)}${cov.gReq > COVER_GUARANTEE + 1e-9 ? ' — иная валюта' : ''})`);
+        if(cov.gReq != null) seg.push(`банковская гарантия ${pct(cov.idxGuar)} (порог гарантии ${pct(cov.gReq)}${cov.gReq > paramOn('coverGuarantee') + 1e-9 ? ' — иная валюта' : ''})`);
         parts.push(`обеспеченность ${pct(cov.index)} < 100% (${seg.join(' + ')})`);
       }
-      if(cov.liqApplies && !cov.liqOk) parts.push(`доля ликвидного залога ${pct(cov.liqShare)} < ${pct(LIQUID_SHARE_MIN)} — движимый неликвидный залог (§2.4)`);
+      if(cov.liqApplies && !cov.liqOk) parts.push(`доля ликвидного залога ${pct(cov.liqShare)} < ${pct(paramOn('liquidShare'))} — движимый неликвидный залог (§2.4)`);
       out.push({ type:'Недостаточность обеспечения', crit:'high', obj:id,
         objLbl:`${id} · ${credit(id).num}`, ctr:ctrId, text: parts.join('; '),
         act:'Открыть трек взыскания по обеспечению / догрузить или заменить предмет' });
@@ -4423,7 +4485,7 @@ function triggers(){
         text:`Полис ${it.insured.policy} истёк ${it.insured.till} — предмет обеспечения должен быть застрахован (§3.4)`,
         act:'Истребовать перевыпуск полиса у залогодателя' });
     }
-    /* Р-48: отчёт об оценке старше APPRAISAL_VALID_MONTHS — залоговая стоимость в расчёте
+    /* Р-48: отчёт об оценке старше PARAMS.appraisal — залоговая стоимость в расчёте
        обеспеченности опирается на неактуальную оценочную. Поднимается только по обременённым
        предметам: свободный предмет никого не обеспечивает, и цифра ни на что не влияет. */
     if(apprStale(it) && banRequired(it)) out.push({ type:'Отчёт об оценке устарел', crit:'mid',
@@ -4472,11 +4534,11 @@ function triggers(){
     /* Р-3: обследование планируется по матрице; банкрот / не-обеспечивающий предмет → nextSurvey=null, авто-просрочка не поднимается.
        Р-22 (ПОР п.10): интервал в триггере — ДЕЙСТВУЮЩИЙ (может быть ужесточён категорией
        риска); если он отличается от нормативного матричного, показываем оба. */
-    const ns = nextSurvey(it);
-    if(ns && isOverdue(ns)){ const s = borrowerSolvency(it);
-      const rc = itemRiskCategory(it), eff = effectiveInterval(s.group, movableOf(it), rc, RISK_TIGHTENING_APPROVAL);
+    const sr = surveyRule(it), ns = sr ? sr.at : null;
+    if(ns && isOverdue(ns)){ const s = sr;
+      const rc = sr.risk, eff = sr.eff;
       const intervalTxt = (eff != null && eff !== s.interval)
-        ? `${s.interval} мес. по матрице §2.3, действующий — ${eff} мес. (ПОР п.10, категория риска «${rc}»)`
+        ? `${s.interval} мес. по матрице §2.3, действующий — ${eff} мес. (категория риска «${rc}»)`
         : `${s.interval} мес.`;
       out.push({ type:'Просрочен контроль: обследование', crit:'mid', obj:it.id, objLbl:`${it.id} · ${it.name}`,
         text:`Плановая дата ${ns} (просрочка ${Math.abs(daysLeft(ns))} дн.). Интервал ${intervalTxt} — группа «${s.group}» × ${movableOf(it)?'движимое':'недвижимое'}`,
@@ -4498,15 +4560,16 @@ function triggers(){
   });
   /* Р-35 (ПОР): входящая очередь комитета по администрированию бюджетных кредитов —
      договоры «На рассмотрении комитета» ждут решения. Критичность средняя, после
-     COMMITTEE_SLA дней ожидания (от commissionSince) — высокая. Так комитет видит
+     срока PARAMS.committee на дату направления (commissionSince) — высокая. Так комитет видит
      свою очередь и просроченные заявки, не зная номера договора наизусть. */
   CONTRACTS.filter(c=>c.status===UNDER_REVIEW).forEach(c => {
     const bad = gateCheck(c).rows.filter(r=>!r.ok);
     const waited = c.commissionSince ? Math.max(0, -daysLeft(c.commissionSince)) : null;
-    const overSla = waited != null && waited > COMMITTEE_SLA;
+    const sla = paramOn('committee', c.commissionSince);
+    const overSla = waited != null && waited > sla;
     out.push({
       type:'Ожидает решения комитета', crit: overSla ? 'high' : 'mid', obj:c.id, objLbl:`${c.id} · ${clientName(c.inn)}`,
-      text:`Недообеспечение (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета${c.commissionSince ? ` с ${c.commissionSince}` : ''}${waited != null ? ` (${waited} дн.${overSla ? `, просрочен SLA ${COMMITTEE_SLA} дн.` : ''})` : ''}`,
+      text:`Недообеспечение (${bad.map(r=>`${r.id} — ${pct(r.ratio)} при пороге ${pct(r.req)} (${r.source})`).join('; ')}) — договор ждёт решения комитета${c.commissionSince ? ` с ${c.commissionSince}` : ''}${waited != null ? ` (${waited} дн.${overSla ? `, просрочен SLA ${sla} дн.` : ''})` : ''}`,
       act:'Решение комитета: вернуть на доработку либо допустить недообеспечение с обоснованием' }); });
   /* Р-19 (ПОЛ §11): маршрут кредитно-залоговых документов не дошёл до архива дольше
      DOC_ROUTE_DAYS дней после регистрации договора. */
@@ -4561,6 +4624,7 @@ const canCurate    = () => ['Куратор отдела залогового о
 const canCommittee = () => role === 'Комитет по администрированию бюджетных кредитов';
 const canHeadOfDept = () => role === 'Начальник Департамента администрирования кредитов';
 const canHeadOfUnit = () => role === 'Заведующий отделом залогового обеспечения';
+const canRefbook   = () => role === 'Администратор справочников';
 /* Доп соглашение доступно обеим ролям: куратор/заведующий собирают пакет, комитет
    допускает недообеспеченность/понижение ликвидности с обоснованием. Раньше openDs пускал только
    куратора → ветка допуска комитетом была недостижима. */
@@ -4580,6 +4644,7 @@ function onRoleChange(){
     return;
   }
   renderList(); if(cur) openCard(cur.type, cur.id);
+  if(refbookOpen()) renderRefbookKeep();
 }
 /* Т-6: переключатель даты стенда. setStandDate — ядро (для тестов и init),
    onStandDate/onStandReset — обработчики топбара. Смена даты пересчитывает весь
@@ -4591,6 +4656,7 @@ function setStandDate(dmy){
   if(inp) inp.value = d2iso(dmy);
   if(wrap) wrap.classList.toggle('shifted', dmy !== STAND_DATE_SEED);
   renderList(); if(cur) openCard(cur.type, cur.id, curTab);
+  if(refbookOpen()) renderRefbookKeep();
   return true;
 }
 function onStandDate(){
@@ -5090,7 +5156,7 @@ const SORT_KEYS = {
    показывали разные числа про одно событие: Д-001 в реестре 100,0%, в собственной истории —
    120,0%.
    Одного числа мало ни того, ни другого: порог — свойство КРЕДИТА и меняется решением
-   Правления (`requiredCover`, Прил.1 §2.3–2.4, ПОР п.10), поэтому сохранённый индекс через
+   редакцией акта (`requiredCover`, Прил.1 §2.3–2.4), поэтому сохранённый индекс через
    год нечем расшифровать («100%» — при каком пороге?), а сохранённое отношение нечем
    сопоставить с гейтом. Пишем оба и порог между ними.
    Слово «покрытие» из формулировок убрано: CONTEXT.md запрещает его как термин
@@ -5108,7 +5174,7 @@ const histCover = r => r.released
   + (r.baseAsOf ? ` (снимок ${r.baseAsOf})` : ' (снимок не приходил — принята равной сумме договора)')
   + ` при пороге ${pct(r.req)} → индекс ${pct(r.index)}`
   + (r.gReq != null ? ` (в индексе учтена банковская гарантия ${pct(r.idxGuar)})` : '')
-  + (r.liqApplies ? `, доля ликвида ${pct(r.liqShare)} при минимуме ${pct(LIQUID_SHARE_MIN)}` : '');
+  + (r.liqApplies ? `, доля ликвида ${pct(r.liqShare)} при минимуме ${pct(paramOn('liquidShare'))}` : '');
 const histCoverList = rows => rows.map(histCover).join('; ');
 /* Порог обеспечения — функция состава (requiredCover), не константа (Д-2): пилюля
    «допуск <порога» на реестре/карточке не может показать одно число на все кредиты
@@ -5169,10 +5235,10 @@ function kindTip(it){
   const K = KINDS[it.kind] || {}, sub = kindSub(it);
   return [ it.kind + (sub ? ` · ${sub}` : ''),
     K.k != null ? `коэффициент ×${String(K.k).replace('.',',')}` : null,
-    K.liquid ? 'ликвидный (порог 120 %)' : 'неликвидный (порог 150 % + доля ликвида ≥ 80 %)',
+    K.liquid ? `ликвидный (порог ${asPct(paramOn('coverLiquid'))})` : `неликвидный (порог ${asPct(paramOn('coverMovable'))} + доля ликвида ≥ ${asPct(paramOn('liquidShare'))})`,
     K.movable ? 'движимое' : 'недвижимое',
     K.organ ? `орган: ${K.organ}` : null,
-    K.reval ? `переоценка каждые ${K.reval} мес.` : null,
+    revalMonths(it) != null ? `переоценка каждые ${revalMonths(it)} мес.` : null,
   ].filter(Boolean).join(' · ');
 }
 /* ПЗ-20 (ревизия ПЗ-24): ячейка вида — РОВНО ДВА РЯДА, вид сверху, подвид снизу.
@@ -5505,7 +5571,7 @@ function coverGateTip(c){
       + (r.gReq != null ? ` + гарантия ${pct(r.idxGuar)}` : '')
       + `, порог ${pct(r.req)} (${r.source})`];
     if(r.index < 1) bits.push(`индекс < 100% — обеспеченность ниже порога, не хватает ${fmt(Math.max(0, r.base*r.req - r.sum))}`);
-    if(r.liqApplies) bits.push(`доля ликвида ${pct(r.liqShare)} при минимуме ${pct(LIQUID_SHARE_MIN)}`
+    if(r.liqApplies) bits.push(`доля ликвида ${pct(r.liqShare)} при минимуме ${pct(paramOn('liquidShare'))}`
       + (r.liqOk ? '' : ' — НЕ ВЫПОЛНЕНА (Прил.1 §2.4)'));
     /* ADR-0011: база названа явно вместе с датой снимка — индекс дрейфует от платежей
        в соседнем модуле, и без даты прочитать сохранённое число нечем. */
@@ -6937,8 +7003,10 @@ function itemPanels(it){
      Равны → показываем только один, как до Р-22. КП-3: раньше эта подпись висела строкой
      на «Основном»; теперь живёт там, где интервал и показывается, — на «Обследованиях». */
   const rcIt = bs ? itemRiskCategory(it) : null;
-  const effIt = bs ? effectiveInterval(bs.group, movableOf(it), rcIt, RISK_TIGHTENING_APPROVAL) : null;
-  const tightened = bs && effIt != null && effIt !== bs.interval;
+  const srIt = bs ? surveyRule(it) : null;
+  const baseIt = srIt ? srIt.interval : (bs ? bs.interval : null);
+  const effIt = srIt ? srIt.eff : (bs ? effectiveInterval(bs.group, movableOf(it), rcIt, RISK_TIGHTENING_APPROVAL) : null);
+  const tightened = bs && effIt != null && effIt !== baseIt;
   const ccy = itemCcyLabel(it), cust = custodyOf(it);
 
   /* КП-3: «Основное» = ПАСПОРТ ВЕЩИ. До волны КП половина строк была зеркалом: статус
@@ -7088,8 +7156,8 @@ function itemPanels(it){
       ${kpi('Интервал обследования', bs
         ? (bs.interval!=null
             ? (tightened
-                ? `${effIt} мес. <span class="pill mid" title="ПОР п.10: интервал ужесточён по категории риска при согласовании зампреда">ужесточён</span> <span class="formula" style="margin:0;display:inline">норматив Прил.2 §2.3 — ${bs.interval} мес.; категория риска «${esc(String(rcIt))}»</span>`
-                : bs.interval+' мес.')
+                ? `${effIt} мес. <span class="pill mid" title="интервал ужесточён по категории риска при согласовании зампреда">ужесточён</span> <span class="formula" style="margin:0;display:inline">норматив Прил.2 §2.3 — ${baseIt} мес.; категория риска «${esc(String(rcIt))}»</span>`
+                : baseIt+' мес.')
             : 'по договору со спецадминистратором')
         : '—')}
       ${kpi('Следующее обследование', (ns || '—')+(ns && isOverdue(ns) ? ` <span class="pill high">просрочено на ${Math.abs(daysLeft(ns))} дн.</span>` : '')+(!ns && bs && bs.bankrupt ? ' <span class="pill neutral">банкрот</span>' : ''))}
@@ -7207,7 +7275,7 @@ function itemPanels(it){
         const prev = filePrevVersions(it, r.req.t);
         const pid = `fv-${it.id}-${r.req.t.replace(/\W+/g,'')}`;
         return `<tr>
-        <td>${esc(r.req.t)}${r.req.validMonths?` <span class="formula" style="margin:0">срок ${r.req.validMonths} мес.</span>`:''}</td>
+        <td>${esc(r.req.t)}${r.req.validMonths?` <span class="formula" style="margin:0">срок ${r.st.months || r.req.validMonths} мес.</span>`:''}</td>
         <td><span class="pill ${r.st.cls}">${esc(r.st.label)}</span></td>
         <td>${r.doc?esc(r.doc.docNo||'—'):'—'}</td>
         <td>${r.doc?(r.doc.docDate||r.doc.when):'—'}</td>
@@ -7625,7 +7693,7 @@ function ctrPanels(c){
         <td class="numcell">${defCell}</td>
         <td>${r.na ? naPill : `<span class="pill ${r.ok?'low':(r.covOk?'mid':'high')}">${pct(r.ratio)}</span>`}</td>
         <td>${r.index == null ? naPill : `<span class="pill ${r.index>=1?'low':'high'}" title="залог ${pct(r.idxPledge)}${r.gReq?` + гарантия ${pct(r.idxGuar)} (порог ${pct(r.gReq)})`:''} = индекс ${pct(r.index)}">${pct(r.index)}</span>`}</td>
-        <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / 80%</span>` : '<span class="pill neutral">—</span>'}</td>
+        <td>${r.liqApplies ? `<span class="pill ${r.liqOk?'low':'high'}">${pct(r.liqShare)} / ${pct0(paramOn('liquidShare'))}</span>` : '<span class="pill neutral">—</span>'}</td>
         <td>${cr.status}${cr.overdue?' <span class="pill high">просрочка</span>':''}</td>
         ${canCurate()&&isActive(c) ? `<td>${cr.status==='Действующий' ? `<button class="btn btn-scaffold btn-sm" title="Демо-стенд: в рабочей системе погашение регистрирует кредитный модуль и вызывает шов creditRepaid('${id}')" onclick="repay('${c.id}','${id}')">Отметить погашенным</button>` : '—'}</td>` : ''}</tr>`; }).join('')}
         <tr class="total"><td colspan="2">Итого по договору</td><td class="numcell">${fmt(totBase)}</td><td class="numcell"></td><td class="numcell">${fmt(totSec)}</td><td class="numcell"></td><td>${totBase ? `<span class="pill ${totSec>=totBase?'low':'high'}">${pct(totSec/totBase)}</span>` : '<span class="pill neutral">неприменимо</span>'}</td><td></td><td></td><td></td>${canCurate()&&isActive(c)?'<td></td>':''}</tr></tbody>
@@ -7757,7 +7825,7 @@ function surDefects(s){
     if(t.state === 'истёк') out.push({ sev:'stop', text:`Срок поручительства истёк ${s.till}`, tab:0,
       basis:'ГК КР ст.353 п.4: с истечением указанного в договоре срока поручительство прекращается. Запись должна быть снята по основанию «истечение срока»' });
     else if(t.state === 'истекает') out.push({ sev:'warn', text:`Срок истекает ${s.till} (${t.label})`, tab:0,
-      basis:`предупреждение поднимается за ${SUR_EXPIRY_WARN_DAYS} дней до истечения — параметр справочника «Регламентные параметры обеспечения»` });
+      basis:`предупреждение поднимается за ${paramOn('surWarn', t.warnFrom)} дней до истечения — параметр справочника «Регламентные параметры обеспечения»` });
     if((credit(s.credit)||{}).status === 'Погашен') out.push({ sev:'warn', text:`Кредит ${s.credit} погашен, поручительство не снято`, tab:0,
       basis:'обязательство прекращено исполнением (ГК КР ст.353 п.1), а запись продолжает числиться действующей — та же болезнь, что E2E-13/14 в прежней системе' });
   }
@@ -7845,7 +7913,7 @@ function surPanels(s){
       ${ro('ФИО / наименование', subj.name || '—')}
       ${ro('Тип лица', subj.type || '—')}
       ${person ? ro('Дата рождения', subj.birthDate || '—') : ''}
-      ${person ? ro('Возраст на дату договора', ageAt(subj.birthDate, s.date) != null ? `${ageAt(subj.birthDate, s.date)} ${plural(ageAt(subj.birthDate, s.date),'год','года','лет')} (норматив §9.1: ${SUR_AGE_MIN}–${SUR_AGE_MAX})` : '—') : ''}
+      ${person ? ro('Возраст на дату договора', ageAt(subj.birthDate, s.date) != null ? `${ageAt(subj.birthDate, s.date)} ${plural(ageAt(subj.birthDate, s.date),'год','года','лет')} (норматив §9.1: ${paramOn('surAgeMin', s.date)}–${paramOn('surAgeMax', s.date)})` : '—') : ''}
       ${ro('Контакты', subj.contacts || '—')}
       ${ro('Адрес', subj.address || '—')}
       ${person ? ro('Семейное положение на дату договора', (s.marital||{}).married ? 'состоит в браке' : 'в браке не состоит') : ''}
@@ -9075,7 +9143,7 @@ function ncCredits(){
   if(!inn){ document.getElementById('ncCredits').innerHTML = `<div class="op-empty">Сначала выберите заёмщика</div>`; return; }
   const list = CREDITS.filter(c=>c.inn===inn && c.status==='Действующий');
   document.getElementById('ncCredits').innerHTML = list.length ? list.map(c=>`<div class="op-row">
-      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · ${esc(baseLabel(c))} · требуется: ${pct(COVER_LIQUID)} — ${fmt(atRiskOf(c)*COVER_LIQUID)} (ликвидный) / ${pct(COVER_MOVABLE)} — ${fmt(atRiskOf(c)*COVER_MOVABLE)} (движимый неликвидный)</label></div>`).join('')
+      <label class="chk"><input type="checkbox" class="ncChk" value="${c.id}"> ${c.id} · ${esc(c.num)} · ${esc(baseLabel(c))} · требуется: ${pct(paramOn('coverLiquid'))} — ${fmt(atRiskOf(c)*paramOn('coverLiquid'))} (ликвидный) / ${pct(paramOn('coverMovable'))} — ${fmt(atRiskOf(c)*paramOn('coverMovable'))} (движимый неликвидный)</label></div>`).join('')
       + `<div class="formula">Итоговый порог определяется составом обеспечения (Прил.1 §2.3–2.4).</div>`
     : `<div class="op-empty">У клиента нет действующих кредитов</div>`;
 }
@@ -9159,7 +9227,7 @@ function openAlloc(cid, preItemId){
        чтобы порог 120%↔150% пересчитывался на лету при смене предмета в селекторе. */
     const draftWithItem = { ...c, allocs: [...c.allocs, { item: it.id, credit: crId, share: 0 }] };
     const ctxWithDraft = ctx(draftWithItem);
-    const { req } = requiredCover(crId, ctxWithDraft);
+    const { req, movableIlliquid } = requiredCover(crId, ctxWithDraft);
     const ls = liquidShare(crId, ctxWithDraft);
     /* КП-14 (ревизия Р-44): валюта оценки — реквизит предмета. Привязка к кредиту в иной
        валюте блокируется на сохранении: пересчёт по курсу вне модуля. */
@@ -9170,7 +9238,7 @@ function openAlloc(cid, preItemId){
     document.getElementById('alInfo').innerHTML = `<span>Залоговая ${fmt(pledgeValue(it))} · уже обременено действующими договорами ${fmt(leg)} · <b>доступно ${fmt(av)}</b>.
       ${leg > 0 ? 'Это <b>перезалог</b> на остаточную стоимость предмета.' : ''}
       ${it.ban ? `<br>По предмету уже действует запрет ${esc(it.ban.regNo)} — при регистрации будет дополнен основанием.` : ''}
-      <br>Порог по текущему составу: ${pct(req)} (${req===COVER_MOVABLE?'в составе обеспечения есть движимый неликвидный предмет — Прил.1 §2.4':'ликвидный состав — Прил.1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме 80%.${ccyWarn}</span>`;
+      <br>Порог по текущему составу: ${pct(req)} (${movableIlliquid?'в составе обеспечения есть движимый неликвидный предмет — Прил.1 §2.4':'ликвидный состав — Прил.1 §2.3'}). Доля ликвида: ${pct(ls)} при минимуме ${Math.round(paramOn('liquidShare')*100)}%.${ccyWarn}</span>`;
     /* Д-3/Т3: дефолт доли = недостающее ДО ПОРОГА, а не полное требуемое обеспечение. Т3 (Р-11):
        нетто считается по coverage-wide secPledge кредита — эффективные доли залога на этом
        кредите ВО ВСЕХ действующих договорах + в этом черновике (ctxWithDraft), а не только по
@@ -9232,7 +9300,7 @@ function openRegister(cid){
       <td><span class="pill neutral" title="${esc(covNaReason(r, cr))}">неприменимо</span></td></tr>`;
     return `<tr><td>${r.id}</td><td class="numcell" title="${esc(baseLabel(cr))}">${fmt(r.base)}${r.base !== r.amount ? `<div class="c2-sub">по договору ${fmt(r.amount)}</div>` : ''}</td>
     <td class="numcell">${pct(r.req)}</td><td class="numcell">${fmt(r.base*r.req)}</td><td class="numcell">${fmt(r.sum)}</td>
-    <td><span class="pill ${r.ok?'low':'high'}" title="залоговая к базе ${pct(r.ratio)}">${pct(r.index)}${r.liqApplies?` · ликвид ${pct(r.liqShare)}/80%`:''}</span></td></tr>`;
+    <td><span class="pill ${r.ok?'low':'high'}" title="залоговая к базе ${pct(r.ratio)}">${pct(r.index)}${r.liqApplies?` · ликвид ${pct(r.liqShare)}/${pct0(paramOn('liquidShare'))}`:''}</span></td></tr>`;
   }).join('');
   const okAll = G.ok;
   /* Р-45: вклад договора в обеспеченность — тот же diff «до→после», что в доп соглашении
@@ -9559,7 +9627,7 @@ function renderDs(){
   const inOpts    = ITEMS.filter(i=>!i.lost).map(i=>({v:i.id, t:`${i.id} · ${i.name} · доступно ${fmt(availableOf(i))}`}));
   const shareOpts = v.allocs.map((a,i)=>({v:i, t:`${a.item} / ${a.credit} · текущая доля ${fmt(a.share)}`}));
   const credOpts  = CREDITS.filter(cr=>cr.inn===c.inn && cr.status==='Действующий' && !v.credits.includes(cr.id))
-                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · ${baseLabel(cr)} · порог по составу (${pct(COVER_LIQUID)}/${pct(COVER_MOVABLE)})`}));
+                           .map(cr=>({v:cr.id, t:`${cr.id} · ${cr.num} · ${baseLabel(cr)} · порог по составу (${pct(paramOn('coverLiquid'))}/${pct(paramOn('coverMovable'))})`}));
 
   modal(`<div class="modal">${mhead('Доп соглашение к '+(c.no||c.id)+' — пакет изменений (changeset)')}
     <div class="modal-b">
@@ -9610,7 +9678,7 @@ function renderDs(){
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Кредит</th><th>Обеспеченность до</th><th>Обеспеченность после</th><th>Порог до</th><th>Порог после</th><th>Гейт</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      ${reqRose ? `<div class="infoline" style="margin-top:10px"><span>Порог вырос: в обеспечение добавлен низколиквидный вид (товары в обороте / движимое) — состав перешёл в режим 150%. Рост обеспеченности может не компенсировать рост порога.</span></div>` : ''}
+      ${reqRose ? `<div class="infoline" style="margin-top:10px"><span>Порог вырос: в обеспечение добавлен низколиквидный вид (товары в обороте / движимое) — состав перешёл в режим ${pct0(paramOn('coverMovable'))}. Рост обеспеченности может не компенсировать рост порога.</span></div>` : ''}
 
       ${breach.length ? `<div class="flagline" style="margin-top:12px"><span>Инвариант нарушен: по ${breach.map(b=>`${b.id} (Σ долей ${fmt(b.alloc)} > залоговая ${fmt(b.pledge)})`).join('; ')}. Пакет не может быть зарегистрирован.</span></div>` : ''}
       ${repOverdue.length ? `<div class="flagline" style="margin-top:12px"><span>Замена невозможна: по кредиту ${repOverdue.map(r=>r.credit).join(', ')} есть просроченная задолженность. Погасите просрочку и повторите.</span></div>` : ''}
@@ -9789,105 +9857,210 @@ function doRepay(cid, creditId){
 }
 
 /* ---------- СПРАВОЧНИК: регламентные параметры обеспечения (отдельная страница) ----------
-   Раньше был модалкой по шестерёнке; вынесен в самостоятельный раздел сайдбара
-   «Регламентные параметры обеспечения». refbookInner() строит тело, renderRefbook() —
-   рендерит его как страницу (view-refbook) с футером «Сохранить».
+   refbookInner() строит тело, renderRefbook() рендерит его как страницу (view-refbook).
+   Ведёт администратор справочников; остальным экран на чтение, без полей ввода и кнопок.
 
-   §16 задачи: КАЖДЫЙ параметр несёт пометку источника — «норматив — <цитата>»
-   (взят из Положения/приложений, Прил.1/Прил.2/Прил.3/ПОР) либо «внутренний»
-   (операционный параметр без нормативной базы). Норматив-параметры по умолчанию
-   read-only: правка требует реквизита решения Правления (rb-board-req, сессионное
-   состояние rbBoardReq) — без него поля выводятся через ro(), без id, и saveRefbook
-   их не трогает. Внутренние параметры (BAN_DEADLINE_DAYS, DOC_ROUTE_DAYS,
-   KINDS.reval/organ, RELEASE_CHANNELS, ORG_REGISTRY) всегда свободно редактируемы. */
-let rbBoardReq = '';
-function rbToggleBoard(){ rbBoardReq = val('rb-board-req'); renderRefbook(); }
-/* Единая метка источника — синий pill «норматив — …», серый pill «внутренний …». */
-const srcTag = t => `<span class="pill ${t.indexOf('норматив')===0?'info':'neutral'}" style="font-weight:400;margin-left:8px">${esc(t)}</span>`;
-function refbookInner(){
-  const kinds = Object.keys(KINDS), grp = ['Платёжеспособные','Неплатёжеспособные','Предприятия-банкроты'];
-  const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
-  /* норматив-поле (mform): при отсутствии реквизита — ro() без id (saveRefbook его не читает). */
-  const nfin = (id,label,value,cite) => boardOk
-    ? fin(id, label+srcTag('норматив — '+cite), value)
-    : ro(label+srcTag('норматив — '+cite), value);
-  /* внутреннее поле (mform) — всегда editable input. */
-  const ifin = (id,label,value,note) => fin(id, label+srcTag('внутренний'+(note?` (${note})`:'')), value);
-  /* ячейка таблицы (норматив-колонка КИНДС/матрицы): read-only без id, если реквизит не введён. */
-  const kCell = (id,value,w) => boardOk
-    ? `<div class="control" style="width:${w}px"><input id="${id}" value="${esc(value)}"></div>`
-    : `<div class="control ro" style="width:${w}px"><input value="${esc(value)}" readonly></div>`;
-  return `
-      <p class="section-h" style="font-size:16px">Правка нормативных параметров</p>
-      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Параметры${srcTag('норматив — …')} взяты из Положения/приложений и по умолчанию read-only — правка требует реквизита решения Правления ниже. Параметры${srcTag('внутренний')} — операционные, без нормативной базы, редактируются свободно.</p>
-      <div class="mform" style="margin-bottom:4px">
-        <div class="field"><span class="flabel">Реквизит решения Правления (для правки нормативных параметров)</span>
-          <div class="control"><input id="rb-board-req" value="${esc(rbBoardReq)}" onchange="rbToggleBoard()" placeholder="напр. Протокол Правления №… от …"></div></div>
-      </div>
-
-      <p class="section-h" style="font-size:16px;margin-top:16px">Пороги обеспеченности (§2.3–2.4) и сроки</p>
+   Числа, от которых зависит повод, — записи PARAMS (см. там): значение, дата, основание, откуда
+   число. Новое значение вводится окном из строки таблицы (openParamEdit → setParam). Число нормы
+   на экране не правится, новая редакция акта приходит выпуском (paramRelease).
+   Параметры, на появление повода не влияющие (срок маршрута, размер страницы, органы, каналы,
+   реестр органов), правятся полем и кнопкой «Сохранить справочник». */
+const srcTag = t => `<span class="pill ${t.indexOf('норма')===0?'info':'neutral'}" style="font-weight:400;margin-left:8px">${esc(t)}</span>`;
+const normTag = point => srcTag(`норма · ${POL22}, ${point}`);
+const PROJECT_SRC = 'решение проекта';
+const refbookDeny = () => `Регламентные параметры правит администратор справочников; роль «${role}» их не правит`;
+const refbookOpen = () => (document.getElementById('view-refbook')||{style:{}}).style.display === 'flex';
+const paramShow = (P, v) => P.fmt ? P.fmt(v) : `${v} ${P.unit}`;
+function paramDateRefusal(from, last){
+  if(!isDate(from)) return 'дата начала обязательна: новое значение без даты не вводится';
+  if(d2n(from) < d2n(TODAY)) return `дата начала ${from} раньше сегодняшней ${TODAY}: прошлая дата запрещена, значение на прошлые поводы не меняется`;
+  if(d2n(from) <= d2n(last.from)) return `последняя запись действует с ${last.from}: новая запись ставится позже неё`;
+  return null;
+}
+/* Новое значение: дата начала сегодня или позже, основание обязательно, прежняя запись остаётся. */
+function setParam(key, spec){
+  if(!canRefbook()) return { ok:false, why:refbookDeny() };
+  const P = PARAMS[key];
+  if(!P) return { ok:false, why:'такого параметра нет' };
+  const last = P.recs[P.recs.length-1];
+  if(last.act) return { ok:false, why:`«${P.name}»: число задаёт норма — ${last.act}. На экране оно не правится: новая редакция акта — новая запись с датой через выпуск, старая остаётся для прошлых дел` };
+  const s = spec || {}, raw = String(s.v ?? '').trim();
+  if(!/^[1-9]\d*$/.test(raw)) return { ok:false, why:`значение «${raw}» — не целое положительное число` };
+  const refused = paramDateRefusal(s.from, last);
+  if(refused) return { ok:false, why:refused };
+  const why = String(s.why ?? '').trim();
+  if(!why) return { ok:false, why:'основание обязательно: на вопрос «почему изменили» система должна ответить' };
+  const order = String(s.order ?? '').trim() || null;
+  if(order && !(/№\s*\S+/.test(order) && /\d{2}\.\d{2}\.\d{4}/.test(order)))
+    return { ok:false, why:'приказ указывается с номером и датой: «приказ № … от дд.мм.гггг». Приказа нет — оставьте поле пустым' };
+  const v = Number(raw);
+  if(v === last.v && order === (last.order || null)) return { ok:false, why:'значения те же, что в последней записи: новая запись ничего не меняет' };
+  const rec = { from:s.from, v, why, by:role };
+  if(order) rec.order = order;
+  P.recs.push(rec);
+  return { ok:true, rec };
+}
+/* Границы значения нормы. Порог и доля — дробью: 1.2 значит 120 %. */
+function paramValueRefusal(key, v, from){
+  const P = PARAMS[key], isNum = x => typeof x === 'number' && isFinite(x);
+  if(key === 'surveyMatrix'){
+    const shape = P.recs[0].v;
+    const ok = v && typeof v === 'object' && Object.keys(shape).every(g => v[g] && ['immovable','movable'].every(c =>
+      shape[g][c] == null ? v[g][c] == null : Number.isInteger(v[g][c]) && v[g][c] > 0));
+    return ok ? null : 'матрица обследования — все группы и оба столбца, месяцы целым положительным числом';
+  }
+  if(!isNum(v) || !(v > 0)) return `значение «${v}» — не положительное число`;
+  if(/^cover/.test(key) && !(v >= 1 && v <= 5)) return `порог «${P.name}» — от 100 % до 500 %, записывается дробью: 1.2 значит 120 %`;
+  if(key === 'liquidShare' && !(v <= 1)) return 'доля ликвида — в диапазоне (0; 100 %], записывается дробью: 0.8 значит 80 %';
+  if(key === 'wear' && !(v <= 100)) return 'предел износа — в диапазоне (0; 100] %';
+  if(key === 'surAgeMax' && !(v > paramOn('surAgeMin', from))) return 'максимальный возраст поручителя должен быть больше минимального, иначе допуск не пройдёт никто';
+  if(key === 'surAgeMin' && !(v < paramOn('surAgeMax', from))) return 'минимальный возраст поручителя должен быть меньше максимального, иначе допуск не пройдёт никто';
+  return null;
+}
+/* Выпуск: новая редакция акта. На экране этой операции нет. Старая запись остаётся для прошлых дел. */
+function paramRelease(key, spec){
+  const P = PARAMS[key];
+  if(!P) return { ok:false, why:'такого параметра нет' };
+  const s = spec || {}, last = P.recs[P.recs.length-1];
+  const act = String(s.act ?? '').trim();
+  if(!act) return { ok:false, why:'новая редакция нормы без акта и пункта не вводится' };
+  const refused = paramDateRefusal(s.from, last);
+  if(refused) return { ok:false, why:refused };
+  const why = String(s.why ?? '').trim();
+  if(!why) return { ok:false, why:'основание обязательно: на вопрос «почему изменили» система должна ответить' };
+  if(s.v == null) return { ok:false, why:'новая редакция без значения не вводится' };
+  const badValue = paramValueRefusal(key, s.v, s.from);
+  if(badValue) return { ok:false, why:badValue };
+  const rec = { from:s.from, v:s.v, why, by:'выпуск', act };
+  P.recs.push(rec);
+  return { ok:true, rec };
+}
+let rbParamKey = null;
+function openParamEdit(key){
+  if(!canRefbook()) return toast(refbookDeny(),'warn');
+  const P = PARAMS[key], cur = recOn(key), last = P.recs[P.recs.length-1];
+  rbParamKey = key;
+  modal(`<div class="modal form">${mhead('Новое значение · '+esc(P.name))}
+    <div class="modal-b">
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Сейчас: ${esc(paramShow(P, cur.v))} · ${esc(paramSrc(cur))} · с ${cur.from}. Новое значение действует только на новые поводы: открытые остаются, просрочка не снимается.</p>
       <div class="mform">
-        ${nfin('rb-cov-liq','Ликвидный залог, % (недвижимость / кред. портфель)', String(Math.round(COVER_LIQUID*100)), 'Прил.1 §2.3/§2.4')}
-        ${nfin('rb-cov-mov','Движимый неликвидный залог, % (техника / ТМЦ)', String(Math.round(COVER_MOVABLE*100)), 'Прил.1 §2.3')}
-        ${nfin('rb-liqshare','Мин. доля ликвида, % (при движимом неликвидном)', String(Math.round(LIQUID_SHARE_MIN*100)), 'Прил.1 §2.3')}
-        ${nfin('rb-cov-guar','Банковская гарантия в валюте кредита, %', String(Math.round(COVER_GUARANTEE*100)), 'Прил.1 §2.3')}
-        ${nfin('rb-cov-guar-fx','Банковская гарантия в иной валюте, %', String(Math.round(COVER_GUARANTEE_FX*100)), 'Прил.1 §2.3')}
-        ${ifin('rb-ban-days','Срок наложения запрета, рабочих дней', String(BAN_DEADLINE_DAYS), 'в ПОЛ/Прил.1-Прил.3 отсутствует')}
-        ${ifin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
-        ${ifin('rb-committee-sla','SLA очереди комитета, дней (после — критичность высокая)', String(COMMITTEE_SLA))}
-        ${ifin('rb-page-size','Размер страницы реестра по умолчанию, строк', String(PAGE_SIZE_DEFAULT))}
+        ${fin('rbpVal','Новое значение, '+esc(P.unit), String(last.v), true)}
+        <div class="field req"><span class="flabel">Действует с</span><div class="control"><input type="date" id="rbpFrom" min="${d2iso(TODAY)}" value="${d2iso(TODAY)}"></div></div>
+        ${fin('rbpOrder','Приказ — если есть','')}
+        ${ftxt('rbpWhy','Основание — почему меняем','')}
+      </div>
+    </div>${mfoot('Сохранить новое значение','saveParamEdit()')}</div>`);
+}
+function saveParamEdit(){
+  const res = setParam(rbParamKey, { v:val('rbpVal'), from:iso2d(val('rbpFrom')), why:val('rbpWhy'), order:val('rbpOrder') });
+  if(!res.ok) return toast(res.why,'warn');
+  closeModal();
+  toast(`Новое значение с ${res.rec.from}: новые поводы считаются по нему, открытые остаются`,'ok');
+  refresh(); renderRefbookKeep();
+}
+/* Запись, которая ещё не вступила, ни на что не подействовала: её можно отменить, иначе опечатка
+   в годе закрывает параметр (новая запись ставится только позже последней). В истории она остаётся. */
+function cancelParam(key){
+  if(!canRefbook()) return { ok:false, why:refbookDeny() };
+  const P = PARAMS[key];
+  if(!P) return { ok:false, why:'такого параметра нет' };
+  const last = P.recs[P.recs.length-1];
+  if(P.recs.length < 2 || d2n(last.from) <= d2n(TODAY)) return { ok:false, why:'отменить можно только запись, которая ещё не вступила' };
+  if(last.act) return { ok:false, why:`новая редакция акта на экране не отменяется: ${last.act}` };
+  P.recs.pop();
+  (P.cancelled = P.cancelled || []).push({ ...last, cancelledOn:TODAY, cancelledBy:role });
+  return { ok:true, rec:last };
+}
+function cancelParamClick(key){
+  const res = cancelParam(key);
+  if(!res.ok) return toast(res.why,'warn');
+  toast(`Запись с ${res.rec.from} отменена, действует прежнее значение`,'ok');
+  refresh(); renderRefbookKeep();
+}
+/* История записи — рядом со строкой, когда записей больше одной. */
+function paramHistory(key){
+  const P = PARAMS[key], cur = recOn(key), last = P.recs[P.recs.length-1], cancelled = P.cancelled || [];
+  if(P.recs.length < 2 && !cancelled.length) return '';
+  const line = x => `с ${x.from}: ${esc(paramShow(P, x.v))} · ${esc(paramSrc(x))} · ${esc(x.why)}${x.by ? ' · '+esc(x.by) : ''}`;
+  const canCancel = x => x === last && P.recs.length > 1 && !x.act && d2n(x.from) > d2n(TODAY) && canRefbook();
+  return `<div style="font-size:12px;color:var(--text-muted);line-height:1.7"><b>История</b>${P.recs.map(x =>
+    `<div>${line(x)}${x === cur ? ' <span class="pill info">действует</span>' : ''}${d2n(x.from) > d2n(TODAY) ? ' <span class="pill mid">ещё не вступила</span>' : ''}${canCancel(x) ? ` <button class="btn btn-tint btn-sm" onclick="cancelParamClick('${esc(key)}')">Отменить</button>` : ''}</div>`).join('')}${cancelled.map(x =>
+    `<div>${line(x)} <span class="pill neutral">отменена ${x.cancelledOn}</span> · ${esc(x.cancelledBy)}</div>`).join('')}</div>`;
+}
+function paramTable(keys, withEdit){
+  const cols = withEdit ? 5 : 4;
+  return `<div class="cgrid-wrap"><table class="cgrid">
+    <thead><tr><th>Параметр</th><th>Значение</th><th>Откуда число</th><th>Действует с</th>${withEdit ? '<th></th>' : ''}</tr></thead>
+    <tbody>${keys.map(key => {
+      const P = PARAMS[key], r = recOn(key), h = paramHistory(key);
+      return `<tr data-param="${esc(key)}"><td>${esc(P.name)}</td><td style="white-space:nowrap">${esc(paramShow(P, r.v))}</td><td>${esc(paramSrc(r))}</td><td>${r.from}</td>${withEdit ? `<td style="white-space:nowrap">${P.recs[P.recs.length-1].act ? '' : `<button class="btn btn-tint btn-sm" onclick="openParamEdit('${esc(key)}')">Новое значение</button>`}</td>` : ''}</tr>`
+        + (h ? `<tr data-param-hist="${esc(key)}"><td colspan="${cols}">${h}</td></tr>` : '');
+    }).join('')}</tbody></table></div>`;
+}
+function refbookInner(){
+  const admin = canRefbook();
+  const kinds = Object.keys(KINDS), grp = ['Платёжеспособные','Неплатёжеспособные','Предприятия-банкроты'];
+  const matrix = paramOn('surveyMatrix'), matrixRec = recOn('surveyMatrix');
+  /* Поле параметра, не влияющего на появление повода: у администратора ввод, у остальных чтение. */
+  const pfin = (id,label,value) => admin ? fin(id, label+srcTag(PROJECT_SRC), value) : ro(label+srcTag(PROJECT_SRC), value);
+  return `
+      <p class="section-h" style="font-size:16px">Сроки и интервалы</p>
+      ${paramTable(['surWarn','banDays','committee','appraisal'].concat(kinds.map(k => 'reval:'+k)), admin)}
+      <p style="color:var(--text-muted);font-size:13px;margin:8px 0 0">Новое значение действует только на новые поводы: открытые остаются, просрочка не снимается.</p>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Пороги обеспеченности</p>
+      ${paramTable(['coverLiquid','coverMovable','liquidShare','coverGuarantee','coverGuaranteeFx'])}
+      <p style="color:var(--text-muted);font-size:13px;margin:8px 0 0">Число нормы на экране не меняется: новая редакция акта вводится выпуском с датой, старая остаётся для прошлых дел.</p>
+
+      <p class="section-h" style="font-size:16px;margin-top:16px">Прочие параметры</p>
+      <div class="mform">
+        ${pfin('rb-doc-route','Срок маршрута документов до архивного шага, дней', String(DOC_ROUTE_DAYS))}
+        ${pfin('rb-page-size','Размер страницы реестра по умолчанию, строк', String(PAGE_SIZE_DEFAULT))}
       </div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, переоценка, орган (по виду)</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Коэффициент, ранг ликвидности, орган (по виду)</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Коэффициент: норма · ${POL22}, Прил. 1 §2.1. Ранг ликвидности: норма · ${POL22}, §8. Оба на чтение, смена через выпуск. Орган: ${PROJECT_SRC}.</p>
       <div class="cgrid-wrap"><table class="cgrid">
-        <thead><tr><th>Вид залога</th><th>Коэффициент (§2.1)${srcTag('норматив — Прил.1 §2.1')}</th><th>Ранг ликвидности (ПОЛ §8)${srcTag('норматив — ПОЛ §8')}</th><th>Переоценка, мес.${srcTag('внутренний (вне положения)')}</th><th>Регистрирующий орган${srcTag('внутренний (операционный)')}</th><th class="numcell">Предметов</th></tr></thead>
+        <thead><tr><th>Вид залога</th><th>Коэффициент</th><th>Ранг ликвидности</th><th>Регистрирующий орган</th><th class="numcell">Предметов</th></tr></thead>
         <tbody>${kinds.map(k=>`<tr>
           <td>${esc(k)}${KINDS[k].movable&&!KINDS[k].liquid?' <span class="pill neutral">движ. неликв.</span>':(KINDS[k].liquid?' <span class="pill low">ликвид</span>':'')}</td>
-          <td>${kCell('rb-k-'+k, KINDS[k].k, 90)}</td>
-          <td>${kCell('rb-lr-'+k, KINDS[k].liquidityRank, 80)}</td>
-          <td><div class="control" style="width:90px"><input id="rb-r-${esc(k)}" value="${KINDS[k].reval}"></div></td>
-          <td><div class="control" style="min-width:240px"><input id="rb-o-${esc(k)}" value="${esc(KINDS[k].organ)}"></div></td>
+          <td>${esc(String(KINDS[k].k).replace('.',','))}</td>
+          <td>${esc(KINDS[k].liquidityRank)}</td>
+          <td>${admin ? `<div class="control" style="min-width:500px"><input id="rb-o-${esc(k)}" value="${esc(KINDS[k].organ)}"></div>` : esc(KINDS[k].organ)}</td>
           <td class="numcell">${ITEMS.filter(i=>i.kind===k).length}</td></tr>`).join('')}</tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — матрица (Прил.2 §2.3)${srcTag('норматив — Прил.2 §2.3')}</p>
-      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Регламентная константа, read-only; задаёт периодичность обследования.</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Периодичность обследования — матрица${srcTag(paramSrc(matrixRec))}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Регламентная константа, на чтение; задаёт периодичность обследования. Действует с ${matrixRec.from}.</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Группа платёжеспособности</th><th>Недвижимое, мес.</th><th>Движимое, мес.</th></tr></thead>
         <tbody>${grp.map(g=>`<tr><td>${esc(g)}</td>
           ${g==='Предприятия-банкроты'
             ? `<td colspan="2">по договору со спецадминистратором</td>`
-            : `<td>${SURVEY_MATRIX[g].immovable}</td>
-               <td>${SURVEY_MATRIX[g].movable}</td>`}</tr>`).join('')}</tbody>
+            : `<td>${matrix[g].immovable}</td>
+               <td>${matrix[g].movable}</td>`}</tr>`).join('')}</tbody>
       </table></div>
+      ${paramHistory('surveyMatrix')}
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска — read-only, норматив (ПОР п.10)${srcTag('норматив — ПОР п.10')}</p>
-      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Слой ПОВЕРХ матрицы выше: действующий интервал = max(мин., матрица × коэффициент), только при согласовании зампреда. Не редактируется здесь — параметр положения, не справочника.</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Ужесточение периодичности по категории риска${srcTag(PROJECT_SRC)}</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Слой поверх матрицы выше: действующий интервал = max(мин., матрица × коэффициент), только при согласовании зампреда. На чтение, смена через выпуск.</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Категория риска</th><th>Коэффициент</th></tr></thead>
         <tbody>${Object.keys(RISK_TIGHTENING).map(rc=>`<tr><td>${esc(rc)}</td><td>${RISK_TIGHTENING[rc]}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="mform" style="margin-top:8px">
-        ${ro('Нижний предел интервала после ужесточения'+srcTag('норматив — ПОР п.10'), SURVEY_MIN_MONTHS + ' мес. (ПОР п.10)')}
+        ${ro('Нижний предел интервала после ужесточения'+srcTag(PROJECT_SRC), SURVEY_MIN_MONTHS + ' мес.')}
         ${ro('Согласование зампреда', RISK_TIGHTENING_APPROVAL.approved
           ? `предоставлено · ${esc(RISK_TIGHTENING_APPROVAL.req)} от ${RISK_TIGHTENING_APPROVAL.date}`
           : 'не предоставлено — действует чистая матрица §2.3, без ужесточения')}
       </div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Предельный срок эксплуатации техники (§2.5) и предел износа (§3.5)</p>
-      <div class="mform">
-        ${nfin('rb-age-sng','СНГ, лет', String(TECH_AGE_LIMIT['СНГ']), 'Прил.1 §2.5')}
-        ${nfin('rb-age-far','Дальнее зарубежье, лет', String(TECH_AGE_LIMIT['Дальнее зарубежье']), 'Прил.1 §2.5')}
-        ${nfin('rb-wear','Предел физического износа техники, %', String(WEAR_LIMIT), 'Прил.1 §3.5')}
-      </div>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Предельный срок эксплуатации техники и предел износа</p>
+      ${paramTable(['techAge:СНГ','techAge:Дальнее зарубежье','wear'])}
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: допуск §9.1 и срок действия</p>
-      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Диапазон возраста — норматив гейта Г1, проверяется на ДАТУ ДОГОВОРА поручительства (снимок, не текущий возраст). Предупреждение о сроке — внутренний параметр триггера мониторинга обеспечения.</p>
-      <div class="mform">
-        ${nfin('rb-sur-age-min','Мин. возраст поручителя — физлица, лет', String(SUR_AGE_MIN), '§9.1')}
-        ${nfin('rb-sur-age-max','Макс. возраст поручителя — физлица, лет', String(SUR_AGE_MAX), '§9.1')}
-        ${ifin('rb-sur-warn','Предупреждать об истечении срока поручительства за, дней', String(SUR_EXPIRY_WARN_DAYS), 'в ПОЛ/Прил.7 отсутствует')}
-      </div>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: допуск §9.1</p>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Диапазон возраста проверяется на дату договора поручительства: снимок, не текущий возраст.</p>
+      ${paramTable(['surAgeMin','surAgeMax'])}
       <div class="cgrid-wrap" style="margin-top:8px"><table class="cgrid">
         <thead><tr><th>Гейт допуска</th><th>Норма</th><th>Подтверждается</th><th>Когда применяется</th></tr></thead>
         <tbody>${SUR_GATE_DEFS.map(g=>`<tr><td>${esc(g.code)} · ${esc(g.name)}</td><td>${esc(g.norm)}</td>
@@ -9895,11 +10068,11 @@ function refbookInner(){
           <td>${g.person ? 'только физлицо' : 'любое лицо'}${(SUR_DOCS.find(d=>d.key===g.docKey)||{}).marriedOnly ? ', состоящее в браке' : ''}</td></tr>`).join('')}</tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: основания прекращения${srcTag('норматив — ГК КР ст.350/353, Прил.7')}</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: основания прекращения${srcTag('норма · ГК КР ст.350/353, '+POL22+', Прил. 7')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Read-only классификатор; выбор основания обязателен при снятии поручительства. «Истечение срока» — вычисляемое состояние от даты стенда, не хранимый статус.</p>
       <div class="ops-list">${RELEASE_BASES.map(b=>`<div class="op-row"><span class="op-t">${esc(b.label)}</span><span class="muted" style="margin-left:auto">${esc(b.norm)}</span></div>`).join('')}</div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: вид и объём ответственности${srcTag('норматив — Прил.7 (типовая форма)')}</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Поручительство: вид и объём ответственности${normTag('Прил. 7 (типовая форма)')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Форма «${esc(TYPICAL_FORM)}» задаёт солидарную ответственность в полном объёме. Отклонение по любой из осей допускается только по индивидуальной форме договора — иначе поднимается дефект «форма ≠ ответственности».</p>
       <div class="cgrid-wrap"><table class="cgrid">
         <thead><tr><th>Ось</th><th>Значения</th><th>Типовая форма Прил.7</th></tr></thead>
@@ -9909,23 +10082,23 @@ function refbookInner(){
         </tbody>
       </table></div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Не принимается в залог — стоп-лист §3.5${srcTag('норматив — Прил.1 §3.5')}</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Не принимается в залог — стоп-лист${normTag('Прил. 1 §3.5')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Регламентная константа, read-only; применяется при приёме предмета и при регистрации договора.</p>
       <div class="ops-list">${PROHIBITED_KINDS.map(p=>`<div class="op-row"><span class="op-t">${esc(p)}</span></div>`).join('')}</div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — основания (§7.2 / Прил.3 §2.1)${srcTag('норматив — §7.2 / Прил.3 §2.1')}</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — основания${normTag('§7.2, Прил. 3 §2.1')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Read-only классификатор оснований снятия; проверяется при снятии запрета.</p>
       <div class="ops-list">${RELEASE_GROUNDS.map(g=>`<div class="op-row"><span class="op-t">${esc(g)}</span></div>`).join('')}</div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — цепочка согласования (Прил.3 §3.2)${srcTag('норматив — Прил.3 §3.2')}</p>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Снятие запрета — цепочка согласования${normTag('Прил. 3 §3.2')}</p>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 8px">Read-only чек-лист согласования снятия запрета.</p>
       <div class="ops-list">${RELEASE_APPROVALS.map(a=>`<div class="op-row"><span class="op-t">${esc(a)}</span></div>`).join('')}</div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Каналы оформления снятия запрета${srcTag('внутренний (перенесён из прежней системы)')}</p>
-      <div class="ops-list">${RELEASE_CHANNELS.map((c,i)=>`<div class="op-row"><span style="flex:none;width:70px;color:var(--text-placeholder);font-size:12px">${esc(c.v)}</span><div class="control" style="flex:1"><input id="rb-relch-${i}" value="${esc(c.t)}"></div></div>`).join('')}</div>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Каналы оформления снятия запрета${srcTag(PROJECT_SRC)}</p>
+      <div class="ops-list">${RELEASE_CHANNELS.map((c,i)=>`<div class="op-row"><span style="flex:none;width:70px;color:var(--text-placeholder);font-size:12px">${esc(c.v)}</span>${admin ? `<div class="control" style="flex:1"><input id="rb-relch-${i}" value="${esc(c.t)}"></div>` : `<span class="op-t">${esc(c.t)}</span>`}</div>`).join('')}</div>
 
-      <p class="section-h" style="font-size:16px;margin-top:16px">Реестр регистрирующих органов${srcTag('внутренний (операционный)')}</p>
-      <div class="ops-list">${ORG_REGISTRY.map((o,i)=>`<div class="op-row"><div class="control" style="flex:1"><input id="rb-org-${i}" value="${esc(o)}"></div></div>`).join('')}</div>
+      <p class="section-h" style="font-size:16px;margin-top:16px">Реестр регистрирующих органов${srcTag(PROJECT_SRC)}</p>
+      <div class="ops-list">${ORG_REGISTRY.map((o,i)=>`<div class="op-row">${admin ? `<div class="control" style="flex:1"><input id="rb-org-${i}" value="${esc(o)}"></div>` : `<span class="op-t">${esc(o)}</span>`}</div>`).join('')}</div>
 
       <p class="section-h" style="font-size:16px;margin-top:16px">Миграция видов залога: прежняя система → §22 (импорт исторических договоров)</p>
       <div class="cgrid-wrap"><table class="cgrid">
@@ -9934,101 +10107,44 @@ function refbookInner(){
       </table></div>`;
 }
 function renderRefbook(){
+  const admin = canRefbook();
   document.getElementById('refbookPanel').innerHTML =
     `<p class="section-h" style="font-size:20px;margin:0 0 4px">Справочник: регламентные параметры обеспечения</p>
-     <p style="color:var(--text-muted);font-size:13px;margin:0 0 16px">Регламентируется администратором. Изменения пересчитывают залоговую стоимость, обеспеченность, интервалы контроля, валидации приёма и допуск поручителей по всему модулю.</p>`
+     <p style="color:var(--text-muted);font-size:13px;margin:0 0 16px">Ведёт администратор справочников. От этих чисел зависят залоговая стоимость, обеспеченность, сроки контроля, приём предметов и допуск поручителей. Рядом с числом написано, откуда оно: норма — акт и пункт, внутренний акт — номер и дата приказа, решение проекта — пока акта нет.${admin ? '' : ` Роль «${esc(role)}» экран только читает.`}</p>`
     + refbookInner();
-  document.getElementById('refbookFooter').innerHTML =
-    `<div style="flex:1"></div><button class="btn btn-primary" onclick="saveRefbook()">Сохранить справочник</button>`;
+  const foot = document.getElementById('refbookFooter');
+  foot.innerHTML = admin ? `<div style="flex:1"></div><button class="btn btn-primary" onclick="saveRefbook()">Сохранить справочник</button>` : '';
+  foot.style.display = admin ? '' : 'none';
   document.getElementById('crumbTitle').textContent = 'Регламентные параметры обеспечения';
   cur = null;
   document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active', a.textContent==='Регламентные параметры обеспечения'));
 }
+/* Перерисовка из-за чужого действия (новое значение, роль, дата стенда): введённое, но ещё не
+   сохранённое в полях остаётся. */
+function renderRefbookKeep(){
+  const kept = [...document.querySelectorAll('#refbookPanel input[id^="rb-"]:not([readonly])')].map(e => [e.id, e.value]);
+  renderRefbook();
+  kept.forEach(([id, v]) => { const e = document.getElementById(id); if(e) e.value = v; });
+}
 function saveRefbook(){
-  /* §16: норматив-поля существуют в DOM (имеют id) только когда введён реквизит
-     решения Правления (rb-board-req) — refbookInner() рендерит их иначе через ro()
-     без id. boardOk синхронизирует это состояние на случай, если onchange поля
-     rb-board-req не успел сработать до клика «Сохранить». */
-  rbBoardReq = val('rb-board-req');
-  const boardOk = Boolean(rbBoardReq && rbBoardReq.trim());
-
-  // ВНУТРЕННИЕ параметры — всегда в DOM, всегда валидируются и сохраняются.
-  const bd = num(val('rb-ban-days')), docRoute = num(val('rb-doc-route')), commSla = num(val('rb-committee-sla')),
-        pageSz = num(val('rb-page-size')), surWarn = num(val('rb-sur-warn'));
-  if(!(bd > 0)) return toast('Срок наложения запрета — положительное число рабочих дней','warn');
+  if(!canRefbook()) return toast(refbookDeny(),'warn');
+  const docRoute = num(val('rb-doc-route')), pageSz = num(val('rb-page-size'));
   if(!(docRoute > 0)) return toast('Срок маршрута документов — положительное число дней','warn');
-  if(!(commSla > 0)) return toast('SLA очереди комитета — положительное число дней','warn');
   if(!(pageSz > 0)) return toast('Размер страницы реестра — положительное число строк','warn');
-  if(!(surWarn > 0)) return toast('Предупреждение об истечении срока поручительства — положительное число дней','warn');
-  const revalDraft = {};
+  const organs = {};
   for(const k of Object.keys(KINDS)){
-    const r = num(val('rb-r-'+k)), o = val('rb-o-'+k).trim();
-    if(!(r > 0)) return toast('Интервал переоценки «'+k+'» — положительный','warn');
+    const o = val('rb-o-'+k).trim();
     if(!o) return toast('Укажите регистрирующий орган для «'+k+'»','warn');
-    revalDraft[k] = { reval:Math.round(r), organ:o };
+    organs[k] = o;
   }
-
-  // НОРМАТИВ-параметры — читаются/валидируются, только если решение Правления введено;
-  // при boardOk===false соответствующие id отсутствуют в DOM (read-only через ro()) —
-  // не трогаем их, num(val(...)) на несуществующий id сюда не вызывается вовсе.
-  let cl = COVER_LIQUID, cm = COVER_MOVABLE, ls = LIQUID_SHARE_MIN, cg = COVER_GUARANTEE, cgfx = COVER_GUARANTEE_FX,
-      ageS = TECH_AGE_LIMIT['СНГ'], ageF = TECH_AGE_LIMIT['Дальнее зарубежье'], wear = WEAR_LIMIT,
-      surMin = SUR_AGE_MIN, surMax = SUR_AGE_MAX;
-  const kindDraft = {};
-  if(boardOk){
-    const clV = num(val('rb-cov-liq')), cmV = num(val('rb-cov-mov')), lsV = num(val('rb-liqshare')),
-          cgV = num(val('rb-cov-guar')), cgfxV = num(val('rb-cov-guar-fx'));
-    if(!(clV >= 100)) return toast('Порог ликвидного залога — не менее 100%','warn');
-    if(!(cmV >= 100)) return toast('Порог движимого неликвидного залога — не менее 100%','warn');
-    if(!(lsV > 0 && lsV <= 100)) return toast('Доля ликвида — в диапазоне (0; 100]%','warn');
-    if(!(cgV >= 100)) return toast('Гарантия в валюте кредита — не менее 100%','warn');
-    if(!(cgfxV >= 100)) return toast('Гарантия в иной валюте — не менее 100%','warn');
-    cl = clV/100; cm = cmV/100; ls = lsV/100; cg = cgV/100; cgfx = cgfxV/100;
-
-    const ageSV = num(val('rb-age-sng')), ageFV = num(val('rb-age-far')), wearV = num(val('rb-wear'));
-    if(!(ageSV > 0) || !(ageFV > 0)) return toast('Лимиты возраста техники — положительные','warn');
-    if(!(wearV > 0 && wearV <= 100)) return toast('Предел износа техники — в диапазоне (0; 100]%','warn');
-    ageS = ageSV; ageF = ageFV; wear = wearV;
-
-    /* ПР-2: диапазон возраста поручителя — норматив §9.1. Верхняя граница осмысленна лишь
-       строго выше нижней, иначе гейт Г1 не пройдёт никто. */
-    const surMinV = num(val('rb-sur-age-min')), surMaxV = num(val('rb-sur-age-max'));
-    if(!(surMinV > 0) || !(surMaxV > 0)) return toast('Границы возраста поручителя — положительные','warn');
-    if(!(surMaxV > surMinV)) return toast('Макс. возраст поручителя должен быть больше минимального','warn');
-    surMin = surMinV; surMax = surMaxV;
-
-    for(const k of Object.keys(KINDS)){
-      const kf = num(val('rb-k-'+k)), lr = num(val('rb-lr-'+k));
-      if(!(kf > 0 && kf <= 1)) return toast('Коэффициент «'+k+'» — в диапазоне (0; 1]','warn');
-      if(!(lr >= 0)) return toast('Ранг ликвидности «'+k+'» — число ≥ 0','warn');
-      kindDraft[k] = { k:kf, liquidityRank:Math.round(lr) };
-    }
-  }
-
-  // применяем: KINDS мутируется точечно — норматив-поля (k/liquidityRank) только если
-  // были в DOM и провалидированы, внутренние (reval/organ) — всегда.
-  Object.keys(KINDS).forEach(k=>{
-    if(kindDraft[k]){ KINDS[k].k = kindDraft[k].k; KINDS[k].liquidityRank = kindDraft[k].liquidityRank; }
-    KINDS[k].reval = revalDraft[k].reval; KINDS[k].organ = revalDraft[k].organ;
-  });
-  BAN_DEADLINE_DAYS = Math.round(bd);
+  Object.keys(KINDS).forEach(k => { KINDS[k].organ = organs[k]; });
   DOC_ROUTE_DAYS = Math.round(docRoute);
-  COMMITTEE_SLA = Math.round(commSla);
   /* ПЗ-8: справочник задаёт ДЕФОЛТ; текущий размер подтягивается за ним (иначе правка
      параметра не была бы видна на экране, ради которого её делали). */
   PAGE_SIZE_DEFAULT = Math.round(pageSz); PAGE_SIZE = PAGE_SIZE_DEFAULT; curPage = 1;
-  COVER_LIQUID = cl; COVER_MOVABLE = cm; LIQUID_SHARE_MIN = ls;
-  COVER_GUARANTEE = cg; COVER_GUARANTEE_FX = cgfx;
-  TECH_AGE_LIMIT['СНГ'] = Math.round(ageS); TECH_AGE_LIMIT['Дальнее зарубежье'] = Math.round(ageF);
-  WEAR_LIMIT = Math.round(wear);
-  SUR_AGE_MIN = Math.round(surMin); SUR_AGE_MAX = Math.round(surMax);
-  SUR_EXPIRY_WARN_DAYS = Math.round(surWarn);
-
-  // ВНУТРЕННИЕ списки (свободно редактируемые всегда): каналы снятия запрета, реестр
-  // регистрирующих органов — пустая правка построчно игнорируется (сохраняем прежнее).
+  /* Пустая правка в списках построчно игнорируется: прежнее значение остаётся. */
   RELEASE_CHANNELS.forEach((c,i)=>{ const t = val('rb-relch-'+i).trim(); if(t) c.t = t; });
   ORG_REGISTRY.forEach((o,i)=>{ const t = val('rb-org-'+i).trim(); if(t) ORG_REGISTRY[i] = t; });
-
   toast('Справочник сохранён — параметры пересчитаны','ok'); refresh(); renderRefbook();
 }
 
@@ -10115,11 +10231,15 @@ if (typeof window !== 'undefined') window.__zt = {
   editItemDetailFields, syncItemDetailMirrors, PRIMARY_DETAIL, detailRows,
   saveReval, saveSurvey, doRegister, saveCommission,
   guaranteeReq, guaranteeExpired,
-  KINDS, KIND_FIELDS, COVER_LIQUID, COVER_MOVABLE, COVER_GUARANTEE, COVER_GUARANTEE_FX,
-  SURVEY_MATRIX, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
+  KINDS, KIND_FIELDS,
+  get COVER_LIQUID(){ return paramOn('coverLiquid'); }, get COVER_MOVABLE(){ return paramOn('coverMovable'); },
+  get COVER_GUARANTEE(){ return paramOn('coverGuarantee'); }, get COVER_GUARANTEE_FX(){ return paramOn('coverGuaranteeFx'); },
+  PARAMS, recOn, paramOn, paramDue, paramSrc, setParam, paramRelease, cancelParam, cancelParamClick, surveyRule, revalMonths, apprRule, renderRefbookKeep, canRefbook, nextReval, banDeadline,
+  openParamEdit, saveParamEdit,
+  get SURVEY_MATRIX(){ return paramOn('surveyMatrix'); }, CREDITS, ITEMS, CONTRACTS, credit, item, contract,
   canCurate, canCommittee, canHeadOfDept, canHeadOfUnit, canDs,
   // Волна 2 (Р-34/Р-35/Р-36)
-  actionBtn, toCommission, onRoleChange, gateCheck, prereqMissing, COMMITTEE_SLA,
+  actionBtn, toCommission, onRoleChange, gateCheck, prereqMissing, get COMMITTEE_SLA(){ return paramOn('committee'); },
   // Волна 3 (Р-37/Р-38/Р-39/Р-41)
   onNew, openNewItem, rowsItems, rowsMonitor, rowsContracts, filterRows, regRows,
   FILTERS, SORT_KEYS, HEADS, sortBy, renderList, onQuickSearch, gotoPage,
@@ -10150,7 +10270,8 @@ if (typeof window !== 'undefined') window.__zt = {
   suretyLoadOf, subject, subjectIsPerson, solvencyOf, ageAt, gfhOverdueOf,
   SUR_GATE_DEFS, suretyGates, surGatesNA, SUR_DOCS, docFilled, surDocApplies,
   surDocsReq, surDocsMet, toggleSurDoc,
-  SUR_AGE_MIN, SUR_AGE_MAX, SUR_EXPIRY_WARN_DAYS,
+  get SUR_AGE_MIN(){ return paramOn('surAgeMin'); }, get SUR_AGE_MAX(){ return paramOn('surAgeMax'); },
+  get SUR_EXPIRY_WARN_DAYS(){ return paramOn('surWarn'); },
   SURETY_STATUSES, SUR_TERM_STATES, suretyTerm, suretyExpired,
   RELEASE_BASES, releaseBasis, releaseOptions, suretyReleaseAllowed,
   LIAB_KINDS, LIAB_SCOPES, TYPICAL_FORM, liabilityTypical, formMismatch, liabilityLimit,
@@ -10161,7 +10282,7 @@ if (typeof window !== 'undefined') window.__zt = {
   openNewSurety, surLookup, surSeamToPersons, saveNewSurety,
   // Волна 6 (Р-46…Р-58): досье документов, проверки допуска, страхование, хранение,
   // предшествующие залоги, срок аренды, динамика оценки, категории истории.
-  INSURANCE_KINDS, APPRAISAL_VALID_MONTHS, FILE_REQ_COMMON, FILE_REQ_BY_KIND, FILE_TAGS,
+  INSURANCE_KINDS, get APPRAISAL_VALID_MONTHS(){ return paramOn('appraisal'); }, FILE_REQ_COMMON, FILE_REQ_BY_KIND, FILE_TAGS,
   insuranceRequired, insuredPresent, insuredMissing, policyExpired,
   apprValidTill, apprStale, reqFilesOf, fileOfType, fileStatusOf, itemDossier,
   leaseWarnings, custodyOf,

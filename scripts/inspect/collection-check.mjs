@@ -4129,6 +4129,12 @@ ok('изменение способа исполнения стоит на ис�
      const zi = ms.find(m=>m.num==='ЗИС-381'), oi = ms.find(m=>m.num==='ОИС-381');
      return zi.basedOn === 'ИЛ-381' && oi.basedOn === 'ЗИС-381' && oi.outcome === 'способ изменён'; })()`));
 
+head('НЗ-12 / НЗ-Д6 · подпись шаблонов сроков: откуда число, а не «настройка»');
+ok('НЗ-Д6: у шаблонов сроков нет подписи «настройка», шаблон 45 подписан «решение проекта»',
+   !/настройка\)/.test(HTML_SRC) &&
+   g.ev(`[46,47,48].every(n => !/настройк/.test(TPL_BY_N[n].term) && /решение проекта/.test(dlTermSource(TPL_BY_N[n])))`) &&
+   g.ev(`/решение проекта/.test(dlTermSource(TPL_BY_N[45])) && !/настройк/.test(dlTermSource(TPL_BY_N[45]))`));
+
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
 console.log(`ВСЕГО ПРОВЕРОК: ${n} · ПРОВАЛЕНО: ${fails}`);

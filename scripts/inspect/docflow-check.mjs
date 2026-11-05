@@ -1,4 +1,6 @@
-// Смоук макета «Документооборот» (mockups/docflow/docflow.html) — волны 1 и 2, на jsdom.
+// Смоук макета «Документооборот» (mockups/docflow/docflow.html) — волны 1–3, на jsdom.
+// Волна 3: группа Q переписана (ЗНП-3: каждый шаг — задание, группа в списке), новая группа X (НЗ-13, НЗ-Д7, НЗ-17:
+// сроки шагов — значения правил заданий; X сверяет запись с mockups/zadaniya/zadaniya.html).
 // Источник ожиданий — канон mockups/docflow/ASUBK-dokumentooborot-logika.md: §2 этапы и переходы,
 // §3 нумерация, §4 исполнение, §5 отправка, §7 архив, §8 права и видимость, §9 журналы и показатели,
 // §10.1 шов с «Заданиями», §12 инварианты ИД-1…ИД-20; сценарии приёмки С-1…С-32 раздела ТЗ 23.
@@ -331,8 +333,7 @@ group('J. Шаги документа — задания (§10.1; С-31; ИД-18
   ok('ИД-18: каждый открытый шаг согласования присутствует в ответе на опрос', DF.DOCS.filter(d => d.stage === 'approval').every(d => d.rounds.slice(-1)[0].steps.filter(s => !s.res).every(s => P.some(p => p.key === 'doc-approve|' + d.id + '×' + s.emp))));
   ok('ИД-18: каждая неисполненная резолюция присутствует, закрытые — отсутствуют',
     DF.RES.every(r => ['done', 'refused', 'withdrawn'].includes(DF.resState(r).code) ? !P.some(p => p.key.startsWith('doc-execute|' + r.id + '×')) : P.some(p => p.key.startsWith('doc-execute|' + r.id + '×'))));
-  ok('открытые задания (поштучные и живые ключи валов) совпадают с ответом на опрос один к одному', (() => {
-    const a = DF.TASKS.filter(t => t.open).flatMap(t => t.val ? t.items.filter(i => i.live).map(i => i.key) : [t.key]).sort().join(); return a === P.map(p => p.key).sort().join(); })());
+  ok('открытые задания совпадают с ответом на опрос один к одному', DF.TASKS.filter(t => t.open).map(t => t.key).sort().join() === P.map(p => p.key).sort().join());
   ok('у перенесённых, аннулированных и удалённых шагов нет', !P.some(p => { const d = DF.doc(p.doc); return d.legacy || d.stage === 'annulled' || d.deleted; }));
   ok('«подписать» адресовано лично; регистрация, отправка, сдача в дело — очереди роли',
     P.filter(p => p.kind === 'doc-sign').every(p => p.addr.personal) && P.filter(p => ['doc-register', 'doc-dispatch'].includes(p.kind)).every(p => p.addr.role === 'registrar')
@@ -430,9 +431,9 @@ group('N. Экраны рендерятся без ошибок, без внут
 
 /* ============================================================================
  *  ВОЛНА 2 (10.10.2026): сверка с «Заданиями», справочники, печать, ознакомление,
- *  вал и подпись пачкой, мера из карточки, прогон переноса.
+ *  подпись пачкой, мера из карточки, прогон переноса.
  * ========================================================================== */
-const FORBID2 = /(ИД-\d|ADR-\d|ДО-\d|ДО-ВЗ|ДО-ДС|ДО-Д\d|P\d+-R\d|ИЗ-\d|ЗН-\d|РС-\d|label\.)/;
+const FORBID2 = /(ИД-\d|ADR-\d|ДО-\d|ДО-ВЗ|ДО-ДС|ДО-Д\d|P\d+-R\d|ИЗ-\d|ЗН-\d|ЗНП-\d|НЗ-\d|НЗ-Д|РС-\d|label\.)/;
 const DIRT2 = /undefined|NaN|\[object /;
 const taskBy = (DF, key) => DF.TASKS.find(t => t.open && t.key === key);
 
@@ -484,24 +485,26 @@ group('P. Шаги для «Заданий»: принятие, очередь, 
   ok('на экране: у очереди — «взял Касымова А.Б.», у названного — «в работе»', has(text(), 'взял Касымова А.Б.') && has(text(), 'в работе'));
 });
 
-group('Q. Свёртка в вал и подпись пачкой на экране (§10.1 п. 6; ЗН-23, ЗН-25; С-32; ДО-41)', ({ DF, X, w, panel, text }) => {
-  ok('ЗН-25: порог по умолчанию 10 у каждого вида шага', ['doc-sign', 'doc-approve', 'doc-register', 'doc-execute', 'doc-file'].every(k => DF.thresholdOf(k) === 10));
-  const val = DF.TASKS.find(t => t.open && t.val && t.kind === 'doc-sign');
-  ok('пачка из 12 уведомлений ушла на подпись одним действием — у Байжановой один вал на 12 шагов',
-    val && val.addr.emp === 'e2' && val.items.length === 12 && val.items.every(i => X.pack.includes(i.doc)) && X.pack.every(id => !DF.TASKS.some(t => !t.val && t.key === 'doc-sign|' + id)));
+group('Q. Каждый шаг — отдельное задание, группа в списке, подпись пачкой (§10.1 п. 6; ЗНП-3, ЗНП-15, ЗНП-16; С-32; ДО-41, ДО-47…ДО-50)', ({ DF, X, w, panel, text }) => {
+  const packT = X.pack.map(id => taskBy(DF, 'doc-sign|' + id));
+  ok('ЗНП-3: пачка из 12 уведомлений ушла на подпись одним действием — у Байжановой 12 заданий, у каждого свой номер и срок 16.10',
+    packT.every(t => t && t.addr.emp === 'e2' && t.due === '2026-10-16') && new Set(packT.map(t => t.id)).size === 12);
+  ok('ЗНП-3: на стенде 30 шагов — 30 открытых заданий', DF.povods().length === 30 && DF.TASKS.filter(t => t.open).length === 30, DF.TASKS.filter(t => t.open).length);
+  ok('ЗНП-3: порога и вал-записи нет ни в коде, ни в заданиях', !/thresholdOf|thresholdSave|uiThreshold|BATCH_THRESHOLD|\.val\b/.test(HTML.slice(HTML.indexOf('<script'))) && DF.TASKS.every(t => !('val' in t) && !('items' in t)));
   const nT = DF.TASKS.length; DF.sync();
-  ok('повторный прогон смотрит и в списки валов: ничего не переиздано', DF.TASKS.length === nT);
+  ok('повторный прогон: новых 0, ничего не переиздано', DF.TASKS.length === nT);
   const mk = (signer, k) => Array.from({ length: k }, (_, i) => outDraft(DF, 'e4', { type: 't-out-letter', subject: 'Письмо ' + signer + ' ' + i, addressees: [{ subj: 'b1' }], signer }));
-  const ten = mk('e1', 10); DF.oneRun(() => ten.forEach(id => DF.submit(id, 'e4')));
-  ok('ровно порог (10) за прогон — 10 поштучных заданий, вала нет', ten.every(id => taskBy(DF, 'doc-sign|' + id)) && !DF.TASKS.some(t => t.val && t.items.some(i => ten.includes(i.doc))));
-  const a11 = mk('e2', 11), b3 = mk('e1', 3); DF.oneRun(() => [...a11, ...b3].forEach(id => DF.submit(id, 'e4')));
-  const v2 = DF.TASKS.filter(t => t.open && t.val && t.addr.emp === 'e2').slice(-1)[0];
-  ok('ЗН-23: порог по паре «вид × адресат»: 11 Байжановой — вал, 3 Токтосунову в том же прогоне — поштучно',
-    v2 && v2.items.length === 11 && v2.items.every(i => a11.includes(i.doc)) && b3.every(id => taskBy(DF, 'doc-sign|' + id)));
-  ok('порог меняет только администратор документооборота; правка в журнале справочников', has(DF.thresholdSave('e7', 'doc-sign', 2).why, 'администратор')
-    && DF.thresholdSave('e10', 'doc-sign', 2).ok && DF.DICTLOG.slice(-1)[0].dict === 'Порог свёртки' && DF.DICTLOG.slice(-1)[0].by === 'e10');
-  const c3 = mk('e6', 0).concat(mk('e1', 3)); DF.oneRun(() => c3.forEach(id => DF.submit(id, 'e4')));
-  ok('порог 2: три шага одному адресату за прогон — вал', DF.TASKS.some(t => t.open && t.val && t.items.length === 3 && t.items.every(i => c3.includes(i.doc))));
+  const before = DF.TASKS.length, ten = mk('e1', 10); DF.oneRun(() => ten.forEach(id => DF.submit(id, 'e4')));
+  const after10 = DF.TASKS.length, a11 = mk('e2', 11), b3 = mk('e1', 3); DF.oneRun(() => [...a11, ...b3].forEach(id => DF.submit(id, 'e4')));
+  ok('ЗНП-3: разрыва нет — 10 и 11 шагов за прогон дают 10 и 11 заданий, рядом 3 другому адресату — 3', after10 - before === 10 && DF.TASKS.length - after10 === 14
+    && [...ten, ...a11, ...b3].every(id => taskBy(DF, 'doc-sign|' + id)));
+  const gs = () => DF.taskGroups();
+  const gE2 = gs().find(g => g.kind === 'doc-sign' && g.addr.emp === 'e2');
+  ok('ДО-47: группа складывает задания вида у одного человека: Байжанова 12 + 11 = 23, Токтосунов 1 + 10 + 3 = 14', gE2 && gE2.tasks.length === 23 && gs().find(g => g.kind === 'doc-sign' && g.addr.emp === 'e1').tasks.length === 14);
+  ok('ДО-47: группа — вид, а не запись: заданий столько же, в реестре записи нет, ближайший срок — у заданий', !DF.TASKS.some(t => t.key === gE2.key) && gE2.due === gE2.tasks.map(t => t.due).sort()[0]);
+  ok('ДО-47: группа от двух: единственное задание вида группы не даёт', DF.TASKS.filter(t => t.open && t.kind === 'doc-revise').length === 1 && !gs().some(g => g.kind === 'doc-revise') && !gs().some(g => g.tasks.length < 2));
+  const c3 = mk('e1', 3), nB = DF.TASKS.length; let inside = -1; DF.oneRun(() => { c3.forEach(id => DF.submit(id, 'e4')); inside = DF.TASKS.length; });
+  ok('ДО-50: одно действие — один опрос: внутри действия заданий не прибавилось, после него 3 разом', inside === nB && DF.TASKS.length === nB + 3, [inside, nB, DF.TASKS.length]);
   ok('С-32: отказа пачкой нет — только по одному документу', !Object.keys(DF).some(k => /rejectBatch|refuseBatch/i.test(k)));
   const part = DF.signBatch([X.pack[0], X.o9], 'e1');
   ok('пачка с документом без права: подписан прошедший, по другому — причина', !part.ok && part.signed === 1 && part.total === 2 && has(part.msg, 'Подписано 1 из 2') && has(part.msg, 'подписант'));
@@ -512,14 +515,49 @@ group('Q. Свёртка в вал и подпись пачкой на экра�
   const r = DF.uiSignBatch();
   ok('кнопка «Подписать пачкой» — одно действие: подписано 12 из 12', r && r.ok && r.signed === 12 && X.pack.every(id => DF.doc(id).signed));
   ok('С-32: в журнале каждого из 12 своя запись «Подписано»', X.pack.every(id => DF.doc(id).log.filter(l => l.act === 'Подписано').length === 1));
-  ok('вал подписи закрыт: живых шагов нет, исход «исполнено»', !val.open && val.outcome === 'исполнено' && has(val.note, 'шагов 12'));
-  const rv = DF.TASKS.find(t => t.open && t.val && t.kind === 'doc-register');
-  ok('12 подписанных за прогон встали в очередь «Регистратор» одним валом', rv && rv.addr.role === 'registrar' && rv.items.length === 12);
-  DF.takeTask(rv.id, 'e8'); DF.register(X.pack[0], 'e7');
-  const it = rv.items.find(i => i.doc === X.pack[0]);
-  ok('вал — контейнер: ключ отпал сам («выполнил другой»), вал открыт с 11 живыми', !it.live && has(it.note, 'выполнил другой') && rv.open && rv.items.filter(i => i.live).length === 11);
+  ok('ЗНП-3: у каждого из 12 заданий свой исход «исполнено», запись на документ в закрытых', packT.every(t => !t.open && t.outcome === 'исполнено' && DF.doc(t.doc).id === t.doc));
+  const rg = () => gs().find(g => g.key === 'doc-register|role:registrar');
+  const g0 = rg();
+  ok('12 подписанных за прогон встали в очередь «Регистратор»: 12 заданий, в группе вид × роль', g0 && g0.addr.role === 'registrar' && X.pack.every(id => g0.tasks.some(t => t.doc === id)));
+  const ids = g0.tasks.map(t => t.id);
+  const no = DF.takeTasks(ids, 'e4');
+  ok('ДО-48: взять из очереди чужой роли нельзя: «Взято 0 из N», причина названа', !no.ok && no.taken === 0 && has(no.msg, 'Взято 0 из ' + ids.length) && has(no.msg, 'своей роли'));
+  DF.takeTask(ids[0], 'e7');
+  const tk = DF.takeTasks(ids, 'e8');
+  ok('ДО-48: «Взять все» поштучно: уже взятое не мешает остальным, итог называет его', !tk.ok && tk.taken === ids.length - 1 && has(tk.msg, `Взято ${ids.length - 1} из ${ids.length}`) && has(tk.msg, 'уже взял'));
+  const taken = DF.TASKS.find(t => t.open && t.key === 'doc-register|' + X.pack[1]);
+  ok('ДО-47: взятые уходят в группу взявшего, очередь роли опустела', taken.taken === 'e8' && gs().some(g => g.key === 'doc-register|e8' && ids.slice(1).every(id => g.tasks.some(t => t.id === id))) && !rg());
+  DF.register(X.pack[1], 'e7');
+  ok('ЗНП-3: зарегистрировал другой — закрыто одно задание («выполнил другой»), остальные открыты', !taken.open && has(taken.note, 'выполнил другой') && X.pack.slice(2).every(id => taskBy(DF, 'doc-register|' + id)));
   DF.setUser('e10'); DF.go('settings'); DF.setTab('tasks');
-  ok('на экране «Шаги для заданий»: вал-задания со списком документов и порог свёртки', !!panel().querySelector('[data-testid="vals"]') && !!panel().querySelector('[data-testid="thresholds"]') && has(text(), 'Уведомление о просрочке платежа по кредиту К-31'));
+  ok('на экране «Шаги для заданий»: таблица групп вместо вала и порога; каждый шаг назван темой документа', !!panel().querySelector('[data-testid="groups"]') && !panel().querySelector('[data-testid="vals"]') && !panel().querySelector('[data-testid="thresholds"]')
+    && has(text(), 'Уведомление о просрочке платежа по кредиту К-31') && !/(^|[^а-яё])вал(-|\s|а |ы )/i.test(text()) && !has(text(), 'порог'));
+});
+
+group('Q2. Группа и сводка сигналов на экране (ЗНП-3, ЗНП-16; ДО-47…ДО-49)', ({ DF, X, panel, text, w }) => {
+  const g12 = () => DF.taskGroups().find(g => g.kind === 'doc-sign' && g.addr.emp === 'e2');
+  DF.setUser('e10'); DF.go('settings'); DF.setTab('tasks');
+  const row = panel().querySelector('[data-testid="group-doc-sign"]');
+  ok('ДО-47: строка группы: «подписать», Байжанова (лично), 12, срок 16.10.2026, просрочено 0', row && has(row.textContent, 'подписать') && has(row.textContent, 'Байжанова') && has(row.textContent, '(лично)') && has(row.textContent, '12') && has(row.textContent, '16.10.2026'), row && row.textContent);
+  ok('ДО-48: «Взять все» только у очереди роли и только носителю роли', !panel().querySelector('[data-testid="take-all-doc-sign"]') && !panel().querySelector('[data-testid="take-all-doc-file"]'));
+  DF.setUser('e9');
+  const bf = panel().querySelector('[data-testid="take-all-doc-file"]');
+  ok('ДО-48: архивариус видит «Взять все» у группы «сдать в дело» из 3 заданий и берёт одним нажатием', !!bf && DF.taskGroups().find(g => g.kind === 'doc-file' && g.addr.role === 'archivist').tasks.length === 3 && (bf.click(), DF.TASKS.filter(t => t.open && t.kind === 'doc-file').every(t => t.taken === 'e9')) && !panel().querySelector('[data-testid="take-all-doc-file"]'));
+  const d0 = DF.TODAY, d1 = '2026-10-19', d5 = '2026-10-23';
+  ok('ЗНП-3: на 15.10 пачка не просрочена, на 19.10 просрочено каждое из 12', DF.taskSignals(d0).filter(s => s.task.kind === 'doc-sign' && X.pack.includes(s.task.doc)).length === 0
+    && new Set(DF.taskSignals(d1).filter(s => s.task.kind === 'doc-sign' && X.pack.includes(s.task.doc)).map(s => s.task.id)).size === 12);
+  const dg = DF.signalDigest(d1).find(x => x.kind === 'expired' && x.step === 'doc-sign' && x.to.join() === 'e2');
+  ok('ДО-49: сообщение «срок истёк» Байжановой одно, в нём 12 заданий', dg && dg.tasks.length === 12 && DF.signalDigest(d1).filter(x => x.kind === 'expired' && x.step === 'doc-sign' && x.to.join() === 'e2').length === 1);
+  const od = DF.signalDigest(d5).find(x => x.kind === 'overdue' && x.step === 'doc-sign' && x.tasks.some(t => X.pack.includes(t.doc)));
+  ok('ДО-49: на 5-й р.д. «Просрочено задание» по каждому из 12, у руководителя строкой', od && od.tasks.filter(t => X.pack.includes(t.doc)).length === 12 && DF.taskSignals(d5).filter(s => s.kind === 'overdue' && X.pack.includes(s.task.doc)).length === 12);
+  ok('ДО-49: сумма заданий по строкам сводки равна числу сигналов по заданиям', DF.signalDigest(d5).reduce((a, x) => a + x.tasks.length, 0) === DF.taskSignals(d5).length);
+  DF.setClock(d1); DF.setUser('e2'); DF.go('settings'); DF.setTab('tasks');
+  const sr = [...panel().querySelectorAll('[data-testid="signals"] tbody tr')].filter(tr => has(tr.textContent, 'подписать') && has(tr.textContent, 'Байжанова'));
+  ok('ДО-49: на экране 19.10 одна строка «12 заданий · подписать · срок 16.10»', sr.length === 1 && has(sr[0].textContent, '12 заданий') && has(sr[0].textContent, '16.10.2026'), sr.map(x => x.textContent).join(' | '));
+  const lateN = new Set(DF.taskSignals(d1).map(s => s.task.id)).size;
+  ok('ДО-49: заголовок считает задания и сообщения: числа сходятся с движком', has(text(), `заданий ${lateN}, сообщений ${DF.signalDigest(d1).length}`), lateN);
+  ok('ДО-47: у группы просрочено 12 на дату экрана', g12().late === 12);
+  DF.setClock(DF.TODAY);
 });
 
 group('R. Справочники: правка администратором с журналом (§1.2, §1.6, §1.11, §1.12, §8.1)', ({ DF, X }) => {
@@ -690,6 +728,47 @@ group('W. Экраны волны 2: обход без внутренних но
   const fp = DF.submitForm({ pack: 'ПВ-41', signer: 'e2', submit: true });
   ok('пачка уже разобрана — форма показывает причину', fp.ok === false && !!w.document.querySelector('[data-testid="form-err"]')); DF.closeForm();
   ok('ошибок консоли при обходе нет', errs.length === 0, errs);
+});
+
+/* ============================================================================
+ *  ВОЛНА 3 (05.11.2026): сроки шагов — значения правил заданий.
+ * ========================================================================== */
+group('X. Сроки шагов — значения правил заданий (НЗ-13, НЗ-Д7, НЗ-17; ДО-45, ДО-46)', ({ DF, panel, text }) => {
+  const ZD = readFileSync(resolve(HERE, '../../mockups/zadaniya/zadaniya.html'), 'utf8');
+  const projectSrc = /const PROJECT_SRC = '([^']+)'/.exec(ZD)[1];
+  const rules = Object.fromEntries([...ZD.matchAll(/\['(doc-[a-z]+)',\s*'act-doc-[a-z-]+',.*\{(dueN:[^}]*)\}\]/g)].map(m => [m[1], m[2]]));
+  const differ = Object.keys(DF.STEP_RULES).filter(k => { const r = DF.STEP_RULES[k], z = rules[k] || '', n = /dueN:(\w+)/.exec(z);
+    const from = /dueFrom:'([^']+)'/.exec(z); return !n || String(r.dueN) !== n[1] || (r.dueUnit === 'named') !== /dueUnit:'named'/.test(z)
+      || (r.dueUnit === 'named' ? r.dueSource !== null || !from || r.dueFrom !== from[1] : r.dueSource !== projectSrc); });
+  ok('НЗ-Д7: запись сроков совпадает с правилами заданий: 11 видов, число, единица, откуда число', Object.keys(rules).length === 11 && Object.keys(DF.STEP_RULES).length === 11 && differ.length === 0, differ.join() || Object.keys(rules).length);
+  const pv = HTML.slice(HTML.indexOf('function povods()'), HTML.indexOf('/* Модель «Заданий» в миниатюре'));
+  ok('НЗ-Д7: в povods() нет чисел срока, срок берётся только из записи', pv.includes('STEP_RULES[kind].dueN') && !/\bW\(|addWork\([^)]*,\s*\d/.test(pv) && (pv.match(/addWork\(/g) || []).length === 1);
+  const was = DF.STEP_RULES['doc-sign'].dueN, sg = () => { const id = outDraft(DF, 'e4', { type: 't-out-letter', subject: 'Срок', addressees: [{ subj: 'b1' }], signer: 'e1' }); DF.submit(id, 'e4'); return taskBy(DF, 'doc-sign|' + id); };
+  const t2 = sg(); DF.STEP_RULES['doc-sign'].dueN = 7; const t7 = sg(); DF.STEP_RULES['doc-sign'].dueN = was;
+  ok('НЗ-13: правка записи меняет срок новых заданий, выданное остаётся: 2 р.д. — 19.10, 7 р.д. — 26.10', t2.due === '2026-10-19' && t7.due === '2026-10-26', [t2.due, t7.due]);
+  DF.setClock('2026-10-05');
+  const ap = outDraft(DF, 'e4', { type: 't-out-letter', subject: 'С согласованием', addressees: [{ subj: 'b1' }], signer: 'e2', approvers: ['e6'] }); DF.submit(ap, 'e4');
+  DF.setClock('2026-10-08'); DF.approve(ap, 'e6');
+  const ts = taskBy(DF, 'doc-sign|' + ap);
+  ok('ДО-46: «подписать» считается от выдачи: круг 05.10, согласовано 08.10 — срок 12.10, а не просроченное 07.10', ts && ts.at === '2026-10-08' && ts.due === '2026-10-12', ts && ts.due);
+  DF.setClock(DF.TODAY);
+  const et = DF.TASKS.find(t => t.open && t.kind === 'doc-execute' && t.due === '2026-10-08'), er = DF.res(et.key.split('|')[1].split('×')[0]);
+  const ex = DF.extendFromTasks(er.id, '2026-11-30', er.author);
+  ok('ДО-46: названный срок ведёт документ: продление меняет срок открытого задания, до нового срока сигналов нет, после — есть', ex.ok && et.due === '2026-11-30' && !DF.taskSignals('2026-11-20').some(s => s.task === et) && DF.taskSignals('2026-12-01').some(s => s.task === et), et.due);
+  const ft = DF.TASKS.find(t => t.open && t.kind === 'doc-file' && t.due === '2026-10-14'), subj = DF.doc(ft.doc).subject;
+  DF.setUser('e10'); DF.go('settings'); DF.setTab('tasks');
+  const rowOf = () => [...panel().querySelectorAll('[data-testid="povods"] tbody tr')].find(tr => has(tr.textContent, 'сдать в дело') && has(tr.textContent, subj));
+  const r1 = rowOf(), red = r1 && r1.querySelector('.red');
+  ok('ДО-46: срок на экране — срок задания: сдача в дело 14.10 просрочена и красная', !!red && red.textContent === '14.10.2026', r1 && r1.textContent);
+  DF.setClock('2026-10-22'); DF.setTab('tasks');
+  ok('ДО-46: срок не едет с часами: на 22.10 та же дата', has(rowOf().textContent, '14.10.2026') && !has(rowOf().textContent, '29.10.2026'));
+  ok('ДО-46: на экране продлённая резолюция с новым сроком 30.11.2026', [...panel().querySelectorAll('[data-testid="povods"] tbody tr')].some(tr => has(tr.textContent, et.id) && has(tr.textContent, '30.11.2026')));
+  DF.setClock(DF.TODAY); DF.setTab('tasks');
+  const tbl = panel().querySelector('[data-testid="step-rules"]'), rows = [...tbl.querySelectorAll('tbody tr')], cell = k => rows.find(r => r.dataset.rule === k).textContent;
+  ok('НЗ-17: откуда число: 9 строк «решение проекта», 2 «называет документ»', rows.length === 11 && rows.filter(r => has(r.textContent, 'решение проекта')).length === 9 && rows.filter(r => has(r.textContent, 'называет документ')).length === 2);
+  ok('ДО-45: значения на экране из записи: подписать 2 р.д., сдать в дело 5 р.д., резолюция и выдача называют документ', has(cell('doc-sign'), '2 р.д. от выдачи') && has(cell('doc-file'), '5 р.д. от выдачи') && has(cell('doc-execute'), 'срок резолюции') && has(cell('doc-return'), 'срок выдачи'));
+  ok('НЗ-13: поля и кнопки нет, у администратора тоже; подпись говорит, где менять', tbl.querySelectorAll('input,button,select,textarea').length === 0 && has(text(), 'только в правилах заданий'));
+  ok('НЗ-17: подписей «внутренний акт» и «умолчание документооборота» на экране нет', !has(text(), 'внутренний акт') && !has(text(), 'умолчание документооборота'));
 });
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdom): ${ALL_ERRS.length}`);

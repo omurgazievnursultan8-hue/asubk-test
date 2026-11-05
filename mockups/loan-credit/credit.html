@@ -1095,7 +1095,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-10-15 · 192/197 PASS
+ SMOKE (node) 2026-11-05 · 193/198 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1293,6 +1293,7 @@
    #203 ✓
    #204 ✓
    #205 ✓
+   #206 ✓
 -->
 <style>
 
@@ -5778,6 +5779,25 @@ function nbRateAt(code, date){
   for (const r of rows) if (pd(r.from) <= pd(date)) v = r.v;   // последний установленный на дату
   return v;
 }
+/* ---- ПОРОГ УВЕДОМЛЕНИЯ ЗАЁМЩИКА — ЗАПИСЬ НОРМЫ, ОТДАЁТСЯ ЗАДАНИЯМ (НЗ-8) -----------------
+   За сколько дней до даты платежа по графику АСУБК сообщает куратору о наступающем сроке:
+   Порядок №41 п. 15 пп. 1 — за 30 календарных дней. Число — норма акта, не поле кредита и не
+   настройка: на чтение, смена ТОЛЬКО ВЫПУСКОМ (новая запись с датой и актом, старая остаётся).
+   Модуль «Задания» читает его через CR.noticeNormAt и свой порог не заводит. Экрана у числа
+   нет: в карточке кредита нет места, где оно помогало бы. */
+const NOTICE_NORM = [
+  { from:'06.07.2026', v:30, unit:'к.д.', act:'Порядок №41', point:'п. 15 пп. 1' },   // дата редакции №41
+];
+/* Запись, действующая на дату: последняя с from ≤ date; раньше первой — null (нормы ещё нет).
+   rows — для проверки выпуска новой записи; по умолчанию живой список. */
+function noticeNormAt(date, rows){
+  if (!date) return null;
+  let r = null;
+  for (const x of (rows || NOTICE_NORM)) if (pd(x.from) <= pd(date)) r = x;
+  return r;
+}
+function noticeDaysAt(date, rows){ const r = noticeNormAt(date, rows); return r ? r.v : null; }
+
 /* Курс пары «валюта поступления → валюта кредита» на дату поступления. null, когда пара
    совпадает: пересчитывать нечего, и печатать курс не о чем. */
 function fxRateOf(c, p){
@@ -8819,6 +8839,7 @@ window.CR = {
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   /* платежи: поступление как сущность, курс из справочника, четыре действия трактовки
      (ADR-0056, ADR-0061/0090, ADR-0257/0258) */
+  NOTICE_NORM, noticeNormAt, noticeDaysAt,                         // НЗ-8: порог уведомления, наружу заданиям
   receiptOf, paymentDate, fxRateOf, nbRateAt, normalizeReceipts, setCurrentActor,
   assignedCuratorOf, isAssignedCurator,
   adjustAllocation, setSurplusMode, confirmMatch, setDisputeOutcome,
