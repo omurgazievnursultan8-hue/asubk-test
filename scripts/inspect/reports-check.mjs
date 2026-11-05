@@ -98,6 +98,8 @@
 // отчёта, путь группы у поправки, шкала категории, редакции фрагмента, новое представление выпуска, список из конструктора
 // на «Рабочих списках». Переписаны #387, #394, #422 (план у строки объекта — «—»), #465 (фрагмент — путь редакции).
 // Подписи: «интервалы просрочки» вместо «ступеней», «расчёт» вместо «задания» у фоновой работы отчётности.
+// Волна 65 (блок KKK, #660–#672): настройки заданий — N записями с датой и основанием, новое значение только новым поводам (НЗ-15,
+// НЗ-2, ОД-66…ОД-71); срок обзора записью у отчёта, на конец периода, дверь анализа (ОД-72…ОД-74). Переписаны #332, #333, #335.
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -4066,25 +4068,26 @@ const DEV = 'изменено — не утверждённый состав';
     `+${rowOf(u, 'm:пришли в охват').value} и его «погашено» −700 000, у Асанова «ушли из охвата» ${rowOf(h, 'm:ушли из охвата').value} ` +
     `без потоков; узлы «Подразделение» в сумме — итог, переходы гасятся`);
 
-  const t7 = RP.obligationTiles();
-  RP.state.remind = 8; const t8 = RP.obligationTiles(), seam = RP.reportObligations('dep-prom');
-  RP.state.remind = 30; const t30 = RP.obligationTiles(), late30 = RP.obligations().filter(o => o.state === 'просрочено');
-  RP.state.remind = 7;
+  const t7 = RP.obligationTiles(), oneN = v => { RP.state.remindRecs[0].v = v; };
+  oneN(8); const t8 = RP.obligationTiles(), seam = RP.reportObligations('dep-prom');
+  oneN(30); const t30 = RP.obligationTiles(), late30 = RP.obligations().filter(o => o.state === 'просрочено');
+  oneN(7);
   ok(332, t7.soon === 0 && t7.remind === 7 && t8.soon === 3 && t30.soon === 3 && t30.late === 2 && late30.every(o => !o.soon) &&
         seam.filter(x => x.soon).map(x => x.tpl).join() === 'Акт сверки задолженности' &&
         RP.obligationRows().filter(r => r.soon).length === 0,
     `ОД-55, ОД-56: «срок близко» — признак строки обязательства: при N = 7 близких ${t7.soon} (акт сверки — через 8 дней), ` +
     `при N = 8 — ${t8.soon} (день срока включительно); просроченные (${t30.late}) не «близки» и при N = 30; шов заданиям — тот же признак`);
 
-  as('user'); const byUser = RP.setRemindDays(8);
-  as('auth'); const neg = RP.setRemindDays(-1), frac = RP.setRemindDays(2.5), blank = RP.setRemindDays(''), same = RP.setRemindDays(7),
-    set = RP.setRemindDays('8');
-  const lg = RP.state.remindLog.slice(-1)[0], after = RP.obligationTiles();
+  const newN = (v, basis) => RP.setRemindDays({ v, from: RP.state.today, basis });
+  as('user'); const byUser = newN(8, 'акт сверки готовят дольше');
+  as('auth'); const neg = newN(-1, 'б'), frac = newN(2.5, 'б'), blank = newN('', 'б'), same = newN(7, 'б'),
+    set = newN('8', 'акт сверки готовят дольше');
+  const lg = RP.remindHistory().slice(-1)[0], after = RP.obligationTiles();
   ok(333, !byUser.ok && has(byUser.why, 'уполномоченный') && !neg.ok && !frac.ok && !blank.ok && !same.ok && set.ok && after.soon === 3 &&
-        RP.state.remindLog.length === 1 && lg.from === 7 && lg.to === 8 && lg.by === 'Тентимишев К.' && lg.at === RP.state.today &&
-        RP.state.log[0].msg.indexOf('7 → 8') !== -1,
-    `ОД-57, ОД-58: N правит только уполномоченный («${byUser.why}»); −1, 2,5 и пустое поле — отказ; 7 → 8 — запись журнала ` +
-    `«${lg.by}, ${lg.at}: ${lg.from} → ${lg.to}», плитка «близко» — ${after.soon}`);
+        RP.state.remindRecs.length === 2 && lg.v === 8 && lg.from === RP.state.today && lg.by === 'Тентимишев К.' && lg.at === RP.state.today &&
+        has(RP.state.log[0].msg, '7 → 8 с 24.08.2026') && has(RP.state.log[0].msg, 'основание: акт сверки готовят дольше'),
+    `ОД-57, ОД-58, НЗ-15: N правит только уполномоченный («${byUser.why}»); −1, 2,5 и пустое поле — отказ; 7 → 8 — запись ` +
+    `«${lg.by}, ${lg.at}: ${lg.v} к.д. с ${lg.from}, ${lg.basis}», журнал «${RP.state.log[0].msg}», плитка «близко» — ${after.soon}`);
 
   RP.seed(); as('auth');
   const P = { asOf:'2026-08-01' }, thr = { groups:[[{ field:'days', op:'больше', value:100000 }]] };
@@ -4097,15 +4100,15 @@ const DEV = 'изменено — не утверждённый состав';
     `под параметром «подразделение = ДПО» — «${pv.data.empty && pv.data.empty.why}», и с фильтром тоже`);
 
   RP.state.view = 'calendar'; const cA = win.VIEWS.calendar.fn();
-  RP.setRemindDays(8); const cA8 = win.VIEWS.calendar.fn();
+  RP.setRemindDays({ v: 8, from: RP.state.today, basis: 'акт сверки готовят дольше' }); const cA8 = win.VIEWS.calendar.fn();
   as('user'); const cU = win.VIEWS.calendar.fn();
   const clean = [cA, cA8, cU].every(x => !/ОД-\d|ADR-0\d|ИО-6\d/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
   ok(335, has(cA, 'Напоминать за N к.д. до срока') && has(cA, 'type="number"') && has(cA, 'Сейчас таких: 0') &&
         !has(cA, 'срок близко</span>') && has(cA8, 'срок близко</span>') && has(cA8, 'через 8 дней') && has(cA8, 'Сейчас таких: 3') &&
-        has(cA8, 'Изменено 24.08.2026 · Тентимишев К.: 7 → 8 к.д.') && !has(cU, 'type="number"') &&
+        has(cA8, '<td>24.08.2026</td><td>8 к.д.</td>') && has(cA8, 'акт сверки готовят дольше') && has(cA8, 'Тентимишев К., 24.08.2026') && !has(cU, 'type="number"') &&
         has(cU, 'правит уполномоченный по отчётности') && clean,
     `экран «Календарь сдачи»: настройка «Напоминать за N к.д. до срока» у уполномоченного, у пользователя — значением; ` +
-    `при N = 8 у акта сверки — «срок близко · через 8 дней», строка изменения; номеров решений в интерфейсе нет`);
+    `при N = 8 у акта сверки — «срок близко · через 8 дней», строка истории с датой начала и основанием; номеров решений в интерфейсе нет`);
 })();
 
 /* ---- UU. Входящие от ядра по ADR-0322, волна 51: курсовая разница — поток Движения, «Остаток основного долга» —
@@ -7258,13 +7261,144 @@ const DEV = 'изменено — не утверждённый состав';
   })();
 })();
 
+/* ---- KKK. Волна 65, настройки заданий: N записями с датой, новое значение только новым поводам (НЗ-15, НЗ-2, НЗ-3, НЗ-17);
+        срок обзора записью у отчёта (заявка анализа, ОД-72…ОД-74). Стенд: 24.08.2026, акт сверки со сроком 01.09, ФО-01 со сроком 15.09. ---- */
+(() => {
+  const T0 = '2026-08-24', ORD = 'приказ № 200 от 20.08.2026';
+  const V = win.VIEWS, fresh = r => { DEMO_WORLD = false; RP.seed(); as(r || 'auth'); };
+  const near = () => RP.obligations().filter(o => o.soon);
+  const newN = (v, from, basis, order) => RP.setRemindDays({ v, from, basis, order });
+  const CLEAN = h => !/ОД-\d|НЗ-\d|ЗА-\d|ЗЛН-\d|ИМ-\d|АН-\d|ADR-0\d/.test(String(h).replace(/<!--[\s\S]*?-->/g, ''));
+
+  fresh();
+  const r0 = RP.remindHistory();
+  ok(660, r0.length === 1 && r0[0].v === 7 && r0[0].from === '2026-05-01' && r0[0].basis === 'начальное значение' && !r0[0].order && r0[0].by === null &&
+        RP.remindDays() === 7 && RP.remindDays('2026-01-01') === 7 && RP.obligationTiles().remind === 7 && near().length === 0 &&
+        RP.state.remind === undefined && RP.state.remindLog === undefined,
+    `ОД-66: N — записи, а не число и журнал рядом: первая запись «${r0[0].v} к.д. с ${r0[0].from}, ${r0[0].basis}» действует и на 01.01.2026; числа стенда те же: близких ${near().length}, плитка N = ${RP.obligationTiles().remind}`);
+
+  as('user'); const rU = newN(8, T0, 'б');
+  as('auth');
+  const rNoDate = RP.setRemindDays({ v: 8, basis: 'б' }), rPast = newN(8, '2026-08-23', 'б'), rBasis = newN(8, T0, '   '), rNeg = newN(-1, T0, 'б'), rFrac = newN('2,5', T0, 'б'),
+    rEmpty = newN('', T0, 'б'), rSame = newN(7, T0, 'б'), rOrd = newN(8, T0, 'б', 'приказ без номера'), rOld = newN(8, '2026-05-01', 'б');
+  ok(661, [rU, rNoDate, rPast, rBasis, rNeg, rFrac, rEmpty, rSame, rOrd, rOld].every(r => !r.ok) && has(rU.why, 'уполномоченный') && has(rNoDate.why, 'дата начала обязательна') &&
+        has(rPast.why, 'прошлая дата запрещена') && has(rBasis.why, 'основание обязательно') && has(rNeg.why, 'не меньше нуля') && has(rEmpty.why, 'не меньше нуля') && has(rSame.why, 'N уже 7') &&
+        has(rOrd.why, 'с номером и датой') && has(rOld.why, 'прошлая дата запрещена') && RP.state.remindRecs.length === 1,
+    `НЗ-3, ОД-68: смена N — дата начала и основание: «${rPast.why}»; «${rBasis.why}»; «${rOrd.why}»; ни один отказ записи не добавил`);
+
+  const up = newN(8, T0, 'акт сверки готовят дольше'), n8 = near().length, seam8 = RP.reportObligations('dep-prom').find(x => x.soon) || {};
+  const rSameDay = newN(9, T0, 'б');
+  const down = newN(3, '2026-08-25', 'хватает трёх дней');
+  RP.state.today = '2026-08-25';
+  const n25 = near(), seam25 = RP.reportObligations('dep-prom').find(x => x.soon) || {}, nToday = RP.remindDays();
+  RP.state.today = '2026-09-07'; const n0907 = near().length, due0901 = RP.obligations().filter(o => o.due === '2026-09-01'), late0907 = due0901.length === 3 && due0901.every(o => o.state === 'просрочено' && !o.soon);
+  RP.state.today = '2026-09-11'; const n0911 = near().length;
+  RP.state.today = '2026-09-12'; const n0912 = near();
+  fresh(); newN(8, T0, 'акт сверки готовят дольше'); RP.state.today = '2026-09-07'; const ctl0907 = near().length;
+  ok(662, up.ok && n8 === 3 && seam8.soonFrom === T0 && !rSameDay.ok && down.ok && nToday === 3 && n25.length === 3 && n25.every(o => o.toDue === 7 && o.soonFrom === T0) && seam25.soon === true && seam25.soonFrom === T0 &&
+        late0907 && n0907 === 0 && ctl0907 > 0 && n0911 === 0 && n0912.length > 0 && n0912.every(o => o.due === '2026-09-15' && o.soonFrom === '2026-09-12'),
+    `НЗ-2, ОД-67: 7 → 8 с 24.08 — близких ${n8} сразу; 8 → 3 с 25.08 — ${n25.length} остаются близкими («через ${n25[0] && n25[0].toDue} дней», появились ${n25[0] && n25[0].soonFrom}); ФО-01 со сроком 15.09 по новому значению: на 11.09 — ${n0911}, на 12.09 — ${n0912.length}; при N = 8 близок уже 07.09 (${ctl0907}), при снижении на 07.09 — ${n0907}`);
+
+  fresh();
+  const fut = newN(3, '2026-09-10', 'будет хватать трёх дней'), todayN = RP.remindDays(), futN = RP.remindDays('2026-09-10'), futNear = near().length;
+  RP.state.today = '2026-09-08'; const beforeFrom = near().filter(o => o.due === '2026-09-15').length;
+  RP.state.today = '2026-10-08'; const oct08 = near().filter(o => o.due === '2026-10-15').length;
+  RP.state.today = '2026-10-12'; const oct12 = near().filter(o => o.due === '2026-10-15').length;
+  ok(663, fut.ok && todayN === 7 && futN === 3 && futNear === 0 && beforeFrom > 0 && oct08 === 0 && oct12 > 0,
+    `НЗ-3, ОД-67: запись с будущей датой сегодня ничего не меняет (N = ${todayN}, близких ${futNear}); срок 15.09 близок с 08.09 по старому значению (${beforeFrom}), срок 15.10 — по новому: 08.10 — ${oct08}, 12.10 — ${oct12}`);
+
+  fresh(); newN(30, '2036-09-01', 'опечатка в годе');
+  const blocked = newN(5, '2026-09-01', 'нужно раньше');
+  as('user'); const cU = RP.cancelRemind('2036-09-01');
+  as('auth'); const cIn = RP.cancelRemind('2026-05-01'), cOk = RP.cancelRemind('2036-09-01'), cAgain = RP.cancelRemind('2036-09-01'), hist = RP.remindHistory(), freed = newN(5, '2026-09-01', 'нужно раньше');
+  ok(664, !blocked.ok && !cU.ok && !cIn.ok && has(cIn.why, 'уже вступила') && cOk.ok && !cAgain.ok && hist.length === 2 && hist[1].cancelled && hist[1].cancelled.by === 'Тентимишев К.' && RP.remindDays('2036-09-01') === 5 && freed.ok,
+    `ОД-70: запись с опечаткой 01.09.2036 закрывала настройку («${blocked.why}»), пока не вступила — отменяется и остаётся в истории; вступившая не отменяется («${cIn.why}»)`);
+
+  fresh(); newN(8, T0, 'акт сверки готовят дольше', ORD); RP.rfSet('v', '6'); RP.rfSet('from', '2026-10-01'); RP.rfSet('basis', 'опыт сентября'); RP.doRemind();
+  const cA = V.calendar.fn(), logMsg = RP.state.log[0].msg, formGone = !RP.state.sel.rf.v;
+  as('user'); const cUs = V.calendar.fn();
+  ok(665, ['Новое значение, к.д.', 'Действует с', 'Основание', 'Приказ', 'Сохранить новое значение', 'История значений'].every(x => has(cA, x)) && has(cA, 'min="2026-08-24"') &&
+        has(cA, '<td>01.05.2026</td><td>7 к.д.</td><td class="small">решение проекта</td><td class="small">начальное значение</td>') &&
+        has(cA, '<td>24.08.2026</td><td>8 к.д.</td><td class="small">внутренний акт · ' + ORD + '</td><td class="small">акт сверки готовят дольше</td>') &&
+        has(cA, '<td>01.10.2026</td><td>6 к.д.</td>') && has(cA, 'ещё не вступила') && has(cA, 'Отменить') && has(cA, 'внутренний акт · ' + ORD + ' · с 24.08.2026') &&
+        has(logMsg, '8 → 6 с 01.10.2026, основание: опыт сентября') && formGone &&
+        !has(cUs, 'Сохранить новое значение') && !has(cUs, 'Отменить') && has(cUs, 'История значений') && has(cUs, 'акт сверки готовят дольше') && has(cUs, 'правит уполномоченный по отчётности') && CLEAN(cA) && CLEAN(cUs),
+    `ОД-69, НЗ-17: форма у уполномоченного, история всем; подпись от записи: «решение проекта» у начальной, «внутренний акт · ${ORD}» при приказе; журнал «${logMsg}»`);
+
+  fresh(); const tObl = RP.callSeamOut('задачи', 'reportObligations', 'dep-prom');
+  newN(8, T0, 'акт сверки готовят дольше'); const tObl2 = RP.callSeamOut('задачи', 'reportObligations', 'dep-prom');
+  ok(666, tObl.ok && tObl.data.every(x => x.soonFrom === null) && tObl2.data.filter(x => x.soon).length === 1 && tObl2.data.filter(x => x.soon).every(x => x.soonFrom === T0) && tObl2.data.filter(x => !x.soon).every(x => x.soonFrom === null),
+    `ОД-71: шов заданиям отдаёт день появления рядом с признаком: у близкого акта сверки ${T0}, у остальных пусто`);
+
+  fresh();
+  const tp = RP.reportTemplate('t-portfolio'), to = RP.reportTemplate('t-overdue'), oblBefore = RP.obligations().length;
+  RP.setFlags('t-portfolio', { forReview: false }); const tpOff = RP.reportTemplate('t-portfolio'), rOff = RP.addReviewCycle('t-portfolio', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
+  ok(667, tp.forReview && tp.cycle && tp.cycle.every === 'квартал' && tp.cycle.dueWd === 15 && tp.cycle.basis === 'приказ № 118 от 12.01.2026' && tp.cycle.since === '2026-01-12' && tp.cycleWhy === null && tp.cycles.length === 1 &&
+        to.forReview && to.cycle === null && has(to.cycleWhy, 'приказом не объявлена') && RP.TPL('t-overdue').schedule.freq === 'ежемесячно' &&
+        tpOff.cycle === null && has(tpOff.cycleWhy, 'пригоден для обзора') && !rOff.ok && has(rOff.why, 'пригодного для обзора') && RP.obligations().length === oblBefore,
+    `ОД-72: запись у отчёта: ФО-26 — ${tp.cycle.every}, ${tp.cycle.dueWd} р.д., ${tp.cycle.basis}; ФО-01 сдаётся ежемесячно, а обзор: «${to.cycleWhy}»; признак снят — «${tpOff.cycleWhy}»; обязательств запись не порождает (${oblBefore})`);
+
+  fresh();
+  const cyc = spec => RP.addReviewCycle('t-portfolio', spec);
+  as('user'); const yU = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
+  as('auth');
+  const yEv = cyc({ every: 'неделя', dueWd: 10, from: '2026-09-01', order: ORD }), yDue = cyc({ every: 'квартал', dueWd: 'abc', from: '2026-09-01', order: ORD }), yZero = cyc({ every: 'квартал', dueWd: 0, from: '2026-09-01', order: ORD }),
+    yNoEv = cyc({ every: '', dueWd: 10, from: '2026-09-01', order: ORD }), yNoDate = cyc({ every: 'квартал', dueWd: 10, order: ORD }), yPast = cyc({ every: 'квартал', dueWd: 10, from: '2026-08-23', order: ORD }),
+    yNoOrd = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: '' }), yWord = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: 'распоряжение устно' }),
+    yDraft = RP.addReviewCycle('t-npl', { every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
+  ok(668, [yU, yEv, yDue, yZero, yNoEv, yNoDate, yPast, yNoOrd, yWord, yDraft].every(r => !r.ok) && has(yU.why, 'уполномоченный') && has(yDue.why, 'не число рабочих дней') && has(yZero.why, 'не число рабочих дней') && has(yNoEv.why, 'некому считать') &&
+        has(yNoDate.why, 'дата начала обязательна') && has(yPast.why, 'прошлая дата запрещена') && has(yNoOrd.why, 'приказ') && has(yWord.why, 'приказ') && has(yDraft.why, 'утверждённой редакции') && RP.TPL('t-portfolio').cycles.length === 1,
+    `НЗ-3, ОД-72: новая запись срока обзора: «${yPast.why}»; «${yNoOrd.why}»; «${yNoEv.why}»; ни один отказ записи не добавил`);
+
+  const y1 = cyc({ every: 'квартал', dueWd: 10, from: '2026-09-01', order: ORD });
+  const atQ2 = RP.reportTemplate('t-portfolio', '2026-06-30'), atQ3 = RP.reportTemplate('t-portfolio', '2026-09-30'), atNow = RP.reportTemplate('t-portfolio'), atOld = RP.reportTemplate('t-portfolio', '2025-12-31');
+  const viaSeam = RP.callSeamOut('анализ', 'reportTemplate', { tid: 't-portfolio', at: '2026-09-30' });
+  const ySame = cyc({ every: 'квартал', dueWd: 10, from: '2026-10-01', order: ORD }), yOff = cyc({ every: '', from: '2027-01-01', order: 'приказ № 300 от 01.12.2026' }), atOff = RP.reportTemplate('t-portfolio', '2027-03-31');
+  ok(669, y1.ok && atQ2.cycle.dueWd === 15 && atNow.cycle.dueWd === 15 && atQ3.cycle.dueWd === 10 && atQ3.cycle.basis === ORD && atOld.cycle === null && has(atOld.cycleWhy, 'ещё не объявлена') && viaSeam.ok && viaSeam.data.cycle.dueWd === 10 &&
+        !ySame.ok && has(ySame.why, 'не отличается') && yOff.ok && atOff.cycle === null && has(atOff.cycleWhy, 'периодичность отменена') && RP.reportTemplate('t-portfolio', '2026-12-31').cycle.dueWd === 10,
+    `ОД-73: новая запись закрытые периоды не трогает: II квартал — ${atQ2.cycle.dueWd} р.д., III квартал — ${atQ3.cycle.dueWd} р.д.; период до первого приказа: «${atOld.cycleWhy}»; отмена приказом: «${atOff.cycleWhy}»`);
+
+  fresh(); RP.state.view = 'builder'; RP.state.sel.draft = 't-portfolio';
+  const bA = V.builder.fn();
+  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', '2026-09-01'); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-portfolio');
+  const bA2 = V.builder.fn(), logC = RP.state.log[0].msg, clearedC = BFkeys => BFkeys.every(k => RP.state.sel.bf[k] === undefined);
+  as('user'); const bU = V.builder.fn();
+  as('auth'); RP.doCancelCycle('t-portfolio', '2026-09-01'); const bA3 = V.builder.fn(), rNow = RP.reportTemplate('t-portfolio', '2026-09-30');
+  RP.state.sel.draft = 't-overdue'; const bOv = V.builder.fn(); RP.state.sel.draft = 't-recon'; const bRc = V.builder.fn();
+  ok(670, ['Обзор по приказу', 'Срок обзора', 'квартал, 15 р.д. после закрытия периода · с 12.01.2026', 'внутренний акт · приказ № 118 от 12.01.2026', 'Сохранить срок обзора', 'приказ № … от ДД.ММ.ГГГГ'].every(x => has(bA, x)) &&
+        clearedC(['cyDue', 'cyFrom', 'cyOrder']) && has(bA2, '<td>01.09.2026</td><td>квартал, 10 р.д. после закрытия периода</td>') && has(bA2, 'ещё не вступила') && has(bA2, 'Отменить') && has(logC, 'с 01.09.2026') && has(logC, ORD) &&
+        has(bU, 'Обзор по приказу') && has(bU, 'внутренний акт · ' + ORD) && !has(bU, 'Сохранить срок обзора') && !has(bU, 'Отменить') &&
+        has(bA3, 'class="pill neutral">отменена</span>') && rNow.cycle.dueWd === 15 &&
+        has(bOv, 'приказом не объявлена') && has(bOv, 'Сохранить срок обзора') && !has(bRc, 'Обзор по приказу') && !has(bRc, 'Сохранить срок обзора') && CLEAN(bA) && CLEAN(bU),
+    `ОД-72, ОД-70: карточка отчёта: срок обзора рядом с признаком, форма и отмена у уполномоченного, история всем; журнал «${logC}»; у ФО-01 — «приказом не объявлена», у бланка блока нет`);
+
+  fresh('user');
+  const dOk = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-portfolio', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD }, by: 'Администратор анализа' });
+  const dPast = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-portfolio', spec: { every: 'квартал', dueWd: 20, from: '2026-08-01', order: ORD }, by: 'Администратор анализа' });
+  const dOther = RP.callSeamOut('задачи', 'reviewCycleAdd', { tid: 't-portfolio', spec: { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD } });
+  const dDirect = RP.addReviewCycle('t-portfolio', { every: 'квартал', dueWd: 20, from: '2026-10-01', order: ORD });
+  const dRec = RP.reportTemplate('t-portfolio').cycles.slice(-1)[0];
+  ok(671, dOk.ok && dRec.by === 'Администратор анализа' && dRec.every === 'полугодие' && !dPast.ok && has(dPast.why, 'прошлая дата запрещена') && !dOther.ok && has(dOther.why, 'не задаёт') && !dDirect.ok && has(dDirect.why, 'уполномоченный'),
+    `ОД-74: администратор анализа вносит ту же запись дверью с теми же отказами («${dPast.why}»), в записи видно кто внёс — «${dRec.by}»; другому модулю дверь закрыта, пользователю в карточке — отказ`);
+
+  /* По ревью: очищенная дата — отказ, а не сегодня; несохранённое не уходит в другой отчёт; дверь без имени закрыта. */
+  fresh(); const rec0 = RP.state.remindRecs.length;
+  RP.rfSet('v', '8'); RP.rfSet('basis', 'б'); RP.rfSet('from', ''); RP.doRemind(); const remindCleared = RP.state.remindRecs.length === rec0;
+  RP.state.view = 'builder'; RP.state.sel.draft = 't-portfolio'; V.builder.fn(); const cyc0 = RP.TPL('t-portfolio').cycles.length;
+  RP.bfSet('cyDue', '10'); RP.bfSet('cyFrom', ''); RP.bfSet('cyOrder', ORD); RP.doReviewCycle('t-portfolio'); const cycCleared = RP.TPL('t-portfolio').cycles.length === cyc0;
+  RP.bfSet('cyEvery', 'месяц'); RP.state.sel.draft = 't-overdue'; const bLeak = V.builder.fn(); RP.doReviewCycle('t-overdue'); const noLeak = (RP.TPL('t-overdue').cycles || []).length === 0;
+  const dNoBy = RP.callSeamOut('анализ', 'reviewCycleAdd', { tid: 't-portfolio', spec: { every: 'полугодие', dueWd: 20, from: '2026-09-01', order: ORD } });
+  ok(672, remindCleared && cycCleared && noLeak && !has(bLeak, ORD) && !dNoBy.ok && has(dNoBy.why, 'кто её вносит') && RP.TPL('t-portfolio').cycles.length === cyc0,
+    `по ревью волны 65: очищенная дата начала — отказ, а не сегодняшний день; несохранённый приказ ФО-26 в карточку ФО-01 не уходит и там не записывается; дверь анализа без имени: «${dNoBy.why}»`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-10-24 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-11-05 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-10-24 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-11-05 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');

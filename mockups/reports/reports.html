@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-24 · 601/601 PASS
+  SMOKE 2026-11-05 · 614/614 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -68,7 +68,7 @@
      PASS  #57  список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и спрошен тем же швом, пятого шва не понадобилось
      PASS  #58  переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не передаётся и не пополняется — работа окончена (§9)
      PASS  #59  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (662 КБ разметки)
+     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (667 КБ разметки)
      PASS  #61  отказы проговорены на самих экранах, а не спрятаны за отсутствием кнопки; у верстальщика — причиной у недоступной «Отправить на утверждение» («черновика нет — загрузите исправленный макет», ВБ-3)
      PASS  #62  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #63  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -341,9 +341,9 @@
      PASS  #330  ОД-54: сумма узлов статуса в каждой строке Движения равна итогу — «погашено» -5750000 (было −6 350 000: поток перешедшего — дважды), «прочее» 0; переходы гасятся; КД-2023/311, закрытый с нулём, приходит в «закрыт» строкой «пришли из «действует»» +1 400 000 — «прочее» узлов -200000 = итогу -200000
      PASS  #331  ОД-53: КД-2024/117 передан из администрирования в промышленность — у Осмоновой «пришли в охват» +8100000 и его «погашено» −700 000, у Асанова «ушли из охвата» -8100000 без потоков; узлы «Подразделение» в сумме — итог, переходы гасятся
      PASS  #332  ОД-55, ОД-56: «срок близко» — признак строки обязательства: при N = 7 близких 0 (акт сверки — через 8 дней), при N = 8 — 3 (день срока включительно); просроченные (2) не «близки» и при N = 30; шов заданиям — тот же признак
-     PASS  #333  ОД-57, ОД-58: N правит только уполномоченный («настройку «напоминать за N к.д. до срока» правит уполномоченный по отчётности»); −1, 2,5 и пустое поле — отказ; 7 → 8 — запись журнала «Тентимишев К., 2026-08-24: 7 → 8», плитка «близко» — 3
+     PASS  #333  ОД-57, ОД-58, НЗ-15: N правит только уполномоченный («настройку «напоминать за N к.д. до срока» правит уполномоченный по отчётности»); −1, 2,5 и пустое поле — отказ; 7 → 8 — запись «Тентимишев К., 2026-08-24: 8 к.д. с 2026-08-24, акт сверки готовят дольше», журнал «настройка «напоминать за N к.д. до срока»: 7 → 8 с 24.08.2026, основание: акт сверки готовят дольше», плитка «близко» — 3
      PASS  #334  ОД-59: фильтр «Дней просрочки больше 100 000» не отобрал никого — число 0 без признака (было «объекты = 1 по списку»); под параметром «подразделение = ДПО» — «под значениями параметров объектов нет: подразделение = «Департамент правового обеспечения»», и с фильтром тоже
-     PASS  #335  экран «Календарь сдачи»: настройка «Напоминать за N к.д. до срока» у уполномоченного, у пользователя — значением; при N = 8 у акта сверки — «срок близко · через 8 дней», строка изменения; номеров решений в интерфейсе нет
+     PASS  #335  экран «Календарь сдачи»: настройка «Напоминать за N к.д. до срока» у уполномоченного, у пользователя — значением; при N = 8 у акта сверки — «срок близко · через 8 дней», строка истории с датой начала и основанием; номеров решений в интерфейсе нет
      PASS  #336  ОД-60, ОД-61: запись кредита объявляет у «Остатка основного долга» четыре потока — выдано · погашено · списано · курсовая разница; КД-2025/126 (USD) 01.06 → 01.08.2026 — «курсовая разница» −250 000, «прочее» 0; в узле «просрочен» то же: 5 400 000 + 0 − 750 000 + 0 − 250 000 + 0 + 5 900 000 = 10 300 000; сумма узлов статуса по курсовой = итогу; у кредита в сомах курсовая — 0
      PASS  #337  ОД-62: источник отдал курсовую −200 000 вместо −250 000 — «прочее» −50 000 у КД-2025/126 печатается, строка помечена «не сходится с потоками · у остатка, замкнутого потоками, здесь 0 — расхождение у источника», объект — «не сходится с потоками записи»; цепочка сходится; на данных стенда меток нет
      PASS  #338  ОД-63: курсов по датам нет — курсовая разница КД-2025/126 пуста; его разница −400 000 — «нет ответа источника», не «прочее» и не ноль; у объекта названа колонка — «пусто: курсовая разница»
@@ -610,6 +610,19 @@
      PASS  #646  ТЗ 20, 11.15, 11.25 (волна 64, P23-R207…R210 в части экрана): подписка на вид — «ФО-26 · вид «Портфель промышленности» на 25.08.2026: Остаток основного долга, всего — 15 000 000; Кредитов с просрочкой — 1 (фильтр: Подразделение равно Отраслевой департамент промышленности)»; после удаления вида — «ФО-26: подписка на вид не посчитана — вида нет»; на почту — только ссылка
      PASS  #647  ТЗ 20, 11.7, 11.10 (волна 64, P23-R203 п. 1–5): не переданный список Осмоновой не виден (0 списков), после передачи — в группе «Подразделения»; отметки Осмоновой и Тентимишева складываются в «2 из 3», Осмонова видит одну строку и «2 объектов скрыты областью видимости», Абдырахманова — три строки без баннера; чужой не переданный список у неё не виден
      PASS  #648  ТЗ 20, 11.21 (волна 64, P23-R213 п. 1): форма сигнала берёт показатель реестра или свою формулу отчёта («Просрочка к остатку (своя формула)»), «больше»/«меньше», число с пробелами («20 000 000»), «с отбором показа» кладёт в условие свой фильтр, без птицы — по отчёту целиком; сигнал с формулой проверен ночным прогоном и записан в историю («0,07 · выполняется»)
+     PASS  #660  ОД-66: N — записи, а не число и журнал рядом: первая запись «7 к.д. с 2026-05-01, начальное значение» действует и на 01.01.2026; числа стенда те же: близких 0, плитка N = 7
+     PASS  #661  НЗ-3, ОД-68: смена N — дата начала и основание: «дата начала 23.08.2026 раньше сегодняшней 24.08.2026: прошлая дата запрещена»; «основание обязательно: почему меняем N»; «приказ — с номером и датой: «приказ № … от ДД.ММ.ГГГГ»; приказа нет — оставьте поле пустым»; ни один отказ записи не добавил
+     PASS  #662  НЗ-2, ОД-67: 7 → 8 с 24.08 — близких 3 сразу; 8 → 3 с 25.08 — 3 остаются близкими («через 7 дней», появились 2026-08-24); ФО-01 со сроком 15.09 по новому значению: на 11.09 — 0, на 12.09 — 3; при N = 8 близок уже 07.09 (3), при снижении на 07.09 — 0
+     PASS  #663  НЗ-3, ОД-67: запись с будущей датой сегодня ничего не меняет (N = 7, близких 0); срок 15.09 близок с 08.09 по старому значению (3), срок 15.10 — по новому: 08.10 — 0, 12.10 — 3
+     PASS  #664  ОД-70: запись с опечаткой 01.09.2036 закрывала настройку («последняя запись действует с 01.09.2036: новая ставится позже неё»), пока не вступила — отменяется и остаётся в истории; вступившая не отменяется («запись уже вступила: её меняет только новая запись»)
+     PASS  #665  ОД-69, НЗ-17: форма у уполномоченного, история всем; подпись от записи: «решение проекта» у начальной, «внутренний акт · приказ № 200 от 20.08.2026» при приказе; журнал «настройка «напоминать за N к.д. до срока»: 8 → 6 с 01.10.2026, основание: опыт сентября»
+     PASS  #666  ОД-71: шов заданиям отдаёт день появления рядом с признаком: у близкого акта сверки 2026-08-24, у остальных пусто
+     PASS  #667  ОД-72: запись у отчёта: ФО-26 — квартал, 15 р.д., приказ № 118 от 12.01.2026; ФО-01 сдаётся ежемесячно, а обзор: «периодичность обзора по этому отчёту приказом не объявлена»; признак снят — «отчёт не помечен «пригоден для обзора»»; обязательств запись не порождает (12)
+     PASS  #668  НЗ-3, ОД-72: новая запись срока обзора: «дата начала 23.08.2026 раньше сегодняшней 24.08.2026: прошлая дата запрещена»; «основание срока обзора — приказ: назовите его номер и дату, «приказ № … от ДД.ММ.ГГГГ»»; «срок без периодичности некому считать: отменяя периодичность, оставьте срок пустым»; ни один отказ записи не добавил
+     PASS  #669  ОД-73: новая запись закрытые периоды не трогает: II квартал — 15 р.д., III квартал — 10 р.д.; период до первого приказа: «на 31.12.2025 периодичность ещё не объявлена: первый приказ действует с 12.01.2026»; отмена приказом: «приказ № 300 от 01.12.2026: периодичность отменена»
+     PASS  #670  ОД-72, ОД-70: карточка отчёта: срок обзора рядом с признаком, форма и отмена у уполномоченного, история всем; журнал «срок обзора «Портфель — оперативный срез»: квартал, 10 р.д. после закрытия периода с 01.09.2026, приказ № 200 от 20.08.2026»; у ФО-01 — «приказом не объявлена», у бланка блока нет
+     PASS  #671  ОД-74: администратор анализа вносит ту же запись дверью с теми же отказами («дата начала 01.08.2026 раньше сегодняшней 24.08.2026: прошлая дата запрещена»), в записи видно кто внёс — «Администратор анализа»; другому модулю дверь закрыта, пользователю в карточке — отказ
+     PASS  #672  по ревью волны 65: очищенная дата начала — отказ, а не сегодняшний день; несохранённый приказ ФО-26 в карточку ФО-01 не уходит и там не записывается; дверь анализа без имени: «запись срока обзора называет, кто её вносит: анализ передаёт своего администратора»
 -->
 <style>
 :root{
@@ -3085,6 +3098,8 @@ function templatesSeed(){ return [
    owner:'Тентимишев К.', asked:true, form:'ФО-26',
    basis:{doc:'Регламент оперативного мониторинга ФКФ', point:null},
    circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, schedule:null,
+   /* Обзор по приказу (ОД-72): записи вне редакции. Те же значения, что в макетах анализа и заданий. */
+   cycles:[{since:'2026-01-12', every:'квартал', dueWd:15, basis:'приказ № 118 от 12.01.2026', by:null, at:null, cancelled:null}],
    editions:[{n:1, state:'утверждена', since:'2026-04-01', by:'Тентимишев К.', at:'2026-04-01',
      object:'credit', mode:'сейчас', order:'по номеру',
      fields:['no','borrower','dept','debt_main','days','status'],
@@ -3725,9 +3740,9 @@ function seed(){
        статистики на выгрузку списков выше порога.                            */
     roleHolders: clone(ROLE_HOLDERS0), proposals: [], colPrefs: {}, statJobs: [],
     views: [], vseq: 0, fseq: 0,                /* личные виды — восьмая сущность (§2.8) */
-    /* «Напоминать за N к.д. до срока» — одна настройка модуля (ОД-57); правки —
-       журналом: кто, когда, с какой N на какую (ОД-58).                      */
-    remind: 7, remindLog: [],
+    /* «Напоминать за N к.д. до срока» — одна настройка модуля, записями с датой начала и основанием (ОД-57, ОД-66).
+       Первая запись действует и на более ранние даты.                        */
+    remindRecs: [{from:'2026-05-01', v:7, basis:'начальное значение', order:null, by:null, at:null, cancelled:null}],
     demo: false,                         /* переключатель «Демонстрация»: проверочные кнопки макета (волна 64) */
     subs: [], notices: [], notes: [], subSeq: 0, /* подписки и сигналы (§2.9), заметки (§2.10) */
     log: [],
@@ -5017,20 +5032,47 @@ RP.scheduleRecipients = tid => { const t = TPL(tid);
     name: recipientName(r)})) : null; };
 /* «Срок близко» (ОД-55, ОД-56): обязательство ожидается, и до срока 0…N к.д.
    включительно; просроченное и сданное — не «близко». N — одна настройка
-   модуля (ОД-57). Одним признаком считают календарь, плитка и задания.      */
-const soonOf = (state, due) => { const d = daysBetween(RP.state.today, due);
-  return state === 'ожидается' && d >= 0 && d <= RP.state.remind; };
-RP.remindDays = () => RP.state.remind;
-RP.setRemindDays = n => {
+   модуля записями с датой (ОД-57, ОД-66). Одним признаком считают календарь, плитка и задания. */
+const remindRecs = () => RP.state.remindRecs.filter(r => !r.cancelled);
+const remindOn = d => remindRecs().reduce((cur, r) => r.from <= d ? r : cur);
+/* День появления (НЗ-2, ОД-67): первый день, когда до срока стало не больше N этого дня. Поднятое N ловит подошедшее
+   с даты начала, сниженное уже близкое не снимает: новое значение действует только на новые поводы. */
+const soonFromOf = due => { const a = remindRecs();
+  for(let i = 0; i < a.length; i++){
+    const reach = addDays(due, -a[i].v), x = i && reach < a[i].from ? a[i].from : reach;
+    if(i === a.length - 1 || x < a[i + 1].from) return x;
+  } };
+const soonOf = (state, due) => state === 'ожидается' && daysBetween(RP.state.today, due) >= 0 && soonFromOf(due) <= RP.state.today;
+RP.remindDays = d => remindOn(d || RP.state.today).v;
+RP.remindRecord = d => clone(remindOn(d || RP.state.today));
+RP.remindHistory = () => clone(RP.state.remindRecs).sort((a, b) => a.from.localeCompare(b.from));
+/* Приказ называет номер и дату, иначе подпись «внутренний акт» окажется без настоящего акта (НЗ-17). */
+const orderOk = o => /приказ/i.test(o) && /№\s*\S/.test(o) && /\d{2}\.\d{2}\.\d{4}/.test(o);
+const NEW_REC_BAD = (from, today, lastFrom) => !from || isNaN(Date.parse(from)) ? 'дата начала обязательна'
+  : from < today ? 'дата начала '+fmt(from)+' раньше сегодняшней '+fmt(today)+': прошлая дата запрещена'
+  : lastFrom && from <= lastFrom ? 'последняя запись действует с '+fmt(lastFrom)+': новая ставится позже неё' : null;
+RP.setRemindDays = spec => {
   if(!RP.isAuth()) return {ok:false, why:'настройку «напоминать за N к.д. до срока» правит уполномоченный по отчётности'};
   /* Пустое поле — не ноль: N не меняется, а отказ называет причину.         */
-  const s = String(n == null ? '' : n).trim(), v = typeof n === 'number' ? n : (/^\d+$/.test(s) ? Number(s) : NaN);
-  if(!Number.isInteger(v) || v < 0) return {ok:false, why:'N — целое число календарных дней, не меньше нуля'};
-  const was = RP.state.remind; if(v === was) return {ok:false, why:'N уже '+v};
-  RP.state.remind = v;
-  RP.state.remindLog.push({at: RP.state.today, by: RP.who(), from: was, to: v});
-  log('настройка «напоминать за N к.д. до срока»: '+was+' → '+v);
-  return {ok:true, note:'«срок близко» — за '+v+' к.д. до срока; признак обязательств пересчитан с сегодняшнего дня'}; };
+  const s = spec || {}, raw = String(s.v == null ? '' : s.v).trim(), v = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if(!Number.isInteger(v)) return {ok:false, why:'N — целое число календарных дней, не меньше нуля'};
+  const today = RP.state.today, a = remindRecs(), last = a[a.length - 1];
+  const bad = NEW_REC_BAD(s.from, today, last.from); if(bad) return {ok:false, why: bad};
+  const basis = String(s.basis == null ? '' : s.basis).trim(), order = String(s.order == null ? '' : s.order).trim();
+  if(!basis) return {ok:false, why:'основание обязательно: почему меняем N'};
+  if(order && !orderOk(order)) return {ok:false, why:'приказ — с номером и датой: «приказ № … от ДД.ММ.ГГГГ»; приказа нет — оставьте поле пустым'};
+  if(v === last.v) return {ok:false, why:'N уже '+v+' к.д. с '+fmt(last.from)};
+  RP.state.remindRecs.push({from:s.from, v, basis, order: order || null, by: RP.who(), at: today, cancelled:null});
+  log('настройка «напоминать за N к.д. до срока»: '+last.v+' → '+v+' с '+fmt(s.from)+', основание: '+basis);
+  return {ok:true, note:'«срок близко» — за '+v+' к.д. до срока с '+fmt(s.from)+'; что уже стало близким, близким и остаётся'}; };
+/* Не вступившую запись можно отменить, отменённая остаётся в истории (ОД-70). */
+RP.cancelRemind = from => {
+  if(!RP.isAuth()) return {ok:false, why:'настройку «напоминать за N к.д. до срока» правит уполномоченный по отчётности'};
+  const r = remindRecs().find(x => x.from === from); if(!r) return {ok:false, why:'такой записи нет'};
+  if(r.from <= RP.state.today) return {ok:false, why:'запись уже вступила: её меняет только новая запись'};
+  r.cancelled = {by: RP.who(), at: RP.state.today};
+  log('настройка «напоминать за N к.д. до срока»: запись '+r.v+' с '+fmt(r.from)+' отменена');
+  return {ok:true, note:'запись '+r.v+' к.д. с '+fmt(r.from)+' отменена и осталась в истории'}; };
 RP.obligations = () => {
   const out = [];
   RP.state.templates.forEach(t => {
@@ -5063,7 +5105,8 @@ RP.obligations = () => {
           issues: byObject ? fin.map(i => i.id) : (done ? [done.id] : []),
           stray: stray.map(i => ({id:i.id, to:i.recipient.name, kind:i.recipient.kind})),
           late: state === 'просрочено' ? daysBetween(p.due, RP.state.today) : 0,
-          toDue: daysBetween(RP.state.today, p.due), soon: soonOf(state, p.due)});
+          toDue: daysBetween(RP.state.today, p.due), soon: soonOf(state, p.due),
+          soonFrom: soonOf(state, p.due) ? soonFromOf(p.due) : null});
       }));
     });
   });
@@ -5956,7 +5999,8 @@ const SEAMS_OUT = [
     to:'карточка объекта зеркалом, классификация и взыскание — по лицу',
     keys:['объект','лицо']},
   {id:'reportObligations', q:'что за подразделением к сроку',           to:'задачи и руководитель'},
-  {id:'reportTemplate',    q:'пригоден ли отчёт для обзора, какая редакция текущая', to:'анализ'},
+  {id:'reportTemplate',    q:'пригоден ли отчёт для обзора, какая редакция текущая, какой срок обзора на дату', to:'анализ'},
+  {id:'reviewCycleAdd',    q:'внести запись срока обзора по приказу', to:'анализ'},
   {id:'reportForms',       q:'что я вообще могу отсюда напечатать',
     to:'карточка объекта', keys:['объект']},
   {id:'reportAnswer',      q:'что отвечает этот отчёт или вид на эти значения параметров — тем же вычислителем, что окно',
@@ -5983,8 +6027,8 @@ const CONSUMERS = [
   {module:'руководитель',  may:['reportObligations'], note:'календарь своего подразделения'},
   {module:'дашборд',       may:['reportAnswer'], note:'плитка — ещё один смотрящий отчёта: ответ, провал узла в любом '+
     'режиме полосы, объекты на двух датах; список, его поиск, рабочий список и выгрузка — у отчётности'},
-  {module:'анализ',        may:['reportTemplate'],    note:'обзор ссылается на отчёт и на выпуск, '+
-    'своего снимка не заводит'},  // ИО-16
+  {module:'анализ',        may:['reportTemplate','reviewCycleAdd'],    note:'обзор ссылается на отчёт и на выпуск, '+
+    'своего снимка не заводит; срок обзора по приказу вносит той же записью, что и уполномоченный'},  // ИО-16, ОД-74
   {module:'статистика',    may:[], why:'отчётность статистике ничего не отдаёт запросом: список '+
     'отчётов и бланков, ломающихся при выводе показателя, — экран владельца реестра, а не контракт'}
 ];
@@ -6029,15 +6073,57 @@ RP.reportForms = objId => { const o = objId ? OBJ(objId) : null;
    «кто выпустил окончательно и с каким получателем» (ADR-0306 п. 5).        */
 RP.reportObligations = dep => RP.obligations().filter(o => o.dept === dep)
   .map(o => { const i = o.issue ? ISS(o.issue) : null;
-    return {key:o.id, tpl:o.tplName, period:o.period, due:o.due, state:o.state, soon:o.soon, who:o.who,
+    return {key:o.id, tpl:o.tplName, period:o.period, due:o.due, state:o.state, soon:o.soon, soonFrom:o.soonFrom, who:o.who,
       to:o.toName, toKind:o.toKind,
       issuedBy: i ? i.by || null : null, issuedTo: i && i.recipient ? i.recipient.name : null,
       stray: o.stray.map(x => x.to)}; });
-RP.reportTemplate = tid => { const t = TPL(tid); if(!t) return null;
-  const ed = pubEd(t);
+/* Срок обзора (ОД-72): запись у отчёта, пригодного для обзора; не расписание сдачи, обязательства не порождает. Период читает
+   запись на свой конец (ОД-73), поэтому закрытые периоды новая запись не трогает; до первого приказа записи нет (ЗА-15). */
+const CYCLE_EVERY = ['месяц', 'квартал', 'полугодие', 'год'];
+const cycleRecs = t => (t.cycles || []).filter(c => !c.cancelled);
+const cycleOn = (t, d) => cycleRecs(t).reduce((cur, c) => c.since <= d ? c : cur, null);
+const cycleWhy = (t, c, d) => !t.forReview ? 'отчёт не помечен «пригоден для обзора»'
+  : c && !c.every ? c.basis+': периодичность отменена'
+  : !c && cycleRecs(t).length ? 'на '+fmt(d)+' периодичность ещё не объявлена: первый приказ действует с '+fmt(cycleRecs(t)[0].since)
+  : !c ? 'периодичность обзора по этому отчёту приказом не объявлена' : null;
+RP.reviewCycleOn = (tid, d) => { const t = TPL(tid), c = t && cycleOn(t, d || RP.state.today); return c ? clone(c) : null; };
+RP.reportTemplate = (tid, atISO) => { const t = TPL(tid); if(!t) return null;
+  const ed = pubEd(t), at = atISO || RP.state.today, c = cycleOn(t, at), why = cycleWhy(t, c, at);
   return {id:t.id, name:t.name, forReview: t.forReview, edition: ed ? ed.n : null,
     basis: t.basis, kind: t.kind,
+    cycle: why ? null : {every:c.every, dueWd:c.dueWd, basis:c.basis, since:c.since}, cycleWhy: why,
+    cycles: clone(cycleRecs(t)),
     note:'обзор ссылается на выпуск как на снимок основания и своего снимка не заводит'}; };  // ИО-16
+/* Новая запись срока обзора. Вносит уполномоченный в карточке отчёта; by — дверь анализа, там роль проверяет он сам (ОД-74). */
+RP.addReviewCycle = (tid, spec, by) => { const t = TPL(tid);
+  if(!t) return {ok:false, why:'отчёта нет'};
+  if(!by && !RP.isAuth()) return {ok:false, why:'срок обзора вносит уполномоченный по отчётности'};
+  if(!t.forReview) return {ok:false, why:'срок обзора ведётся только у отчёта, пригодного для обзора'};
+  if(!pubEd(t)) return {ok:false, why:'срок обзора ведётся у утверждённого отчёта: у этого нет утверждённой редакции'};
+  const s = spec || {}, every = s.every == null || s.every === '' ? null : String(s.every);
+  if(every && CYCLE_EVERY.indexOf(every) === -1) return {ok:false, why:'периодичности «'+every+'» нет: '+CYCLE_EVERY.join(', ')};
+  const raw = String(s.dueWd == null ? '' : s.dueWd).trim();
+  if(raw !== '' && !/^[1-9]\d*$/.test(raw)) return {ok:false, why:'срок обзора «'+raw+'» — не число рабочих дней: пустое поле значит «приказом не назван»'};
+  if(!every && raw !== '') return {ok:false, why:'срок без периодичности некому считать: отменяя периодичность, оставьте срок пустым'};
+  const a = cycleRecs(t), last = a[a.length - 1], today = RP.state.today;
+  const bad = NEW_REC_BAD(s.from, today, last && last.since); if(bad) return {ok:false, why: bad};
+  const order = String(s.order == null ? '' : s.order).trim();
+  if(!orderOk(order)) return {ok:false, why:'основание срока обзора — приказ: назовите его номер и дату, «приказ № … от ДД.ММ.ГГГГ»'};
+  const dueWd = raw === '' ? null : Number(raw);
+  if(last && last.every === every && last.dueWd === dueWd && last.basis === order) return {ok:false, why:'запись не отличается от последней'};
+  const rec = {since:s.from, every, dueWd, basis:order, by: by || RP.who(), at: today, cancelled:null};
+  (t.cycles = t.cycles || []).push(rec);
+  log('срок обзора «'+t.name+'»: '+(every ? every+', '+(dueWd == null ? 'срок приказом не назван' : dueWd+' р.д. после закрытия периода') : 'периодичность отменена')+
+    ' с '+fmt(s.from)+', '+order);
+  return {ok:true, record: clone(rec), note:'запись срока обзора принята с '+fmt(s.from)+'; закрытые периоды она не трогает'}; };
+RP.cancelReviewCycle = (tid, since) => { const t = TPL(tid);
+  if(!t) return {ok:false, why:'отчёта нет'};
+  if(!RP.isAuth()) return {ok:false, why:'срок обзора вносит уполномоченный по отчётности'};
+  const c = cycleRecs(t).find(x => x.since === since); if(!c) return {ok:false, why:'такой записи нет'};
+  if(c.since <= RP.state.today) return {ok:false, why:'запись уже вступила: её меняет только новая запись'};
+  c.cancelled = {by: RP.who(), at: RP.state.today};
+  log('срок обзора «'+t.name+'»: запись с '+fmt(c.since)+' отменена');
+  return {ok:true, note:'запись с '+fmt(c.since)+' отменена и осталась в истории'}; };
 RP.callSeamOut = (module, seam, arg) => {
   const c = CONSUMERS.find(x => x.module === module);
   if(!c) return {ok:false, why:'такого потребителя нет'};
@@ -6055,7 +6141,11 @@ RP.callSeamOut = (module, seam, arg) => {
   }
   if(seam === 'reportForms') return RP.reportForms(arg);
   if(seam === 'reportAnswer') return RP.reportAnswer(arg);
-  const data = seam === 'reportObligations' ? RP.reportObligations(arg) : RP.reportTemplate(arg);
+  if(seam === 'reviewCycleAdd'){ const a = arg || {};
+    if(!String(a.by || '').trim()) return {ok:false, why:'запись срока обзора называет, кто её вносит: анализ передаёт своего администратора'};
+    return RP.addReviewCycle(a.tid, a.spec, a.by); }
+  const data = seam === 'reportObligations' ? RP.reportObligations(arg)
+    : arg && typeof arg === 'object' ? RP.reportTemplate(arg.tid, arg.at) : RP.reportTemplate(arg);
   return {ok:true, data};
 };
 RP.ownQuery = () => ({ok:false, why:'своего запроса к базе у отчётности нет: четыре запроса к другим модулям — '+
@@ -7748,14 +7838,40 @@ function approvalButtons(t, draft, checks){
     '<button class="btn btn-secondary btn-sm" onclick="RP.doBasis(\''+t.id+'\')">'+(RP.isAuth() ? 'Назвать основание' : 'Вписать основание')+'</button></div></div>';
   return h;
 }
+const cycleText = c => c.every ? c.every+', '+(c.dueWd == null ? 'срок приказом не назван' : c.dueWd+' р.д. после закрытия периода') : 'периодичность отменена';
+/* Срок обзора — рядом с признаком: значение, откуда оно, история; форма у уполномоченного (ОД-72, ОД-74). */
+function cardReviewCycle(t){
+  if(!t.forReview) return '';
+  const today = RP.state.today, c = cycleOn(t, today), b = cyForm(t.id), recs = (t.cycles || []).slice().sort((x, y) => x.since.localeCompare(y.since));
+  let h = '<div class="small muted" style="margin-top:8px">Срок обзора</div>';
+  if(recs.length) h += '<table class="cgrid"><thead><tr><th>Действует с</th><th>Периодичность и срок</th><th>Откуда срок</th><th>Кто внёс</th><th>Состояние</th></tr></thead><tbody>'+
+    recs.map(x => '<tr><td>'+fmt(x.since)+'</td><td>'+esc(cycleText(x))+'</td><td class="small">внутренний акт · '+esc(x.basis)+'</td>'+
+      '<td class="small">'+(x.by ? esc(x.by)+', '+fmt(x.at) : '—')+'</td><td>'+
+      (x.cancelled ? pill('отменена', 'neutral')+' <span class="small muted">'+esc(x.cancelled.by)+', '+fmt(x.cancelled.at)+'</span>'
+        : x === c ? pill('действует', 'info')
+        : x.since > today ? pill('ещё не вступила', 'warn')+(RP.isAuth() ? ' <button class="btn btn-secondary btn-sm" onclick="RP.doCancelCycle(\''+t.id+'\',\''+x.since+'\')">Отменить</button>' : '')
+        : '<span class="muted">прежняя</span>')+'</td></tr>').join('')+'</tbody></table>';
+  if(!RP.isAuth()) return h;
+  const every = b.cyEvery != null ? b.cyEvery : (c && c.every ? c.every : 'квартал');
+  const due = b.cyDue != null ? b.cyDue : (c && c.dueWd != null ? c.dueWd : '');
+  return h+'<div class="form-row" style="margin-top:8px">'+
+    '<div class="fld"><label>Периодичность</label><select onchange="RP.bfSet(\'cyEvery\', this.value)"><option value=""'+(every === '' ? ' selected' : '')+'>отменена</option>'+
+      CYCLE_EVERY.map(x => '<option'+(x === every ? ' selected' : '')+'>'+esc(x)+'</option>').join('')+'</select></div>'+
+    '<div class="fld"><label>Срок, р.д. после закрытия периода</label><input type="text" style="width:210px" placeholder="пусто — приказом не назван" value="'+esc(due)+'" onchange="RP.bfSet(\'cyDue\', this.value)"></div>'+
+    '<div class="fld"><label>Действует с</label><input type="date" min="'+esc(today)+'" value="'+esc(b.cyFrom != null ? b.cyFrom : today)+'" onchange="RP.bfSet(\'cyFrom\', this.value)"></div>'+
+    '<div class="fld"><label>Приказ</label><input type="text" style="width:260px" placeholder="приказ № … от ДД.ММ.ГГГГ" value="'+esc(b.cyOrder || '')+'" onchange="RP.bfSet(\'cyOrder\', this.value)"></div>'+
+    '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary btn-sm" onclick="RP.doReviewCycle(\''+t.id+'\')">Сохранить срок обзора</button></div></div>';
+}
 function cardFreeEdits(t){
   const b = BF(), auth = RP.isAuth(), sch = t.schedule;
+  const cyc = t.forReview ? cycleOn(t, RP.state.today) : null;
   const kvs = kv([['Круг подразделений', t.circle.map(deptName).join('; ')],
         ['Расписание сдачи', sch ? sch.text : 'по требованию'],
         ['Пригоден для обзора', t.forReview ? 'да' : 'нет'],
+        ...(t.forReview ? [['Обзор по приказу', cyc && cyc.every ? cycleText(cyc)+' · с '+fmt(cyc.since) : cycleWhy(t, cyc, RP.state.today)]] : []),
         ['Полный охват обязателен', t.fullCoverage ? 'да — получателя нельзя назвать при усечённом охвате' : 'нет']]);
-  if(!auth) return '<div class="card"><h3>Что правится без новой редакции</h3>'+kvs+
-    '<div class="small muted">Круг, расписание и признаки правит уполномоченный по отчётности; здесь они показаны для чтения.</div></div>';
+  if(!auth) return '<div class="card"><h3>Что правится без новой редакции</h3>'+kvs+cardReviewCycle(t)+
+    '<div class="small muted">Круг, расписание, признаки и срок обзора правит уполномоченный по отчётности; здесь они показаны для чтения.</div></div>';
   const circ = b.circle || t.circle, freq = b.freq || (sch ? sch.freq : 'ежемесячно');
   const day = b.dueDay != null ? b.dueDay : (sch ? sch.dueDay : 15), since = b.since || (sch ? sch.since : RP.state.today);
   const month = b.dueMonth != null ? b.dueMonth : (sch && sch.dueMonth ? sch.dueMonth : 9);
@@ -7782,7 +7898,7 @@ function cardFreeEdits(t){
     '<div class="small muted" style="margin-top:8px">Признаки</div><div class="form-row">'+
     '<label class="chk"><input type="checkbox"'+(fl.forReview ? ' checked' : '')+' onchange="RP.bfFlag(\'forReview\', this.checked)"> Пригоден для обзора</label> '+
     '<label class="chk"><input type="checkbox"'+(fl.fullCoverage ? ' checked' : '')+' onchange="RP.bfFlag(\'fullCoverage\', this.checked)"> Полный охват обязателен</label>'+
-    '<button class="btn btn-secondary btn-sm" onclick="RP.doFlags(\''+t.id+'\')">Сохранить признаки</button></div></div>';
+    '<button class="btn btn-secondary btn-sm" onclick="RP.doFlags(\''+t.id+'\')">Сохранить признаки</button></div>'+cardReviewCycle(t)+'</div>';
 }
 function cardSheetForms(t, sh){
   const b = BF(), ed = pubEd(t) || draftEd(t) || {fields: []}, lv = (ed.fields || []);
@@ -7944,6 +8060,15 @@ RP.setFlags = (tid, fl) => { const t = TPL(tid); if(!t) return {ok:false, why:'�
   return {ok:true, note:'новой редакции не понадобилось: признаки — не часть вопроса'}; };
 RP.doFlags = id => { const t = TPL(id), b = BF(), r = RP.setFlags(id, Object.assign({forReview: t.forReview, fullCoverage: t.fullCoverage}, b.flags || {}));
   if(r.ok) b.flags = null; act(r, r.note); };
+const CY_KEYS = ['cyEvery', 'cyDue', 'cyFrom', 'cyOrder'];
+/* Форма срока обзора привязана к отчёту: несохранённое не уходит в карточку другого отчёта. */
+function cyForm(id){ const b = BF(); if(b.cyFor !== id){ CY_KEYS.forEach(k => delete b[k]); b.cyFor = id; } return b; }
+RP.doReviewCycle = id => { const b = cyForm(id), c = cycleOn(TPL(id), RP.state.today);
+  const r = RP.addReviewCycle(id, {every: b.cyEvery != null ? b.cyEvery : (c && c.every ? c.every : 'квартал'),
+    dueWd: b.cyDue != null ? b.cyDue : (c && c.dueWd != null ? c.dueWd : ''), from: b.cyFrom != null ? b.cyFrom : RP.state.today, order: b.cyOrder});
+  if(r.ok) CY_KEYS.forEach(k => delete b[k]);
+  act(r, r.note); };
+RP.doCancelCycle = (id, since) => { const r = RP.cancelReviewCycle(id, since); act(r, r.note); };
 RP.doBands = id => { const b = BF(), t = TPL(id), txt = b.bands != null ? b.bands : RP.sheetOf(id).bands.join(' · ');
   const arr = String(txt).split(/\s*[·,→]\s*/).map(x => x.trim()).filter(Boolean);
   const r = RP.setBands(id, arr); if(r.ok) b.bands = null; act(r); };
@@ -9701,16 +9826,37 @@ RP.openObl = id => { const o = RP.obligations().find(x => x.id === id); if(!o) r
   RP.openForm(o.tpl);
   if(MIRROR() && MIRROR().snapshots().indexOf(o.asOf) !== -1) RP.state.sel.params.asOf = o.asOf;
   render(); };
+/* Карточка настройки N: значение, откуда оно, история — всем; форма новой записи — уполномоченному (ОД-68, ОД-69). */
+const RF = () => RP.state.sel.rf || (RP.state.sel.rf = {});
+RP.rfSet = (k, v) => { RF()[k] = v; };
+function remindCard(near){
+  const today = RP.state.today, cur = RP.remindRecord(), N = cur.v, f = RF(), auth = RP.isAuth();
+  const src = r => r.order ? 'внутренний акт · '+r.order : 'решение проекта';
+  return '<div class="card"><h3>Срок близко</h3>'+
+    '<div class="form-row"><div class="fld"><label>Напоминать за N к.д. до срока</label><div>'+N+' к.д. <span class="muted small">— '+
+      (auth ? '' : 'правит уполномоченный по отчётности · ')+esc(src(cur))+' · с '+fmt(cur.from)+'</span></div></div></div>'+
+    '<div class="small muted">Срок близко — обязательство ожидается и до срока не больше '+N+' к.д. Сейчас таких: '+near+
+    '. По нему напоминают задания «Сдать форму к сроку» и считает плитка «Срок сдачи близко». Новое значение действует только на то, что ещё не стало близким: '+
+    'ставшее близким остаётся им, пока обязательство ожидается.</div>'+
+    (auth ? '<div class="form-row" style="margin-top:8px">'+
+      '<div class="fld"><label>Новое значение, к.д.</label><input type="number" min="0" step="1" value="'+esc(f.v != null ? f.v : N)+'" style="width:96px" onchange="RP.rfSet(\'v\', this.value)"></div>'+
+      '<div class="fld"><label>Действует с</label><input type="date" min="'+esc(today)+'" value="'+esc(f.from != null ? f.from : today)+'" onchange="RP.rfSet(\'from\', this.value)"></div>'+
+      '<div class="fld" style="flex:1"><label>Основание — почему меняем</label><input type="text" value="'+esc(f.basis || '')+'" onchange="RP.rfSet(\'basis\', this.value)"></div>'+
+      '<div class="fld" style="flex:1"><label>Приказ <span class="muted">— если есть</span></label><input type="text" placeholder="приказ № … от ДД.ММ.ГГГГ" value="'+esc(f.order || '')+'" onchange="RP.rfSet(\'order\', this.value)"></div>'+
+      '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary btn-sm" onclick="RP.doRemind()">Сохранить новое значение</button></div></div>' : '')+
+    '<div class="small muted" style="margin-top:8px">История значений</div>'+
+    '<table class="cgrid"><thead><tr><th>Действует с</th><th>Значение</th><th>Откуда число</th><th>Основание</th><th>Кто внёс</th><th>Состояние</th></tr></thead><tbody>'+
+    RP.remindHistory().map(r => '<tr><td>'+fmt(r.from)+'</td><td>'+r.v+' к.д.</td><td class="small">'+esc(src(r))+'</td><td class="small">'+esc(r.basis)+'</td>'+
+      '<td class="small">'+(r.by ? esc(r.by)+', '+fmt(r.at) : '—')+'</td><td>'+
+      (r.cancelled ? pill('отменена', 'neutral')+' <span class="small muted">'+esc(r.cancelled.by)+', '+fmt(r.cancelled.at)+'</span>'
+        : r.from === cur.from ? pill('действует', 'info')
+        : r.from > today ? pill('ещё не вступила', 'warn')+(auth ? ' <button class="btn btn-secondary btn-sm" onclick="RP.doCancelRemind(\''+r.from+'\')">Отменить</button>' : '')
+        : '<span class="muted">прежняя</span>')+'</td></tr>').join('')+
+    '</tbody></table></div>';
+}
 function scCalendar(){
   const f = CALF(), all = RP.obligations();
-  const N = RP.state.remind, near = all.filter(o => o.soon).length, last = RP.state.remindLog.slice(-1)[0];
-  let h = '<div class="card"><h3>Срок близко</h3><div class="form-row"><div class="fld"><label>Напоминать за N к.д. до срока</label>'+
-    (RP.isAuth() ? '<input type="number" min="0" step="1" value="'+N+'" style="width:96px" onchange="RP.doRemind(this.value)">'
-      : '<div>'+N+' к.д. <span class="muted small">— правит уполномоченный по отчётности</span></div>')+
-    '</div></div><div class="small muted">Срок близко — обязательство ожидается и до срока не больше '+N+' к.д. Сейчас таких: '+near+
-    '. По нему напоминают задания «Сдать форму к сроку» и считает плитка «Срок сдачи близко».</div>'+
-    (last ? '<div class="small muted">Изменено '+fmt(last.at)+' · '+esc(last.by)+': '+last.from+' → '+last.to+' к.д.</div>' : '')+
-    '</div>';
+  let h = remindCard(all.filter(o => o.soon).length);
   RP.state.templates.filter(t => t.schedule && pubEd(t)).forEach(t => {
     h += '<div class="seam"><b>'+esc(t.name)+'</b> — <span class="q">'+esc(t.schedule.text)+
       '; дата состояния: '+esc(t.schedule.asOfRule)+'; получатель: '+
@@ -9770,7 +9916,10 @@ function scCalendar(){
 }
 /* «Открыть выпуск» из календаря — в журнале выпусков, со сведениями этого выпуска. */
 RP.openIssueOf = id => { RP.state.sel.issue = id; RP.state.view = 'journal'; render(); };
-RP.doRemind = v => act(RP.setRemindDays(v));
+RP.doRemind = () => { const f = RF(), r = RP.setRemindDays({v: f.v != null ? f.v : RP.remindDays(), from: f.from != null ? f.from : RP.state.today, basis: f.basis, order: f.order});
+  if(r.ok) RP.state.sel.rf = {};
+  act(r, r.note); };
+RP.doCancelRemind = from => { const r = RP.cancelRemind(from); act(r, r.note); };
 RP.doMark = id => act(RP.markDelivered(id));
 RP.doSigned = id => act(RP.markSigned(id));
 RP.doTask = id => act(RP.autoTask(id));
@@ -14960,7 +15109,7 @@ RP.obligationRows = () => RP.obligations().map(o => ({id: o.id, form: o.tplName,
 RP.obligationTiles = () => { const rows = RP.obligationRows();
   const done = rows.filter(r => r.state === 'сдано' || r.state === 'сдано с опозданием').length;
   return {late: rows.filter(r => r.state === 'просрочено').length, soon: rows.filter(r => r.soon).length,
-    remind: RP.state.remind, done, total: rows.length}; };
+    remind: RP.remindDays(), done, total: rows.length}; };
 
 /* ---- Сигнал и выгрузка с плитки (ОД-11, ОД-14) ----
    Плитка ставит обычный сигнал на тот же отчёт с теми же значениями и порогом;
