@@ -841,7 +841,10 @@ const DATA = {
   today: '04.08.2026',
   // Автосторно по таймауту УПРАЗДНЕНО (ADR-0088): ожидание бессрочно, сторно — решение
   // бухгалтера при закрытии периода. Осталась одна безобидная настройка — напоминание.
-  remindDays:  3,    // рабочих дней ожидания, после которых куратору идёт напоминание (повтор еженедельно)
+  // Порог напоминания куратору — рабочих дней ожидания (повтор еженедельно). Решение проекта,
+  // не настройка: записи с датой начала и основанием, экрана и поля нет, смена только выпуском
+  // (новая запись с будущей датой начала). Значение берётся на дату операции (НЗ-7, решение 6 канона).
+  remindRules: [ { from:'01.01.2026', v:3, basis:'решение проекта' } ],
 
   /* ---- периоды учёта (второй уровень заморозки, ADR-0075) ---- */
   periods: [
@@ -1749,14 +1752,24 @@ const RFILTERS = [
   { id:'reversed',   t:'Сторно',         f:r=>isReversed(r) },
 ];
 
+function dmyKey(d){ const m=/^(\d\d)\.(\d\d)\.(\d{4})/.exec(d||''); return m ? m[3]+m[2]+m[1] : ''; }
+/* запись порога, действующая на дату операции: последняя с from <= date; раньше первой — первая */
+function remindRuleOn(date){
+  const k = dmyKey(date), rs = DATA.remindRules.slice().sort((a,b)=>dmyKey(a.from)<dmyKey(b.from)?-1:1);
+  let hit = rs[0];
+  rs.forEach(r=>{ if(dmyKey(r.from)<=k) hit = r; });
+  return hit;
+}
+function remindDaysOn(date){ return remindRuleOn(date).v; }
+function isRemind(r){ return r.waitDays!=null && r.waitDays>=remindDaysOn(r.date); }
 function viewReceipts(){
   const segs = `<div class="seg">${RFILTERS.map(x=>
     `<button class="${x.id===rFilter?'on':''}" onclick="setRFilter('${x.id}')">${x.t} (${DATA.receipts.filter(x.f).length})</button>`).join('')}</div>`;
   const waiting = DATA.receipts.filter(r=>r.match==='pending');
-  const soon    = waiting.filter(r=>r.waitDays!=null && r.waitDays>=DATA.remindDays);
+  const soon    = waiting.filter(isRemind);
   const bans =
-    (soon.length ? recBan('warn', `<b>Ждут подтверждения ЦК дольше ${DATA.remindDays} раб. дн.:</b> ${soon.map(r=>
-        `<span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> — ${r.waitDays} раб. дн.`).join(' · ')}.
+    (soon.length ? recBan('warn', `<b>Ждут подтверждения ЦК дольше порога напоминания:</b> ${soon.map(r=>
+        `<span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> — ${r.waitDays} раб. дн. (порог ${remindDaysOn(r.date)}, решение проекта)`).join(' · ')}.
         Автоотмены нет: судьбу решает бухгалтер при закрытии периода.`) : '')
     + (unresolvedReceipts().length ? recBan('warn', `<b>Невыясненных: ${unresolvedReceipts().length}.</b>
         Держат закрытие периода. Разбор — в карточке поступления, вкладка «Разбор».`) : '');
@@ -1782,7 +1795,7 @@ function receiptDetail(r){
   const bans =
     (isReversed(r) ? recBan('err', `<b>Сторнировано решением бухгалтера.</b> Платежи погашены.
         Восстановление вернёт исходную дату ${r.date}.`) : '')
-    + (r.match==='pending' ? recBan(r.waitDays!=null && r.waitDays>=DATA.remindDays ? 'warn':'info',
+    + (r.match==='pending' ? recBan(isRemind(r) ? 'warn':'info',
         `<b>Ожидает подтверждения ЦК</b> — <b>${r.waitDays} раб. дн.</b> Срока у ожидания нет;
          сторнировать или ждать дальше, решает бухгалтер при закрытии периода.`) : '')
     + (isUnresolved(r) ? recBan('warn', `<b>Невыясненное:</b> платежей нет. Держит закрытие периода.

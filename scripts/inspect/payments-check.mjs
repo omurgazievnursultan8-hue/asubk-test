@@ -216,7 +216,7 @@ ok('три разные ошибки — три разные кнопки: ст�
          && b.some(t=>/Перепривязать/.test(t)); })());
 ok('автосторно по таймауту упразднено: параметра нет, ожидание бессрочно (ADR-0088)',
    g.ev('typeof DATA.timeoutDays') === 'undefined' && g.ev('typeof DATA.warnDays') === 'undefined'
-   && g.ev('DATA.remindDays') === 3
+   && g.ev('remindDaysOn("04.08.2026")') === 3 && g.ev('typeof DATA.remindDays') === 'undefined'
    && g.ev(`DATA.receipts.every(r => !('deadline' in r) && !('daysLeft' in r))`));
 ok('карточка ждущего поступления говорит про срок ожидания, а не про таймаут',
    (() => { const t = g.textOf(g.rec('R-311','alloc','curator'));
@@ -1111,6 +1111,15 @@ ok('открытие закрытого периода требует номер
 
 ok('журнал периодов называет распоряжение, а не решение органа',
    g.ev(`PERIOD_LOG.filter(x=>x.act==='Открытие').every(x => /Распоряжение/.test(x.decision))`));
+
+ok('порог напоминания — запись с датой начала: по умолчанию 3, новая запись не трогает более раннюю операцию (НЗ-7)',
+   (() => { const d0 = g.ev(`remindDaysOn('04.08.2026')`);
+     g.ev(`DATA.remindRules.push({ from:'01.09.2026', v:5, basis:'выпуск' })`);
+     const early = g.ev(`remindDaysOn('04.08.2026')`), late = g.ev(`remindDaysOn('02.09.2026')`);
+     const rcOld = g.ev(`isRemind({waitDays:4, date:'04.08.2026'})`), rcNew = g.ev(`isRemind({waitDays:4, date:'02.09.2026'})`);
+     g.ev(`DATA.remindRules.pop()`);
+     return d0 === 3 && early === 3 && late === 5 && rcOld === true && rcNew === false
+        && g.ev(`DATA.remindDays`) === undefined; })());
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
