@@ -982,7 +982,7 @@ let PROGRAMS = [
       nameEn:'Subsidized agricultural lending 2026',
       shortDesc:'Поддержка АПК — оборотные средства для сезонных работ', decisionId:'d554', decisionName:'ПКМКР №554 от 11.09.2024',
       source:'Бюджет', purpose:'Пополнение оборотных средств', kind:'Бюджетный кредит', industry:'Агропромышленный комплекс',
-      currency:'KGS', line:'ФРР', repayAcct:'Накопительный счёт', dateFrom:'2026-01-01', dateTo:'2026-12-31',
+      currency:'KGS', line:'ФРР', repayAcct:'Накопительный счёт', dateFrom:'2026-01-01', dateTo:'2026-09-20',
       staffMain:'Айбек уулу Н.; Турдубекова А.С.', commission:'Комиссия по заявкам', comment:'Приоритетная программа, лимит фондирования 2 млрд сом.',
       amountType:'Диапазон', amounts:'100 000 – 5 000 000', termType:'Диапазон', terms:'12 – 36',
       rateType:'Фиксированная', rateValue:'6%',
@@ -1044,6 +1044,17 @@ const STATUS = {
 };
 function statusBadge(s){ const m=STATUS[s]; return `<span class="badge ${m.cls}">${m.label}</span>`; }
 
+/* Порог «истекает»: записи с датой начала и основанием. Значение на дату — запись с наибольшим from не позже даты
+   (первая запись действует и для более ранних дат). Экрана нет, смена только выпуском; запись отдаётся модулю «Задания». */
+const THRESHOLDS = { expiringDays: [{ from:'2026-09-01', v:30, unit:'к.д.', basis:'решение проекта' }] };
+function expiringDaysOn(d){ return THRESHOLDS.expiringDays.reduce((cur, r)=>r.from<=d ? r : cur).v; }
+const MAKET_TODAY = '2026-09-02'; // сегодняшняя дата макета — как в макете заданий
+function addDaysIso(iso, n){ const t = new Date(iso+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()+n); return t.toISOString().slice(0,10); }
+/* «истекает»: действующая программа, у которой «Дата по» наступит не позже чем через порог дней; бессрочная и уже истёкшая — нет */
+function isExpiring(p, d){ d = d||MAKET_TODAY;
+  return p.status==='approved' && !!p.dateTo && p.dateTo>=d && p.dateTo<=addDaysIso(d, expiringDaysOn(d)); }
+function statusCell(p){ return statusBadge(p.status) + (isExpiring(p) ? ` <span class="badge review" title="Дата по: ${fmtDate(p.dateTo)}">истекает</span>` : ''); }
+
 /* ============================================================
    STATE
    ============================================================ */
@@ -1073,7 +1084,7 @@ const COLS = [
   { k:'kind',         t:'Вид кредита',              w:'11%' },
   { k:'dateFrom',     t:'Дата с',                   w:'8%'  },
   { k:'dateTo',       t:'Дата по',                  w:'8%'  },
-  { k:'status',       t:'Статус',                   w:'9%'  },
+  { k:'status',       t:'Статус',                   w:'13%' },
 ];
 
 function filteredSorted(){
@@ -1108,7 +1119,7 @@ function renderList(){
       <td title="${esc(asTxt(p.kind))}">${esc(asTxt(p.kind))||'—'}</td>
       <td>${fmtDate(p.dateFrom)}</td>
       <td>${esc(fmtDateTo(p.dateTo))}</td>
-      <td>${statusBadge(p.status)}</td>
+      <td>${statusCell(p)}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Нет записей по фильтру</td></tr>`;
   // view toggle: показать таблицу или карточки (данные/фильтр/сортировка/пагинация общие)
@@ -1167,7 +1178,7 @@ function renderCards(rows){
         <span class="pcard-chev">${_chev}</span>
       </div>
       <div class="pcard-badges">
-        ${statusBadge(p.status)}
+        ${statusCell(p)}
         ${p.kind ? `<span class="badge draft">${esc(p.kind)}</span>` : ''}
       </div>
       <div class="pcard-fields">

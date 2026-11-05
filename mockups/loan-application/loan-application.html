@@ -3114,6 +3114,10 @@ const STATUS_META = {
   'Оформлена':                 { step:4, mode:'view', badge:'s-approved' },
   'Отозвана':                  { step:1, mode:'view', badge:'s-closed' },
 };
+/* Порог «застряла в „Новый“»: записи с датой начала и основанием. Значение на дату — запись с наибольшим from не позже даты
+   (первая запись действует и для более ранних дат). Экрана нет, смена только выпуском; запись отдаётся модулю «Задания». */
+const THRESHOLDS = { stuckWd: [{ from:'2026-09-01', v:10, unit:'р.д.', basis:'решение проекта' }] };
+function stuckWdOn(d){ return THRESHOLDS.stuckWd.reduce((cur, r)=>r.from<=d ? r : cur).v; }
 /* Шапочный степпер убран из вёрстки (2026-07); renderStepper/STEP_LABELS/STATUS_STEP_MAP
    удалены как мёртвый код, писавший в несуществующий #stepper. Прогресс показывает
    appStage (5 узлов) на вкладке «Общая информация». */
