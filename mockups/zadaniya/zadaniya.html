@@ -195,6 +195,16 @@ table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px soli
 .stand-down{ position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:640px; padding:12px 14px; columns:2;
   background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md); box-shadow:0 6px 20px rgba(24,39,57,0.18); }
 .stand-down label{ display:flex; margin-bottom:5px; color:var(--text-body); }
+.stand[hidden]{ display:none; }
+.demo-sw{ position:relative; display:inline-flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-muted); cursor:pointer; user-select:none; white-space:nowrap; }
+.topbar .demo-sw{ margin-right:0; }
+.demo-sw input{ position:absolute; opacity:0; width:1px; height:1px; margin:0; }
+.demo-sw .trk{ position:relative; flex:none; width:34px; height:20px; border-radius:var(--radius-pill); background:var(--asubk-ink-26); transition:background .15s; }
+.demo-sw .trk::after{ content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(24,39,57,0.3); transition:left .15s; }
+.demo-sw input:checked + .trk{ background:var(--asubk-amber); }
+.demo-sw input:checked + .trk::after{ left:16px; }
+.demo-sw input:focus-visible + .trk{ box-shadow:var(--shadow-focus); }
+.demo-sw:has(input:checked){ color:var(--text-body); }
 .tabs button .n{ margin-left:6px; color:var(--text-muted); font-weight:var(--weight-regular); }
 .tabs button.on .n{ color:var(--asubk-blue); }
 .q-tools{ display:flex; align-items:center; gap:12px; margin:0 0 10px; min-height:32px; }
@@ -292,10 +302,11 @@ table.cgrid tbody tr.unread td{ background:var(--asubk-blue-tint); }
   </aside>
 
   <div class="main">
-    <div class="stand" id="stand"></div>
+    <div class="stand" id="stand" hidden></div>
     <div class="topbar">
       <div class="crumb-title" id="title">Задания</div>
       <div class="right">
+        <span id="demoSw"></span>
         <span class="bell-wrap" id="bell"></span>
       </div>
     </div>
@@ -4683,7 +4694,7 @@ function requestExtension(taskId, by, newDue, reason){
   if(!t || isTerminal(t)) throw new Error('задание закрыто');
   if(!canActFor(t, by)) throw new Error('продление запрашивает исполнитель или его замещающий');
   if(namedDue(t)) throw new Error('срок называет владелец — переносится в его записи, не здесь');
-  if(tplLocked(t)) throw new Error('срок назвал шаблон соседа — продлевает утверждающий, объявленный правилом; его нет — в заданиях срок не продлевается');
+  if(tplLocked(t)) throw new Error('срок назвал шаблон модуля-источника — продлевает утверждающий, объявленный правилом; его нет — в заданиях срок не продлевается');
   if(pendingExtension(t)) throw new Error('предыдущий запрос продления ещё без решения');
   if(!newDue || newDue<=dueOf(t)) throw new Error('новая дата должна быть позже установленного срока');
   if(!reason) throw new Error('нужно основание продления');
@@ -4811,7 +4822,7 @@ function anStep(id, by, step){
 /* пороги самоопроса — записи модуля заданий с датой начала и основанием (state.neighborSet.zd), «решение проекта», пока нет приказа;
    правит администратор заданий по приказу. Повод держит значение дня, когда появился: новое значение — только новым поводам */
 const ZD_THR = {
-  overdueWd:   {v:5,  text:v=>`${v} р.д. после срока; он же день второй ступени неразобранной очереди`},
+  overdueWd:   {v:5,  text:v=>`${v} р.д. после срока; он же день повторной эскалации неразобранной очереди`},
   awaitWd:     {v:3,  text:v=>`дольше ${v} р.д.`},
   extWd:       {v:1,  text:v=>`дольше ${v} р.д.`},
   silentNights:{v:2,  text:v=>`${v} ночи подряд`},
@@ -4819,6 +4830,7 @@ const ZD_THR = {
   returnWindowD:{v:30, text:v=>`за ${v} к.д.`},
   inactiveD:   {v:3,  text:v=>`дольше ${v} к.д.`},
 };
+const ESC_REPEAT = 'повторная — руководитель «Кто поручил»'; // признак повода: на 5-й р.д. неразобранную очередь получает руководитель держателя
 function liveSince(p){ for(let i=p.journal.length-1;i>=0;i--){ const e=p.journal[i]; if(e.ev==='появился' || e.ev==='вновь-появился') return e.t; } return p.firstSeen; }
 function zdThr(f, key, asOf){ const p = key && povodByKey(key); return thrOn('zd.'+f, p && p.status!=='gone' ? liveSince(p) : asOf); }
 function editSelfThr(f, x, o){
@@ -4853,16 +4865,16 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       if(esc && esc.to==='очередь'){ // сразу по истечении срока — задание очереди того, кто вправе решить
         if(due >= asOf) return;
         out.set(`pk-overdue|task:${t.id}|${esc.step}`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:due, approx:false,
-          esc:{role:esc.role, action:esc.action}, traits:{давность_раб_дней:workdaysBetween(due, asOf), ступень:roleTitle(esc.role)}});
+          esc:{role:esc.role, action:esc.action}, traits:{давность_раб_дней:workdaysBetween(due, asOf), эскалация:roleTitle(esc.role)}});
         return;
       }
       if(inQueue(t)){ // очередь, которую никто не взял: сразу — держателю «Кто поручил», на 5-й р.д. — его руководителю
         if(due >= asOf) return;
         const wd = workdaysBetween(due, asOf), k2 = `pk-overdue|task:${t.id}|никто не взял, 5-й р.д.`, n2 = zdThr('overdueWd', k2, asOf);
         out.set(`pk-overdue|task:${t.id}|никто не взял`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:due, approx:false,
-          traits:{давность_раб_дней:wd, ступень:'«Кто поручил»'}});
+          traits:{давность_раб_дней:wd, эскалация:'«Кто поручил»'}});
         if(wd >= n2 && queueStepOf(t, 2, asOf)) out.set(k2, {kind:kindId, objectType:'task', objectId:t.id,
-          stateDate:addWorkdays(due, n2), approx:false, traits:{давность_раб_дней:wd, ступень:'руководитель «Кто поручил»'}});
+          stateDate:addWorkdays(due, n2), approx:false, traits:{давность_раб_дней:wd, эскалация:ESC_REPEAT}});
         return;
       }
       const key = `pk-overdue|task:${t.id}|`;
@@ -5106,7 +5118,7 @@ function docRejectTo(t){
 function participantOf(who, t, povod, asOf){
   if(!t) return null;
   if(who==='руководитель исполнителя' && inQueue(t))
-    return queueStepOf(t, povod && povod.traits && povod.traits.ступень==='руководитель «Кто поручил»' ? 2 : 1, asOf);
+    return queueStepOf(t, povod && povod.traits && povod.traits.эскалация===ESC_REPEAT ? 2 : 1, asOf);
   if(who==='руководитель исполнителя') return delayChief(t.assignee, asOf);
   if(who==='автор' && povod && povod.kind==='pk-rejected'){ const dr = docRejectTo(t); if(dr && dr.emp) return dr.emp; }
   if(who==='автор') return (povod && povod.kind==='pk-rejected' && t.queueAssignedBy) || t.author;
@@ -5566,8 +5578,15 @@ function visibleTo(t, viewerId){
   if(viewerId===t.assignee || viewerId===t.controller || viewerId===t.author) return true;
   if(chiefChainIncludes(t.assignee, viewerId)) return true;
   if(actingOn(t, state.today)===viewerId) return true; // замещающий исполнителя на дату
-  return responsibleNow(t)===viewerId;
+  if(responsibleNow(t)===viewerId) return true;
+  if(isTerminal(t)) return false;
+  /* решающие по открытому заданию: утверждающий продление, пока запрос ждёт решения; кто вправе назначить из неразобранной очереди;
+     руководитель, получивший «Просрочено задание», и действующий за него */
+  if(pendingExtension(t) && approverOf(t)===viewerId) return true;
+  if(canAssignQueue(t, viewerId)) return true;
+  return overdueChiefSees(t, viewerId);
 }
+function overdueChiefSees(t, v){ return !!t.assignee && dueOf(t)<state.today && isOverdueChief(t, v); } // сначала дешёвое: задание о просрочке ищется по всем
 /* ход за исполнителем: задание не заявлено, не ждёт приёмки и не отказано */
 function moveOnAssignee(t){ const st = lastEv(t); return st==='поручено' || st==='принято' || st==='возвращено'; }
 /* просрочено: срок прошёл, а ход за исполнителем — одно правило у счётчика, красной строки, «срок истёк» и «Просрочено задание» */
@@ -5628,7 +5647,7 @@ function bucketOf(t, v, d){
   if(isMine(t, v, d)) return 'wait';
   if(closedGiven(t, v)) return 'gave';
   if(canAssignQueue(t, v)) return 'unassigned';
-  if(t.assignee && (chiefChainIncludes(t.assignee, v) || responsibleNow(t)===v)) return 'sub';
+  if(t.assignee && (chiefChainIncludes(t.assignee, v) || responsibleNow(t)===v || overdueChiefSees(t, v))) return 'sub';
   return visibleTo(t, v) ? 'other' : null;
 }
 function bucketsOf(v){
@@ -5862,7 +5881,20 @@ function ui(fn){ // действие из интерфейса: отказ дв�
   renderCardDrawer(); render();
 }
 const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; остальным правило на чтение — панелью по ссылке из карточки
-function go(view){ state.view=view; render(); }
+function go(view){ state.view=view; render(); } // экран администратора у остальных — «Моя работа» (render)
+/* переключатель «Демонстрация» в шапке: полоса стенда и демо-карточки модулей видны только при включённом; по умолчанию выключен,
+   выбор помнится в браузере зрителя. В продукт не входит: без него макет — очередь, карточка, кнопки, настройка у администратора */
+const DEMO_KEY = 'asubk.zadaniya.demo';
+let demoOn = (()=>{ try{ return typeof localStorage!=='undefined' && localStorage.getItem(DEMO_KEY)==='1'; }catch(e){ return false; } })();
+function setDemo(v){
+  demoOn = !!v;
+  try{ if(typeof localStorage!=='undefined') localStorage.setItem(DEMO_KEY, demoOn ? '1' : '0'); }catch(e){ /* хранилище недоступно — выбор живёт до перезагрузки */ }
+  if(!demoOn) standDownOpen = false;
+  renderCardDrawer(); render();
+}
+function renderDemoSwitch(){
+  return `<label class="demo-sw" title="Показ стенда: дата среза, зритель, имитация недоступности, демо-карточки модулей"><input type="checkbox" role="switch" id="demoToggle"${demoOn ? ' checked' : ''} onchange="ZD.setDemo(this.checked)"><span class="trk"></span>Демонстрация</label>`;
+}
 function setAsOf(v){ state.today=v; applyEditions(v); render(); }
 function setViewer(v){ state.viewer=v; groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; if(ruleCard){ ruleCard=null; renderCardDrawer(); } render(); }
 /* стенд: ночи подряд от старта до выбранной даты включительно. Срез зависит только от даты и настроек полосы, клики зрителя
@@ -5961,12 +5993,16 @@ function renderStand(){
     </details>`;
 }
 function render(){
-  if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer)) state.view = 'queue'; // зритель сменился на этих экранах
+  if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer)){ state.view = 'queue'; state.qTab = 'work'; } // зритель сменился на этих экранах или пришёл прямым переходом — «Моя работа»
   if(typeof document==='undefined') return;
   const titles = {queue:'Задания', settings:'Настройка', runs:'Журнал прогонов', notifs:'Все уведомления'};
   document.getElementById('title').textContent = titles[state.view] || '';
   document.getElementById('nav').innerHTML = renderNav();
-  document.getElementById('stand').innerHTML = renderStand();
+  const stand = document.getElementById('stand');
+  stand.hidden = !demoOn;
+  stand.innerHTML = demoOn ? renderStand() : '';
+  const sw = document.getElementById('demoSw'), box = sw.querySelector('input'); // переключатель не перерисовывается — фокус клавиатуры остаётся на нём
+  if(box) box.checked = demoOn; else sw.innerHTML = renderDemoSwitch();
   document.getElementById('bell').innerHTML = renderBell();
 
   const panel = document.getElementById('panel');
@@ -6467,7 +6503,7 @@ function renderHighlightDrawer(){
         <div class="k">Владелец</div><div class="v">${esc(ownerOfKind(k.id)||'—')}</div>
         <div class="k">Основание вида</div><div class="v">${esc(k.basis.group)}${k.basis.source ? ' · '+esc(k.basis.source) : ''}</div>
         <div class="k">Задание</div><div class="v">нет: ${k.genus==='сигнал' ? 'сигнал — только уведомление' : 'подсветка видна на объекте'}, срока и ответа нет</div>
-      </div>${OWNER_CFG[k.id] ? renderOwnerCard(null, e) : ''}` : `<div class="muted small">На ${fmt(state.today)} ${k.genus==='сигнал' ? 'случая больше нет' : 'состояния больше нет: подсветка снята'}.</div>`}
+      </div>${demoOn && OWNER_CFG[k.id] ? renderOwnerCard(null, e) : ''}` : `<div class="muted small">На ${fmt(state.today)} ${k.genus==='сигнал' ? 'случая больше нет' : 'состояния больше нет: подсветка снята'}.</div>`}
     </div>
   </div>`;
 }
@@ -6579,7 +6615,7 @@ function taskActions(t, v){
   if(chiefMayExtend(t, v)) ask('Продлить срок', 'chiefExtend');
   if(visibleTo(t, v)) ask('Отметка о ходе', 'progress');
   if(assignerMay(t, v)) ask('Вернуть в очередь', 'toQueue');
-  if(v!==t.assignee && (v===t.author || chiefChainIncludes(t.assignee, v) || assignerMay(t, v)) && !(escalateOf(t) && escalateOf(t).reassign===false)){
+  if(v!==t.assignee && (v===t.author || chiefChainIncludes(t.assignee, v) || isOverdueChief(t, v) || assignerMay(t, v)) && !(escalateOf(t) && escalateOf(t).reassign===false)){
     if(DOC_NAMED.indexOf(t.originKind)!==-1) out.notes.push('Сменить исполнителя — в карточке документа: «Заменить участника» (автор документа или резолюции, регистратор, архивариус — по роли; держатель «Кто поручил»).');
     else ask('Переназначить', 'reassign');
   }
@@ -6642,7 +6678,7 @@ function renderCard(id){
   const row = (k, key, x)=>`<div class="k" data-top="${key}">${esc(k)}</div><div class="v">${x}</div>`;
   const links = caseLinks(t), r = responsibleNow(t), due = dueOf(t), cal = calNote(t.journal[0].t, due);
   const forWhom = t.assignee && t.assignee!==v && !term && isMine(t, v) ? ` <span class="small">за ${esc(empName(t.assignee))}</span>` : '';
-  const demo = ownerExecOf(t) && povod ? renderOwnerCard(t, t.esc ? povodByKey(taskOf(povod.objectId).povodKey) : povod) : '';
+  const demo = demoOn && ownerExecOf(t) && povod ? renderOwnerCard(t, t.esc ? povodByKey(taskOf(povod.objectId).povodKey) : povod) : ''; // только при «Демонстрации»
   const rows = t.journal.length ? journalRows(t) : [];
   return `
   <div class="drawer-mask" onclick="ZD.closeCard()"></div>
@@ -7521,15 +7557,16 @@ function renderHighlightTab(){
 function renderSettings(){
   const tabs = SETTINGS_TABS.map(([k, l])=>`<button class="${state.settingsTab===k ? 'on' : ''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
   const links = OWNER_SCREENS.map(s=>`<a class="q-case" href="../${s.page}" target="_blank" title="${esc(s.hint)}">${esc(s.label)}</a>`).join('');
-  const admin = isTasksAdmin(state.viewer);
-  const ro = admin ? '' : `<div class="banner info">Только чтение. Правит администратор заданий: ${esc(emp(postHolderOn('post-admin', state.today))?.name||'должность вакантна')}</div>`;
+  const admin = isTasksAdmin(state.viewer); // экран только администратору (render); подпись «Только чтение» — у панели правила из карточки
   const body = state.settingsTab==='highlight' ? renderHighlightTab() : state.settingsTab==='notifs' ? renderNotifSettings(admin) : renderRulesTab();
-  return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${ro}${body}`;
+  return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
 function goSettings(tab){ state.settingsTab=tab; state.view='settings'; render(); }
 function toggleHl(id){ state.hlOpen = state.hlOpen===id ? null : id; render(); }
 function recipText(r){ return r.by==='кураторство' ? r.role+' — по объекту, с замещением' : postOf(r.post).title; }
+/* запасного у сигнала нет (signalRecipients): без куратора — только должности настройки, без них сигнал не уходит */
+const SIG_NOBODY = 'нет куратора — получают только указанные должности; нет и их — сигнал не уходит';
 /* сигналы и обычные уведомления одним видом: строка, правка в окне с основанием. Получатели обычных определены механизмом, выключить нельзя; новое событие для сигнала — только выпуском */
 function renderNotifSettings(admin){
   const rows = NOTIF_KINDS.map(k=>{ const c = state.notifSettings[k]; return `<tr data-n="${k}"><td>${esc(NOTIF_SPEC[k].title)}</td><td>${esc(NOTIF_SPEC[k].who)}</td><td>${esc(c.text)}</td><td>${esc(c.channels.join(', '))}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k}')">Изменить</button></td>` : ''}</tr>`; }).join('');
@@ -7537,7 +7574,7 @@ function renderNotifSettings(admin){
   const sigRows = sigKinds.map(k=>{
     const c = state.signals[k.id], on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
     const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button> <button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
-    return `<tr data-sig="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">нет куратора — руководитель подразделения-владельца</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
+    return `<tr data-sig="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">${SIG_NOBODY}</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
       <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
   }).join('');
   const changed = (h, f)=>f==='text' ? `текст: было «${h.was.text}»` : f==='channels' ? `способ: было ${h.was.channels.join(', ')}` : `получатели: было ${h.was.recipients.map(recipText).join('; ')}`;
@@ -7573,7 +7610,7 @@ function askSignal(kindId){
     {f:'text', label:'Текст', type:'textarea', required:true},
     {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS},
     {f:'basis', label:'Основание', required:true}]);
-  return openDialog({title:`Сигнал «${k.title}»`, submit:'Сохранить', done:'Настройка сигнала сохранена', wide:true, note:'Нет куратора — получает руководитель подразделения-владельца. Новое событие приходит только выпуском.',
+  return openDialog({title:`Сигнал «${k.title}»`, submit:'Сохранить', done:'Настройка сигнала сохранена', wide:true, note:`${SIG_NOBODY[0].toUpperCase()+SIG_NOBODY.slice(1)}. Новое событие приходит только выпуском.`,
     values:{role:c.recipients.filter(r=>r.by==='кураторство').map(r=>r.role), posts:c.recipients.filter(r=>r.by==='должность').map(r=>postName(r.post)), text:c.text, channels:c.channels.slice(), basis:''}, fields,
     run:x=>{
       const rec = (x.role||[]).map(r=>({by:'кураторство', role:r})).concat(POSTS.filter(p=>(x.posts||[]).indexOf(p.title)!==-1).map(p=>({by:'должность', post:p.id})));
@@ -7663,7 +7700,7 @@ function renderDelivery(){
 function renderPollTab(){
   const sources = SOURCES.map(s=>{
     const sil = s.id==='self' ? null : silenceOf(s.id, state.today), on = POLL_SCOPES[state.pollScope](s);
-    return `<tr><td>${esc(s.name)}</td><td>${s.onSave ? 'по сохранению и ночью' : 'ночью'}</td><td>${s.release ? 'первый' : 'по готовности'}</td>
+    return `<tr><td>${esc(s.name)}</td><td>${s.onSave ? 'по сохранению и ночью' : 'ночью'}</td>
       <td>${!on ? '<span class="small">не подключён</span>' : sil ? `<span class="pill warn">не отвечает с ${fmt(sil.since)}, ночей подряд: ${sil.nights}</span>` : 'отвечает'}</td></tr>`;
   }).join('');
   const nights = state.pollRuns.slice().reverse().map(r=>{
@@ -7675,7 +7712,7 @@ function renderPollTab(){
   }).join('') || '<tr><td colspan="6" class="muted">Прогонов ещё не было</td></tr>';
   return `<div class="section-h">Источники</div>
     <div class="small" style="margin-bottom:6px">Ошибка не значит пусто: поводы источника не трогаются, прогон неполный. После двух ночей подряд — задание администратору.</div>
-    <table class="cgrid qgrid" data-sources>${qCols([0, 260, 180, 520])}<thead><tr><th>Источник</th><th>Как опрашивается</th><th>Выпуск</th><th>Состояние</th></tr></thead><tbody>${sources}</tbody></table>
+    <table class="cgrid qgrid" data-sources>${qCols([0, 260, 520])}<thead><tr><th>Источник</th><th>Как опрашивается</th><th>Состояние</th></tr></thead><tbody>${sources}</tbody></table>
     <div class="section-h">Журнал ночей</div>
     <table class="cgrid qgrid" data-nights>${qCols([170, 220, 120, 120, 120, 0])}<thead><tr><th>Дата</th><th>Ответы</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th></tr></thead><tbody>${nights}</tbody></table>
     ${renderDelivery()}`;
@@ -7838,7 +7875,7 @@ return {
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
   get dialog(){ return dlg; }, renderDialog, ask, dialogSet, dialogCheck, dialogSubmit, dialogCancel, dialogCaseQ, dialogCaseAdd, dialogCaseDel, caseCatalog, caseSearch,
   renderBell, bellToggle, notifGo, notifReadAll, openAllNotif, notifsOf, unreadOf, renderNotifPage, notifText, editNotif, askNotif, NOTIF_SPEC, BELL_LAST,
-  renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES,
+  renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES, setDemo, get demo(){ return demoOn; }, renderDemoSwitch, ADMIN_VIEWS,
   bucketOf, bucketsOf, tabsOf, currentTab, setQueueTab, setClosedFilter, setSearch, setSort, closedFilters, closedMine, closedResult, subSummary,
   whatToDo, caseOf, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupChoose,
   openFreeForm, setSettingsTab, toggleHl, deactivateKind, activateKind,
