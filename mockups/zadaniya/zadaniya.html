@@ -414,6 +414,9 @@ const ROLES = [
   // подразделения, которые называет шаблон срока взыскания: шаг берёт любой сотрудник подразделения
   {id:'vz-dpo', name:'ДПО', owner:'Взыскание', dept:'Департамент правового обеспечения', holders:['E28']},
   {id:'vz-opk', name:'ОПК', owner:'Взыскание', dept:'Отдел проблемных кредитов',         holders:['E30','E31']},
+  // принимающие передачу требования по пп. 58, 61 — носители роли доступа в подразделении; в демо передач к ним нет
+  {id:'vz-sak', name:'САК', owner:'Взыскание', dept:IM_SECTOR,                             holders:['E21','E22','E23']},
+  {id:'vz-sit', name:'СИТ', owner:'Взыскание', dept:'Информационные технологии',           holders:['E42']},
   // регистрация извещения: очередь представительства региона, где зарегистрирован предмет залога
   {id:'vz-rp',  name:'РП · Чуйская область', owner:'Взыскание', dept:'Чуйское региональное представительство', holders:['E44']},
   // договор залога ждёт решения комитета: задание берёт секретарь или председатель комитета
@@ -559,7 +562,7 @@ function authorPostOf(rule, povod){
   const a = rule.author;
   if(!a || typeof a==='string') return a;
   if(!povod) return Object.values(a)[0]; // показ правила, без повода
-  return a[povod.namedRole] || null;        // повод не назвал очередь — ошибка реестра: «адресат не найден»
+  return a[povod.namedRole] || povod.authorPost || null; // повод не назвал ни очередь, ни свою единицу — ошибка реестра: «адресат не найден»
 }
 function authorTitle(a){ return !a ? '—' : typeof a==='string' ? postOf(a).title
   : Object.keys(a).map(q=>`${roleOf(q) ? roleOf(q).name : q} → ${postOf(a[q]).title}`).join('; '); }
@@ -894,8 +897,8 @@ function seedPovodKinds(){ return [
     ['pk-im-pledge-term',         'Срок отчуждения предмета залога истекает',  'asset',      ['предмет_залога','срок_отчуждения','порог'],   'учётная стоимость объекта'],
   ].map(([id, title, objectType, traits, sumAttr, x])=>Object.assign({id, title, objectType, traits, sumAttr, sensitive:false,
     ownerDept:IM_SECTOR, createdAt:IM_INSTR, activatedAt:IM_INSTR, ownerExec:true}, x||{})),
-  // Имущество: вопрос, внесённый запиской председателю Комитета, ждёт решения — очередь Комитета; ключ «вид · предложение»
-  {id:'im-committee-decide', title:'Вопрос имущества не рассмотрен Комитетом', objectType:'offer', traits:['источник','записка','срок'],
+  // Имущество: вопрос, внесённый запиской председателю Комитета, ждёт решения — очередь Комитета; ключ «вид · объект вопроса · записка»
+  {id:'im-committee-decide', title:'Вопрос имущества не рассмотрен Комитетом', objectType:'offer', traits:['вопрос','записка','срок','источник'],
    sumAttr:'стоимость принятия позиций', sensitive:false, ownerDept:'Комитет по вопросам правового обеспечения и управления активами',
    createdAt:'2026-12-01', activatedAt:'2026-12-01', ownerExec:true, addrForm:'очередь'},
   // Анализ: обзор с выводом «требует решения» без поручений — подсветка на обзоре в «Анализе»: модуль по ней отвечает отказом,
@@ -1040,7 +1043,7 @@ function seedActions(){ return [
   {id:'act-vz-death-start', label:'Начать работу по смерти заёмщика', importance:'высокая', needsProof:false,
    where:'взыскание: первая мера главы 10 на требовании к заёмщику — справка о составе семьи или предложение родственникам'},
   {id:'act-im-committee-decide', label:'Рассмотреть вопрос имущества', importance:'высокая', needsProof:false,
-   where:'имущество, предложение: решение Комитета с номером протокола'},
+   where:'имущество: решение Комитета по вопросу записки (предложение, заявка, условия продажи, банкротство) с номером протокола'},
   // Залог
   ...ZL_STEPS.filter(noHL).map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Платежи
@@ -1414,6 +1417,8 @@ function initRegistry(){ // запись вида объявляет род; н�
   kindOf('pk-zl-committee').authorPost = 'post-kabk'; // комитет — председатель по записи состава
   kindOf('rs-conclusion').authorPost = {'rs-srmik':'post-risk', 'rs-dpo':'post-dpo'}; // очередь заключанта — руководитель его подразделения
   kindOf('rs-committee-decide').authorPost = 'post-kabk';
+  // принять передачу требования: очередь принимающего подразделения → его руководитель; передача по п. 37 называет свою единицу в поводе
+  kindOf('vz-handover-accept').authorPost = {'vz-dpo':'post-dpo', 'vz-sak':'post-assets', 'vz-sit':'post-it'};
   kindOf('im-committee-decide').authorPost = 'post-kpua';
   kindOf('pk-im-ssi-memo').authorPost = 'post-opk';   // записку вносит отдел по работе с проблемными кредитами — его начальник
   kindOf('pk-rep-obligation-due').authorPost = {'rep-sopr':'post-escort', 'rep-kp':'post-lp', 'rep-gf':'post-gf'}; // очередь подразделения — его руководитель
@@ -2163,7 +2168,8 @@ function seedImInstr(owner){
   ima('ОИ-506').ev.push(
     {t:'2026-12-01', application:{id:'З-1', type:'покупка', from:'ИП Мамытов Б.', price:1300000}, by:'E22', how:'заявка З-1 на покупку принята'},
     {t:'2026-12-02', application:{id:'З-3', type:'покупка', from:'ОсОО «Кара-Балта Агро»', price:1280000}, by:'E22', how:'заявка З-3 на покупку принята'},
-    {t:'2026-12-14', appDecision:'З-1', by:'E22', how:'решение Комитета № 54 по заявке З-1: отказать — цена ниже оценки'},
+    {t:'2026-12-12', appMemo:'З-1', by:'E22', how:'служебная записка председателю Комитета по заявке З-1 внесена'},
+    {t:'2026-12-14', appDecision:'З-1', by:'E36', how:'решение Комитета № 54 по заявке З-1: отказать — цена ниже оценки'},
     {t:'2026-12-15', appWithdraw:'З-3', by:'E22', how:'заявка З-3 отозвана заявителем'});
   const OBJ = (id, title, kind, regNeeded, cost, ev, x)=>Object.assign({id, title, kind, cls:'вещь', regNeeded, cost, ev}, x||{});
   owner.ima.push(
@@ -2188,13 +2194,16 @@ function seedImInstr(owner){
       {t:'2026-10-05', inspection:true, by:'E23', how:'акт осмотра № 12'},
       {t:'2026-10-10', attempt:1, by:'E23', how:'объявление о продаже 1 опубликовано'},
       {t:'2026-11-09', attemptEnd:'не состоялась', by:'E23', how:'окно заявок по объявлению 1 закрылось без продажи'},
+      {t:'2026-12-02', condMemo:true, by:'E23', how:'служебная записка председателю Комитета об условиях продажи внесена: допустить рассрочку'},
+      {t:'2026-12-11', condDecision:true, by:'E36', how:'секретарь Комитета внёс решение № 53: продавать с рассрочкой'},
       {t:'2026-12-14', attempt:2, by:'E23', how:'объявление о продаже 2 опубликовано: условия те же, рассрочка допускается'}]),
     OBJ('ОИ-516', 'Нежилое помещение, г. Ош, ул. Ленина', 'нежилое помещение', false, 1500000, [
       {t:'2026-10-05', act:true, by:'E23', pubBy:'E24', how:'акт приёма-передачи опубликован — переход права'},
       {t:'2026-10-07', expense:'охрана и сохранность', by:'E23', how:'расход «охрана и сохранность»: договор охраны № 27-О'},
       {t:'2026-10-12', attempt:1, by:'E23', how:'объявление о продаже 1 опубликовано'},
       {t:'2026-12-08', application:{id:'З-2', type:'выкуп', from:'ОсОО «Ош-Береке» (долг погашен полностью)', price:1500000}, by:'E23', how:'заявление о выкупе З-2 принято'},
-      {t:'2026-12-14', appDecision:'З-2', by:'E23', how:'решение Комитета № 55 по заявлению З-2: продать бывшему должнику'},
+      {t:'2026-12-12', appMemo:'З-2', by:'E23', how:'служебная записка председателю Комитета по заявлению З-2 внесена'},
+      {t:'2026-12-14', appDecision:'З-2', by:'E36', how:'решение Комитета № 55 по заявлению З-2: продать бывшему должнику'},
       {t:'2026-12-16', sold:{buyer:'ОсОО «Ош-Береке»', price:1500000}, by:'E23', pubBy:'E24', how:'договор купли-продажи КП-12 опубликован'}]),
     OBJ('ОИ-517', 'Автомобиль Toyota Land Cruiser 200', 'автомобиль', false, 3300000, [
       {t:'2026-10-20', act:true, by:'E23', pubBy:'E24', how:'акт приёма-передачи опубликован — переход права'},
@@ -2230,7 +2239,8 @@ function seedImInstr(owner){
   owner.imb = [
     {id:'Б-1', title:'Банкротство ОсОО «Жалал-Абад Агро»', debtor:'ОсОО «Жалал-Абад Агро»', pledges:[{item:'Зерносклад, г. Жалал-Абад', cost:2100000}],
      ev:[{t:'2026-12-01', declared:true, by:null, how:'взыскание: должник признан банкротом решением суда'},
-         {t:'2026-12-15', memo:true, by:'E22', how:'служебная записка в Комитет о принятии залога во владение внесена'}]},
+         {t:'2026-12-15', memo:true, by:'E22', how:'служебная записка в Комитет о принятии залога во владение внесена'},
+         {t:'2026-12-22', decision:true, by:'E36', how:'секретарь Комитета внёс решение № 57: принять залог во владение'}]},
     {id:'Б-2', title:'Банкротство ИП Токтогулов Э.', debtor:'ИП Токтогулов Э.', pledges:[{item:'Трактор Беларус-1221', cost:1300000}],
      ev:[{t:'2026-12-01', declared:true, by:null, how:'взыскание: должник объявлен банкротом во внесудебном порядке'},
          {t:'2026-12-08', memo:true, by:'E21', how:'служебная записка в Комитет о соглашении со специальным администратором внесена'}]},
@@ -2342,13 +2352,17 @@ function seedRestructuring(){ return [
     {t:'2026-12-01', outcome:'отпала', by:null, how:'кредит КД-2025/367 погашен полностью: заявка отпала, применять нечего'}]),
   RSA('RS-2026/18', 'ОсОО «Токмок Сүт»', ['КД-2025/368'], '2026-12-02', 9600000, [
     {t:'2026-12-03', analysis:true, by:'E3', how:'пакет документов полон: заявка переведена в «Анализ»'},
+    {t:'2026-12-08', addConcl:'Отдел проблемных кредитов', by:'E3', how:'куратор заявки добавил заключанта: Отдел проблемных кредитов'},
     {t:'2026-12-11', visa:'СРМиК', by:'E11', how:'заключение СРМиК завизировано'},
+    {t:'2026-12-15', visa:'Отдел проблемных кредитов', by:'E32', how:'заключение подразделения «Отдел проблемных кредитов» завизировано'},
     {t:'2026-12-16', visa:'ДПО', by:'E28', how:'заключение ДПО завизировано'},
     {t:'2026-12-18', submitted:true, by:'E3', how:'заключение внесено, вопрос реструктуризации вынесен на комитет'},
     {t:'2026-12-25', committee:'целесообразно', by:'E36', how:'позиция комитета: реструктуризация целесообразна, протокол КАБК № 31'},
     {t:'2027-01-05', letter:{no:'Исх-131'}, by:'E15', for:'E3', how:'документооборот: исходящее Исх-131 зарегистрировано с привязкой к заявке — письмо в уполномоченный государственный орган направлено; меры взыскания по п. 16 приостановлены'}]),
   RSA('RS-2026/19', 'КФХ «Ат-Башы»', ['КД-2025/369'], '2026-12-04', 3100000, [
     {t:'2026-12-07', analysis:true, by:'E1', how:'пакет документов полон: заявка переведена в «Анализ»'},
+    {t:'2026-12-08', addConcl:'Отдел залогового обеспечения', by:'E1', how:'куратор заявки добавил заключанта: Отдел залогового обеспечения'},
+    {t:'2026-12-10', dropConcl:'Отдел залогового обеспечения', by:'E1', how:'куратор заявки исключил заключанта: Отдел залогового обеспечения'},
     {t:'2026-12-14', visa:'СРМиК', by:'E11', how:'заключение СРМиК завизировано'},
     {t:'2026-12-17', outcome:'отозвана', by:'E1', how:'отозвано заёмщиком: письменный отзыв, вх. №Вх-415 от 17.12.2026'}]),
 ]; }
@@ -2503,7 +2517,10 @@ function assetAt(o, d){ // объект на дату: состояние выв
     if(e.preemptAnswer && s.preempt){ s.preempt.answer = e.preemptAnswer; s.preempt.closed = e.t; }
     if(e.attempt){ s.attempts++; s.open=true; if(e.newTerms) s.failed = 0; set('выставлен на продажу', e.t); } // новые цена или условия — счёт «подряд» заново
     if(e.attemptEnd){ s.open=false; if(e.attemptEnd==='не состоялась'){ s.failed++; s.lastFail=e.t; set('на учёте', e.t); } }
-    if(e.application) s.apps[e.application.id] = Object.assign({filed:e.t, decision:null, withdrawn:null}, e.application);
+    if(e.application) s.apps[e.application.id] = Object.assign({filed:e.t, decision:null, withdrawn:null, memo:null}, e.application);
+    if(e.appMemo && s.apps[e.appMemo]) s.apps[e.appMemo].memo = e; // служебная записка председателю Комитета по заявке
+    if(e.condMemo){ s.condMemo = e; s.condDecided = null; }       // записка об условиях продажи; новая записка — новый вопрос
+    if(e.condDecision) s.condDecided = e;
     if(e.appDecision && s.apps[e.appDecision]) s.apps[e.appDecision].decision = e;
     if(e.appWithdraw && s.apps[e.appWithdraw]) s.apps[e.appWithdraw].withdrawn = e;
     if(e.sale){ s.contract = Object.assign({id:e.sale.contract, paid:{}}, e.sale); set('продан в рассрочку', e.t); }
@@ -2542,8 +2559,9 @@ function assetAt(o, d){ // объект на дату: состояние выв
 function bankruptcyAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const s = {id:o.id, title:o.title, debtor:o.debtor, declared:null, pledges:o.pledges, memo:null, last:null};
-  for(const e of byDate(o.ev)){ if(e.t>d) continue; if(e.declared) s.declared = e.t; if(e.memo) s.memo = e; s.last = e; }
-  s.status = s.memo ? 'записка в Комитет внесена' : 'признан банкротом'; s.statusSince = s.memo ? s.memo.t : s.declared;
+  for(const e of byDate(o.ev)){ if(e.t>d) continue; if(e.declared) s.declared = e.t; if(e.memo) s.memo = e; if(e.decision) s.decided = e; s.last = e; }
+  s.status = s.decided ? 'решение Комитета вынесено' : s.memo ? 'записка в Комитет внесена' : 'признан банкротом';
+  s.statusSince = s.decided ? s.decided.t : s.memo ? s.memo.t : s.declared;
   s.pledgeSum = s.pledges.reduce((a, p)=>a+p.cost, 0);
   return s;
 }
@@ -2943,9 +2961,11 @@ function rsAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
   const s = {type:'rs-application', id:o.id, borrower:o.borrower, credits:o.credits, credit:o.credit, reg:o.ev[0].t, debt:o.debt,
-    analysis:null, visas:{}, submitted:null, committee:null, letter:null, outcome:null, last};
+    analysis:null, visas:{}, added:{}, submitted:null, committee:null, letter:null, outcome:null, last};
   evs.forEach(e=>{
     if(e.analysis) s.analysis = e;
+    if(e.addConcl) s.added[e.addConcl] = {unit:e.addConcl, at:e, off:null};       // ответ реструктуризации: дата добавления
+    if(e.dropConcl && s.added[e.dropConcl]) s.added[e.dropConcl].off = e;           // и дата исключения
     if(e.visa) s.visas[e.visa] = e;
     if(e.submitted) s.submitted = e;
     if(e.committee) s.committee = e;
@@ -2954,7 +2974,8 @@ function rsAt(o, d){
     if(e.debt!=null) s.debt = e.debt;
   });
   s.open = !s.outcome;
-  s.visasOk = !!s.visas.СРМиК && !!s.visas.ДПО;
+  s.extra = Object.values(s.added).filter(a=>!a.off);
+  s.visasOk = !!s.visas.СРМиК && !!s.visas.ДПО && s.extra.every(a=>!!s.visas[a.unit]);
   s.stage = s.outcome ? s.outcome.outcome : RS_STAGE[s.letter ? 4 : s.committee ? 3 : s.submitted ? 2 : s.analysis ? 1 : 0];
   s.dueCommittee = rsDue('вынос', s.reg);
   s.dueLetter = s.committee ? rsDue('письмо', s.committee.t) : null;
@@ -3202,6 +3223,34 @@ function imActThr(s, p, d){ // ожидание акта: у ССИ с выпу�
 const imTopupLate = (s, d)=>s.topup.shares.filter(x=>!x.basis && d>x.due); // доли доплаты без основания возврата после 30 дней
 const imCommitteeDays = ()=>{ const r = ruleById('rule-im-committee-decide'); return (r && r.dueN) || 10; }; // к.д. от записки — значение правила
 const imCommitteeDue = s=>[addDays(s.memo.t, imCommitteeDays()), s.deadline].filter(Boolean).sort()[0];
+const IM_GONE = ['продан','снят с учёта','принятие не состоялось'];
+function imQuestions(s){ // вопросы имущества, внесённые запиской председателю Комитета и ещё не решённые: часть повода на вопрос
+  const due = t=>addDays(t, imCommitteeDays()), out = [];
+  if(s.pos){ // предложение (любой источник): не позже срока ответа источнику
+    if(s.memo && !s.decided && s.open) out.push({ot:'offer', sub:'предложение', key:'записка:'+s.memo.t, what:'предложение · '+s.source, source:s.source, memo:s.memo.t, due:imCommitteeDue(s)});
+  } else if(s.apps){ // объект Фонда: заявки на покупку и выкуп, условия продажи
+    Object.values(s.apps).filter(a=>a.memo && !a.decision && !a.withdrawn).forEach(a=>
+      out.push({ot:'asset', sub:'заявка:'+a.id, key:`заявка:${a.id}·записка:${a.memo.t}`, what:`заявка ${a.id} (${a.type}) · ${a.from}`, memo:a.memo.t, due:due(a.memo.t)}));
+    if(s.condMemo && !s.condDecided && !IM_GONE.includes(s.status))
+      out.push({ot:'asset', sub:'условия', key:'условия·записка:'+s.condMemo.t, what:'условия продажи', memo:s.condMemo.t, due:due(s.condMemo.t)});
+  } else if(s.declared){ // банкротство обязанного лица: ключ «вид · банкротство · записка»
+    if(s.memo && !s.decided) out.push({ot:'bankruptcy', sub:'банкротство', key:'записка:'+s.memo.t, what:'залог банкрота · '+s.debtor, memo:s.memo.t, due:due(s.memo.t)});
+  }
+  return out;
+}
+function imQuestionDone(e, p){ // гасит решение Комитета по этому вопросу
+  const sub = p.sub || 'предложение';
+  if(sub.indexOf('заявка:')===0) return e.appDecision===sub.slice(7);
+  if(sub==='условия') return !!e.condDecision;
+  return !e.draft && !!e.decision;
+}
+function imQuestionGone(s, p){ // вопрос отпал: заявка или предложение отозваны, объект выбыл
+  const sub = p.sub || 'предложение';
+  if(sub==='предложение') return s.status==='отозвано источником' ? 'предложение отозвано источником' : null;
+  if(sub.indexOf('заявка:')===0){ const a = s.apps[sub.slice(7)]; return a && a.withdrawn ? `заявка ${a.id} отозвана заявителем` : null; }
+  if(sub==='условия') return IM_GONE.includes(s.status) ? `объект выбыл: ${s.status}` : null;
+  return null;
+}
 const kd = (a, b)=>daysBetween(a, b); // календарные дни — пороги имущества в к.д. и месяцах
 const ZLC = x=>Object.assign({src:'zl', cur:true, cancel:s=>zlCancelItem(s)}, x); // вид объекта — из записи вида
 const zlSurety = s=>s.type==='surety' && !s.released && !s.repaid && !s.terminated;
@@ -3375,11 +3424,11 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     since:s=>addDays(s.lastFail, IM_SET.relist+1), traits:s=>({объявление:s.attempts, окно_закрылось:s.lastFail, порог:IM_SRC.relist}),
     done:e=>!!e.attempt}),
   'pk-im-application-pending': IMA({when:s=>s.pendingApps.length>0 && IM_ON.includes(s.status),
-    each:(s,d)=>s.pendingApps.map(a=>({a, due:addWorkdays(a.filed, a.type==='выкуп' ? IM_SET.appBuyback : IM_SET.app)}))
+    each:(s,d)=>s.pendingApps.filter(a=>!a.memo).map(a=>({a, due:addWorkdays(a.filed, a.type==='выкуп' ? IM_SET.appBuyback : IM_SET.app)}))
       .filter(x=>d>x.due).map(x=>({key:'заявка:'+x.a.id, sub:x.a.id, since:addDays(x.due, 1), a:x.a})),
     since:(s,d,x)=>x.since,
     traits:(s,d,x)=>({заявка:`${x.a.id} · ${x.a.type}`, заявитель:x.a.from, подана:x.a.filed, порог:x.a.type==='выкуп' ? IM_SRC.appBuyback : IM_SRC.app}),
-    done:(e,p)=>e.appDecision===p.sub,
+    done:(e,p)=>e.appMemo===p.sub || e.appDecision===p.sub, // вынесена: записка председателю Комитета; или решение Комитета без записки
     cancel:(s,d,p)=>s.apps[p.sub] && s.apps[p.sub].withdrawn ? `заявка ${p.sub} отозвана заявителем` : null}),
   'pk-im-topup-due': IMA({when:(s,d)=>!!s.topup && !s.topup.held && imTopupLate(s, d).length>0, // ключ «вид · объект · поступление»
     each:(s,d)=>imTopupLate(s, d).map(x=>({key:'поступление:'+x.t, sub:x.t, since:addDays(x.due, 1), x})),
@@ -3387,11 +3436,12 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     traits:(s,d,x)=>({поступление:x.sub, доплата:x.x.amount, всего_доплата:s.topup.amount, срок_выплаты:x.x.due, порог:IM_SRC.topupDue}),
     done:(e,p)=>!!e.topupPaid || e.refundBasis===p.sub,
     cancel:s=>s.topup && s.topup.held ? `выплата удержана (п. 49) ${fmt(s.topup.held.t)}: у бывшего собственника просрочка` : null}),
-  // шаг: записка председателю внесена — Комитет рассматривает вопрос; 10 к.д. от записки, не позже срока ответа источнику
-  'im-committee-decide': IMO({when:s=>!!s.memo && !s.decided && s.open,
-    each:s=>[{due:imCommitteeDue(s)}], since:s=>s.memo.t,
-    traits:s=>({источник:s.source, записка:s.memo.t, срок:imCommitteeDue(s)}),
-    done:e=>!e.draft && !!e.decision, cancel:s=>s.status==='отозвано источником' ? 'предложение отозвано источником' : null}),
+  // шаг: любой вопрос внесён запиской председателю Комитета — предложение, заявка, условия продажи, банкротство; ключ «вид · объект
+  // вопроса · записка»; 10 к.д. от записки (значение правила), у предложения — не позже срока ответа источнику
+  'im-committee-decide': IMO({srcs:['imo','ima','imb'], when:s=>imQuestions(s).length>0,
+    each:s=>imQuestions(s).map(q=>({objectType:q.ot, key:q.key, sub:q.sub, due:q.due, q})), since:(s,d,x)=>x.q.memo,
+    traits:(s,d,x)=>Object.assign({вопрос:x.q.what, записка:x.q.memo, срок:x.q.due}, x.q.source ? {источник:x.q.source} : {}),
+    done:(e,p)=>imQuestionDone(e, p), cancel:(s,d,p)=>imQuestionGone(s, p)}),
   'pk-im-bankruptcy': {src:'imb', objectType:'bankruptcy', cur:false,
     when:(s,d)=>!!s.declared && s.pledges.length>0 && !s.memo && kd(s.declared, d)>IM_SET.bankruptcy,
     since:s=>addDays(s.declared, IM_SET.bankruptcy+1),
@@ -3488,11 +3538,12 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
   'pk-zl-surety-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlSurety(s) && d>s.till, since:s=>addDays(s.till, 1),
     traits:s=>({поручитель:s.guarantor, кредит:s.credit, до:s.till, сумма:s.od}), done:e=>!!e.release || !!e.extend,
     cancel:s=>s.repaid ? `кредит ${s.credit} погашен` : null}),
-  'pk-zl-guarantee-expiring': ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d<=s.till && kd(d, s.till)<=ZL_SURETY_WARN, each:s=>[{key:'кредит:'+s.credit}],
+  // ключ «вид · кредит · гарантия»: гарантия по двум кредитам — два задания, каждое куратору своего кредита
+  'pk-zl-guarantee-expiring': ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d<=s.till && kd(d, s.till)<=ZL_SURETY_WARN, each:s=>[{objectType:'credit', obj:s.credit, key:'гарантия:'+s.id}],
     since:s=>addDays(s.till, -ZL_SURETY_WARN), traits:s=>({гарант:s.bank, кредит:s.credit, до:s.till, сумма:s.od}),
     done:e=>!!e.extend || !!e.replaced,
     cancel:(s,d)=>d>s.till ? `срок банковской гарантии истёк ${fmt(s.till)}` : s.repaid ? `кредит ${s.credit} погашен` : null}),
-  'pk-zl-guarantee-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d>s.till, since:s=>addDays(s.till, 1), each:s=>[{key:'кредит:'+s.credit}],
+  'pk-zl-guarantee-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d>s.till, since:s=>addDays(s.till, 1), each:s=>[{objectType:'credit', obj:s.credit, key:'гарантия:'+s.id}],
     traits:s=>({гарант:s.bank, кредит:s.credit, до:s.till, сумма:s.od}), done:e=>!!e.replaced || !!e.extend,
     cancel:s=>s.repaid ? `кредит ${s.credit} погашен` : null}),
   'pk-zl-surety-repaid':   ZLC({cur:s=>s.credit, when:s=>s.type==='surety' && !s.released && !!s.repaid, since:s=>s.repaid.t,
@@ -3571,10 +3622,16 @@ Object.assign(OWNER_CFG, {
     traits:s=>({заёмщик:s.borrower, кредит:s.credit, решение_комитета:s.committee.t, позиция:s.committee.committee, срок:s.dueLetter, сумма:s.debt}),
     done:e=>!!e.letter, cancel:s=>rsCancel(s)}),
   // шаг: заключение подразделения — очередь его заключанта, ключ «вид · заявка · заключение»; гасит виза этого заключения
+  // подразделение, добавленное куратором заявки, — названный адресат: руководитель этого подразделения на дату, 10 р.д. от добавления,
+  // «Кто поручил» — руководитель того же подразделения; исключение подразделения или заявка отпала — «снято»
   'rs-conclusion': RSC({when:s=>s.open && !!s.analysis && !s.submitted,
-    each:s=>RS_CONCL.filter(c=>!s.visas[c.visa]).map(c=>({key:'заключение:'+c.visa, sub:c.visa, role:c.role})),
-    since:s=>s.analysis.t, traits:(s,d,x)=>({заёмщик:s.borrower, кредит:s.credit, заключение:x.sub, анализ_с:s.analysis.t, сумма:s.debt}),
-    done:(e,p)=>e.visa===p.sub, cancel:s=>rsCancel(s)}),
+    each:(s,d)=>RS_CONCL.filter(c=>!s.visas[c.visa]).map(c=>({key:'заключение:'+c.visa, sub:c.visa, role:c.role}))
+      .concat(s.extra.filter(a=>!s.visas[a.unit]).map(a=>{ const p = postOfUnit(a.unit), h = p && postHolderAt(p.id, d);
+        return {key:'заключение:'+a.unit, sub:a.unit, direct:true, named:h ? h.emp : null, authorPost:p ? p.id : null, since:a.at.t}; })),
+    since:(s,d,x)=>x.since || s.analysis.t,
+    traits:(s,d,x)=>Object.assign({заёмщик:s.borrower, кредит:s.credit, заключение:x.sub, анализ_с:s.analysis.t, сумма:s.debt}, x.since ? {добавлен:x.since} : {}),
+    done:(e,p)=>e.visa===p.sub,
+    cancel:(s,d,p)=>{ const a = p && s.added[p.sub]; return a && a.off && a.off.t<=d ? `подразделение «${a.unit}» исключено куратором заявки ${fmt(a.off.t)}` : rsCancel(s); }}),
   // шаг: позиция комитета по вынесенному вопросу — очередь секретаря, 10 к.д. от выноса
   'rs-committee-decide': RSC({when:s=>s.open && !!s.submitted && !s.committee, since:s=>s.submitted.t,
     each:s=>[{due:addDays(s.submitted.t, rsCommitteeDays())}],
@@ -3622,8 +3679,9 @@ function doneEvent(o, asOf, from, pred){ // последнее событие в
   return hit;
 }
 function goneReason(o, asOf){ const del = o && o.ev.find(e=>e.deleted && e.t<=asOf); return del ? del.how : 'объект удалён у владельца'; }
+const povSrc = p=>p.src || OWNER_CFG[p.kind].src; // у вида с несколькими источниками источник называет повод
 function ownerAttrib(kindId, p, asOf){
-  const cfg = OWNER_CFG[kindId], o = ownerObj(cfg.src, p.ownerId||p.objectId), s = stateAt(cfg.src, o, asOf);
+  const cfg = OWNER_CFG[kindId], o = ownerObj(povSrc(p), p.ownerId||p.objectId), s = stateAt(povSrc(p), o, asOf);
   if(!s) return {cancel:goneReason(o, asOf)};
   if((kindId==='gd-review' || kindId==='lp-review') && s.last && s.last.recalled) return {cancel:'отозвано автором'}; // автор снял с рассмотрения
   if(kindId==='lp-expiring' && OWNER_CFG['lp-expired'].when(s, asOf)) return {cancel:'перешло в истёкший'};
@@ -3644,7 +3702,7 @@ function orgAttrib(kindId, p, asOf){
 /* задание эскалации к тому, кто вправе решить: отпадает вместе с просроченным шагом — по событию владельца */
 function escAttrib(p, asOf){
   const base = taskOf(p.objectId), bp = povodByKey(base.povodKey), cfg = OWNER_CFG[base.originKind];
-  const o = ownerObj(cfg.src, bp.ownerId||bp.objectId), s = stateAt(cfg.src, o, asOf);
+  const o = ownerObj(bp.src||cfg.src, bp.ownerId||bp.objectId), s = stateAt(bp.src||cfg.src, o, asOf);
   if(!s) return {cancel:goneReason(o, asOf)};
   const e = doneEvent(o, asOf, appearedOn(p), kindOf(base.originKind).escalate.done);
   return e ? {by:e.by, how:e.how} : {cancel:s.last.how};
@@ -3889,8 +3947,14 @@ const IM_STEPS = {
     'опубликовать объявление': {who:'специалист', ok:s=>s.status==='на учёте' && !(s.preempt && !s.preempt.closed),
       ev:(a, s)=>({attempt:s.attempts+1, how:`объявление о продаже ${s.attempts+1} опубликовано`})},
     'окно заявок закрылось без продажи': {who:'специалист', ok:s=>s.open, ev:(a, s)=>({attemptEnd:'не состоялась', how:`окно заявок по объявлению ${s.attempts} закрылось без продажи`})},
-    'решение Комитета по заявке': {who:'специалист', ok:(s, a)=>s.pendingApps.some(x=>!a || x.id===a),
+    'решение Комитета по заявке': {who:'секретарь', ok:(s, a)=>s.pendingApps.some(x=>!a || x.id===a),
       ev:(a, s)=>{ const x = s.pendingApps.find(y=>!a || y.id===a); return {appDecision:x.id, how:`решение Комитета по заявке ${x.id} внесено`}; }},
+    'записка по заявке':    {who:'специалист', ok:(s, a)=>s.pendingApps.some(x=>(!a || x.id===a) && !x.memo),
+      ev:(a, s)=>{ const x = s.pendingApps.find(y=>(!a || y.id===a) && !y.memo); return {appMemo:x.id, how:`служебная записка председателю Комитета по заявке ${x.id} внесена`}; }},
+    'записка об условиях продажи': {who:'специалист', ok:s=>IM_ON.includes(s.status) && !(s.condMemo && !s.condDecided),
+      ev:()=>({condMemo:true, how:'служебная записка председателю Комитета об условиях продажи внесена'})},
+    'решение Комитета об условиях продажи': {who:'секретарь', ok:s=>!!s.condMemo && !s.condDecided,
+      ev:()=>({condDecision:true, how:'секретарь Комитета внёс решение об условиях продажи'})},
     'отзыв заявки':         {who:'специалист', ok:(s, a)=>s.pendingApps.some(x=>!a || x.id===a),
       ev:(a, s)=>{ const x = s.pendingApps.find(y=>!a || y.id===a); return {appWithdraw:x.id, how:`заявка ${x.id} отозвана заявителем`}; }},
     'продлить обременение': {who:'специалист', ok:s=>!!s.enc, ev:(to, s)=>({enc:{kind:s.enc.kind, to}, how:`обременение «${s.enc.kind}» продлено до ${fmt(to)}`})},
@@ -3901,6 +3965,7 @@ const IM_STEPS = {
 };
 IM_STEPS.imb = {
   'записка в Комитет': {who:'специалист', ok:s=>!!s.declared && !s.memo, ev:()=>({memo:true, how:'служебная записка в Комитет о залоге банкрота внесена'})},
+  'решение Комитета':  {who:'секретарь', ok:s=>!!s.memo && !s.decided, ev:()=>({decision:true, how:'секретарь Комитета внёс решение по залогу банкрота'})},
 };
 function imDrafts(o, d){ // черновики, которые ещё не опубликованы
   const live = byDate(o.ev).filter(e=>e.t<=d);
@@ -3921,6 +3986,7 @@ function imStep(src, id, by, step, arg){
   if(st.who==='специалист' && !IM_STAFF(by)) throw new Error('факт вводит специалист по имуществу');
   if(st.who==='ОПК' && roleOf('im-opk').holders.indexOf(by)===-1) throw new Error('записку по предложению судебного исполнителя вносит отдел по работе с проблемными кредитами');
   if(st.who==='бухгалтер' && by!=='E25') throw new Error('деньги отмечает бухгалтер — в Платежах');
+  if(st.who==='секретарь' && by!=='E36') throw new Error('решение Комитета вносит секретарь Комитета');
   if(!st.ok(s, arg)) throw new Error(`«${step}» недоступно: ${s.status}`);
   o.ev.push(Object.assign({t:d, by}, st.ev(arg, s)));
 }
@@ -4111,7 +4177,14 @@ const RS_FACTS = {
     ev:()=>({visa:'СРМиК'}), how:()=>'заключение СРМиК завизировано'},
   'виза ДПО':    {who:'Департамент правового обеспечения', ok:s=>!!s.analysis && !s.visas.ДПО && !s.submitted, no:'визировать нечего',
     ev:()=>({visa:'ДПО'}), how:()=>'заключение ДПО завизировано'},
-  'внесено':     {who:'cur', ok:s=>!!s.analysis && s.visasOk && !s.submitted, no:'вынести можно после виз СРМиК и ДПО, один раз',
+  'добавить заключанта': {who:'cur', ok:(s, u)=>!!s.analysis && !s.submitted && !!postOfUnit(u) && !s.extra.some(a=>a.unit===u) && !s.visas[u],
+    no:'добавить можно подразделение с руководителем, до выноса, один раз',
+    ev:u=>({addConcl:u}), how:u=>`куратор заявки добавил заключанта: ${u}`},
+  'исключить заключанта': {who:'cur', ok:(s, u)=>s.extra.some(a=>a.unit===u) && !s.visas[u] && !s.submitted, no:'исключить можно добавленное подразделение без визы',
+    ev:u=>({dropConcl:u}), how:u=>`куратор заявки исключил заключанта: ${u}`},
+  'виза подразделения': {who:'arg', ok:(s, u)=>s.extra.some(a=>a.unit===u) && !s.visas[u] && !s.submitted, no:'визировать нечего',
+    ev:u=>({visa:u}), how:u=>`заключение подразделения «${u}» завизировано`},
+  'внесено':     {who:'cur', ok:s=>!!s.analysis && s.visasOk && !s.submitted, no:'вынести можно после виз СРМиК и ДПО и добавленных куратором подразделений, один раз',
     ev:()=>({submitted:true}), how:()=>'заключение внесено, вопрос реструктуризации вынесен на комитет'},
   'позиция':     {who:'комитет', ok:s=>!!s.submitted && !s.committee, no:'позицию фиксируют по вынесенному вопросу, один раз',
     ev:p=>({committee:p}), how:p=>`позиция комитета: реструктуризация ${p==='целесообразно' ? 'целесообразна' : 'нецелесообразна'}`},
@@ -4128,13 +4201,13 @@ function rsStepError(id, by, step, arg){
   const later = ownerObj('rs', id).ev.filter(e=>e.t>state.today).map(e=>e.t).sort()[0];
   if(later) return `в заявке уже есть факт от ${fmt(later)}: задним числом факт не вносится`;
   if(!s.open) return `заявка закрыта: ${s.outcome.how}`;
-  if(!f.ok(s)) return f.no;
+  if(!f.ok(s, arg)) return f.no;
   if(step==='позиция' && ['целесообразно','нецелесообразно'].indexOf(arg)===-1) return 'позиция — «целесообразно» или «нецелесообразно»';
   if(step==='письмо' && !String(arg || '').trim()) return 'нужен исходящий номер письма';
   const e = emp(by);
   if(f.who==='комитет') return holds('rs-committee', by) ? null : 'позицию вносит секретарь комитета';
   if(f.who==='doc') return holds('doc-registrar', by) ? null : 'письмо направлено — факт документооборота: регистрация исходящего с привязкой к заявке';
-  const dept = f.who==='cur' ? RS_DEPT : f.who;
+  const dept = f.who==='cur' ? RS_DEPT : f.who==='arg' ? arg : f.who;
   return e && e.dept===dept ? null : f.who==='cur' ? 'этот факт вносит сотрудник отраслевого департамента' : `визирует заключант: ${dept}`;
 }
 function rsStep(id, by, step, arg, author){ // author — чьё письмо зарегистрировал документооборот (автор исходящего)
@@ -4859,19 +4932,20 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
     // одна ветка на виды с исполнением у владельца: ключ «вид · объект» (у шага на участника — плюс участник), период — если его называет повод;
     // повод называет адресата (автора объекта, члена, председателя) или роль очереди, срок — если его называет владелец
     const cfg = OWNER_CFG[kindId];
-    state.owner[cfg.src].forEach(o=>{
-      const s = stateAt(cfg.src, o, asOf);
+    (cfg.srcs || [cfg.src]).forEach(src=>state.owner[src].forEach(o=>{ // вид с несколькими источниками — часть повода называет свой
+      const s = stateAt(src, o, asOf);
       if(!s || !cfg.when(s, asOf)) return;
       (cfg.each ? cfg.each(s, asOf) : [{}]).forEach(x=>{
         const stateDate = dateMax(cfg.since ? cfg.since(s, asOf, x) : (s.statusSince||s.stageSince), pkGate.activatedAt); // клэмп к дате подключения
         const obj = x.obj || o.id; // объект ключа — сам объект владельца или его часть (резолюция, выдача)
-        out.set(`${kindId}|${cfg.objectType}:${obj}${x.key ? '·'+x.key : ''}|${x.period||''}`, {kind:kindId, objectType:cfg.objectType, objectId:obj, ownerId:o.id,
+        const ot = x.objectType || cfg.objectType;
+        out.set(`${kindId}|${ot}:${obj}${x.key ? '·'+x.key : ''}|${x.period||''}`, {kind:kindId, objectType:ot, objectId:obj, ownerId:o.id, src:cfg.srcs ? src : null, authorPost:x.authorPost||null, direct:x.direct||null,
           sub:x.sub||null, named:x.named!==undefined ? x.named : cfg.named ? cfg.named(s, asOf) : (s.author||null), namedRole:x.role && roleOf(x.role) ? x.role : null,
           curObj:typeof cfg.cur==='function' ? cfg.cur(s) : cfg.cur ? o.id : null, due:x.due || (cfg.due ? cfg.due(s) : null), mark:x.mark||null, escWho:cfg.escWho ? cfg.escWho(s) : null,
           approver:x.approver||null, unit:cfg.unit ? cfg.unit(s, asOf, x) : null, dueN:x.dueN||null, dueBasis:x.dueBasis||null,
           stateDate, approx:false, traits:Object.assign(s.status||s.stage ? {статус:s.status||s.stage} : {}, 'author' in s ? {автор:s.author ? emp(s.author).name : 'нет'} : {}, cfg.traits ? cfg.traits(s, asOf, x) : {})});
       });
-    });
+    }));
   } else if(kindId==='pk-stat-neighbor-silent'){
     // ключ шва — от соседа
     const ans = statMirrorAt(asOf);
@@ -4909,7 +4983,7 @@ function silenceOf(srcId, asOf){
 
 /* ---------- 7. сверка множества: полная, идемпотентная ---------- */
 /* что повод несёт от шва кроме признаков: объект кураторства, названный адресат или роль, срок владельца, пометка */
-const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN','dueBasis','up','upUnit'];
+const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN','dueBasis','up','upUnit','src','authorPost','direct'];
 function seamCopy(p, e){ SEAM_FIELDS.forEach(f=>{ p[f] = e[f]!==undefined ? e[f] : null; }); return p; }
 function reconcileKind(kindId, asOf){
   const expected = computeExpectedForKind(kindId, asOf);
@@ -5033,6 +5107,11 @@ function resolveAddressee(rule, povod, asOf){
   if(povod.esc) // эскалация к тому, кто вправе решить: очередь, которую объявил вид просроченного шага
     return {by:'очередь', role:roleTitle(povod.esc.role), queueRole:povod.esc.role, exclude:[], responsible:null, assignee:null, via:'очередь', subst:false};
   const f = rule.addressee;
+  if(f.by==='очередь' && povod.direct){ // часть повода называет адресата сама (руководитель добавленного подразделения) — не очередь
+    if(!povod.named) return fallbackAddressee(rule, povod, asOf);
+    const acting = actingFor(povod.named, asOf);
+    return {by:'названный', role:'руководитель подразделения', responsible:povod.named, assignee:acting, via:'названный', subst:acting!==povod.named};
+  }
   if(f.by==='очередь'){ // все носители роли (у отдела роль называет повод); четыре глаза — без автора объекта
     const role = f.role || povod.namedRole;
     const exclude = kindOf(rule.kind).fourEyes && povod.named ? [povod.named] : [];
@@ -5220,8 +5299,8 @@ function describePovod(p){
     if(p.objectType==='issue') return `выдача оригинала ${p.objectId}${who ? ' · '+who : ''} — ${doc}`;
     return doc+(p.kind!=='doc-sign' && who ? ' · '+who : ''); }
   if(p.objectType==='offer'){ const o = ownerObj('imo', p.objectId);
-    return `предложение имущества ${p.objectId} «${o ? o.title : ''}»${p.sub ? ' · позиция '+p.sub+(o ? ' «'+o.positions.find(x=>x.n===p.sub).what+'»' : '') : ''}`; }
-  if(p.objectType==='asset'){ const o = ownerObj('ima', p.objectId); return `объект имущества ${p.objectId} «${o ? o.title : ''}»${p.sub && p.kind==='pk-im-application-pending' ? ' · заявка '+p.sub : ''}`; }
+    return `предложение имущества ${p.objectId} «${o ? o.title : ''}»${p.sub && p.kind!=='im-committee-decide' ? ' · позиция '+p.sub+(o ? ' «'+o.positions.find(x=>x.n===p.sub).what+'»' : '') : ''}`; }
+  if(p.objectType==='asset'){ const o = ownerObj('ima', p.objectId); return `объект имущества ${p.objectId} «${o ? o.title : ''}»${p.sub && p.kind==='pk-im-application-pending' ? ' · заявка '+p.sub : p.kind==='im-committee-decide' && p.traits ? ' · '+p.traits.вопрос : ''}`; }
   if(p.objectType==='bankruptcy'){ const o = ownerObj('imb', p.objectId); return `банкротство ${p.objectId}${o ? ' · '+o.debtor : ''}`; }
   if(p.objectType==='contract'){ const o = ownerObj('ima', p.ownerId);
     return `договор купли-продажи ${p.objectId} · объект ${p.ownerId} «${o ? o.title : ''}» · платёж от ${fmt(p.sub)}`; }
@@ -5579,7 +5658,7 @@ function caseOf(t){
   if(!p) return null;
   if(p.objectType==='task'){ const x = taskOf(p.objectId); return {text:`${p.objectId} · ${x ? whatToDo(x) : ''}`, more:0, task:p.objectId}; }
   const cfg = OWNER_CFG[p.kind];
-  return {text:describePovod(p), more:0, page:(cfg && SRC_PAGE[cfg.src]) || TYPE_PAGE[p.objectType] || null};
+  return {text:describePovod(p), more:0, page:(cfg && SRC_PAGE[p.src||cfg.src]) || TYPE_PAGE[p.objectType] || null};
 }
 const caseText = t=>{ const c = caseOf(t); return c ? c.all||c.text : ''; };
 /* кнопка «Взять»: только там, где принятие что-то значит */
@@ -6653,8 +6732,9 @@ function escText(x){
     : `срок истёк — сразу задание очереди «${roleTitle(x.role)}»: «${actionOf(x.action).label}»; эскалации руководителю нет`;
 }
 function renderOwnerCard(t, p){
-  const cfg = OWNER_CFG[p.kind];
-  if(!cfg) return ''; // оргструктура: карточки соседа в макете нет
+  const cfg0 = OWNER_CFG[p.kind];
+  if(!cfg0) return ''; // оргструктура: карточки соседа в макете нет
+  const cfg = Object.assign({}, cfg0, {src:p.src||cfg0.src}); // источник части повода у вида с несколькими источниками
   if(cfg.src==='ap') return renderAppCard(p);
   if(cfg.src==='doc') return renderDocCard(p.ownerId||p.objectId);
   if(cfg.src==='imo' || cfg.src==='ima' || cfg.src==='imb') return renderImCard(cfg.src, p.ownerId||p.objectId);
@@ -7051,10 +7131,11 @@ function renderRsCard(id){ // заявка на реструктуризацию
   const rows = [];
   if(s.open && !s.submitted){
     const facts = !s.analysis ? btn('пакет полон', null, 'Пакет полон')+' '+btn('вернуть', null, 'Вернуть без рассмотрения')
-      : !s.visasOk ? ['СРМиК','ДПО'].filter(x=>!s.visas[x]).map(x=>btn('виза '+x, null, 'Виза '+x)).join(' ')
+      : !s.visasOk ? ['СРМиК','ДПО'].filter(x=>!s.visas[x]).map(x=>btn('виза '+x, null, 'Виза '+x))
+          .concat(s.extra.filter(a=>!s.visas[a.unit]).map(a=>btn('виза подразделения', a.unit, 'Виза: '+a.unit))).join(' ')
       : btn('внесено', null, 'Внести на комитет');
     rows.push(`<tr><td>Анализ и вынос на комитет<div class="small">${esc(norm('вынос'))}</div>
-      <div class="small">заключения: СРМиК — ${s.visas.СРМиК ? 'виза '+fmt(s.visas.СРМиК.t) : 'нет визы'}, ДПО — ${s.visas.ДПО ? 'виза '+fmt(s.visas.ДПО.t) : 'нет визы'}</div></td>
+      <div class="small">заключения: СРМиК — ${s.visas.СРМиК ? 'виза '+fmt(s.visas.СРМиК.t) : 'нет визы'}, ДПО — ${s.visas.ДПО ? 'виза '+fmt(s.visas.ДПО.t) : 'нет визы'}${Object.values(s.added).map(a=>`, ${esc(a.unit)} (добавлен ${fmt(a.at.t)}) — ${a.off ? 'исключён '+fmt(a.off.t) : s.visas[a.unit] ? 'виза '+fmt(s.visas[a.unit].t) : 'нет визы'}`).join('')}</div></td>
       <td>до ${fmt(s.dueCommittee)}</td><td>${facts}</td></tr>`);
   }
   if(s.open && s.submitted && !s.committee) rows.push(`<tr><td>Позиция комитета<div class="small">вопрос вынесен ${fmt(s.submitted.t)}</div></td>
@@ -7079,7 +7160,7 @@ function renderRsCard(id){ // заявка на реструктуризацию
     ${s.open ? `<div class="small" style="margin-top:6px">Письменный отзыв обращения заёмщиком — на любой стадии: ${btn('отозвать', 'вх. №Вх-'+(400+o.ev.length), 'Отзыв заёмщика')}</div>` : ''}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Срок здесь — подсветка без исполнителя и без отметки о просрочке; поручение и просрочка — в заданиях. Пакет и вынос на комитет вносит сотрудник отраслевого департамента, визы — заключанты СРМиК и ДПО, позицию — секретарь комитета, письмо — регистратор документооборота за автора письма. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Срок здесь — подсветка без исполнителя и без отметки о просрочке; поручение и просрочка — в заданиях. Пакет и вынос на комитет вносит сотрудник отраслевого департамента, визы — заключанты СРМиК и ДПО и подразделения, добавленные куратором заявки, позицию — секретарь комитета, письмо — регистратор документооборота за автора письма. Задания увидят факт на следующем опросе.</div></div>`;
 }
 function renderClCard(id){ // реестр фактов п. 11 кредита у владельца: факт без решения — подсветка без исполнителя, решение или аннулирование — кнопкой
   const o = ownerObj('cl', id), d = state.today, s = clAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
