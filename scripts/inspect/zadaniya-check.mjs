@@ -271,6 +271,10 @@
 //   Переписаны под модель: #39, #88, #97, #98, #185, #190, #194, #236, #238, #239, #249, #260, #265, #276, #296, #297, #303, #317, #321,
 //      #368, #369, #372, #381, #386, #391, #392; числа стенда #314, #316, #393, #405. `pk-zl-survey-overdue` → `pk-zl-survey`.
 //      #294 падает на восьми строках оснований видов взыскания — виды волны 32. Снятых нет.
+// Правки по ревью волны 30 (06.11.2026): «Кто поручил» у очередей комитета, ОПК, отчётности; пустая должность — администратор;
+//   вакансия — у владельца, срок от «вакантно с»; руководитель по просрочке — одна проверка, продление гасит «исполнено»;
+//   правопреемник без руководителя — выше по дереву; порог статистики — запись; приказ у порога обязателен.
+//   #446-449 новые; переписаны #204, #284, #302, #321, #372, #391, #427, #429, #434; числа #314, #393, #405.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -3225,10 +3229,10 @@ const outc = t => (ZD.outcomeOf(t) || {});
   const first = gfEsc.find(t => /\|никто не взял$/.test(t.povodKey));
   const kpE = kpEsc[0];
   ok(204, pov && pov.journal.filter(j => /появился/.test(j.ev)).length === 1 && pov.traits.состояние === 'просрочено' &&
-       !ZD.isTerminal(gf) && first && first.assignee === 'E2' && first.journal[0].t === '2026-10-16' &&
+       !ZD.isTerminal(gf) && first && first.assignee === 'E10' && first.journal[0].t === '2026-10-16' &&
        kpE && kpE.assignee === 'E7' && kpE.journal[0].t === '2026-10-22' && ZD.isTerminal(kp),
     `ЗДБ-8/9 — Головной филиал: один повод с 08.10, в день срока не сменился — 16.10 он «просрочено», задание то же, ` +
-    `открыто; никто не взял — 16.10 задание держателю «Кто поручил» — заведующему отделом сопровождения E2; Кредитные программы: взяла E6, ` +
+    `открыто; никто не взял — 16.10 задание держателю «Кто поручил» очереди — руководителю головного филиала E10; Кредитные программы: взяла E6, ` +
     `просрочила — 22.10 (5-й р.д.) задание её руководителю Мамбетову; 26.10 выпуск закрыл и её задание`);
 })();
 
@@ -4857,7 +4861,7 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   const addr = k => ZD.ruleForKind(k).addressee;
   const okKinds = kinds.every(k => k.createdAt === '2026-12-07' && k.activatedAt === '2026-12-07' && k.traits.includes('порог') &&
     k.ownerDept === ZD.IM_SECTOR && k.genus === 'надзор' && !!k.sumAttr);
-  const okRules = rules.every(r => r.editions[0].from === '2026-12-07' && /Инструкции/.test(r.editions[0].basis) && r.author === 'post-assets' &&
+  const okRules = rules.every(r => r.editions[0].from === '2026-12-07' && /Инструкции/.test(r.editions[0].basis) && r.author === (r.kind === 'pk-im-ssi-memo' ? 'post-opk' : 'post-assets') &&
     !('mode' in r) && !('threshold' in r));
   const queues = addr('pk-im-ssi-memo').by === 'очередь' && addr('pk-im-ssi-memo').role === 'im-opk' &&
     ZD.roleOf('im-opk').dept === 'Отдел проблемных кредитов' && ZD.roleOf('im-opk').holders.join() === 'E30,E31' &&
@@ -5262,7 +5266,7 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
 (() => {
   ZD.seed();
   ZD.runPoll();
-  const t = ZD.state.tasks.find(x => x.originKind === 'pk-org-head-vacant');
+  const t = ZD.state.tasks.find(x => !ZD.isTerminal(x) && x.assignee && ZD.lastEv(x) === 'поручено' && !ZD.ownerExecOf(x)); // вакансия — исполнение у владельца, «Взять» не нужно
   const synced = () => ZD.state.tasks.every(x => x.current.ev === ZD.lastEv(x));
   const a = synced() && ZD.checkStateField().length === 0;
   ZD.take(t.id);
@@ -5369,7 +5373,7 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
        c.history.length === 1 && c.history[0].basis === 'приказ №50' && c.history[0].was.text === was &&
        e4.length === 1 && e4[0].count === 15 && e1.text === 'Платёж близко' && e1.channels.join() === 'всплывающее,SMS' && e1.count === 3 &&
        ZD.signalRecipients(k, { curObj: 'КД-2023/187' }, '2026-10-01').join() === 'E1,E4' && noCur.join() === 'E4',
-    `ЗНП-7, ЗНП-20 — правит администратор с основанием, история хранит прежнее; получатели — роль кураторства и должности, текст, способ; добавили должность — администратор получил свод на ${e4[0] && e4[0].count} объектов, куратор на 3; нет куратора — только названная должность: у сигнала запасного адресата нет (ВЗЕ-171); новое событие — только выпуском`);
+    `ЗНП-7, ЗНП-20 — правит администратор с основанием, история хранит прежнее; получатели — роль кураторства и должности, текст, способ; добавили должность — администратор получил свод на ${e4[0] && e4[0].count} объектов, куратор на 3; нет куратора — только названная должность: у сигнала запасного адресата нет (ВЗЕ-170); новое событие — только выпуском`);
 })();
 
 /* ЗНП-7 — рубильник сигнала, чтение для остальных; обычные уведомления правятся своей настройкой (#357), не настройкой сигнала */
@@ -5541,7 +5545,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const back = sliceOf(), reset = ZD.lastEv(ZD.taskOf(t.id)) === 'поручено';
   ZD.seed(); ZD.goToDate('2026-11-02');
   const direct = sliceOf();
-  ok(314, first === '204/117/407' && later === '258/133/603' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
+  ok(314, first === '204/117/407' && later === '258/133/612' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
        ZD.STAND_START === '2026-09-01' && ZD.STAND_OPEN === '2026-10-01' && nights.length === 31 && nights[0] === '2026-09-01' && nights[30] === '2026-10-01' &&
        /onchange="ZD\.goToDate\(this\.value\)"/.test(src) && /goToDate\(STAND_OPEN\)/.test(src) &&
        ZD.runPollUI === undefined && !/runPollUI|Ночной прогон/.test(src) && [ZD.seed, ZD.setAsOf, ZD.runPoll].every(f => typeof f === 'function'),
@@ -5697,10 +5701,10 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const refused = ZD.lastEv(live) === 'отказано' && ZD.moveHolder(live).who === live.author && !ZD.moveOnAssignee(live);
   ZD.reassignTask(live.id, other, live.author, 'участок другого куратора');
   const handed = live.assignee === other && ZD.lastEv(live) === 'принято' && live.journal[live.journal.length - 1].без_принятия === true && live.journal.some(e => e.ev === 'переназначено' && e.by === live.author);
-  ok(321, sum === 84 && tbl['очередь роли'] === 24 && tbl['работа в карточке дела'] === 42 && tbl['работа в самом задании'] === 6 && tbl['адресата называет повод'] === 12 &&
-       inCard.length === 42 && inCard.every(k => k.take === 'не нужно') && asked.length === 6 && asked.every(k => k.take === 'нужно') &&
+  ok(321, sum === 84 && tbl['очередь роли'] === 24 && tbl['работа в карточке дела'] === 43 && tbl['работа в самом задании'] === 5 && tbl['адресата называет повод'] === 12 &&
+       inCard.length === 43 && inCard.every(k => k.take === 'не нужно') && asked.length === 5 && asked.every(k => k.take === 'нужно') &&
        own.length > 0 && atOnce && /принятие не нужно/.test(noTake) && noBtn && noNote && /не передаёт/.test(stranger) && refused && handed,
-    `ЭЗ-4 — вид работы → число: очередь роли 24 (два «модуль не отвечает» — очередь «Администратор») · работа в карточке дела 42 · работа в самом задании 6 · адресата называет повод 12 (всего ${sum}); ${own.length} заданий 37 видов сразу в работе, ` +
+    `ЭЗ-4 — вид работы → число: очередь роли 24 (два «модуль не отвечает» — очередь «Администратор») · работа в карточке дела 43 (вакансия — в оргструктуре) · работа в самом задании 5 · адресата называет повод 12 (всего ${sum}); ${own.length} заданий 37 видов сразу в работе, ` +
     `«Взять» отбит и кнопки нет, уведомлений «принято» нет; отказаться можно (ЭЗ-31), передать сам исполнитель не может, автор переназначил отказанное — новый исполнитель сразу в работе. Смена куратора и переназначенное — #266`);
 })();
 
@@ -7097,7 +7101,7 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
   const exist = pages.every(p => existsSync(resolve(__dir, '../../mockups', p)));
   const editors = !/stuckWd|expiringDays|soonDays/.test(h + panel) && !/neighborSet/.test(src.slice(src.indexOf('function askRule('), src.indexOf('function askEditionCancel(')));
   const refused = throws(() => ZD.editRule(stuck.r.id, { threshold: 12 }, { by: 'E4', from: ZD.state.today, basis: 'приказ' }));
-  ok(372, thr.length === 41 && linked.length === 26 && own === 'pk-await-long,pk-ext-pending,pk-neighbor-silent,pk-overdue' && before === '10 р.д. без событий' && after === '12 р.д. без событий' && noLink && exist && editors && /настройка модуля-владельца/.test(refused),
+  ok(372, thr.length === 42 && linked.length === 26 && own === 'pk-await-long,pk-ext-pending,pk-neighbor-silent,pk-overdue' && before === '10 р.д. без событий' && after === '12 р.д. без событий' && noLink && exist && editors && /настройка модуля-владельца/.test(refused),
     `ЭЗ-19, ЭЗ-59, ЭЗ-Д5, НЗ-24 — порог показан у ${thr.length} заданий, со ссылкой на экран модуля у ${linked.length}, 4 своих механизма; значение читается от модуля и в заданиях не правится; у заявок ссылки нет, «выпуском»; ${pages.length} адресов, все файлы есть`);
 })();
 
@@ -7550,9 +7554,9 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const norm = x => x.ap.norm, proj = x => x.ap.src === 'решение проекта', link = x => !!x.ap.set, own = x => /^значение в модуле «/.test(x.ap.src);
   const table = [
     ['Отчётность', 0, 0, true, 1], ['Имущество', 10, 5, true, 0], ['Залог', 2, 6, true, 0], ['Анализ', 0, 0, true, 1],
-    ['Заявки', 0, 1, false, 0], ['Платежи', 0, 1, false, 0], ['Взыскание', 8, 1, false, 0], ['Заёмщик', 1, 0, true, 0],
+    ['Заявки', 0, 1, false, 0], ['Платежи', 0, 1, false, 0], ['Статистика', 0, 1, false, 0], ['Взыскание', 8, 1, false, 0], ['Заёмщик', 1, 0, true, 0],
   ].filter(([m, n, p, l, w]) => !(count(m, norm) === n && count(m, proj) === p && count(m, own) === w && count(m, link) === (l ? n + p + w : 0)));
-  const none = ['Документооборот', 'Реструктуризация', 'Классификация', 'Госрешение', 'Статистика', 'Оргструктура', 'Кредитные программы', 'Кредит'].filter(m => thr.some(x => x.mod === m));
+  const none = ['Документооборот', 'Реструктуризация', 'Классификация', 'Госрешение', 'Оргструктура', 'Кредитные программы', 'Кредит'].filter(m => thr.some(x => x.mod === m));
   const how = thr.filter(x => x.ap.set && !x.ap.norm && !x.ap.how).every(x => /правит /.test(x.panel) && /с датой начала и основанием/.test(x.panel)) &&
     thr.filter(x => x.ap.norm).every(x => /на чтение, новая редакция акта приходит выпуском/.test(x.panel)) &&
     thr.filter(x => !x.ap.set && !x.ap.norm && !x.ap.zd).every(x => /Как меняется<\/div><div class="v">выпуском/.test(x.panel)) &&
@@ -7596,7 +7600,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const n4 = nums(), moved = ZD.thrVals('ap.stuckWd')[1].from === '2026-10-01';
   ZD.setStandThr(false);
   const off = ZD.thrVals('ap.stuckWd').length === 1 && ZD.thrOn('ap.stuckWd') === 10 && nums() === n1;
-  ok(393, box && n1 === '204/117/407' && n2 === '258/133/603' && n3 === n2 && on && lives && n4 === '204/117/407' && moved && off,
+  ok(393, box && n1 === '204/117/407' && n2 === '258/133/612' && n3 === n2 && on && lives && n4 === '204/117/407' && moved && off,
     `НЗ-25 — на полосе одна галочка; 02.11 с поднятым порогом ${n3}, как без него; панель показывает 60 р.д. и прежнее значение; выключена — 10 р.д.; стенд 01.10 ${n1}, 02.11 ${n2}`);
 })();
 
@@ -7829,7 +7833,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const nums = d => { ZD.goToDate(d); return [ZD.state.tasks.length, ZD.state.tasks.filter(t => !ZD.isTerminal(t)).length, ZD.state.notifications.length].join('/'); };
   const fhsOf = () => ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs').map(t => `${t.povodKey.split(':')[1]}${ZD.isTerminal(t) ? ' закрыто' : ''}`).sort().join();
   const n1 = nums('2026-10-01'), n2 = nums('2026-11-02'), n3 = nums('2026-11-16'), f3 = fhsOf(), n4 = nums('2027-01-04'), f4 = fhsOf(), n5 = nums('2027-03-01'), f5 = fhsOf();
-  ok(405, n1 === '204/117/407' && n2 === '258/133/603' && n3 === '301/174/688' && n4 === '401/242/932' && n5 === '429/265/1029' && f3 === '' &&
+  ok(405, n1 === '204/117/407' && n2 === '258/133/612' && n3 === '301/174/697' && n4 === '401/242/941' && n5 === '429/265/1038' && f3 === '' &&
        f4 === [`${ZM1}|${ZM_H2}`, `${ZM3}|${ZM_H2}`].sort().join() && f5 === [`${ZM1}|${ZM_H2} закрыто`, `${ZM3}|${ZM_H2}`].sort().join(),
     `НЗ-30 — 01.10: ${n1}, 02.11: ${n2}, 16.11: ${n3} (анализа нет), 04.01.2027: ${n4} (два задания за 2П 2026), 01.03.2027: ${n5} («Талас-Дан» закрыт ФА-7, «Ош-Курулуш» открыт)`);
 })();
@@ -8136,15 +8140,15 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   const r = ZD.ruleForKind('pk-org-head-vacant'), act = ZD.actionOf(r.action);
   const heads = ZD.state.tasks.filter(t => t.originKind === 'pk-org-head-vacant');
   const osh = ZD.state.povods.find(p => p.kind === 'pk-org-head-vacant' && /Ошская/.test(p.key));
-  const covered = hlRows('pk-org-acting-expiring').length === 1;
+  const covered = ZD.ORG_HEAD_VACANT.find(x => /Ошская/.test(x.unit)).acting === true; // прикрытая вакансия — в списке оргструктуры, подсветка у неё
   ZD.state.viewer = 'E4';
   const panel = plain(ZD.renderRulePanel(r.id));
-  ok(427, r.dueN === 5 && r.addressee.by === 'оргструктура' && act.label === 'Назначить исполняющего обязанности или руководителя' &&
+  ok(427, r.dueN === 5 && r.dueBase === 'состояние' && r.addressee.by === 'оргструктура' && act.label === 'Назначить исполняющего обязанности или руководителя' &&
        heads.length === 2 && heads.every(t => t.dueDate === ZD.addWorkdays('2026-09-02', 5) && t.authorPost === 'post-hr' && t.author === 'E41') &&
        heads.map(t => t.assignee).sort().join() === 'E16,E43' && !osh && covered &&
        /руководитель, к которому передано наверх/.test(panel) && /Начальник отдела кадров/.test(panel) && !/куратор подразделения/.test(src),
     `ВЗЕ-154, ВЗЕ-155 — «Назначить исполняющего обязанности или руководителя», 5 р.д.: «ЦА — Кредитный отдел» — директору ДАК E43, ` +
-    `«Жалал-Абадская» — зампреду E16 (к кому передано наверх); «Ошская» под и.о. — повода нет, она в подсветке «и.о. истекает»; ` +
+    `«Жалал-Абадская» — зампреду E16 (к кому передано наверх); «Ошская» под и.о. — повода нет: прикрытая вакансия остаётся в списке оргструктуры с пометкой «прикрыто и.о.» — её подсветка, не заданий; ` +
     `«Кто поручил» — начальник отдела кадров; роли «куратор подразделения» в макете нет`);
 })();
 
@@ -8182,8 +8186,9 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   const noWhy = throws(() => ZD.extendByChief(t.id, 'E2', '2026-09-30', ''));
   ZD.extendByChief(t.id, 'E2', '2026-09-30', 'ждём ответ регистратора');
   const j = lastJ(t), told = notes('решение-по-продлению', t.id).some(n => n.to === 'E3');
+  const doneAt = ZD.isTerminal(e) && ZD.outcomeOf(e).outcome === 'исполнено' && ZD.outcomeOf(e).by === 'E2';
   ZD.runPoll();
-  const lapsed = ZD.dueOf(t) === '2026-09-30' && !ZD.isOverdue(t, '2026-09-22') && ZD.isTerminal(e) && ZD.outcomeOf(e).outcome === 'отпало';
+  const lapsed = doneAt && ZD.dueOf(t) === '2026-09-30' && !ZD.isOverdue(t, '2026-09-22') && ZD.outcomeOf(e).outcome === 'исполнено';
   ({ t, e } = setup());
   ZD.reassignTask(t.id, 'E1', 'E2', 'E3 на выезде');
   ZD.runPoll();
@@ -8192,12 +8197,12 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   const field = /data-f="due"/.test(ZD.renderDialog()); ZD.dialogCancel();
   ZD.reassignTask(t.id, 'E3', 'E2', 'вернулся, срок новый', '2026-10-05');
   ZD.runPoll();
-  const both = t.assignee === 'E3' && ZD.dueOf(t) === '2026-10-05' && ZD.isTerminal(e);
+  const both = t.assignee === 'E3' && ZD.dueOf(t) === '2026-10-05' && ZD.isTerminal(e) && ZD.outcomeOf(e).outcome === 'исполнено' && ZD.outcomeOf(e).by === 'E2';
   ok(429, issued && before && /руководитель, получивший задание о просрочке/.test(stranger) && /не раньше сегодняшнего/.test(past) && /основание/.test(noWhy) &&
        j.ev === 'продление утверждено' && j.без_запроса === true && j.by === 'E2' && told && lapsed && stays && field && both,
     `ВЗЕ-164 — 22.09 «Просрочено задание» у руководителя E2: он сам продлил до 30.09 без запроса исполнителя («Продлить срок», основание обязательно, ` +
-    `чужой и прошлая дата — отказ), исполнителю — решение по продлению; просрочка кончилась — задание о ней «отпало»; переназначил без нового срока — ` +
-    `просрочка и задание о ней остались; в «Переназначить» у него поле «Новый срок» — с ним задание о просрочке закрылось`);
+    `чужой и прошлая дата — отказ), исполнителю — решение по продлению; его задание о просрочке сразу «исполнено» им же; переназначил без нового срока — ` +
+    `просрочка и задание о ней остались; в «Переназначить» у него поле «Новый срок» — с ним задание о просрочке «исполнено»`);
 })();
 
 /* ВЗЕ-166 — отказ от взятого из очереди возвращает его в очередь, без «отклонено» автору */
@@ -8275,14 +8280,15 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   ZD.seed();
   const notAdmin = throws(() => ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-02', basis: 'приказ' }, { by: 'E2' }));
   const noBasis = throws(() => ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-02', basis: '' }, { by: 'E4' }));
-  const back = throws(() => ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-01', basis: 'приказ' }, { by: 'E4' }));
-  const same = throws(() => ZD.editSelfThr('silentNights', { v: 2, from: '2026-09-02', basis: 'приказ' }, { by: 'E4' }));
+  const back = throws(() => ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-01', basis: 'приказ', order: 'приказ №61' }, { by: 'E4' }));
+  const same = throws(() => ZD.editSelfThr('silentNights', { v: 2, from: '2026-09-02', basis: 'приказ', order: 'приказ №61' }, { by: 'E4' }));
+  const noOrder = throws(() => ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-02', basis: 'приказ' }, { by: 'E4' }));
   ZD.editSelfThr('silentNights', { v: 3, from: '2026-09-02', basis: 'приказ №62', order: 'приказ №62 от 02.09.2026' }, { by: 'E4' });
   ZD.runPoll({ downSources: ['reports'] }); at('2026-09-03'); ZD.runPoll({ downSources: ['reports'] });
   const two = ZD.state.povods.some(p => p.kind === 'pk-neighbor-silent');
   at('2026-09-04'); ZD.runPoll({ downSources: ['reports'] });
   const pv = ZD.povodByKey('pk-neighbor-silent|source:reports|');
-  ZD.editSelfThr('silentNights', { v: 5, from: '2026-09-05', basis: 'приказ №63' }, { by: 'E4' });
+  ZD.editSelfThr('silentNights', { v: 5, from: '2026-09-05', basis: 'приказ №63', order: 'приказ №63 от 05.09.2026' }, { by: 'E4' });
   at('2026-09-07'); ZD.runPoll({ downSources: ['reports'] });
   const kept = ZD.zdThr('silentNights', pv && pv.key, '2026-09-07') === 3 && pv.status !== 'gone';
   const vals = ZD.thrVals('zd.silentNights');
@@ -8290,11 +8296,95 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   const panel = ZD.renderRulePanel(ZD.ruleForKind('pk-neighbor-silent').id);
   ZD.state.viewer = 'E2';
   const ro = ZD.renderRulePanel(ZD.ruleForKind('pk-neighbor-silent').id);
-  ok(434, /администратор заданий/.test(notAdmin) && /основание/.test(noBasis) && /не раньше сегодняшней/.test(back) && /не изменилось/.test(same) &&
+  ok(434, /администратор заданий/.test(notAdmin) && /основание/.test(noBasis) && /не раньше сегодняшней/.test(back) && /не изменилось/.test(same) && /по приказу/.test(noOrder) &&
        !two && !!pv && kept && vals.length === 3 && vals[1].basis === 'приказ №62' && vals[1].order === 'приказ №62 от 02.09.2026' && vals[0].basis === 'запуск самоопроса' &&
        ZD.SILENT_NIGHTS === 5 && /data-zd-thr/.test(panel) && /askSelfThr\('silentNights'\)/.test(panel) && !/data-zd-thr/.test(ro),
     `ВЗЕ-173 — порог «Источник не отвечает» — записи модуля: «2 ночи · запуск самоопроса», приказом №62 с 02.09 — 3 ночи (две ночи — повода нет, третья — есть); ` +
     `с 05.09 — 5, живой повод держит 3; правит только администратор заданий, с основанием, не задним числом; кнопка «Изменить порог» — только у него`);
+})();
+
+/* правки по ревью волны 30: «Кто поручил» у очередей комитета, ОПК и отчётности; пустая должность — администратор */
+(() => {
+  ZD.seed();
+  ZD.goToDate('2026-11-02');
+  const zl = ZD.state.tasks.find(t => t.originKind === 'pk-zl-committee' && !ZD.isTerminal(t));
+  const memo = ZD.ruleForKind('pk-im-ssi-memo'), rep = ZD.ruleForKind('pk-rep-obligation-due');
+  const step1 = ZD.queueStepOf(zl, 1, '2026-11-02'), sub = ZD.queueAssigners(zl, '2026-10-05');
+  const post = ZD.POSTS.find(p => p.id === 'post-kabk'), keep = post.holders;
+  post.holders = [];
+  let empty1, empty2;
+  try { empty1 = ZD.queueStepOf(zl, 1, '2026-11-02'); empty2 = ZD.queueStepOf(zl, 2, '2026-11-02'); } finally { post.holders = keep; }
+  ok(446, zl && zl.authorPost === 'post-kabk' && zl.author === 'E16' && step1 === 'E16' && sub.includes('E7') &&
+       memo.author === 'post-opk' && rep.author['rep-gf'] === 'post-gf' && rep.author['rep-kp'] === 'post-lp' && rep.author['rep-sopr'] === 'post-escort' &&
+       empty1 === 'E4' && empty2 === null,
+    `правки ревью — «Кто поручил»: договор залога на комитете — председатель комитета по записи состава E16 (в его отпуск 01–09.10 назначает и замещающий E7); ` +
+    `записку ССИ — начальник ОПК; очереди отчётности — руководитель своего подразделения; запись состава пуста — неразобранная очередь у администратора E4, второй ступени нет`);
+})();
+
+/* правки по ревью волны 30: вакансия — срок от «вакантно с»; закрыл кадровик — «выполнил другой», ликвидация — «снято»; верхний узел — не задание */
+(() => {
+  const rows = ZD.ORG_HEAD_VACANT, n0 = rows.length;
+  rows.push({ unit: 'Таласская область', pos: 'Руководитель филиала', since: '2026-10-05', acting: false, up: { unit: 'Руководство', emp: 'E16' },
+              filled: { at: '2026-10-20', by: 'E41', how: 'назначен исполняющий обязанности' } },
+            { unit: 'Нарынская область', pos: 'Руководитель филиала', since: '2026-10-05', acting: false, up: { unit: 'Руководство', emp: 'E16' }, liquidated: '2026-10-20' },
+            { unit: 'Верхний узел', pos: 'Председатель', since: '2026-10-05', acting: false, up: null });
+  try {
+    ZD.seed(); ZD.goToDate('2026-10-12');
+    const of = u => ZD.state.tasks.find(t => t.originKind === 'pk-org-head-vacant' && t.povodKey.includes(u));
+    const tl = of('Таласская'), nr = of('Нарынская'), top = ZD.state.povods.some(p => p.kind === 'pk-org-head-vacant' && p.key.includes('Верхний узел'));
+    const due = tl && tl.dueDate === ZD.addWorkdays('2026-10-05', 5), take = tl && ZD.lastEv(tl) === 'принято';
+    ZD.goToDate('2026-10-21');
+    const tl2 = of('Таласская'), nr2 = of('Нарынская');
+    ok(447, due && take && !top && ZD.isTerminal(tl2) && ZD.outcomeOf(tl2).outcome === 'исполнено · выполнил другой' && ZD.outcomeOf(tl2).by === 'E41' &&
+         ZD.isTerminal(nr2) && ZD.outcomeOf(nr2).outcome === 'снято' && ZD.outcomeOf(nr2).reason === 'подразделение ликвидировано',
+      `правки ревью — вакансия «Таласская» с 05.10: срок 5 р.д. от «вакантно с», взять не нужно — работа в оргструктуре; 20.10 кадровик E41 назначил и.о. — ` +
+      `«исполнено · выполнил другой»; «Нарынская» ликвидирована — «снято»; вакансия верхнего узла задания не даёт`);
+  } finally { rows.length = n0; }
+})();
+
+/* правки по ревью волны 30: руководитель по просрочке — адресат, его замещающий и вернувшийся руководитель; отказавшемуся «поручено» не уходит */
+(() => {
+  ZD.seed(); at('2026-08-24');
+  const t = ZD.createFreeTask({ label: 'выписка из реестра', assignee: 'E3', author: 'E4', dueDate: '2026-08-25' });
+  pollOn('2026-09-01', '2026-09-02', '2026-09-03');
+  const e = ZD.overdueTaskOf(t);
+  const subSees = !!e && e.assignee === 'E5' && e.addr.responsible === 'E2' && ZD.chiefMayExtend(t, 'E5');
+  at('2026-09-14');
+  const back = ZD.chiefMayExtend(t, 'E2');
+  ZD.reassignTask(t.id, 'E1', 'E2', 'E3 на выезде', '2026-09-25');
+  const done = ZD.isTerminal(e) && ZD.outcomeOf(e).outcome === 'исполнено' && ZD.outcomeOf(e).by === 'E2';
+  ZD.seed(); ZD.runPoll();
+  const q = ZD.state.tasks.find(x => x.originKind === 'gd-review' && ZD.inQueue(x));
+  ZD.take(q.id, 'E8');
+  const n0 = ZD.state.notifications.length;
+  ZD.reject(q.id, 'конфликт интересов', 'E8');
+  const fresh = ZD.state.notifications.slice(n0);
+  ok(448, subSees && back && done && fresh.some(n => n.kind === 'поручено') && !fresh.some(n => n.kind === 'поручено' && n.to === 'E8'),
+    `правки ревью — эскалацию по просрочке выдали в отпуск E2: продлить и переназначить может замещающий E5, вернувшийся E2 — тоже, переназначение с новым сроком ` +
+    `закрыло задание о просрочке «исполнено»; E8 отказалась от взятого из очереди — «поручено» ушло носителям, кроме неё`);
+})();
+
+/* правки по ревью волны 30: запасной адресат — очередь без носителей и названный без имени; упразднённая единица — правопреемник без руководителя */
+(() => {
+  ZD.seed();
+  const rs = ZD.ruleForKind('pk-stat-neighbor-silent'), role = ZD.ROLES.find(x => x.id === 'sys-admin'), keep = role.holders;
+  role.holders = [];
+  let q;
+  try { q = ZD.resolveAddressee(rs, { kind: rs.kind, traits: {} }, '2026-09-02'); } finally { role.holders = keep; }
+  const rn = ZD.state.rules.find(r => r.addressee.by === 'названный' && typeof r.author === 'string');
+  const nm = ZD.resolveAddressee(rn, { kind: rn.kind, named: null, traits: {} }, '2026-09-02');
+  const lp = ZD.POSTS.find(p => p.id === 'post-lp');
+  lp.abolished = { at: '2026-09-02', successor: 'Аналитика' }; // у «Аналитики» руководителя нет — выше по дереву
+  let up;
+  try { up = ZD.postHolderAt('post-lp', '2026-09-02'); } finally { delete lp.abolished; }
+  ZD.state.viewer = 'E4'; lp.abolished = { at: '2026-09-02', successor: 'Руководство' };
+  let refused;
+  try { refused = throws(() => ZD.editRule(ZD.ruleForKind('gd-review').id, { author: 'post-lp' }, { by: 'E4', basis: 'приказ' })); } finally { delete lp.abolished; }
+  ok(449, q.via === 'запасной' && q.responsible === 'E40' && q.queueRole === 'sys-admin' &&
+       nm.via === 'запасной' && nm.responsible === ZD.postHolderOn(rn.author, '2026-09-02') &&
+       up && up.emp === 'E16' && up.why === 'передано наверх' && /упразднена/.test(refused),
+    `правки ревью — в очереди «Администратор» нет носителей — запасной: держатель «Кто поручил» E40; названного нет — держатель «Кто поручил» правила; ` +
+    `единица упразднена, у правопреемника нет руководителя — «передано наверх» E16; упразднённую единицу «Кто поручил» не выбрать`);
 })();
 
 /* ВЗЕ-4 — неразобранную очередь назначает автор, держатель «Кто поручил» и его руководитель */

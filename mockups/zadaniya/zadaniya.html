@@ -510,6 +510,8 @@ const POSTS = [
   {id:'post-opk',    title:'Заведующий отделом проблемных кредитов',     unit:'Отдел проблемных кредитов',      holders:[{emp:'E32', from:'2026-01-01'}]},
   {id:'post-ozo',    title:'Заведующая отделом залогового обеспечения',  unit:'Отдел залогового обеспечения',   holders:[{emp:'E35', from:'2026-01-01'}]},
   {id:'post-buh',    title:'Главный бухгалтер',                          unit:'Бухгалтерия',                    holders:[{emp:'E37', from:'2026-01-01'}]},
+  {id:'post-kabk',   title:'Председатель комитета по администрированию кредитов', unit:'Комитет по администрированию кредитов', holders:[{emp:'E16', from:'2026-01-01'}], comp:'приказ о составе комитета по администрированию кредитов'},
+  {id:'post-gf',     title:'Руководитель головного филиала',             unit:'Головной филиал',                holders:[{emp:'E10', from:'2026-01-01'}]},
 ];
 function postOf(id){ return POSTS.find(p=>p.id===id); }
 function postOfUnit(unit){ return POSTS.find(p=>p.unit===unit); }
@@ -521,8 +523,9 @@ const onDate = (x, d)=>x.from<=d && (!x.to || d<=x.to);
    подразделения; упразднена — руководитель правопреемника; председатель — по записи состава, вакансия — никого. Никого — null */
 function postHolderAt(id, d){
   const p = postOf(id); if(!p) return null;
-  if(p.abolished && p.abolished.at<=d){ const h = deptHead(p.abolished.successor);
-    return h ? {emp:h, why:'правопреемник', unit:p.abolished.successor} : null; }
+  if(p.abolished && p.abolished.at<=d){ const s = p.abolished.successor; // у правопреемника нет руководителя или правопреемника нет — выше по дереву
+    for(let u = s || unitParent(p.unit); u; u = unitParent(u)){ const h = deptHead(u); if(h) return {emp:h, why:u===s ? 'правопреемник' : 'передано наверх', unit:u}; }
+    return null; }
   const a = (p.acting||[]).find(x=>onDate(x, d)); if(a) return {emp:a.emp, why:'и.о.'};
   const h = p.holders.find(x=>onDate(x, d)); if(h) return {emp:h.emp, why:p.comp ? 'по записи состава' : 'основной'};
   if(p.comp) return null; // кто замещает председателя, не определено — «адресат не найден»
@@ -749,7 +752,7 @@ function seedPovodKinds(){ return [
   {id:'pk-ext-pending',   title:'Запрос продления без ответа',           objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-returning',     title:'Повод возвращается',                    objectType:'povod',     traits:['повторов'],          sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   // Оргструктура
-  {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02', ownerExec:true},
   {id:'pk-org-acting-expiring', title:'Заканчивается и.о. руководителя',          objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   {id:'pk-org-invariant',       title:'Нарушен инвариант основного назначения',   objectType:'employee', traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
@@ -1026,7 +1029,7 @@ function seedRules(){ return [
   {id:'rule-addr-missing', kind:'pk-addr-missing', action:'act-addr-missing', addressee:A_ADMIN,   dueN:1, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
   {id:'rule-ext-pending',  kind:'pk-ext-pending',  action:'act-ext-pending',  addressee:A_APPROVE_CHIEF, dueN:1, dueUnit:'workday', editions:[ed('2026-08-16','запуск самоопроса')]},
   // Оргструктура
-  {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     addressee:A_ORG_UP,   dueN:5, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-02','подключение модуля «Оргструктура»')]},
+  {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     addressee:A_ORG_UP,   dueN:5, dueUnit:'workday', dueBase:'состояние', dueSource:PROJECT_SRC, editions:[ed('2026-09-02','подключение модуля «Оргструктура»')]},
   // Статистика
   {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        addressee:Q_ADMIN,    dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Статистика»')]},
   // Отчётность
@@ -1156,6 +1159,7 @@ function editRule(ruleId, changes, o){
     else if(f==='author'){ // должность; у правила с выбором очереди — пара «очередь → должность» на каждую очередь
       const pair = cur.values.author && typeof cur.values.author==='object', ids = x && typeof x==='object' ? Object.values(x) : [x];
       if(!ids.length || ids.some(i=>!postOf(i))) throw new Error('автор правила — должность бизнес-владельца');
+      if(ids.some(i=>postOf(i).abolished && postOf(i).abolished.at<=from)) throw new Error('единица упразднена — выберите действующую из дерева на дату');
       if(!pair && typeof x==='object') throw new Error('пара «очередь → должность» — только у правила с выбором очереди');
       if(pair && (typeof x!=='object' || Object.keys(x).sort().join()!==Object.keys(cur.values.author).sort().join()))
         throw new Error('у правила с выбором очереди «Кто поручил» — должность на каждую очередь');
@@ -1317,6 +1321,9 @@ function initRegistry(){ // запись вида объявляет род; н�
   kindOf('ap-confirm').authorPost = 'post-dak';
   kindOf('ap-conclusion').authorPost = {'ap-dept-risk':'post-risk', 'ap-dept-credit':'post-credit'};
   ['ap-prelim','ap-vote','ap-decide'].forEach(id=>{ kindOf(id).authorPost = 'post-chair'; });
+  kindOf('pk-zl-committee').authorPost = 'post-kabk'; // комитет — председатель по записи состава
+  kindOf('pk-im-ssi-memo').authorPost = 'post-opk';   // записку вносит отдел по работе с проблемными кредитами — его начальник
+  kindOf('pk-rep-obligation-due').authorPost = {'rep-sopr':'post-escort', 'rep-kp':'post-lp', 'rep-gf':'post-gf'}; // очередь подразделения — его руководитель
 
   state.rules.forEach(r=>{
     const k = kindOf(r.kind);
@@ -1401,17 +1408,17 @@ function ownerOfKind(kindId){ const k=kindOf(kindId), src=sourceOfKind(kindId); 
 /* круг опроса: первый выпуск — механизм и взыскание, остальные соседи подключаются по готовности */
 const POLL_SCOPES = {'все':s=>true, 'первый выпуск':s=>s.release===1, 'механизм':s=>s.id==='self'};
 /* ответ Оргструктуры (демо-данные) */
+/* вакансия руководителя: с и.о. — «прикрыто», без — кому передано наверх (руководитель вышестоящего подразделения на дату);
+   закрыта — filled (кто из кадров внёс и что), подразделение ликвидировано — liquidated */
+const ORG_HEAD_VACANT = [
+  {unit:'ЦА — Кредитный отдел',       pos:'Начальник отдела',     since:'2026-07-20', acting:false, up:{unit:'Департамент администрирования кредитов', emp:'E43'}},
+  {unit:'Ошская область',             pos:'Руководитель филиала', since:'2026-08-05', acting:true,  up:{unit:'Руководство', emp:'E16'}},
+  {unit:'Жалал-Абадская область',     pos:'Руководитель филиала', since:'2026-08-12', acting:false, up:{unit:'Руководство', emp:'E16'}},
+];
 function orgstructMirrorAt(d){
   return {
-    // вакансия руководителя: с и.о. — «прикрыто», без — кому передано наверх (руководитель вышестоящего подразделения на дату)
-    headVacant: [
-      {unit:'ЦА — Кредитный отдел',       pos:'Начальник отдела',     since:'2026-07-20', days:daysBetween('2026-07-20', d), acting:false,
-       up:{unit:'Департамент администрирования кредитов', emp:'E43'}},
-      {unit:'Ошская область',             pos:'Руководитель филиала', since:'2026-08-05', days:daysBetween('2026-08-05', d), acting:true,
-       up:{unit:'Руководство', emp:'E16'}},
-      {unit:'Жалал-Абадская область',     pos:'Руководитель филиала', since:'2026-08-12', days:daysBetween('2026-08-12', d), acting:false,
-       up:{unit:'Руководство', emp:'E16'}},
-    ],
+    headVacant: ORG_HEAD_VACANT.filter(r=>!(r.filled && r.filled.at<=d) && !(r.liquidated && r.liquidated<=d))
+      .map(r=>Object.assign({}, r, {days:daysBetween(r.since, d)})),
     actingExpiring: [
       {unit:'Баткенская область', pos:'Руководитель филиала', emp:'Асанов Т.К.', to:'2026-09-10', days:8, reason:'приказ о временном исполнении'},
     ],
@@ -3263,6 +3270,13 @@ function ownerAttrib(kindId, p, asOf){
   }
   return {by:s.last.by, how:s.last.how};
 }
+/* оргструктура: вакансию закрыл кадровик (и.о. или назначение) — «выполнил другой»; подразделение ликвидировано — «снято» */
+function orgAttrib(kindId, p, asOf){
+  const r = kindId==='pk-org-head-vacant' ? ORG_HEAD_VACANT.find(x=>x.unit===p.objectId) : null;
+  if(r && r.liquidated && r.liquidated<=asOf) return {cancel:'подразделение ликвидировано'};
+  if(r && r.filled && r.filled.at<=asOf) return {by:r.filled.by, how:r.filled.how};
+  return {by:null, how:'строки нет в ответе оргструктуры'};
+}
 /* задание эскалации к тому, кто вправе решить: отпадает вместе с просроченным шагом — по событию владельца */
 function escAttrib(p, asOf){
   const base = taskOf(p.objectId), bp = povodByKey(base.povodKey), cfg = OWNER_CFG[base.originKind];
@@ -3847,6 +3861,7 @@ function seedState(){
       lp:{expiringDays:[{from:'2026-09-01', v:30, basis:'подключение модуля «Кредитные программы»'}]},
       ap:{stuckWd:[{from:'2026-09-01', v:10, basis:'подключение модуля «Заявки»'}]},
       pl:{awaitWd:[{from:'2026-09-01', v:3, basis:'подключение модуля «Платежи»'}]},
+      stat:{silentRuns:[{from:'2026-09-02', v:3, basis:'подключение модуля «Статистика»'}]},
       cr:{noticeDays:[{from:'2026-07-06', v:30, act:'Порядок №41 п. 15 пп. 1', basis:'Порядок №41 от 06.07.2026'}]},
       zd:Object.fromEntries(Object.keys(ZD_THR).map(f=>[f, [{from:'2026-08-16', v:ZD_THR[f].v, basis:'запуск самоопроса'}]])), // свои пороги — записи заданий
     },
@@ -4092,7 +4107,7 @@ function reject(taskId, note, by){
     const from = t.assignee;
     t.assignee = null; t.addr = Object.assign({}, t.addr, {assignee:null, responsible:null});
     log(t,'возвращено в очередь',Object.assign({from, note}, by && by!==from ? {by, for:from} : {by:from}));
-    notify(t,'поручено');
+    queueHolders(t).filter(h=>h!==from).forEach(h=>pushNotif('поручено', t.id, h, null, t.originKind));
     return t;
   }
   rejectInternal(t, note, null, by);
@@ -4124,25 +4139,37 @@ function povodReleased(p){ // последнее событие жизни кл�
 /* «Просрочено задание» по заданию: руководитель, получивший его, переназначает и сам продлевает срок — с основанием, без запроса */
 function overdueTaskOf(t){ const key = `pk-overdue|task:${t.id}|`; return state.tasks.find(x=>x.povodKey===key && !isTerminal(x)) || null; }
 function overdueChiefOf(t){ const e = overdueTaskOf(t); return e ? e.assignee : null; }
+/* руководитель по просрочке — кому выдано задание о просрочке: адресат, его замещающий и вернувшийся руководитель, за которого действовал замещающий */
+function isOverdueChief(t, by){
+  const e = overdueTaskOf(t), resp = e && e.addr && e.addr.responsible;
+  return !!e && !!by && (canActFor(e, by) || by===resp || (!!resp && actingFor(resp, state.today)===by));
+}
+function closeOverdueByChief(t, by){
+  const e = overdueTaskOf(t); if(!e) return;
+  log(e,'закрыто',Object.assign({outcome:'исполнено', by, how:'срок продлён руководителем'}, by!==e.assignee ? {for:e.assignee} : {}));
+  notify(e,'закрыто');
+}
 function chiefExtendCheck(t, by, newDue, reason){
   const e = overdueTaskOf(t);
-  if(!e || !canActFor(e, by)) throw new Error('без запроса продлевает руководитель, получивший задание о просрочке');
+  if(!e || !isOverdueChief(t, by)) throw new Error('без запроса продлевает руководитель, получивший задание о просрочке');
   if(namedDue(t) || t.approver) throw new Error('срок называет владелец — продлевает только утверждающий');
   if(!newDue || newDue<state.today || newDue<=dueOf(t)) throw new Error('новый срок — не раньше сегодняшнего и позже прежнего');
   if(!String(reason||'').trim()) throw new Error('нужно основание продления');
 }
-function chiefMayExtend(t, v){ const e = overdueTaskOf(t); return !!e && !isTerminal(t) && canActFor(e, v) && !namedDue(t) && !t.approver; }
+function chiefMayExtend(t, v){ return !isTerminal(t) && isOverdueChief(t, v) && !namedDue(t) && !t.approver; }
 function extendByChief(taskId, by, newDue, reason){
   const t=taskOf(taskId);
   if(!t || isTerminal(t)) throw new Error('задание закрыто');
   chiefExtendCheck(t, by, newDue, reason);
   log(t,'продление утверждено',{by, prevDue:dueOf(t), newDue, reason, без_запроса:true});
+  closeOverdueByChief(t, by);
   notify(t,'решение-по-продлению', t.assignee);
   if(t.controller && t.controller!==by) notify(t,'решение-по-продлению', t.controller);
   return t;
 }
 /* неразобранная очередь: назначают автор, держатель «Кто поручил» на дату и его руководитель (вторая ступень) */
-function queueAssigners(t, d){ return [t.author, queueStepOf(t, 1, d), queueStepOf(t, 2, d)].filter((x, i, a)=>x && a.indexOf(x)===i); }
+function queueAssigners(t, d){ const s1 = queueStepOf(t, 1, d), s2 = queueStepOf(t, 2, d); // с замещающими на дату
+  return [t.author, s1, s1 && actingFor(s1, d), s2, s2 && actingFor(s2, d)].filter((x, i, a)=>x && a.indexOf(x)===i); }
 function reassignTask(taskId, newAssignee, by, reason, newDue){ // решение человека: автор или руководитель исполнителя по цепочке
   const t=taskOf(taskId);
   if(!t || isTerminal(t)) throw new Error('задание закрыто — переназначать нечего');
@@ -4157,7 +4184,7 @@ function reassignTask(taskId, newAssignee, by, reason, newDue){ // решени�
     return t;
   }
   if(by===t.assignee) throw new Error('исполнитель задание не передаёт');
-  if(by!==t.author && !chiefChainIncludes(t.assignee, by)) throw new Error('переназначает автор или руководитель исполнителя по цепочке');
+  if(by!==t.author && !chiefChainIncludes(t.assignee, by) && !isOverdueChief(t, by)) throw new Error('переназначает автор или руководитель исполнителя по цепочке');
   if(!reason) throw new Error('нужно основание переназначения');
   if(!emp(newAssignee) || newAssignee===t.assignee) throw new Error('выберите другого исполнителя');
   if(t.queue && queueHolders(t).indexOf(newAssignee)===-1) throw new Error('задание очереди переназначается только носителю роли');
@@ -4165,7 +4192,7 @@ function reassignTask(taskId, newAssignee, by, reason, newDue){ // решени�
   const from = t.assignee;
   t.assignee = newAssignee;
   log(t,'переназначено',{from, to:newAssignee, by, reason});
-  if(newDue) log(t,'продление утверждено',{by, prevDue:dueOf(t), newDue, reason, без_запроса:true});
+  if(newDue){ log(t,'продление утверждено',{by, prevDue:dueOf(t), newDue, reason, без_запроса:true}); closeOverdueByChief(t, by); }
   startWithoutTake(t);
   notify(t,'переадресовано', from);
   notify(t,'поручено');
@@ -4320,6 +4347,7 @@ function editSelfThr(f, x, o){
   const n = parseInt(x.v, 10);
   if(!(n>=1) || String(n)!==String(x.v).trim()) throw new Error('порог — целое число больше нуля');
   if(!(x.basis||'').trim()) throw new Error('основание обязательно — приказ');
+  if(!String(x.order||'').trim()) throw new Error('порог меняется по приказу — укажите приказ');
   if(!x.from || x.from<state.today) throw new Error('дата начала не раньше сегодняшней');
   const a = thrVals('zd.'+f);
   if(thrRecOn('zd.'+f, x.from).v===n) throw new Error('значение не изменилось');
@@ -4555,7 +4583,7 @@ function handleGoneForKind(goneKeys, asOf){
 
 /* исполнение у владельца: повод отпал — задание закрыто с атрибуцией, исхода «отпало» не бывает */
 function closeByOwner(t, p, asOf){
-  const a = t.esc ? escAttrib(p, asOf) : ownerAttrib(t.originKind, p, asOf);
+  const a = t.esc ? escAttrib(p, asOf) : ORGSTRUCT_CFG[t.originKind] ? orgAttrib(t.originKind, p, asOf) : ownerAttrib(t.originKind, p, asOf);
   if(a.cancel){ log(t,'закрыто',{outcome:'снято', reason:a.cancel, by:'владелец'}); notify(t,'закрыто'); return; }
   // за адресата действовал замещающий — по замещению в заданиях или по приказу у владельца («лично»)
   const self = t.assignee ? (canActFor(t, a.by) || a.for===t.assignee) : queueHolders(t).indexOf(a.by)!==-1;
@@ -4575,9 +4603,9 @@ function ruleForKind(kindId){ const rs = state.rules.filter(r=>r.kind===kindId);
 /* адресат: формула правила → замещение на дату → запасной адресат (держатель «Кто поручил» правила на дату по оргструктуре)
    → администратор модуля и «адресат не найден», только если и оргструктура никого не дала; результат хранится в задании снимком */
 /* неразобранная очередь — проблема распределения: первая ступень — держатель «Кто поручил» на дату, вторая (5-й р.д.) — его руководитель */
-function queueStepOf(t, step, asOf){
-  const h = (t.authorPost && postHolderOn(t.authorPost, asOf)) || t.author;
-  return step===2 ? (h ? chiefOf(h) : null) : h;
+function queueStepOf(t, step, asOf){ // пустая должность «Кто поручил» — администратор («адресат не найден»), не прежний держатель
+  const h = t.authorPost ? (postHolderOn(t.authorPost, asOf) || ADMIN) : t.author;
+  return step===2 ? (h && h!==ADMIN ? chiefOf(h) : null) : h;
 }
 function participantOf(who, t, povod, asOf){
   if(!t) return null;
@@ -6172,6 +6200,7 @@ function escText(x){
 }
 function renderOwnerCard(t, p){
   const cfg = OWNER_CFG[p.kind];
+  if(!cfg) return ''; // оргструктура: карточки соседа в макете нет
   if(cfg.src==='ap') return renderAppCard(p);
   if(cfg.src==='doc') return renderDocCard(p.ownerId||p.objectId);
   if(cfg.src==='imo' || cfg.src==='ima' || cfg.src==='imb') return renderImCard(cfg.src, p.ownerId||p.objectId);
@@ -6655,6 +6684,7 @@ const KIND_THRESHOLD = Object.assign({
   'lp-expiring':()=>thrR('lp.expiringDays', v=>`за ${v} к.д. до «Даты по»`),
   'pk-rep-obligation-due':()=>thrO('за N к.д. до срока сдачи'),
   'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
+  'pk-stat-neighbor-silent':()=>thrR('stat.silentRuns', v=>`модуль молчит ${v} прогона подряд`),
   'pk-cr-payment-due':()=>thrR('cr.noticeDays', v=>`за ${v} к.д. до платежа`),
   'pk-zl-survey':()=>Object.assign(thrT(`за ${ZL_LEAD} к.д. до плановой даты; интервал ${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
     {more:{text:`при согласовании зампреда короче по категории риска кредита: ${Object.values(ZL_TIGHT.k).map(v=>'×'+String(v).replace('.', ',')).join(' / ')}, не меньше ${ZL_TIGHT.min} мес.`, src:PROJECT_SRC}}),
@@ -6836,7 +6866,7 @@ function renderRulePanel(id){
 }
 /* окна правки: действие только по кнопке окна, основание обязательно, отказ движка — ошибка в окне */
 function askRule(id){
-  const r = ruleById(id), posts = POSTS.map(p=>({v:p.id, l:`${p.title} · ${p.unit}`}));
+  const r = ruleById(id), posts = POSTS.filter(p=>!(p.abolished && p.abolished.at<=state.today)).map(p=>({v:p.id, l:`${p.title} · ${p.unit}`}));
   const pair = r.author && typeof r.author==='object', queues = pair ? Object.keys(r.author) : []; // «Кто поручил» — на каждую очередь
   const authorFields = pair ? queues.map(q=>({f:'author:'+q, label:`Кто поручил · очередь «${roleOf(q) ? roleOf(q).name : q}»`, type:'select', required:true, options:posts}))
     : [{f:'author', label:'Кто поручил, штатная единица', type:'select', required:true, options:posts}];
@@ -6867,7 +6897,7 @@ function askSelfThr(f){
     note:`Сейчас: ${ZD_THR[f].text(cur.v)} · ${thrSrcText(cur)}. Новое значение действует только на новые поводы.`,
     values:{v:String(cur.v), from:state.today, order:'', why:''},
     fields:[{f:'v', label:'Значение', type:'number', required:true}, {f:'from', label:'Действует с', type:'date', required:true},
-      {f:'order', label:'Приказ'}, WHY('Основание')],
+      {f:'order', label:'Приказ', required:true}, WHY('Основание')],
     run:x=>editSelfThr(f, {v:x.v, from:x.from, basis:x.why.trim(), order:String(x.order||'').trim() || null}, {by:state.viewer})});
 }
 function askEditionCancel(id, n){
@@ -7216,7 +7246,7 @@ return {
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
   setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, renderDelivery, empName, notifLinks,
-  addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
+  addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
   SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
