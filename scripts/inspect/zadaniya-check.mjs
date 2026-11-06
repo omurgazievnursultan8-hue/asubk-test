@@ -1,4 +1,4 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–30 макета модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волны 1–4 выпуска и 6–34 макета модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
@@ -299,6 +299,9 @@ if (!ZD) { console.error('window.ZD не экспортирован'); process.e
 const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 ZD.seed();
+/* переключатель «Демонстрация» по умолчанию выключен; проверки ниже пользуются полосой стенда и демо-карточками модулей — включают его сами */
+const DEMO0 = ZD.demo;
+ZD.setDemo(true);
 const TODAY = ZD.state.today;
 const throws = fn => { try { fn(); return ''; } catch (e) { return e.message || 'ошибка'; } };
 /* опрос по сохранению глотает исключения, чтобы сбой не ломал сохранение; сторож #313: ошибка — только от смоделированного отказа источника */
@@ -5419,8 +5422,8 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.dialogCancel();
   ok(307, /основание/.test(noBasis) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('сигнал') && /выпуском/.test(ord) && /вне закрытого списка/.test(out) &&
        /Срок платежа по графику близко/.test(html) && (html.match(/<tr data-sig="/g) || []).length === 1 && html.indexOf(`ZD.askSignal('${S}')`) !== -1 && /SMS/.test(chans) && /e-mail/.test(chans) &&
-       /Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro),
-    `ЗНП-7, ЗНП-20 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; на вкладке «Уведомления» один сигнал, остальным только чтение; настройка сигнала обычные уведомления не трогает`);
+       !/Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro),
+    `ЗНП-7, ЗНП-20 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; на вкладке «Уведомления» один сигнал, у остальных кнопок нет (экран им не открывается, подписи «Только чтение» нет); настройка сигнала обычные уведомления не трогает`);
 })();
 
 /* ЗНП-7, ЗНП-21 — платёж больше не задание: ни срока, ни ответа, ни строки; уведомление заёмщику — действие в карточке */
@@ -6937,8 +6940,8 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const ro = ZD.renderSettings(), menu = ZD.menuItems().map(x => x.view).join();
   ZD.state.viewer = 'E4'; ZD.state.view = 'queue';
   ok(365, rows.join() === ZD.NOTIF_KINDS.join() && rows.length === 11 && tabs && allPopup && noInput && sections && before === 11 && /История правок/.test(hist) && /Вернули на доработку/.test(hist) && /приказ №7/.test(hist) &&
-       !/ZD\.askNotif/.test(ro) && /Только чтение/.test(ro) && rowsHave(ro) && !/settings/.test(menu),
-    'ЭЗ-17, ЭЗ-55 — вкладка «Уведомления»: сигналы и таблица из 11, у каждого кому, текст, способ; по умолчанию всплывающее; правка в окне и в общей истории; не администратору только чтение и пункта меню нет');
+       !/ZD\.askNotif/.test(ro) && !/Только чтение/.test(ro) && rowsHave(ro) && !/settings/.test(menu),
+    'ЭЗ-17, ЭЗ-55 — вкладка «Уведомления»: сигналы и таблица из 11, у каждого кому, текст, способ; по умолчанию всплывающее; правка в окне и в общей истории; не администратору пункта меню нет, кнопок нет, подписи «Только чтение» нет');
   function rowsHave(x) { return ZD.NOTIF_KINDS.every(k => x.includes(`data-n="${k}"`)); }
 })();
 
@@ -9197,7 +9200,7 @@ const w31 = (kind, part) => ZD.state.tasks.filter(t => t.originKind === kind && 
   ZD.state.viewer = t && t.assignee; const card = t ? ZD.renderCard(t.id) : ''; ZD.state.viewer = 'E4';
   const ov = t && ZD.state.tasks.find(x => x.povodKey === `pk-overdue|task:${t.id}|` && !ZD.isTerminal(x)), chief = ov && ov.assignee;
   const byChief = chief ? throws(() => ZD.extendByChief(t.id, chief, ZD.addWorkdays('2027-03-01', 10), 'ждём данные')) : 'просрочки нет';
-  ok(482, own.length > 0 && own.every(x => ZD.tplLocked(x)) && /шаблон соседа/.test(req) && ZD.dueOf(t) === t.dueDate && !/Запросить продление/.test(card) &&
+  ok(482, own.length > 0 && own.every(x => ZD.tplLocked(x)) && /шаблон модуля-источника/.test(req) && ZD.dueOf(t) === t.dueDate && !/Запросить продление/.test(card) &&
        !!byChief && (!chief || !ZD.chiefMayExtend(t, chief)),
     `ВЗЕ-180 — ${t && t.id}: срок назвал шаблон соседа, утверждающего правило не объявило — исполнитель продления не запрашивает («${req}»), кнопки нет; ` +
     `руководитель по просрочке не продлевает («${byChief}»)`);
@@ -9603,6 +9606,252 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ok(507, memoAny && claimNoP41 && sameDay && dayBefore && /служебную записку в ОПК$/.test(act),
     `ВЗЕ-214 — действие «${act}» (п. 42 называет отдел по работе с проблемными кредитами); записка с путём «залог» по требованию без основания п. 41 — гасит, ` +
     `досрочное требование по обычной просрочке — нет; ВЗЕ-215 — мера в день извещения 20.11 в счёт, накануне — нет`);
+})();
+
+/* ---------- AW. Волна 34: под ТЗ 25 — демонстрация, подписи, видимость, ключ, источники ---------- */
+
+/* ВЗЕ-217 — «Демонстрация» в шапке: по умолчанию выключена, выбор помнится в браузере (сбой хранилища не ломает страницу);
+   без неё нет полосы стенда и демо-карточек, а очередь, карточка, кнопки и настройка у администратора работают */
+(() => {
+  const code = src.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const boot = storage => { const w = {}, sb = { window: w, console, setTimeout: () => {}, clearTimeout: () => {} }; if (storage) sb.localStorage = storage; vm.createContext(sb); vm.runInContext(code, sb); return w.ZD; };
+  const mem = {}, store = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); } };
+  const broken = { getItem: () => { throw new Error('доступ запрещён'); }, setItem: () => { throw new Error('доступ запрещён'); } };
+  const first = boot(store), offFirst = first.demo === false;
+  first.seed(); first.setDemo(true);
+  const kept = mem['asubk.zadaniya.demo'] === '1' && boot(store).demo === true;
+  let survived = false;
+  try { const b = boot(broken); survived = b.demo === false; b.seed(); b.setDemo(true); survived = survived && b.demo === true; } catch (e) { survived = false; }
+  const top = src.slice(src.indexOf('<div class="topbar">'), src.indexOf('<div class="content">'));
+  const shell = src.includes('<div class="stand" id="stand" hidden></div>') && /id="demoSw"/.test(top) && /stand\.hidden = !demoOn;/.test(src) && /stand\.innerHTML = demoOn \? renderStand\(\) : '';/.test(src);
+  ZD.seed(); ZD.goToDate('2026-10-01');
+  ZD.setDemo(false);
+  const swOff = ZD.renderDemoSwitch(), sw = /Демонстрация/.test(swOff) && /role="switch"/.test(swOff) && !/ checked/.test(swOff) && /ZD\.setDemo\(this\.checked\)/.test(swOff);
+  ZD.state.viewer = 'E1';
+  const t = ZD.state.tasks.find(x => ZD.ownerExecOf(x) && ZD.canActFor(x, 'E1') && !ZD.isTerminal(x) && ZD.lastEv(x) !== 'поручено');
+  const cardOff = ZD.renderCard(t.id);
+  const cardWorks = !cardOff.includes('data-fold="work"') && !/демо-карточка/.test(cardOff) && cardOff.includes('data-top="acts"') && /Работа делается в карточке дела/.test(cardOff) && cardOff.includes('data-fold="more"');
+  const queueWorks = /data-t="/.test(viewAs('E1', 'work')) && ZD.taskActions(ZD.state.tasks.find(x => ZD.bucketOf(x, 'E1') === 'mine'), 'E1').btns.length > 0;
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
+  const adminWorks = ZD.menuItems().some(x => x.view === 'settings') && /ZD\.askRule\(/.test(ZD.renderSettings() + ZD.renderRulePanel(ZD.state.rules[0].id));
+  let hlOff = '', hlOn = '';
+  ZD.highlightsOn('2026-10-01').filter(x => x.count).some(x => (x.rows || []).some(r => {
+    ZD.openHighlight(x.kind, r.key); ZD.setDemo(false); const off = ZD.renderHighlightDrawer(); ZD.setDemo(true); const on = ZD.renderHighlightDrawer();
+    if (/демо<\/span>/.test(on)) { hlOff = off; hlOn = on; return true; } return false;
+  }));
+  ZD.closeCard(); ZD.setDemo(true);
+  const hl = !!hlOn && !/демо<\/span>/.test(hlOff) && /Дата состояния/.test(hlOff);
+  const cardOn = ZD.renderCard(t.id).includes('data-fold="work"');
+  ZD.state.viewer = 'E4';
+  ok(508, DEMO0 === false && offFirst && kept && survived && shell && sw && cardWorks && queueWorks && adminWorks && hl && cardOn,
+    `ВЗЕ-217 — «Демонстрация» по умолчанию выключена, выбор помнится в браузере, сбой хранилища страницу не ломает; выключена — полосы стенда нет (скрыта и пуста), ` +
+    `в карточке ${t.id} нет «Работы в деле», у подсветки нет демо-карточки модуля, а очередь, кнопки, подробности и настройка у администратора на месте; включена — демо-карточка снова есть`);
+})();
+
+/* ВЗЕ-218 — сигнал без получателей не уходит: подпись под получателями и окно сигнала не обещают руководителя подразделения-владельца */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-10-01');
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs';
+  const h = plain(ZD.renderSettings()), k = ZD.state.povodKinds.find(x => x.genus === 'сигнал' && x.signalRole) || ZD.state.povodKinds.find(x => x.genus === 'сигнал');
+  ZD.askSignal(k.id); const note = ZD.dialog.note; ZD.dialogCancel();
+  const said = /нет куратора — получают только указанные должности; нет и их — сигнал не уходит/.test(h) && /^Нет куратора — получают только указанные должности; нет и их — сигнал не уходит\./.test(note) &&
+    !/подразделения-владельца/.test(h + note);
+  const c = ZD.state.signals[k.id], keep = c.recipients, d = '2026-10-01', role = k.signalRole || 'куратор';
+  let none, posts;
+  try {
+    c.recipients = [{ by: 'кураторство', role }];
+    none = ZD.signalRecipients(k, { curObj: null }, d).length === 0;
+    c.recipients = [{ by: 'кураторство', role }, { by: 'должность', post: 'post-admin' }];
+    posts = ZD.signalRecipients(k, { curObj: null }, d).join() === ZD.actingFor(ZD.postHolderOn('post-admin', d), d);
+  } finally { c.recipients = keep; }
+  ok(509, said && none && posts,
+    `ВЗЕ-218 — «${k.title}»: без куратора сигнал получают только должности настройки, без них не уходит; подпись и окно говорят то же («${note.split('.')[0]}»)`);
+})();
+
+/* ВЗЕ-219 — видимые надписи: «повторная эскалация» вместо «второй ступени», «модуль-источник» вместо «соседа» */
+(() => {
+  const BAD = /сосед|(?<!до)ступен/i, hits = [];
+  const check = (where, h) => { const t = plain(h), mm = t.match(BAD); if (mm) hits.push(`${where}: ${t.slice(Math.max(0, mm.index - 30), mm.index + 30)}`); };
+  ZD.seed();
+  ['2026-11-02', '2027-01-04'].forEach(d => {
+    ZD.goToDate(d);
+    ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
+    ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ZD.state.rules.forEach(r => check(`${d} панель ${r.id}`, ZD.renderRulePanel(r.id)));
+    ZD.state.povSt = 'все'; ZD.state.runsTab = 'povods'; check(`${d} поводы`, ZD.renderRuns());
+    ZD.state.runsTab = 'poll'; check(`${d} опрос`, ZD.renderRuns());
+    check(`${d} стенд`, ZD.renderStand());
+  });
+  let cards = 0; // с демо-карточками модулей; ключ — значение модуля-источника, его не трогаем (ВЗЕ-Д65)
+  eachCard(['2027-01-04'], (t, v, d) => { cards++; check(`${d} ${v} ${t.id}`, noKey(ZD.renderCard(t.id))); });
+  const queue2 = ZD.state.povods.filter(p => p.kind === 'pk-overdue' && /никто не взял, 5-й р\.д\./.test(p.key));
+  const traits = queue2.length > 0 && queue2.every(p => p.traits.эскалация === 'повторная — руководитель «Кто поручил»' && !('ступень' in p.traits));
+  ZD.state.runsTab = 'povods';
+  const shown = plain(ZD.renderRuns()).includes('эскалация: повторная — руководитель «Кто поручил»');
+  const thr = ZD.ZD_THR.overdueWd.text(5) === '5 р.д. после срока; он же день повторной эскалации неразобранной очереди';
+  /* сообщения и подписи в коде: «сосед» остался только в ответе Статистики (её вид и ключ) */
+  const code = src.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+  const rest = code.replace(/function statMirrorAt\(d\)\{[\s\S]*?\n\}/, '');
+  const inCode = [...rest.matchAll(/сосед|(?<!до)ступен/gi)].map(x => rest.slice(x.index - 30, x.index + 20));
+  ZD.state.viewer = 'E4'; ZD.state.qTab = 'work';
+  ok(510, hits.length === 0 && cards > 300 && traits && shown && thr && inCode.length === 0,
+    `ВЗЕ-219 — нет «сосед» и «ступень» в настройке, панелях правил, журнале прогонов, полосе и ${cards} карточках с демо-карточками на 04.01; признак повода — «эскалация: повторная — руководитель «Кто поручил»» (${queue2.length}), порог — «день повторной эскалации»; в сообщениях кода слова нет` +
+    `${hits.length ? '; найдено: ' + hits.slice(0, 3).join(' / ') : ''}${inCode.length ? '; в коде: ' + inCode.slice(0, 3).join(' / ') : ''}`);
+})();
+
+/* ВЗЕ-220 — «Настройка» и «Журнал прогонов» только администратору: прямой переход и смена зрителя — «Моя работа»; «Только чтение» — только в панели правила из карточки */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-10-01');
+  ZD.setViewer('E1'); ZD.state.qTab = 'closed'; ZD.go('settings');
+  const direct = ZD.state.view === 'queue' && ZD.state.qTab === 'work';
+  ZD.state.qTab = 'decide'; ZD.go('runs');
+  const direct2 = ZD.state.view === 'queue' && ZD.state.qTab === 'work';
+  ZD.setViewer('E4'); ZD.go('runs'); ZD.state.qTab = 'closed';
+  const stays = ZD.state.view === 'runs';
+  ZD.setViewer('E1');
+  const swap = ZD.state.view === 'queue' && ZD.state.qTab === 'work';
+  ZD.setViewer('E4'); ZD.go('settings'); ZD.state.qTab = 'decide'; ZD.setViewer('E22');
+  const swap2 = ZD.state.view === 'queue' && ZD.state.qTab === 'work';
+  ZD.setViewer('E4');
+  const noRo = ['tasks', 'highlight', 'notifs'].every(k => { ZD.state.settingsTab = k; return !/Только чтение/.test(ZD.renderSettings()); });
+  const t = ZD.state.tasks.find(x => x.kind === 'rule' && x.ruleId && ZD.bucketOf(x, 'E1'));
+  ZD.state.viewer = 'E1'; const link = ZD.renderCard(t.id).includes(`ZD.showRule('${t.ruleId}')`);
+  ZD.showRule(t.ruleId);
+  const ro = ZD.ruleCard === t.ruleId && /Только чтение/.test(ZD.renderRulePanel(t.ruleId)) && !/ZD\.askRule\(/.test(ZD.renderRulePanel(t.ruleId)) && ZD.state.view === 'queue';
+  ZD.closeCard();
+  ZD.setViewer('E4');
+  const adminPanel = !/Только чтение/.test(ZD.renderRulePanel(t.ruleId)) && /ZD\.askRule\(/.test(ZD.renderRulePanel(t.ruleId));
+  ZD.state.view = 'queue'; ZD.state.qTab = 'work';
+  ok(511, direct && direct2 && stays && swap && swap2 && noRo && link && ro && adminPanel,
+    `ВЗЕ-220 — не администратору «Настройка» и «Журнал прогонов» прямым переходом ведут в «Мою работу»; сменился зритель на этих экранах — «Моя работа», а не прежняя вкладка; ` +
+    `на экранах настройки подписи «Только чтение» нет; правило из карточки ${t.id} — панель на чтение без кнопок, у администратора — с «Изменить»`);
+})();
+
+/* ВЗЕ-221 — ключ повода только в «Откуда задание и подробности» карточки и в раскрытом поводе журнала прогонов */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  const keys = [...new Set(ZD.state.povods.map(p => p.key))], bad = [];
+  const leak = (where, h) => { const t = plain(h), k = keys.find(x => t.includes(x)); if (k) bad.push(`${where}: ${k}`); };
+  let cards = 0, withKey = 0, inMore = 0;
+  ZD.state.tasks.forEach(t => {
+    const v = ZD.EMP.find(e => ZD.bucketOf(t, e.id));
+    if (!v) return;
+    ZD.state.viewer = v.id; cards++;
+    const h = ZD.renderCard(t.id), i = h.indexOf('data-fold="more"'), j = h.indexOf('data-fold="journal"'), more = h.slice(i, j);
+    leak(`${t.id}`, h.slice(0, i) + h.slice(j));
+    if (t.povodKey) { withKey++; if (plain(more).includes(t.povodKey)) inMore++; }
+  });
+  ZD.EMP.forEach(e => {
+    ZD.tabsOf(e.id).forEach(x => leak(`${e.id} ${x.id}`, viewAs(e.id, x.id)));
+    ZD.state.viewer = e.id; leak(`${e.id} уведомления`, ZD.renderNotifPage()); leak(`${e.id} колокольчик`, ZD.renderBell());
+  });
+  ZD.state.viewer = 'E4';
+  ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; leak(`настройка ${k}`, ZD.renderSettings()); });
+  ZD.state.rules.forEach(r => leak(`панель ${r.id}`, ZD.renderRulePanel(r.id)));
+  ZD.state.runsTab = 'poll'; leak('опрос', ZD.renderRuns());
+  ZD.state.runsTab = 'povods'; ZD.state.povSt = 'все'; ZD.state.povOpen = null;
+  leak('поводы', ZD.renderRuns());
+  const p = ZD.state.povods.find(x => x.kind === 'pk-overdue');
+  ZD.togglePovod(p.key);
+  const opened = ZD.renderRuns(), detail = (opened.match(/data-pov-detail[\s\S]*?<\/div><\/div>/) || [''])[0];
+  const inDetail = plain(detail).includes(p.key) && !keys.some(k => plain(opened.replace(detail, '')).includes(k));
+  ZD.togglePovod(p.key); ZD.state.qTab = 'work';
+  ok(512, bad.length === 0 && cards > 200 && withKey > 100 && inMore === withKey && inDetail,
+    `ВЗЕ-221 — ${cards} карточек на 02.11: ключ только в «Откуда задание и подробности» (${inMore} из ${withKey}); очередь, уведомления, колокольчик, настройка, панели правил, опрос и строки поводов — без ключа; раскрытый повод — с ключом` +
+    `${bad.length ? '; найдено: ' + bad.slice(0, 3).join(' / ') : ''}`);
+})();
+
+/* ВЗЕ-222 — карточку видят ещё: утверждающий продление, пока запрос ждёт решения; кто вправе назначить из неразобранной очереди;
+   руководитель, получивший «Просрочено задание», и действующий за него. Номера и числа стенда не меняются */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-09-02');
+  const nums = `${ZD.state.tasks.length}/${ZD.state.tasks.filter(t => !ZD.isTerminal(t)).length}/${ZD.state.notifications.length}`;
+  const t1 = ZD.taskOf('T1'), ov = ZD.overdueTaskOf(t1);
+  const chief = ov && ov.id === 'T80' && ov.assignee === 'E5' && !ZD.chiefChainIncludes('E1', 'E5') && ZD.isOverdueChief(t1, 'E5') && ZD.visibleTo(t1, 'E5') && ZD.bucketOf(t1, 'E5') === 'sub';
+  ZD.setViewer('E5'); ZD.openCard('T1');
+  const opens = ZD.cardId === 'T1', sub = ZD.queueTasks('sub').includes(t1);
+  ZD.closeCard();
+  ZD.extendByChief('T1', 'E5', '2026-09-08', 'исполнитель на выезде');
+  const gone = !ZD.overdueTaskOf(t1) && !ZD.visibleTo(t1, 'E5') && !ZD.bucketOf(t1, 'E5');
+  /* утверждающий продление со стороны (его называет повод — автор резолюции) видит задание, пока запрос ждёт решения */
+  ZD.goToDate('2026-10-01');
+  const f = ZD.createFreeTask({ label: 'проверка утверждающего', assignee: 'E1', author: 'E2', dueDate: '2026-10-20' });
+  ZD.take(f.id, 'E1'); ZD.requestExtension(f.id, 'E1', '2026-10-27', 'ждём выписку банка');
+  const out = ZD.EMP.find(e => !ZD.visibleTo(f, e.id) && !ZD.bucketOf(f, e.id));
+  f.approver = out.id;
+  const asks = ZD.visibleTo(f, out.id) && ZD.bucketOf(f, out.id) === 'decide';
+  ZD.decideExtension(f.id, out.id, true);
+  const after = !ZD.visibleTo(f, out.id) && !ZD.bucketOf(f, out.id);
+  /* назначающий из неразобранной очереди: задание видно, действие «Назначить» */
+  const d = ZD.state.today, q = ZD.state.tasks.find(t => !ZD.isTerminal(t) && ZD.inQueue(t) && ZD.queueAssigners(t, d).some(v => v !== t.author && !ZD.queueHolders(t).includes(v)));
+  const v = q && ZD.queueAssigners(q, d).find(x => x !== q.author && !ZD.queueHolders(q).includes(x));
+  const labels = q ? ZD.taskActions(q, v).btns.map(b => b.label) : [];
+  const assigner = !!q && ZD.visibleTo(q, v) && ZD.bucketOf(q, v) === 'unassigned' && labels.includes('Назначить');
+  ZD.setViewer('E4');
+  ok(513, nums === '49/45/65' && chief && opens && sub && gone && asks && after && assigner,
+    `ВЗЕ-222 — 02.09 (${nums}, как до волны): Садыков Р.И. за Токтогулова получил «Просрочено задание» T80 — открывает T1 (вкладка «Подчинённые»); продлил — задание о просрочке закрыто, T1 ему больше не видно; ` +
+    `утверждающий со стороны видит поручение, пока запрос ждёт решения («Ждут моего решения»), после решения — нет; ${q && q.id} видит назначающий ${v} (вкладка «Подчинённые», «Назначить»)`);
+})();
+
+/* ВЗЕ-223 — «Переназначить» у руководителя по просрочке вне цепочки: с новым сроком — как «Продлить срок», без него задание переходит просроченным */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-09-02');
+  const t1 = ZD.taskOf('T1'), labels = ZD.taskActions(t1, 'E5').btns.map(b => b.label);
+  ZD.setViewer('E5'); ZD.ask('reassign', 'T1');
+  const field = !!dlgField('due') && /Без нового срока задание перейдёт просроченным/.test(ZD.dialog.note);
+  ZD.dialogCancel();
+  ZD.reassignTask('T1', 'E3', 'E5', 'перераспределение нагрузки');
+  const plainMove = ZD.taskOf('T1').assignee === 'E3' && ZD.dueOf(ZD.taskOf('T1')) === '2026-08-25' && ZD.isOverdue(ZD.taskOf('T1'), '2026-09-02') && !!ZD.overdueTaskOf(ZD.taskOf('T1'));
+  ZD.goToDate('2026-09-02');
+  ZD.reassignTask('T1', 'E3', 'E5', 'перераспределение нагрузки', '2026-09-08');
+  const t = ZD.taskOf('T1'), ext = t.journal.find(e => e.ev === 'продление утверждено');
+  const withDue = t.assignee === 'E3' && ZD.dueOf(t) === '2026-09-08' && !!ext && ext.без_запроса === true && !ZD.overdueTaskOf(t);
+  ZD.setViewer('E4');
+  ok(514, labels.includes('Переназначить') && labels.includes('Продлить срок') && field && plainMove && withDue,
+    `ВЗЕ-223 — у Садыкова Р.И. (за Токтогулова, вне цепочки исполнителя) в T1 кнопки «Продлить срок» и «Переназначить»; в окне поле «Новый срок»; без него T1 переходит просроченным, задание о просрочке открыто; с ним — продление без запроса, задание о просрочке закрыто`);
+})();
+
+/* ВЗЕ-224 — строка красная, пока ход за исполнителем: заявленное и ждущее приёмки после срока — не красное */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  const d = ZD.state.today, bad = [];
+  let red = 0, past = 0;
+  ZD.EMP.forEach(e => ['work', 'gave'].forEach(tab => {
+    if (!ZD.tabsOf(e.id).some(x => x.id === tab)) return;
+    for (const mm of viewAs(e.id, tab).matchAll(/<tr class="([^"]*)" data-t="([^"]+)"/g)) {
+      const t = ZD.taskOf(mm[2]), over = /\bover\b/.test(mm[1]), should = !ZD.isTerminal(t) && ZD.moveOnAssignee(t) && ZD.dueOf(t) < d;
+      if (over !== should) bad.push(`${e.id} ${t.id}`);
+      if (over) red++; else if (!ZD.isTerminal(t) && ZD.dueOf(t) < d) past++;
+    }
+  }));
+  ZD.state.viewer = 'E4'; ZD.state.qTab = 'work';
+  ok(515, bad.length === 0 && red > 0 && past > 0,
+    `ВЗЕ-224 — на 02.11 во вкладках «Моя работа» и «Я поручил» красных строк ${red}, все — ход за исполнителем; после срока, но заявленных или ждущих приёмки ${past} — не красные${bad.length ? '; расходится: ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* ВЗЕ-225 — «Источники»: источник · как опрашивается · состояние; колонки «Выпуск» нет, неподключённый — «не подключён» в состоянии */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  ZD.state.viewer = 'E4'; ZD.state.runsTab = 'poll'; ZD.state.runOpen = null;
+  const table = h => (h.match(/data-sources[\s\S]*?<\/table>/) || [''])[0];
+  const h = ZD.renderRuns(), tbl = table(h);
+  const head = [...tbl.matchAll(/<th>([^<]*)<\/th>/g)].map(x => x[1]).join(' · ');
+  const rows = [...tbl.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].slice(1).map(x => (x[1].match(/<td>/g) || []).length);
+  const cols = head === 'Источник · Как опрашивается · Состояние' && (tbl.match(/<col[ >]/g) || []).length === 3 && rows.length === ZD.SOURCES.length && rows.every(n => n === 3);
+  const r = ZD.state.pollRuns[ZD.state.pollRuns.length - 1];
+  ZD.toggleRun(r.id); const runOpen = plain(ZD.renderRuns()); ZD.toggleRun(r.id);
+  ZD.state.runsTab = 'povods'; ZD.state.povSt = 'все'; const pov = plain(ZD.renderRuns());
+  const noRelease = ![plain(h), runOpen, pov].some(x => /первый выпуск|по готовности|Выпуск\b/.test(x)) && !/\bпервый\b/.test(plain(tbl));
+  ZD.state.runsTab = 'poll';
+  ZD.setPollScope('механизм');
+  const st = plain(table(ZD.renderRuns()));
+  const off = ZD.SOURCES.filter(s => s.id !== 'self').every(s => st.includes(`${s.name} ${s.onSave ? 'по сохранению и ночью' : 'ночью'} не подключён`)) && /Задания \(самоопрос\) (по сохранению и ночью|ночью) отвечает/.test(st);
+  ZD.setPollScope('все');
+  ZD.toggleDown('gosresh', true);
+  const down = /не отвечает с \d\d\.\d\d\.\d{4}, ночей подряд: \d+/.test(plain(table(ZD.renderRuns())));
+  ZD.toggleDown('gosresh', false);
+  ok(516, cols && noRelease && off && down,
+    `ВЗЕ-225 — блок «Источники»: ${head}; колонки «Выпуск» и слов «первый выпуск», «по готовности» в журнале прогонов нет; круг «только механизм» — у ${ZD.SOURCES.length - 1} источников «не подключён»; недоступный — «не отвечает с …, ночей подряд: N»`);
 })();
 
 const pass = results.filter(r => r.pass).length;
