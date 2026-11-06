@@ -644,7 +644,7 @@ const ZM_STEPS = [
    act:'Запросить и получить полный пакет финансовых документов',
    where:'заёмщик: пакет финансовых документов, полностью полученный по запросу не раньше начала полосы риска (ответ модуля «Анализ»)'},
   {id:'pk-zm-fhs',         title:'Анализ финансово-хозяйственного состояния не проведён', traits:['категория','полоса_с','период','срок'], periodic:true,
-   named:'расписание анализа: конец полугодия + 45 дн.',
+   named:'расписание анализа: конец полугодия + отсрочка строки по типу лица и категории',
    act:'Провести анализ финансово-хозяйственного состояния',
    where:'анализ: плановое заключение за период задания ведёт и утверждает ведущий куратор заёмщика, в досье вручную не вносится'},
   {id:'pk-zm-recon-act',   title:'Акт сверки на 1 января не подписан', traits:['год','на_дату','акт'], dueN:0, periodic:true,
@@ -781,9 +781,11 @@ function seedPovodKinds(){ return [
     ['pk-im-pledge-term',         'Срок отчуждения предмета залога истекает',  'asset',      ['предмет_залога','срок_отчуждения','порог'],   'учётная стоимость объекта'],
   ].map(([id, title, objectType, traits, sumAttr, x])=>Object.assign({id, title, objectType, traits, sumAttr, sensitive:false,
     ownerDept:IM_SECTOR, createdAt:IM_INSTR, activatedAt:IM_INSTR, ownerExec:true}, x||{})),
-  // Анализ: обзор с выводом «требует решения» без поручений; закрытый период без обзора по всему портфелю
+  // Анализ: обзор с выводом «требует решения» без поручений — подсветка на обзоре в «Анализе»: модуль по ней отвечает отказом,
+  // число объектов задания не считают (hlAt — где она видна); закрытый период без обзора по всему портфелю
   {id:'pk-an-decision',  title:'Обзор требует решения, поручений нет', objectType:'review',   traits:['вывод','утверждён','кому_направлен'],
-   sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true},
+   sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true,
+   hlAt:{text:'видна на обзоре в модуле «Анализ»', page:'analysis/analysis.html'}},
   {id:'pk-an-no-review', title:'Обзора за период нет',                 objectType:'template', traits:['период','периодичность','закрыт'],
    sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true, periodic:true, periodAbsorb:'нет'},
   // Кредит: платёж по графику через 30 к.д. или ближе — сигнал куратору: одно уведомление, срока и ответа нет
@@ -1422,10 +1424,17 @@ function seedObligationsRecipients(mk){ return [
   mk('t-loans', REP_LOANS, 'sopr', 'Сопровождение', 'ноябрь 2026', '2026-12-01', '2026-12-10', 'rep-sopr', [], REP_KOM),
 ]; }
 const REP_LOANS = 'Сведения о выданных кредитах за месяц';
-/* обязательство на дату: сдано (в срок / с опозданием) окончательным выпуском, снято с расписания, иначе ожидается или просрочено;
-   «срок близко» — отметка отчётности по её настройке «напоминать за N к.д. до срока», значение на дату появления */
-function repSoonDays(d){ return thrOn('rp.soonDays', d); }
-const repSoonFrom = due=>thrFirst('rp.soonDays', v=>addDays(due, -v));
+/* обязательство на дату (ответ отчётности): сдано (в срок / с опозданием) окончательным выпуском, снято с расписания, иначе ожидается
+   или просрочено. «Срок близко» и день появления считает отчётность по своей настройке «напоминать за N к.д. до срока» — записи с датой
+   начала; день появления — первый день, когда до срока стало не больше N этого дня (soonFrom). У просроченного несданного день
+   появления отдаётся тоже: повод заданий один от «близко» до выпуска. Задания читают soon и soonFrom, числа N не держат */
+function repSoonFromOf(due){
+  const a = state.owner.rpRemind;
+  for(let i=0; i<a.length; i++){
+    const reach = addDays(due, -a[i].v), x = i && reach<a[i].from ? a[i].from : reach;
+    if(i===a.length-1 || x<a[i+1].from) return x;
+  }
+}
 function obligationAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const s = {id:o.id, form:o.form, dept:o.dept, deptName:o.deptName, period:o.period, due:o.due, role:o.role, rec:o.rec, recName:recName(o.rec),
@@ -1434,7 +1443,9 @@ function obligationAt(o, d){
     if(e.issue){ if(e.to!==o.rec) s.others.push(e); else if(!s.issued) s.issued=e; } // выпуск другому получателю срок не закрывает
     if(e.removed && !s.removed) s.removed=e; s.last=e; }
   s.state = s.removed ? 'снято' : s.issued ? (s.issued.t<=o.due ? 'сдано' : 'сдано с опозданием') : d>o.due ? 'просрочено' : 'ожидается';
-  s.soon = s.state==='ожидается' && repSoonFrom(o.due)<=d;
+  const from = s.state==='ожидается' || s.state==='просрочено' ? repSoonFromOf(o.due) : null;
+  s.soon = s.state==='ожидается' && from<=d;
+  s.soonFrom = s.soon || s.state==='просрочено' ? from : null;
   return s;
 }
 function repIssue(id, by, to){ // демо отчётности: окончательный выпуск; срок закрывает только выпуск объявленному получателю
@@ -1841,18 +1852,19 @@ function seedOwnerObjects(){ return {
     // пакет финансовых документов: запрос ЗП-…, получен полностью; неполное получение записью не становится
     {no:'ЗП-14', subj:'01105201910011', period:'2025 год', occasion:AN_PACK, approvedAt:'2026-02-25', by:'E3'},
   ],
-  /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона со ссылкой
-     на приказ, редакция на дату; пусто — периодичность не объявлена */
+  /* шаблоны обзора (ответ отчётности через анализ): ведомственная периодичность и срок обзора — поля шаблона, приказ — поле записи
+     (в ответе анализа — dueBasis), редакция на дату; пусто — периодичность не объявлена */
   ant: [
     {id:'ШО-04', title:'Портфель по областям и отраслям',
-     ev:[{t:'2026-01-12', cycle:{every:'квартал', dueWd:15}, by:'E27', how:'приказ № 118 от 12.01.2026: обзор ежеквартально, 15 р.д. после закрытия периода'}]},
+     ev:[{t:'2026-01-12', cycle:{every:'квартал', dueWd:15}, order:'приказ № 118 от 12.01.2026', by:'E27', how:'приказ № 118 от 12.01.2026: обзор ежеквартально, 15 р.д. после закрытия периода'}]},
     {id:'ШО-09', title:'Просроченная задолженность по подразделениям', ev:[]},
     {id:'ШО-12', title:'Портфель по областям — динамика',
-     ev:[{t:'2026-08-15', cycle:{every:'месяц', dueWd:null}, by:'E27', how:'приказ № 140 от 15.08.2026: обзор ежемесячно, срок не назван'},
-         {t:'2026-10-01', cycle:{every:null}, by:'E27', how:'приказ № 201 от 01.10.2026: ежемесячный обзор отменён'}]},
+     ev:[{t:'2026-08-15', cycle:{every:'месяц', dueWd:null}, order:'приказ № 140 от 15.08.2026', by:'E27', how:'приказ № 140 от 15.08.2026: обзор ежемесячно, срок не назван'},
+         {t:'2026-10-01', cycle:{every:null}, order:'приказ № 201 от 01.10.2026', by:'E27', how:'приказ № 201 от 01.10.2026: ежемесячный обзор отменён'}]},
   ],
 }; }
 const AN_DECISION = 'требует решения руководства';
+const AN_DUE_UNNAMED = 'приказом не назван, значение правила заданий';
 const Q1_26 = {from:'2026-01-01', to:'2026-03-31'}, Q2_26 = {from:'2026-04-01', to:'2026-06-30'}, Q3_26 = {from:'2026-07-01', to:'2026-09-30'};
 function AR(id, tpl, period, cuts, verdict, to, worklist, created, appr, replaces){ // обзор: черновик, затем утверждение
   const ev = [{t:created, by:'E26', how:`обзор ${id} заведён по шаблону ${tpl}`}];
@@ -2019,14 +2031,15 @@ function seedBorrowers(){ return [
     {t:'2026-10-18', cat:'high', by:null, how:'просрочка свыше 180 к.д.: высокий кредитный риск'}]),
   ZMB('12003198500051', 'ИП Садыкова Б.К.', '2025-09-01', 3400000, [
     {t:'2026-07-01', act:{year:'2026', stage:'на подписании'}, by:'E1', how:'акт сверки на 01.01.2026 направлен заёмщику на подпись'},
-    {t:'2026-08-10', act:{year:'2026', stage:'на подписании', agreement:'разногласия'}, by:'E1', how:'заёмщик не подписал акт на 01.01.2026: оспаривает пеню за май'}]),
+    {t:'2026-08-10', act:{year:'2026', stage:'на подписании', agreement:'разногласия'}, by:'E1', how:'заёмщик не подписал акт на 01.01.2026: оспаривает пеню за май'}],
+    'индивидуальный предприниматель'),
   ZMB('01509202110064', 'ОсОО «Бишкек-Сүт»', '2026-03-10', 9800000, []),
   ZMB('02204201810075', 'ОсОО «Токмок-Жылуу»', '2024-08-01', 1150000, [
     {t:'2025-05-12', act:{year:'2025', stage:'подписан'}, by:'E3', how:'акт сверки на 01.01.2025 подписан обеими сторонами'},
     {t:'2026-11-25', repaid:true, by:null, how:'все кредиты заёмщика погашены, акт сверки о полном погашении подписан'}]),
 ]; }
-function ZMB(id, name, born, debt, ev){ // заёмщик: первый кредит выдан — с этой даты действующий, низкий риск
-  return {type:'borrower', id, name, ev:[{t:born, debt, by:'E2', how:`первый кредит заёмщика выдан, суммарный остаток ${money(debt)}`}].concat(ev)};
+function ZMB(id, name, born, debt, ev, ptype){ // заёмщик: первый кредит выдан — с этой даты действующий, низкий риск; тип лица — из ответа заёмщика
+  return {type:'borrower', id, name, ptype:ptype||'организация', ev:[{t:born, debt, by:'E2', how:`первый кредит заёмщика выдан, суммарный остаток ${money(debt)}`}].concat(ev)};
 }
 /* заявка на реструктуризацию: регистрация обращения, пакет, визы заключений, вынос на комитет, позиция комитета, письмо,
    исход. Основной кредит называет реструктуризация (кредит заявки с наибольшим остатком основного долга на дату регистрации):
@@ -2123,7 +2136,7 @@ function templateAt(o, d){ // шаблон на дату: редакции пе�
   return {id:o.id, title:o.title, eds, status: cur && cur.every ? 'периодичность: '+cur.every : 'периодичность не объявлена',
     statusSince: eds.length ? eds[eds.length-1].t : null, last: eds.length ? eds[eds.length-1] : {t:d, how:'периодичность не объявлена'}};
 }
-function cycleOn(s, day){ const e = s.eds.filter(x=>x.t<=day).pop(); return e && e.cycle.every ? Object.assign({from:e.t, how:e.how}, e.cycle) : null; }
+function cycleOn(s, day){ const e = s.eds.filter(x=>x.t<=day).pop(); return e && e.cycle.every ? Object.assign({from:e.t, how:e.how, order:e.order}, e.cycle) : null; }
 function periodReview(tplId, per, d){ // утверждённый обзор по всему портфелю за период — первый по дате утверждения
   return state.owner.an.map(o=>reviewAt(o, d)).filter(r=>r && r.approved && r.tpl===tplId && r.period.from===per.from && r.period.to===per.to && wholePortfolio(r))
     .sort((a,b)=>a.approvedAt<b.approvedAt?-1:1)[0] || null;
@@ -2319,6 +2332,13 @@ const ZL_COMMITTEE_DAYS = 10;  // срок рассмотрения догово
 const ZL_BAN_WD = 5;           // запрет — в N р.д. от нотариального удостоверения
 const ZL_SURVEY = {            // интервал обследования, мес.: группа платёжеспособности × движимость; норма, у залога на чтение
   'Платёжеспособные':{immovable:36, movable:24}, 'Неплатёжеспособные':{immovable:24, movable:12}};
+/* ужесточение по категории риска кредита — слой поверх матрицы, только при согласовании зампреда; коэффициенты и нижний предел —
+   решение проекта, у залога на чтение до ответа по Положению. Категория — худшая по кредитам предмета, нет — низкая */
+const ZL_TIGHT = {k:{'Низкий':1, 'Средний':0.5, 'Высокий':0.25}, min:3, approved:true};
+function zlSurveyMonths(group, movable, risk){
+  const base = ZL_SURVEY[group][movable ? 'movable' : 'immovable'];
+  return ZL_TIGHT.approved ? Math.max(ZL_TIGHT.min, Math.round(base*(ZL_TIGHT.k[risk||'Низкий']||1))) : base;
+}
 function zlAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
@@ -2338,8 +2358,8 @@ function zlAt(o, d){
       if(e.restoreNotice) s.notice = e;
     });
     const k = state.owner.zl.find(x=>x.type==='credit' && x.id===o.credit);
-    s.group = k ? k.group : 'Платёжеспособные'; s.movable = o.kind!=='недвижимость';
-    s.surveyMonths = ZL_SURVEY[s.group][s.movable ? 'movable' : 'immovable'];
+    s.group = k ? k.group : 'Платёжеспособные'; s.movable = o.kind!=='недвижимость'; s.risk = (k && k.risk) || 'Низкий';
+    s.surveyMonths = zlSurveyMonths(s.group, s.movable, s.risk);
     s.nextSurvey = addMonths(s.lastSurvey || s.reg, s.surveyMonths);
     s.nextReval = addMonths(s.appr, o.revalMonths);
     s.apprTill = addMonths(s.appr, ZL_APPR_MONTHS);
@@ -2436,26 +2456,35 @@ function plDecisionAttrib(s, p, d){ // спорная пеня: решение �
   return {cancel:clear ? `${clear.how} — спорная пеня снимается без комиссии` : s.last.how};
 }
 /* заёмщик на дату: категория и полоса риска, суммарный остаток и годовые акты — из фактов заёмщика; пакет — из ответа анализа */
-/* строки расписания анализа: порог, период и отсрочку объявляет анализ, заёмщик читает; у высокого риска порога нет */
-const AN_FHS = {
-  mid:{limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
-  high:{limit:null, act:'Порядок №41 п. 6 пп. 5', grace:45},
-};
-const anFhsNeed = (cat, debt)=>{ const r = AN_FHS[cat]; return !!r && (r.limit===null || debt>r.limit); };
+/* строки расписания анализа (ответ анализа): пара «тип лица × категория риска» — порог и пункт нормы, отсрочка после конца полугодия
+   (решение проекта); у высокого риска порога нет, у низкого строки нет. Задания читают строку пары, своих чисел не держат */
+const AN_SCHEDULE = [
+  {ptype:'организация',                    cat:'mid',  limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
+  {ptype:'организация',                    cat:'high', limit:null,     act:'Порядок №41 п. 6 пп. 5',  grace:45},
+  {ptype:'индивидуальный предприниматель', cat:'mid',  limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
+  {ptype:'индивидуальный предприниматель', cat:'high', limit:null,     act:'Порядок №41 п. 6 пп. 5',  grace:45},
+  {ptype:'физическое лицо',                cat:'mid',  limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:45},
+  {ptype:'физическое лицо',                cat:'high', limit:null,     act:'Порядок №41 п. 6 пп. 5',  grace:45},
+  {ptype:'групповой заёмщик',              cat:'mid',  limit:50000000, act:'Порядок №41 п. 11 пп. 2', grace:60},
+  {ptype:'групповой заёмщик',              cat:'high', limit:null,     act:'Порядок №41 п. 6 пп. 5',  grace:60},
+];
+const anRow = (ptype, cat)=>AN_SCHEDULE.find(r=>r.ptype===ptype && r.cat===cat) || null;
+const anFhsNeed = (ptype, cat, debt)=>{ const r = anRow(ptype, cat); return !!r && (r.limit===null || debt>r.limit); };
 const ZM_ACT_DUE = '09-01';    // акт сверки на 1 января — до 1 сентября того же года
 const ZM_CAT = {low:'низкий риск', mid:'средний риск', high:'высокий риск'};
 const ZM_DOC = {пакет:'Пакет финансовых документов', анализ:'Анализ финансово-хозяйственного состояния'};
 function zmAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
-  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
+  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, ptype:o.ptype, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
     repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
   evs.forEach(e=>{
+    if(e.ptype) s.ptype = e.ptype; // тип лица — факт заёмщика с датой
     if(e.cat){ if(e.cat==='low') s.strip = null; else if(!s.strip) s.strip = e.t; s.cat = e.cat; s.catSince = e.t; } // средний → высокий — та же полоса
     if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ if(s.repaid.t!==e.t) s.activeSince = e.t; s.repaid = null; } } // новый кредит после погашения; в тот же день перерыва нет
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
-    const fhsNeed = !!s.strip && anFhsNeed(s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
+    const fhsNeed = !!s.strip && anFhsNeed(s.ptype, s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
     s.fhsSince = fhsNeed ? s.fhsSince || e.t : null;
   });
   // пакет приходит ответом анализа и считается по своей дате; пакет прежней полосы не в счёт
@@ -2493,7 +2522,8 @@ function zmFhsOpen(s, d){
     if(p.to<s.activeSince) continue; // период закончился раньше начала нового кредита после полного погашения: не считается
     const x = zmAt(o, p.to), name = anPeriodName(p.from);
     if(!x || !x.fhsSince || docs.some(e=>e.period===name)) continue;
-    out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:addDays(p.to, 1), due:addDays(p.to, AN_FHS[x.cat].grace), cat:x.cat, strip:x.strip, debt:x.debt}, p));
+    const row = anRow(x.ptype, x.cat); // строка пары на конец периода: тип лица и категория — на ту же дату
+    out.push(Object.assign({key:`${p.from}..${p.to}`, name, since:addDays(p.to, 1), due:addDays(p.to, row.grace), grace:row.grace, ptype:x.ptype, cat:x.cat, strip:x.strip, debt:x.debt}, p));
   }
   return out;
 }
@@ -2655,8 +2685,8 @@ function docExecDone(s){ // исполнение и отправка закон�
 function resKey(r, who){ return `doc-execute|resolution:${r.id}·исполнитель:${who}|`; }
 /* порог появления — записи модуля-владельца: значение с датой начала и основанием. Откуда число задаёт запись: act — норма (акт и пункт),
    order — настоящий внутренний акт, иначе решение проекта. Первая запись действует и для более ранних дат.
-   Задания читают; thrNew — демо модуля: прошлая дата и пустое основание отбиты, норма и модуль без экрана настроек — только выпуском */
-const THR_SCREEN = {rp:true}; // из модулей с записями экран настроек есть только у отчётности
+   Задания читают; thrNew — демо модуля: прошлая дата и пустое основание отбиты; у этих модулей экрана настроек нет — число меняется выпуском.
+   У модулей с экраном (отчётность, имущество, залог, анализ) записей здесь нет: повод и день появления приходят в их ответе */
 function thrVals(path){ const [m, f] = path.split('.'); return state.neighborSet[m][f]; }
 function thrRecOn(path, d){ return thrVals(path).reduce((cur, r)=>r.from<=d ? r : cur); }
 function thrOn(path, d){ return thrRecOn(path, d||state.today).v; }
@@ -2670,10 +2700,10 @@ function thrFirst(path, reach){
   }
 }
 function thrNew(path, x, release){
-  const cur = thrRecOn(path, state.today), a = thrVals(path);
+  const a = thrVals(path);
   if(!(x.basis||'').trim()) throw new Error('основание обязательно');
   if(!x.from || x.from<state.today) throw new Error('дата начала не раньше сегодняшней');
-  if(!release && (x.act || cur.act || !THR_SCREEN[path.split('.')[0]])) throw new Error('это число меняется выпуском');
+  if(!release) throw new Error('это число меняется выпуском'); // у модулей, чьи записи здесь лежат, экрана настроек нет
   a.push({from:x.from, v:x.v, basis:x.basis.trim(), act:x.act||null, order:x.order||null});
   a.sort((p, q)=>p.from<q.from ? -1 : p.from>q.from ? 1 : 0);
   return a;
@@ -2876,29 +2906,20 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     since:s=>addDays(s.pledge.end, -IM_SET.pledgeDays),
     traits:s=>({предмет_залога:s.pledge.of, срок_отчуждения:s.pledge.end, порог:IM_SRC.pledge}),
     done:e=>!!e.sold || !!e.sale || !!e.removed}),
-  // Анализ: повод гасит первое поручение по обзору (шов «задания по основанию») или утверждённый обзор по всему портфелю
-  'pk-an-decision': {src:'an', objectType:'review',
-    when:(s,d)=>s.approved && !s.replacedBy && s.verdict===AN_DECISION && tasksByBasis(s.id, d).length===0,
-    since:s=>s.approvedAt, unit:s=>s.to,
-    traits:s=>({шаблон:s.tpl, период:perText(s.period), вывод:s.verdict, утверждён:s.approvedAt, кому_направлен:s.to}),
-    attrib:(s,p,d)=>{
-      if(s.replacedBy) return {cancel:`обзор заменён ${s.replacedBy}`};
-      if(!s.approved) return {cancel:s.last.how};
-      const f = tasksByBasis(s.id, d)[0];
-      return f ? {by:f.author, how:`поручено ${f.task}: «${f.label}»`} : {cancel:s.last.how}; }},
   // Отчётность: обязательство не закрыто выпуском — от «срок близко» (отметка отчётности) до окончательного выпуска
   'pk-rep-obligation-due': {src:'rp', objectType:'obligation',
     when:s=>s.soon || s.state==='просрочено',
-    since:s=>repSoonFrom(s.due), // один повод от «близко» до выпуска: в день срока состояние не начинается заново
+    since:s=>s.soonFrom, // день появления из ответа отчётности; один повод от «близко» до выпуска: в день срока состояние не начинается заново
     each:s=>[{role:s.role, due:s.due}],
     traits:(s,d)=>({форма:s.form, подразделение:s.deptName, получатель:s.recName, период:s.period, срок:s.due,
       состояние:s.state==='просрочено' ? 'просрочено' : 'срок близко'}),
     done:(e,p)=>!!e.issue && e.to===ownerObj('rp', p.ownerId||p.objectId).rec, cancel:s=>s.removed ? s.removed.how : null},
   'pk-an-no-review': {src:'ant', objectType:'template', when:()=>true,
-    each:(s,d)=>anMissing(s, d).map(x=>({period:`${x.from}..${x.to}`, sub:`${x.from}..${x.to}`, since:x.closed, dueN:x.c.dueWd||null, x})),
+    // срок и приказ — из записи шаблона на конец периода, как в ответе анализа (dueWd, dueBasis)
+    each:(s,d)=>anMissing(s, d).map(x=>({period:`${x.from}..${x.to}`, sub:`${x.from}..${x.to}`, since:x.closed, dueN:x.c.dueWd||null, dueBasis:x.c.order||null, x})),
     since:(s,d,x)=>x.since,
-    traits:(s,d,x)=>({период:perText(x.x), периодичность:`${x.x.c.every} — ${x.x.c.how.split(':')[0]}`, закрыт:x.x.closed,
-      срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода` : 'не назван'}),
+    traits:(s,d,x)=>({период:perText(x.x), периодичность:`${x.x.c.every} — ${x.x.c.order}`, закрыт:x.x.closed,
+      срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода · ${x.x.c.order}` : AN_DUE_UNNAMED}),
     attrib:(s,p,d)=>{ const [from, to] = p.sub.split('..'), r = periodReview(s.id, {from, to}, d);
       return r ? {by:r.approvedBy, how:`обзор ${r.id} по всему портфелю за ${perText(r.period)} утверждён`} : {cancel:s.last.how}; }},
   // Кредит: ключ «вид · кредит · дата платежа»; сигнал куратору при появлении, отпадает с внесением или датой платежа
@@ -3599,13 +3620,13 @@ function seedState(){
     signals: {'pk-cr-payment-due':{recipients:[{by:'кураторство', role:'куратор кредита'}],
       text:'Срок платежа по графику близко: предупредите заёмщика', channels:['всплывающее'], history:[]}},
     sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false, collection:false, collateral:false, payments:false, borrower:false, restructuring:false, classification:false}, // недоступность на источник, не глобально
-    owner: seedImInstr(Object.assign(seedOwnerObjects(), {rp: seedObligations()})), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
+    owner: seedImInstr(Object.assign(seedOwnerObjects(), {rp: seedObligations(), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
+      rpRemind: [{from:'2026-05-01', v:7, basis:'начальное значение'}]})), // настройка отчётности «напоминать за N к.д.»: записи у неё, задания их не читают
     statCleared: false, // демо: сосед статистики снова отвечает
     standThr: false,    // демо: заявки подняли порог «застряла» с даты среза
     neighborSet: { // пороги модулей (демо): значения с датой начала, задания только читают
       lp:{expiringDays:[{from:'2026-09-01', v:30, basis:'подключение модуля «Кредитные программы»'}]},
       ap:{stuckWd:[{from:'2026-09-01', v:10, basis:'подключение модуля «Заявки»'}]},
-      rp:{soonDays:[{from:'2026-09-01', v:7, basis:'подключение модуля «Отчётность»'}]},
       pl:{awaitWd:[{from:'2026-09-01', v:3, basis:'подключение модуля «Платежи»'}]},
       cr:{noticeDays:[{from:'2026-07-06', v:30, act:'Порядок №41 п. 15 пп. 1', basis:'Порядок №41 от 06.07.2026'}]},
     },
@@ -4160,7 +4181,7 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
         out.set(`${kindId}|${cfg.objectType}:${obj}${x.key ? '·'+x.key : ''}|${x.period||''}`, {kind:kindId, objectType:cfg.objectType, objectId:obj, ownerId:o.id,
           sub:x.sub||null, named:x.named!==undefined ? x.named : cfg.named ? cfg.named(s, asOf) : (s.author||null), namedRole:x.role && roleOf(x.role) ? x.role : null,
           curObj:typeof cfg.cur==='function' ? cfg.cur(s) : cfg.cur ? o.id : null, due:x.due || (cfg.due ? cfg.due(s) : null), mark:x.mark||null, escWho:cfg.escWho ? cfg.escWho(s) : null,
-          approver:x.approver||null, unit:cfg.unit ? cfg.unit(s, asOf, x) : null, dueN:x.dueN||null,
+          approver:x.approver||null, unit:cfg.unit ? cfg.unit(s, asOf, x) : null, dueN:x.dueN||null, dueBasis:x.dueBasis||null,
           stateDate, approx:false, traits:Object.assign(s.status||s.stage ? {статус:s.status||s.stage} : {}, 'author' in s ? {автор:s.author ? emp(s.author).name : 'нет'} : {}, cfg.traits ? cfg.traits(s, asOf, x) : {})});
       });
     });
@@ -4201,7 +4222,7 @@ function silenceOf(srcId, asOf){
 
 /* ---------- 7. сверка множества: полная, идемпотентная ---------- */
 /* что повод несёт от шва кроме признаков: объект кураторства, названный адресат или роль, срок владельца, пометка */
-const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN'];
+const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN','dueBasis'];
 function seamCopy(p, e){ SEAM_FIELDS.forEach(f=>{ p[f] = e[f]!==undefined ? e[f] : null; }); return p; }
 function reconcileKind(kindId, asOf){
   const expected = computeExpectedForKind(kindId, asOf);
@@ -4360,7 +4381,8 @@ function issueRuleTask(rule, povod){ // rule — действующая реда
     addr, repeatOf: prior.length ? prior[prior.length-1].id : null, repeatCount: prior.length,
     queue: addr.via==='очередь' ? {role:addr.queueRole, exclude:addr.exclude} : null, mark:povod.mark, esc:povod.esc, approver:povod.approver,
     notifyAs: rule.kind==='pk-overdue' ? 'эскалация' : 'поручено'});
-  Object.assign(t, {snap:snapOf(rule), authorPost:rule.author, authorVia:au.via});
+  Object.assign(t, {snap:snapOf(rule), authorPost:rule.author, authorVia:au.via,
+    dueOwn: rule.ownDue ? {n:povod.dueN||null, basis:povod.dueBasis||null} : null}); // срок, названный в ответе соседа, и его основание — на момент выдачи
   startWithoutTake(t);
   return t;
 }
@@ -4520,10 +4542,15 @@ function editSignal(kindId, changes, o){
   c.history.push({t:state.today, by:o.by, basis:o.basis, was});
   return c;
 }
-/* выпуск: вид подсветки становится сигналом или заданием, когда появилось основание; в работающей системе такой кнопки нет */
+/* выпуск: вид подсветки становится сигналом или заданием, когда появилось основание; в работающей системе такой кнопки нет.
+   Вид, по которому модуль-владелец отвечает отказом, возвращается только вместе с его ответом */
+function hlReleaseGate(k){
+  if(k.hlAt) throw new Error(`вид вернётся вместе с ответом модуля «${ownerOfKind(k.id)}»: сейчас модуль по нему отвечает отказом`);
+}
 function releaseSignal(kindId, no, cfg){
   const k = kindOf(kindId);
   if(k.genus!=='подсветка') throw new Error('сигналом выпуск делает вид подсветки');
+  hlReleaseGate(k);
   k.genus = 'сигнал'; k.activatedAt = state.today;
   state.signals[kindId] = Object.assign({recipients:[], text:k.title, channels:['всплывающее'], history:[]}, cfg);
   k.switches.push({t:state.today, ev:'введён в действие', by:'выпуск '+no, basis:'выпуск '+no});
@@ -4532,6 +4559,7 @@ function releaseSignal(kindId, no, cfg){
 function releaseTaskKind(kindId, no, x){
   const k = kindOf(kindId);
   if(k.genus!=='подсветка') throw new Error('заданием выпуск делает вид подсветки');
+  hlReleaseGate(k);
   k.genus = 'надзор'; k.activatedAt = state.today; k.basis = x.basis || k.basis;
   state.actions.push(Object.assign({id:'act-'+kindId, importance:'средняя', needsProof:false}, x.action));
   const r = Object.assign({id:'rule-'+kindId, kind:kindId, action:'act-'+kindId, dueUnit:'workday', dueSource:PROJECT_SRC,
@@ -4542,9 +4570,10 @@ function releaseTaskKind(kindId, no, x){
   applyEditions(state.today);
   return k;
 }
-/* подсветка на дату: опрос её не трогает, показ читает ответ соседа */
+/* подсветка на дату: опрос её не трогает, показ читает ответ соседа; модуль по виду отвечает отказом — числа нет, только где она видна */
 function highlightsOn(d){
   return state.povodKinds.filter(k=>k.genus==='подсветка').map(k=>{
+    if(k.hlAt) return {kind:k.id, title:k.title, owner:ownerOfKind(k.id), count:null, rows:[], at:k.hlAt};
     const rows = Array.from(computeExpectedForKind(k.id, d).entries()).map(([key, e])=>Object.assign({key}, e));
     return {kind:k.id, title:k.title, owner:ownerOfKind(k.id), count:rows.length, rows};
   });
@@ -5765,6 +5794,11 @@ function dueText(r, short){
   return `${r.dueN} ${unit}`+(r.dueBase==='состояние' ? ' от даты состояния' : r.dueUnit==='workday' ? ' от выдачи' : '')+
     (r.ownDue ? `; если назван — ${r.ownDue}` : '')+(r.dueSource && !short ? ` · источник: ${r.dueSource}` : '');
 }
+/* собственный срок повода: назвал сосед — число и его основание; не назвал — значение правила */
+function ownDueText(r, o){
+  return o.n ? `${o.n} ${dueUnitWord(r)} от даты состояния, назван приказом к шаблону · ${thrSrcText({order:o.basis})}`
+    : `${r.dueN} ${dueUnitWord(r)} от даты состояния, ${AN_DUE_UNNAMED}`+(r.dueSource ? ` · ${r.dueSource}` : '');
+}
 function renderOrigin(t, povod){
   const rule = ruleAsIssued(t), e = ruleById(t.ruleId).editions.find(x=>x.n===t.ruleEdition), k = kindOf(t.originKind);
   const traits = traitsText(povod ? povod.traits : null);
@@ -5777,7 +5811,7 @@ function renderOrigin(t, povod){
       <div class="k">Правило</div><div class="v">редакция ${t.ruleEdition}${e ? ` с ${fmt(e.from)} · основание: ${esc(e.basis)} · правка: ${esc(emp(e.by)?.name||e.by)}` : ''}
         ${t.ruleEdition!==ruleById(t.ruleId).edN ? `<div class="small">сейчас действует редакция ${ruleById(t.ruleId).edN} — на выданное не влияет</div>` : ''}</div>
       <div class="k">Поручил</div><div class="v">${by}</div>
-      <div class="k">Откуда срок</div><div class="v">${esc(dueText(rule))}</div>
+      <div class="k">Откуда срок</div><div class="v">${esc(t.dueOwn ? ownDueText(rule, t.dueOwn) : dueText(rule))}</div>
       <div class="k"></div><div class="v"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило</button></div>
     </div>`;
 }
@@ -6183,8 +6217,8 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   const rows = [];
   if(OWNER_CFG['pk-zm-fin-package'].when(s, d)) rows.push(`<tr><td>${esc(ZM_DOC.пакет)}<div class="small">полоса риска с ${fmt(s.strip)}</div></td>
     <td class="small">срок — правило заданий</td><td class="small">полный пакет по запросу получает и отмечает модуль «Анализ»</td></tr>`);
-  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : 'средний риск, остаток больше 50 млн'}</div></td>
-    <td class="small">до ${fmt(x.due)} — расписание анализа</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
+  zmFhsOpen(s, d).forEach(x=>rows.push(`<tr><td>${esc(ZM_DOC.анализ)} за ${esc(perText(x))}<div class="small">на ${fmt(x.to)}: ${x.cat==='high' ? 'высокий риск' : `средний риск, остаток больше ${anRow(x.ptype, x.cat).limit/1000000} млн`}</div></td>
+    <td class="small">до ${fmt(x.due)} — расписание анализа: ${esc(x.ptype)}, ${x.grace} дн. после конца полугодия</td><td class="small">плановое заключение за ${esc(x.name)}: ведётся и утверждается в модуле «Анализ»</td></tr>`));
   analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.анализ || (s.strip && x.date>=s.strip)).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
@@ -6290,6 +6324,7 @@ const OWNER_SET = {
 const ownerSetOf = k=>{ if(k.id==='pk-zm-fhs') return OWNER_SET.analysis; const s = sourceOfKind(k.id); return s ? OWNER_SET[s.id]||null : null; };
 /* порог: значение и откуда число; значение держит модуль-владелец, здесь только показ; у своих видов — порог механизма */
 const thrT = (text, act)=>({text, act:act||null});
+const thrO = (text, how)=>({text, owner:true, how:how||null}); // числа у заданий нет: оно у модуля-владельца, откуда оно — показывает он
 const thrR = (path, text)=>{ const r = thrRecOn(path, state.today); return {text:text(r.v), act:r.act, order:r.order, path, val:text}; };
 const thrI = key=>{ const [text, act] = IM_SRC[key].split(' · '); return thrT(text, act===PROJECT_SRC ? null : act); };
 const vzAct = n=>{ const p = VZ_TPL[n].point; return p==='срок проекта' ? null : p.indexOf('п. ')===0 ? 'Порядок №41 '+p : p; };
@@ -6301,18 +6336,19 @@ const KIND_THRESHOLD = Object.assign({
   'pk-neighbor-silent':()=>thrT(`${SILENT_NIGHTS} ночи подряд`),
   'ap-stuck-new':()=>thrR('ap.stuckWd', v=>`${v} р.д. без событий`),
   'lp-expiring':()=>thrR('lp.expiringDays', v=>`за ${v} к.д. до «Даты по»`),
-  'pk-rep-obligation-due':()=>thrR('rp.soonDays', v=>`за ${v} к.д. до срока сдачи`),
+  'pk-rep-obligation-due':()=>thrO('за N к.д. до срока сдачи'),
   'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
   'pk-cr-payment-due':()=>thrR('cr.noticeDays', v=>`за ${v} к.д. до платежа`),
-  'pk-zl-survey-overdue':()=>thrT(`${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
+  'pk-zl-survey-overdue':()=>Object.assign(thrT(`${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
+    {more:{text:`при согласовании зампреда короче по категории риска кредита: ${Object.values(ZL_TIGHT.k).map(v=>'×'+String(v).replace('.', ',')).join(' / ')}, не меньше ${ZL_TIGHT.min} мес.`, src:PROJECT_SRC}}),
   'pk-zl-coverage':()=>thrT('120 %, движимое неликвидное 150 %', `${ZL_NORM}, Прил. 1 §2.3–2.4`),
   'pk-zl-reval-overdue':()=>thrT('интервал переоценки предмета'),
   'pk-zl-appraisal-stale':()=>thrT(`${ZL_APPR_MONTHS} мес. от даты отчёта`),
   'pk-zl-surety-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
   'pk-zl-ban-missing':()=>thrT(`срок ${ZL_BAN_WD} р.д. от удостоверения договора`),
   'pk-zl-committee':()=>thrT(`срок комитета ${ZL_COMMITTEE_DAYS} дн.`),
-  'pk-an-no-review':()=>thrT('срок обзора называет шаблон анализа'),
-  'pk-zm-fhs':()=>thrT(`на следующий день после конца полугодия, если на его конец средний риск и долг больше ${AN_FHS.mid.limit/1000000} млн сом или высокий риск`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
+  'pk-an-no-review':()=>thrO('срок обзора называет приказ к шаблону, не назван — значение правила', 'срок вносит в шаблон анализ по приказу: новый приказ — новая запись с датой'),
+  'pk-zm-fhs':()=>thrT(`на следующий день после конца полугодия, если на его конец средний риск и долг больше ${anRow('организация', 'mid').limit/1000000} млн сом или высокий риск`, 'Порядок №41 п. 11 пп. 2, п. 6 пп. 5'),
   'pk-im-act-pending':()=>thrT(`больше ${IM_SET.act} к.д. без акта`),
   'pk-im-registration-pending':()=>thrT(`больше ${IM_SET.reg} к.д.`),
   'pk-im-topup-pending':()=>thrT(`больше ${IM_SET.topup} к.д.`),
@@ -6333,9 +6369,9 @@ const KIND_THRESHOLD = Object.assign({
 }, Object.fromEntries(VZ_STEPS.map(([kind, n])=>[kind, ()=>thrT(`${VZ_TPL[n].gap ? `через ${VZ_TPL[n].gap} дн. после: ` : 'после: '}${VZ_TPL[n].base}`, vzAct(n))])));
 function appearOf(k){
   const f = KIND_THRESHOLD[k.id], x = f ? f() : null;
-  if(!x) return {text:k.title, thr:null, src:null, norm:false, set:null, vals:[]};
+  if(!x) return {text:k.title, thr:null, src:null, norm:false, set:null, vals:[], more:null, how:null};
   const vals = x.path ? thrVals(x.path).map(r=>`${x.val(r.v)}, с ${fmt(r.from)}: ${r.basis}`) : [];
-  return {text:k.title, thr:x.text, src:thrSrcText(x), norm:!!x.act, set:ownerSetOf(k), vals};
+  return {text:k.title, thr:x.text, src:x.owner ? `значение в модуле «${ownerOfKind(k.id)}»` : thrSrcText(x), norm:!!x.act, set:ownerSetOf(k), vals, more:x.more||null, how:x.how||null};
 }
 /* состояние на дату: вид приходит не введённым, снятый — выключен рубильником, выведенный — выпуском */
 const RULE_STATES = [['в действии','В действии'],['не введён','Не введены'],['выведен','Выведенные'],['снят','Снятые'],['все','Все']];
@@ -6357,18 +6393,18 @@ function ruleRows(){
 function ruleHit(x, q){
   if(!q) return true;
   const ap = appearOf(x.k);
-  return [x.a.label, x.k.title, x.mod, ruleAddr(x.r), dueShort(x.r), ap.thr||'', ap.src||''].join(' ').toLowerCase().indexOf(q)!==-1;
+  return [x.a.label, x.k.title, x.mod, ruleAddr(x.r), dueShort(x.r), ap.thr||'', ap.src||'', ap.more ? ap.more.text : ''].join(' ').toLowerCase().indexOf(q)!==-1;
 }
 function rulesShown(rows){
   const q = state.ruleQ.trim().toLowerCase();
   return (rows||ruleRows()).filter(x=>(!state.ruleMod || x.mod===state.ruleMod) && (state.ruleSt==='все' || x.st===state.ruleSt) && ruleHit(x, q));
 }
 const thrLink = (set, label)=>`<a class="q-case" href="../${set.page}" target="_blank" title="Настройка модуля «${esc(set.name)}», откроется в новой вкладке" onclick="event.stopPropagation()">${esc(label)}</a>`;
-function thrHtml(ap){ return `${ap.set ? thrLink(ap.set, ap.thr) : `<span class="small">${esc(ap.thr)}</span>`} <span class="small">· ${esc(ap.src)}</span>`; }
+function thrHtml(ap){ return `${ap.set ? thrLink(ap.set, ap.thr) : `<span class="small">${esc(ap.thr)}</span>`} <span class="small">· ${esc(ap.src)}${ap.more ? `; ${esc(ap.more.text)} · ${esc(ap.more.src)}` : ''}</span>`; }
 /* как меняется порог: на экране модуля, на чтение или выпуском */
 function thrHow(ap){
   const link = ap.set ? thrLink(ap.set, `Настройка модуля «${ap.set.name}»`)+' · ' : '';
-  return ap.norm ? `${link}на чтение, новая редакция акта приходит выпуском`
+  return ap.how ? link+esc(ap.how) : ap.norm ? `${link}на чтение, новая редакция акта приходит выпуском`
     : ap.set ? `${link}правит ${esc(ap.set.who)}: новое значение с датой начала и основанием` : 'выпуском';
 }
 function ruleSince(k, st){
@@ -6384,7 +6420,7 @@ function ruleRow(x){
     <td>${esc(x.mod)}</td>
     <td title="${tip(ruleAddr(r))}">${esc(ruleAddr(r))}</td>
     <td title="${tip(dueText(r, true))}">${esc(dueShort(r))}</td>
-    <td${ap.thr ? ' class="thr-cell"' : ''} title="${tip(k.title+(ap.thr ? ` · ${ap.thr} · ${ap.src}` : ''))}">${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td>
+    <td${ap.thr ? ' class="thr-cell"' : ''} title="${tip(k.title+(ap.thr ? ` · ${ap.thr} · ${ap.src}${ap.more ? `; ${ap.more.text} · ${ap.more.src}` : ''}` : ''))}">${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td>
     <td>${ruleSince(k, st)}</td>
     <td>${r.edN}${pend ? ` <span class="pill warn" title="Ждёт редакция ${pend.n} с ${fmt(pend.from)}">ждёт ${pend.n}</span>` : ''}</td>
   </tr>`;
@@ -6514,7 +6550,8 @@ function askKindOn(id){
 }
 /* подсветка — только чтение: заданием или сигналом становится выпуском */
 function renderHighlightTab(){
-  const hl = highlightsOn(state.today), total = hl.reduce((a, x)=>a+x.count, 0), lit = hl.filter(x=>x.count).length;
+  const hl = highlightsOn(state.today), total = hl.reduce((a, x)=>a+(x.count||0), 0), lit = hl.filter(x=>x.count).length;
+  const counted = hl.filter(x=>x.count!==null).length, away = hl.length-counted;
   const rows = hl.map(x=>{
     const k = kindOf(x.kind), open = state.hlOpen===x.kind, ap = appearOf(k);
     const items = open ? x.rows.map(r=>`<tr class="grp-item" data-hl-obj="${esc(r.key)}"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)}${Object.keys(r.traits||{}).length ? ' · '+esc(traitsText(r.traits)) : ''}</td>
@@ -6522,9 +6559,10 @@ function renderHighlightTab(){
     return `<tr data-hl="${k.id}"${x.count ? ` onclick="ZD.toggleHl('${k.id}')"` : ''}>
       <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
       <td>${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}</td>
-      <td>${x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
+      <td>${x.count===null ? `<a class="q-case small" href="../${x.at.page}" target="_blank" title="Откроется в новой вкладке">${esc(x.at.text)}</a>`
+        : x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
   }).join('');
-  return `<div class="small" style="margin-bottom:8px">Подсветка видна на объекте в его модуле. Заданий, просрочек и строк статистики не даёт; опрос её не трогает. Вид становится заданием или сигналом только выпуском. На ${fmt(state.today)} подсвечено объектов: ${total}, видов с объектами: ${lit} из ${hl.length}.</div>
+  return `<div class="small" style="margin-bottom:8px">Подсветка видна на объекте в его модуле. Заданий, просрочек и строк статистики не даёт; опрос её не трогает. Вид становится заданием или сигналом только выпуском. На ${fmt(state.today)} подсвечено объектов: ${total}, видов с объектами: ${lit} из ${counted}${away ? `; видов без числа: ${away} — подсветка видна только в своём модуле` : ''}.</div>
     <table class="cgrid" data-highlight><thead><tr><th>Вид</th><th>Владелец</th><th>Основание</th><th>Объектов на дату</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function renderSettings(){
@@ -6836,7 +6874,7 @@ return {
   kindOf, actionOf, ruleForKind, povodByKey, taskOf,
   visibleTo, subordinatesOf, chiefOf, chiefChainIncludes,
   resolveAddressee, curatorOn, actingFor, responsibleNow, dueOf, extensionsOf, approverOf, pendingExtension,
-  checkRegistry, taskRows, myTile, isMine, isOverdue, assigneeOn, obligationAt, repIssue, retireKinds, dueText, activeOn,
+  checkRegistry, taskRows, myTile, isMine, isOverdue, assigneeOn, obligationAt, repSoonFromOf, repIssue, retireKinds, dueText, activeOn,
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
@@ -6862,9 +6900,9 @@ return {
   apStep:savedAt('apps', apStep), programAccepts, addMonths,
   docStep:savedAt('docs', docStep), docSignBatch:savedDocSignBatch, stepByKey, signerOn, DOC_KINDS,
   imStep, IM_KINDS, IM_INSTR, IM_SECTOR, curationOn,
-  zlStep, zlAt, ZL_SURVEY, ZL_KINDS,
+  zlStep, zlAt, ZL_SURVEY, ZL_TIGHT, zlSurveyMonths, ZL_KINDS,
   plStep, plAt, plNotices, PL_KINDS, deptHead,
-  zmStep, zmAt, zmFhsOpen, analysisDocs, AN_FHS, ZM_KINDS,
+  zmStep, zmAt, zmFhsOpen, analysisDocs, AN_SCHEDULE, anRow, ZM_KINDS,
   rsStep, rsAt, RS_KINDS, RS_NORM,
   clStep, clAt, CL_KINDS,
   tasksByBasis, reviewTaskDraft, anStep, AN_KINDS,
