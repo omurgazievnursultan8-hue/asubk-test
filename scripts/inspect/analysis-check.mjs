@@ -3035,7 +3035,10 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.seed();
   const zdSrc = readFileSync(resolve(__dir, '../../mockups/zadaniya/zadaniya.html'), 'utf8');
   const brSrc = readFileSync(resolve(__dir, '../../mockups/borrower/borrower.html'), 'utf8');
-  const zdFhs = /AN_FHS[^\n]*\n?[^\n]*mid:\s*\{\s*limit:\s*50000000[^}]*п\. 11 пп\. 2[^}]*grace:\s*45[^}]*\}[\s\S]{0,120}high:\s*\{\s*limit:\s*null[^}]*п\. 6 пп\. 5[^}]*grace:\s*45/.test(zdSrc);
+  // задания держат строки расписания по типу лица (НЗ-35 заданий): все восемь — те же, что у анализа
+  const zdRows = (zdSrc.slice(zdSrc.indexOf('const AN_SCHEDULE = ['), zdSrc.indexOf('];', zdSrc.indexOf('const AN_SCHEDULE = ['))).match(/\{ptype:[^}]+\}/g) || [])
+    .map(x => { const g = k => (x.match(new RegExp(k + ":\\s*'?([^,'}]+)'?")) || [])[1]; return [g('ptype'), g('cat'), g('grace'), g('limit'), g('act')].join('|'); });
+  const zdFhs = zdRows.length === 8 && zdRows.join() === AN.state.schedule.map(r => [r.ptype, r.risk, r.grace, r.limit === null ? 'null' : r.limit, r.basis].join('|')).join();
   const brFhs = /mid:\s*\{\s*limit:\s*50000000,\s*grace:\s*45,\s*clause:\s*'п\. 11 пп\. 2'[^}]*\}[\s\S]{0,120}high:\s*\{\s*limit:\s*null,\s*grace:\s*45,\s*clause:\s*'п\. 6 пп\. 5'/.test(brSrc);
   const single = AN.state.schedule.filter(r => r.ptype !== 'групповой заёмщик');
   const ours = single.every(r => r.grace === 45 && r.since === '2026-01-01' &&
@@ -3046,7 +3049,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const moved = at('2027-01-20', () => AN.dueOf('b-1'));
   ok(139, zdFhs && brFhs && single.length === 6 && ours && moved.required && moved.period === '2П 2026' &&
       moved.due === '2027-02-14',
-    `НЗ-9: порог 50 млн, 45 дн. и пункты у ${single.length} строк сходятся с AN_FHS заданий и заёмщика, чтением файлов. ` +
+    `НЗ-9: порог 50 млн, 45 дн. и пункты у ${single.length} строк сходятся с заёмщиком, все 8 строк — со строками расписания у заданий, чтением файлов. ` +
     `Перевод в средний риск 15.09.2026 при долге 60 млн: 2П 2026, срок ${moved.due}`);
 
   /* --- #140. НЗ-26: высокий без порога, средний с порогом --------------------------- */
