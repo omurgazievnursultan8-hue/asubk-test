@@ -1429,7 +1429,7 @@ const REP_LOANS = 'Сведения о выданных кредитах за м
    начала; день появления — первый день, когда до срока стало не больше N этого дня (soonFrom). У просроченного несданного день
    появления отдаётся тоже: повод заданий один от «близко» до выпуска. Задания читают soon и soonFrom, числа N не держат */
 function repSoonFromOf(due){
-  const a = state.owner.rpRemind;
+  const a = state.owner.rpRemind.filter(r=>!r.cancelled).sort((p, q)=>p.from<q.from ? -1 : p.from>q.from ? 1 : 0);
   for(let i=0; i<a.length; i++){
     const reach = addDays(due, -a[i].v), x = i && reach<a[i].from ? a[i].from : reach;
     if(i===a.length-1 || x<a[i+1].from) return x;
@@ -2333,7 +2333,7 @@ const ZL_BAN_WD = 5;           // запрет — в N р.д. от нотари
 const ZL_SURVEY = {            // интервал обследования, мес.: группа платёжеспособности × движимость; норма, у залога на чтение
   'Платёжеспособные':{immovable:36, movable:24}, 'Неплатёжеспособные':{immovable:24, movable:12}};
 /* ужесточение по категории риска кредита — слой поверх матрицы, только при согласовании зампреда; коэффициенты и нижний предел —
-   решение проекта, у залога на чтение до ответа по Положению. Категория — худшая по кредитам предмета, нет — низкая */
+   решение проекта, у залога на чтение до ответа по Положению. Категория — кредита предмета (в зеркале у предмета один кредит), нет — низкая */
 const ZL_TIGHT = {k:{'Низкий':1, 'Средний':0.5, 'Высокий':0.25}, min:3, approved:true};
 function zlSurveyMonths(group, movable, risk){
   const base = ZL_SURVEY[group][movable ? 'movable' : 'immovable'];
@@ -2476,7 +2476,7 @@ const ZM_DOC = {пакет:'Пакет финансовых документов
 function zmAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
-  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, ptype:o.ptype, cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
+  const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, ptype:o.ptype||'организация', cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
     repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
   evs.forEach(e=>{
     if(e.ptype) s.ptype = e.ptype; // тип лица — факт заёмщика с датой
@@ -2918,8 +2918,8 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     // срок и приказ — из записи шаблона на конец периода, как в ответе анализа (dueWd, dueBasis)
     each:(s,d)=>anMissing(s, d).map(x=>({period:`${x.from}..${x.to}`, sub:`${x.from}..${x.to}`, since:x.closed, dueN:x.c.dueWd||null, dueBasis:x.c.order||null, x})),
     since:(s,d,x)=>x.since,
-    traits:(s,d,x)=>({период:perText(x.x), периодичность:`${x.x.c.every} — ${x.x.c.order}`, закрыт:x.x.closed,
-      срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода · ${x.x.c.order}` : AN_DUE_UNNAMED}),
+    traits:(s,d,x)=>({период:perText(x.x), периодичность:`${x.x.c.every} — ${x.x.c.order||x.x.c.how.split(':')[0]}`, закрыт:x.x.closed,
+      срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода${x.x.c.order ? ' · '+x.x.c.order : ''}` : AN_DUE_UNNAMED}),
     attrib:(s,p,d)=>{ const [from, to] = p.sub.split('..'), r = periodReview(s.id, {from, to}, d);
       return r ? {by:r.approvedBy, how:`обзор ${r.id} по всему портфелю за ${perText(r.period)} утверждён`} : {cancel:s.last.how}; }},
   // Кредит: ключ «вид · кредит · дата платежа»; сигнал куратору при появлении, отпадает с внесением или датой платежа
@@ -2937,7 +2937,7 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     cancel:(s,d)=>vzCancel(s, d, n)}])),
   // Залог: ключ «вид · предмет» (кредит, поручительство, договор) без периода — состояние длится до факта у залога
   'pk-zl-survey-overdue':  ZLC({when:(s,d)=>zlItem(s, s=>s.nextSurvey<d), since:s=>addDays(s.nextSurvey, 1),
-    traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.group.toLowerCase()}, ${s.movable ? 'движимое' : 'недвижимое'})`, сумма:s.pledge}), done:e=>!!e.survey}),
+    traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.group.toLowerCase()}, ${s.movable ? 'движимое' : 'недвижимое'}${s.surveyMonths!==ZL_SURVEY[s.group][s.movable ? 'movable' : 'immovable'] ? `, риск ${s.risk.toLowerCase()}: короче при согласовании зампреда` : ''})`, сумма:s.pledge}), done:e=>!!e.survey}),
   'pk-zl-reval-overdue':   ZLC({when:(s,d)=>zlItem(s, s=>s.nextReval<d && !zlStale(s, d)), since:s=>addDays(s.nextReval, 1),
     traits:s=>({предмет:s.name, плановая_дата:s.nextReval, интервал:`${s.revalMonths} мес. (${s.kind})`, сумма:s.pledge}), done:e=>!!e.reval}),
   'pk-zl-appraisal-stale': ZLC({when:(s,d)=>zlItem(s, s=>zlStale(s, d)), since:s=>addDays(s.apprTill, 1),
@@ -5796,7 +5796,7 @@ function dueText(r, short){
 }
 /* собственный срок повода: назвал сосед — число и его основание; не назвал — значение правила */
 function ownDueText(r, o){
-  return o.n ? `${o.n} ${dueUnitWord(r)} от даты состояния, назван приказом к шаблону · ${thrSrcText({order:o.basis})}`
+  return o.n ? `${o.n} ${dueUnitWord(r)} от даты состояния, `+(o.basis ? `назван приказом к шаблону · ${thrSrcText({order:o.basis})}` : 'назван в шаблоне анализа')
     : `${r.dueN} ${dueUnitWord(r)} от даты состояния, ${AN_DUE_UNNAMED}`+(r.dueSource ? ` · ${r.dueSource}` : '');
 }
 function renderOrigin(t, povod){
