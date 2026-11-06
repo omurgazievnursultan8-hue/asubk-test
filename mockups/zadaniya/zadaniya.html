@@ -619,14 +619,16 @@ const VZ_STEPS = [ // [вид, шаблон, повод, действие, гд�
    Срок — дата, которую держит залог (запрет, комитет), иначе — значение правила. Триггеры без работы (идёт срок
    восполнения, историческая запись) — подсветка у залога, не виды */
 const ZL_STEPS = [
-  {id:'pk-zl-survey-overdue',  title:'Обследование предмета просрочено',            objectType:'pledge', traits:['предмет','плановая_дата','интервал'],
-   act:'Провести обследование предмета залога', where:'карточка предмета: акт обследования с исходом', dueN:10},
+  {id:'pk-zl-survey',          title:'Подходит срок обследования предмета',         objectType:'pledge', traits:['предмет','плановая_дата','интервал'],
+   act:'Провести обследование предмета залога', where:'карточка предмета: акт обследования с исходом',
+   named:'плановая дата обследования у залога: от последнего акта по матрице Положения о залоге'},
   {id:'pk-zl-reval-overdue',   title:'Переоценка предмета просрочена',              objectType:'pledge', traits:['предмет','плановая_дата','интервал'],
    act:'Провести переоценку предмета', where:'карточка предмета: переоценка с отчётом оценщика', dueN:15},
   {id:'pk-zl-appraisal-stale', title:'Отчёт об оценке устарел',                     objectType:'pledge', traits:['предмет','отчёт','годен_до'],
    act:'Получить новый отчёт об оценке', where:'карточка предмета: переоценка с новым отчётом оценщика', dueN:15},
-  {id:'pk-zl-insurance',       title:'Предмет не застрахован или полис истёк',      objectType:'pledge', traits:['предмет','полис'],
-   act:'Истребовать страховой полис у залогодателя', where:'карточка предмета, «Страхование»: полис с датой «до»', dueN:10},
+  {id:'pk-zl-insurance',       title:'Полис предмета истекает или отсутствует',     objectType:'pledge', traits:['предмет','полис'],
+   act:'Истребовать страховой полис у залогодателя', where:'карточка предмета, «Страхование»: полис с датой «до» позже прежней',
+   named:'«полис до»; полиса нет — 10 р.д. от регистрации договора залога'},
   {id:'pk-zl-ban-missing',     title:'Запрет на отчуждение не наложен',             objectType:'pledge', traits:['предмет','орган','срок'],
    act:'Наложить запрет на отчуждение', where:'карточка предмета: запрет с регистрационным номером',
    named:'срок запрета у залога: нотариальная дата договора + 5 р.д.'},
@@ -638,6 +640,11 @@ const ZL_STEPS = [
    act:'Переоценить предмет в валюте кредита или заменить обеспечение', where:'карточка предмета: переоценка в валюте кредита', dueN:15},
   {id:'pk-zl-restore',         title:'Требуется извещение о восполнении предмета',  objectType:'pledge', traits:['предмет','исход_обследования'],
    act:'Оформить извещение о восполнении предмета', where:'карточка предмета: извещение о восполнении со сроком восполнения', dueN:5},
+  {id:'pk-zl-restore-lapsed',  title:'Срок восполнения предмета истёк',             objectType:'pledge', traits:['предмет','кредит','извещение','срок_восполнения'],
+   addr:'cr', act:'Потребовать досрочного исполнения или направить служебную записку в ОПК',
+   where:'взыскание: мера по кредиту с охватом «полный остаток» (требование досрочного исполнения) или служебная записка в ОПК', dueN:10},
+  {id:'pk-zl-sale-appraisal',  title:'Нет отчёта оценщика для начальной цены',      objectType:'pledge', traits:['предмет','кредит','в_реализации_с','отчёт','годен_до'],
+   act:'Получить отчёт независимого оценщика для начальной цены', where:'карточка предмета: переоценка с отчётом независимого оценщика', dueN:15},
   {id:'pk-zl-coverage',        title:'Обеспеченность ниже порога',                  objectType:'credit', traits:['заёмщик','обеспеченность','порог','ниже_с'],
    sum:'остаток основного долга', addr:'cr', act:'Догрузить или заменить залог либо внести обоснование',
    where:'залог: догрузка или замена предмета доп. соглашением; обоснование недообеспеченности на кредите', dueN:10},
@@ -649,6 +656,10 @@ const ZL_STEPS = [
    sum:'остаток основного долга', addr:'cr', act:'Снять поручительство или оформить новое обеспечение', where:'договор поручительства: снятие по основанию «истечение срока»', dueN:5},
   {id:'pk-zl-surety-repaid',   title:'Кредит погашен, поручительство не снято',     objectType:'surety', traits:['поручитель','кредит','погашен'],
    sum:null, addr:'cr', act:'Снять поручительство', where:'договор поручительства: снятие по основанию «исполнение обязательства»', dueN:5},
+  {id:'pk-zl-guarantee-expiring', title:'Срок банковской гарантии истекает',       objectType:'guarantee', traits:['гарант','кредит','до'],
+   sum:'остаток основного долга', addr:'cr', act:'Продлить банковскую гарантию или подготовить замену', where:'договор гарантии: продление срока или замещающее обеспечение', dueN:10},
+  {id:'pk-zl-guarantee-expired',  title:'Срок банковской гарантии истёк',          objectType:'guarantee', traits:['гарант','кредит','до'],
+   sum:'остаток основного долга', addr:'cr', act:'Оформить замещающее обеспечение или продлить гарантию', where:'договор гарантии: продление или замещающее обеспечение, догрузка залогом', dueN:5},
   {id:'pk-zl-committee',       title:'Договор залога ждёт решения комитета',        objectType:'pledgeContract', traits:['заёмщик','недообеспечение','на_комитете_с'],
    sum:'залоговая стоимость по договору', addr:'zl-committee', act:'Решить по договору залога: допустить недообеспечение с обоснованием или вернуть на доработку',
    where:'реестр договоров залога: решение комитета по договору', named:'срок рассмотрения у залога: 10 к.д. от передачи на комитет'},
@@ -672,6 +683,14 @@ const PL_STEPS = [
    sum:'сумма поступления', addr:'pl-accountant', dueN:5, act:'Опознать поступление',
    where:'платежи, лента поступлений: привязка к кредиту рождает платёж датой поступления; чужие деньги — возврат отправителю, денег не было — сторно'},
 ];
+/* шаги платежей: передача работы бухгалтерии — исполнить возврат по основанию (четыре глаза: положивший основание не исполняет)
+   и подписать сформированный куратором акт сверки за закрытый период; очередь «Бухгалтер», срок — значение правила */
+const PL_HANDOFF = [
+  {id:'pl-refund-exec', title:'Возврат отправителю не исполнен', objectType:'receipt', traits:['плательщик','основание','дата_поступления'],
+   sum:'сумма поступления', dueN:3, fourEyes:true, act:'Исполнить возврат', where:'платежи, поступление: исполнение возврата отправителю платёжным поручением'},
+  {id:'pl-act-sign',    title:'Акт сверки ждёт подписи бухгалтерии', objectType:'pl-act', traits:['кредит','период','состояние'],
+   sum:null, dueN:2, act:'Подписать акт сверки', where:'платежи, акт сверки по кредиту за закрытый период: подпись бухгалтерии'},
+];
 /* виды заёмщика: его обязательства по Порядку — ведущему куратору заёмщика. Пакет гасит полное получение по запросу (ответ анализа), анализ — утверждённое
    плановое заключение за период, акт — подпись обеих сторон.
    Пакет — «вид · заёмщик», срок от начала полосы риска; анализ — «вид · заёмщик · период», порог и срок из расписания анализа;
@@ -687,6 +706,9 @@ const ZM_STEPS = [
   {id:'pk-zm-recon-act',   title:'Акт сверки на 1 января не подписан', traits:['год','на_дату','акт'], dueN:0, periodic:true,
    act:'Составить и подписать с заёмщиком акт сверки на 1 января',
    where:'заёмщик, акты сверки: годовой акт на 1 января, подписанный обеими сторонами'},
+  {id:'pk-zm-repaid-act',  title:'Акт о полном погашении не подписан со стороны ФКФ', traits:['акт','подписал_заёмщик'], dueN:10, src:'Порядок, п. 64',
+   act:'Подписать акт о полном погашении со стороны Фонда',
+   where:'заёмщик, акты: акт о полном погашении с подписью Фонда, суммы сверены с реестром погашений'},
 ];
 /* виды реструктуризации: два срока п. 18 по заявке — куратору основного кредита заявки; срок называет реструктуризация
    по норме-справочнику, гасит факт в заявке. Ожидание решения уполномоченного органа (70 к.д.) — не работа, вида нет */
@@ -704,6 +726,9 @@ const CL_STEPS = [
   {id:'pk-cl-no-decision', title:'Факт п. 11 без решения комитета', traits:['заёмщик','факт','фактор','уровень','наступил','внесён'], dueN:15,
    act:'Получить решение комитета по факту п. 11 и внести его реквизиты или аннулировать ошибочный факт',
    where:'классификация, реестр фактов кредита: реквизиты решения комитета в факте или аннулирование с причиной'},
+  {id:'pk-cl-factor-due', title:'Фактор п. 11 наступил по данным, факта нет', traits:['заёмщик','условие','фактор','источник','с'], dueN:5,
+   act:'Рассмотреть условие п. 11: внести факт или отметить «рассмотрено, не фактор»',
+   where:'классификация, реестр фактов кредита: факт по условию или отметка «рассмотрено, не фактор» с причиной'},
 ];
 /* справочник факторов п. 11 — как его отдаёт классификация: вид, уровень и пункт задаёт норма, не пользователь */
 const CL_FACTOR = {
@@ -841,6 +866,9 @@ function seedPovodKinds(){ return [
   ...PL_STEPS.map(x=>Object.assign({id:x.id, title:x.title, objectType:x.objectType, traits:x.traits, sumAttr:x.sum, sensitive:false,
     ownerDept:'Бухгалтерия', createdAt:'2026-11-10', activatedAt:'2026-11-10', ownerExec:true},
     x.addr==='cr' ? {} : {addrForm:'очередь'})),
+  // Платежи, шаги: работа передана бухгалтерии — очередь «Бухгалтер»; у возврата четыре глаза
+  ...PL_HANDOFF.map(x=>({id:x.id, title:x.title, objectType:x.objectType, traits:x.traits, sumAttr:x.sum, sensitive:false,
+    ownerDept:'Бухгалтерия', createdAt:'2026-11-10', activatedAt:'2026-11-10', ownerExec:true, addrForm:'очередь', fourEyes:!!x.fourEyes})),
   // Заёмщик: обязательство по Порядку — ведущему куратору заёмщика; акт сверки — периодический, за каждый год свой
   ...ZM_STEPS.map(x=>Object.assign({id:x.id, title:x.title, objectType:'borrower', traits:x.traits, sumAttr:'суммарный остаток по кредитам',
     sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-16', activatedAt:'2026-11-16', ownerExec:true},
@@ -949,6 +977,7 @@ function seedActions(){ return [
   ...ZL_STEPS.filter(noHL).map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Платежи
   ...PL_STEPS.filter(noHL).map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:x.id==='pk-pl-restore' ? 'высокая' : 'средняя', needsProof:false, where:x.where})),
+  ...PL_HANDOFF.map(x=>({id:'act-'+x.id, label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Заёмщик
   ...ZM_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Реструктуризация: письмо ставит паузу взыскания — оба срока высокой важности
@@ -1004,7 +1033,7 @@ function seedRules(){ return [
   {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      addressee:A_CUR_REP,  dueN:1, dueUnit:'workday', editions:[ed('2026-09-02','подключение модуля «Отчётность»')]},
   {id:'rule-rep-due',             kind:'pk-rep-obligation-due',     action:'act-rep-due',          addressee:Q_REP,      dueN:0, dueUnit:'beforeDate', dueSource:PROJECT_SRC, editions:[ed('2026-10-05','ответ отчётности по обязательствам: от «близко» до выпуска')]},
   // Госрешение
-  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:5,  dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
+  {id:'rule-gd-review', kind:'gd-review',               action:'act-gd-review', addressee:Q_GD,        dueN:2,  dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
   {id:'rule-gd-revise', kind:'gd-revise',               action:'act-gd-revise', addressee:N_GD_AUTHOR, dueN:10, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Госрешение»')]},
   // Кредитные программы
   {id:'rule-lp-review',   kind:'lp-review',   action:'act-lp-review', addressee:Q_LP,        dueN:5,  dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-09-01','подключение модуля «Кредитные программы»')]},
@@ -1077,12 +1106,15 @@ function seedRules(){ return [
   // Платежи: порог появления (3 р.д. ожидания) — настройка платежей; срок — значение правила, продление — общим порядком
   ...PL_STEPS.filter(noHL).map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC,
     editions:[ed('2026-11-10','подключение модуля «Платежи»')]})),
+  // Платежи, шаги: очередь «Бухгалтер», срок — от основания возврата или от «Сформирован», значение правила
+  ...PL_HANDOFF.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id, addressee:{by:'очередь', role:'pl-accountant'}, dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC,
+    editions:[ed('2026-11-10','подключение модуля «Платежи»')]})),
   // Заёмщик: пакет — срок от начала полосы риска (прижатого к вводу вида), значение правила; анализ — срок называет расписание анализа;
   // акт сверки — до 1 сентября (п. 9), дата, прошедшая к выдаче, — 1 р.д. от выдачи
   ...ZM_STEPS.map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_ZM,
     editions:[ed('2026-11-16','подключение модуля «Заёмщик»')]},
     x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named}
-      : x.periodic ? {dueN:x.dueN, dueUnit:'beforeDate', dueSource:'Порядок, п. 9'} : {dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:PROJECT_SRC})),
+      : x.periodic ? {dueN:x.dueN, dueUnit:'beforeDate', dueSource:'Порядок, п. 9'} : {dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:x.src||PROJECT_SRC})),
   // Реструктуризация: срок называет реструктуризация по норме-справочнику (п. 18) в редакции на дату якоря; продления в заданиях нет
   ...RS_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_CR,
     dueN:null, dueUnit:'named', dueSource:null, dueFrom:'срок по норме реструктуризации (п. 18)',
@@ -1172,7 +1204,8 @@ function controllerText(c){ return !c ? '—' : c==='автор' ? 'автор �
 /* род вида: шаг и самоопрос — выключаются только выпуском; надзор и сигнал — рубильник в проде; подсветка заданий не рождает */
 const STEP_KINDS = ['gd-review','gd-revise','lp-review','lp-revise',
   'ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
-  'doc-revise','doc-approve','doc-sign','doc-register','doc-dispatch','doc-review','doc-execute','doc-control','doc-acquaint','doc-file','doc-return'];
+  'doc-revise','doc-approve','doc-sign','doc-register','doc-dispatch','doc-review','doc-execute','doc-control','doc-acquaint','doc-file','doc-return',
+  'pl-refund-exec','pl-act-sign'];
 const GENERA = ['шаг','надзор','самоопрос','сигнал','подсветка'];
 /* подсветка: обязанности в документах нет — сосед показывает на объекте, заданий, просрочек и строк статистики нет */
 const HIGHLIGHT_KINDS = ['pk-kind-inactive','pk-returning',
@@ -1186,7 +1219,7 @@ const SIGNAL_KINDS = ['pk-cr-payment-due'];
 const noHL = x=>HIGHLIGHT_KINDS.indexOf(x.id)===-1;
 /* основание вида: группа и документ; у шагов и видов про сам модуль основание — сам процесс */
 const KIND_BASIS = {
-  'pk-zl-survey-overdue':['косвенно в нормах','Порядок №41 п. 6 пп. 4'],
+  'pk-zl-survey':['косвенно в нормах','Порядок №41 п. 6 пп. 4'],
   'pk-zl-reval-overdue':['только ТЗ','ТЗ, стр. 537'],
   'pk-zl-appraisal-stale':['не найдено','Порядок №41 п. 47'],
   'pk-zl-insurance':['косвенно в нормах','Порядок №41 п. 11 пп. 1'],
@@ -1199,6 +1232,10 @@ const KIND_BASIS = {
   'pk-zl-surety-expiring':['угроза без документа','ТЗ, стр. 870'],
   'pk-zl-surety-expired':['угроза без документа','ТЗ, стр. 870'],
   'pk-zl-surety-repaid':['не найдено','Порядок №41 п. 64'],
+  'pk-zl-restore-lapsed':['угроза без документа','Порядок №41 п. 41 пп. 2, п. 42'],
+  'pk-zl-sale-appraisal':['прямо в Порядке','Порядок №41 п. 32 абз. 2'],
+  'pk-zl-guarantee-expiring':['угроза без документа',''],
+  'pk-zl-guarantee-expired':['угроза без документа',''],
   'pk-pl-await':['угроза без документа','ТЗ, стр. 552'],
   'pk-pl-advance':['не найдено',''],
   'pk-pl-disputed':['не найдено',''],
@@ -1214,6 +1251,7 @@ const KIND_BASIS = {
   'pk-im-encumbrance-ending':['не найдено','Инструкция (проект 11.05.2026) п. 14'],
   'pk-im-claim-open':['не найдено','Инструкция (проект 11.05.2026) п. 46'],
   'pk-cl-no-decision':['косвенно в нормах','Порядок №41 п. 11 пп. 2'],
+  'pk-cl-factor-due':['косвенно в нормах','Порядок №41 п. 11 пп. 2–3'],
   'ap-program-closed':['не найдено',''],
   'ap-stuck-new':['косвенно в нормах','ПКМ 554 прил.1 п. 75'],
   'ap-doc-expired':['только ТЗ','ТЗ, стр. 352'],
@@ -1245,6 +1283,7 @@ const KIND_BASIS = {
   'pk-zm-fin-package':['косвенно в нормах','Порядок №41 п. 6 пп. 5'],
   'pk-zm-fhs':['косвенно в нормах','Порядок №41 п. 11 пп. 2, п. 6 пп. 5'],
   'pk-zm-recon-act':['прямо в Порядке','Порядок №41 п. 9'],
+  'pk-zm-repaid-act':['прямо в Порядке','Порядок №41 п. 64'],
   'pk-rep-obligation-due':['косвенно в нормах','Порядок №41 п. 12'],
   'pk-im-ssi-memo':['проект Инструкции','Инструкция (проект 11.05.2026) п. 8'],
   'pk-im-guard':['проект Инструкции','Инструкция (проект) п. 25'],
@@ -1267,7 +1306,8 @@ function initRegistry(){ // запись вида объявляет род; н�
   state.povodKinds.forEach(k=>{
     k.genus = HIGHLIGHT_KINDS.indexOf(k.id)!==-1 ? 'подсветка' : SIGNAL_KINDS.indexOf(k.id)!==-1 ? 'сигнал'
       : SELF_KINDS.indexOf(k.id)!==-1 ? 'самоопрос' : STEP_KINDS.indexOf(k.id)!==-1 ? 'шаг' : 'надзор';
-    k.pollOnSave = k.genus==='шаг'; // сохранение объекта запускает опрос источника; остальные — ночной прогон
+    // сохранение объекта запускает опрос источника; шаг соседа с ночным опросом (платежи) и остальные роды — ночной прогон
+    k.pollOnSave = k.genus==='шаг' && !!(sourceOfKind(k.id)||{}).onSave;
     k.basis = kindBasis(k);
     k.switches = [];
   });
@@ -1324,7 +1364,7 @@ const AN_KINDS = ['pk-an-decision','pk-an-no-review'];
 const CR_KINDS = ['pk-cr-payment-due'];
 const VZ_KINDS = VZ_STEPS.map(x=>x[0]);
 const ZL_KINDS = ZL_STEPS.map(x=>x.id);
-const PL_KINDS = PL_STEPS.map(x=>x.id);
+const PL_KINDS = PL_STEPS.map(x=>x.id).concat(PL_HANDOFF.map(x=>x.id));
 const ZM_KINDS = ZM_STEPS.map(x=>x.id);
 const RS_KINDS = RS_STEPS.map(x=>x.id);
 const CL_KINDS = CL_STEPS.map(x=>x.id);
@@ -1876,11 +1916,14 @@ function seedOwnerObjects(){ return {
     ZLI('З-307', 'Автомобиль Toyota Hilux', 'техника', 'КД-2025/310', 1900000, '2025-03-10',
       {revalMonths:24, appr:'2025-09-20', policy:{no:'СП-0713', till:'2027-01-10'}, ban:{regNo:'ГАИ-3307', date:'2025-03-12'},
        missing:['технический паспорт', 'справка ГАИ об отсутствии обременений']},
-      [{t:'2026-02-03', survey:'в норме', by:'E33', how:'акт обследования: в норме'}]),
+      [{t:'2026-02-03', survey:'в норме', by:'E33', how:'акт обследования: в норме'},
+       {t:'2026-12-15', realizing:{measure:'Передача предмета на реализацию'}, by:null, how:'взыскание передало предмет в реализацию: мера «Передача предмета на реализацию»'},
+       {t:'2027-01-20', reval:{report:'отчёт независимого оценщика ОсОО «Баалоочу» № 14'}, by:'E33', how:'переоценка: отчёт независимого оценщика ОсОО «Баалоочу» № 14'}]),
     ZLI('З-308', 'Овцы, 120 голов', 'скот', 'КД-2025/311', 2000000, '2025-09-05',
       {revalMonths:6, appr:'2026-07-01', insurable:false, ban:{regNo:'АО-1120', date:'2025-09-08'}},
       [{t:'2026-07-28', survey:'в норме', by:'E34', how:'акт обследования: в норме'},
-       {t:'2026-10-27', survey:'утрата', by:'E34', how:'акт обследования: пало 40 голов — утрата части предмета'}]),
+       {t:'2026-10-27', survey:'утрата', by:'E34', how:'акт обследования: пало 40 голов — утрата части предмета'},
+       {t:'2026-11-20', restoreNotice:{deadline:'2026-12-21'}, by:'E34', how:'извещение о восполнении вручено, срок до 21.12.2026'}]),
     ZLK('КД-2025/310', 'ОсОО «Токмок-Агро»', 'KGS', '2030-03-10', 1.2, '2025-03-10', 3900000, 7250000, [{item:'З-301', till:'2027-06-30'}], [], 'Неплатёжеспособные'),
     ZLK('КД-2025/311', 'КФХ «Ала-Тоо»', 'KGS', '2031-09-05', 1.2, '2025-09-05', 5000000, 6300000, [],
       [{t:'2026-10-27', pledge:5400000, by:null, how:'залоговая стоимость пересчитана: утрата части предмета З-308'}], 'Неплатёжеспособные'),
@@ -1890,6 +1933,7 @@ function seedOwnerObjects(){ return {
     ZLS('ДП-401', 'Абдыкалыков Т.С.', 'КД-2025/310', '2025-03-10', '2026-12-15'),
     ZLS('ДП-402', 'ОсОО «Кара-Суу Строй»', 'КД-2024/318', '2024-04-22', '2029-04-22'),
     ZLS('ДП-403', 'Жээнбеков А.Т.', 'КД-2023/322', '2023-11-14', '2026-10-31'),
+    ZLG('БГ-601', 'ОАО «РСК Банк»', 'КД-2025/311', '2025-09-05', '2027-01-20'),
     ZLD('ДЗ-501', 'КФХ «Ала-Тоо»', 'КД-2025/311', 1200000, '2026-10-21',
       'КД-2025/311 — 112% при пороге 120%', [{t:'2026-10-29', toCommittee:true, by:'E34', how:'доп. соглашение передано на комитет'}]),
   ],
@@ -1940,6 +1984,9 @@ function ZLK(id, borrower, ccy, till, req, issued, od, pledge, leases, ev, group
 }
 function ZLS(id, guarantor, credit, from, till){ // договор поручительства
   return {type:'surety', id, guarantor, credit, till, ev:[{t:from, by:'E33', how:`договор поручительства ${id} вступил в силу`}]};
+}
+function ZLG(id, bank, credit, from, till){ // банковская гарантия по кредиту
+  return {type:'guarantee', id, bank, credit, till, ev:[{t:from, by:'E33', how:`банковская гарантия ${id} вступила в силу`}]};
 }
 function ZLD(id, borrower, credit, value, made, under, ev){ // договор залога (доп. соглашение) с недообеспечением
   return {type:'contract', id, borrower, credit, value, under, ev:[{t:made, by:'E34', how:`договор ${id} оформлен`}].concat(ev)};
@@ -2056,8 +2103,18 @@ function seedPayments(){ return [
   PLP('ПЛ-7101', 'КД-2025/344', 'ПС-9001', 210000, '2026-11-02', []),
   PLP('ПЛ-7102', 'КД-2025/345', 'ПС-9002', 95000, '2026-11-05', []),
   PLR('ПС-9050', 'Айтматов Н.К.', 'погашение кредита за ОсОО «Жайыл-Сүт», номер договора не указан', 50000, '2026-11-03', 'КД-2025/344'),
-  PLR('ПС-9051', 'ОсОО «Нур-Транс»', 'оплата по счёту № 118', 12500, '2026-11-06', null),
+  PLRE(PLR('ПС-9051', 'ОсОО «Нур-Транс»', 'оплата по счёту № 118', 12500, '2026-11-06', null), [
+    {t:'2026-11-12', refund:'чужие деньги: счёт № 118 не наш, по заявлению банка отправителя', by:'E25', how:'основание возврата отправителю: чужие деньги, по заявлению банка отправителя'},
+    {t:'2026-11-16', refundExec:true, by:'E38', how:'возврат отправителю исполнен: 12 500, ОсОО «Нур-Транс»'}]),
+  PLA('АС-21', 'КД-2025/344', 'октябрь 2026', '2026-11-03', [
+    {t:'2026-11-04', agree:true, by:'E25', how:'акт сверки АС-21 согласован бухгалтерией'},
+    {t:'2026-11-05', sign:true, by:'E38', how:'акт сверки АС-21 за октябрь 2026 подписан бухгалтерией'}]),
+  PLA('АС-22', 'КД-2025/345', 'ноябрь 2026', '2026-12-02', []),
 ]; }
+const PLRE = (o, ev)=>Object.assign(o, {ev:o.ev.concat(ev)}); // поступление с фактами разбора
+function PLA(id, credit, period, formed, ev){ // внутренний акт сверки по кредиту: сформировал куратор
+  return {type:'pl-act', id, credit, period, ev:[{t:formed, formed:true, by:'E1', how:`акт сверки ${id} по ${credit} за ${period} сформирован куратором`}].concat(ev)};
+}
 function PLK(id, borrower, issued, ev){ // кредит: резерв и аванс, спорная пеня — по его платежам
   return {type:'credit', id, borrower, ev:[{t:issued, by:'E2', how:`кредит ${id} выдан`}].concat(ev)};
 }
@@ -2083,12 +2140,15 @@ function seedBorrowers(){ return [
     {t:'2026-10-18', cat:'high', by:null, how:'просрочка свыше 180 к.д.: высокий кредитный риск'}]),
   ZMB('12003198500051', 'ИП Садыкова Б.К.', '2025-09-01', 3400000, [
     {t:'2026-07-01', act:{year:'2026', stage:'на подписании'}, by:'E1', how:'акт сверки на 01.01.2026 направлен заёмщику на подпись'},
-    {t:'2026-08-10', act:{year:'2026', stage:'на подписании', agreement:'разногласия'}, by:'E1', how:'заёмщик не подписал акт на 01.01.2026: оспаривает пеню за май'}],
+    {t:'2026-08-10', act:{year:'2026', stage:'на подписании', agreement:'разногласия'}, by:'E1', how:'заёмщик не подписал акт на 01.01.2026: оспаривает пеню за май'},
+    {t:'2026-12-14', gone:'смерть', by:null, how:'смерть заёмщика 14.12.2026'}],
     'индивидуальный предприниматель'),
   ZMB('01509202110064', 'ОсОО «Бишкек-Сүт»', '2026-03-10', 9800000, []),
   ZMB('02204201810075', 'ОсОО «Токмок-Жылуу»', '2024-08-01', 1150000, [
     {t:'2025-05-12', act:{year:'2025', stage:'подписан'}, by:'E3', how:'акт сверки на 01.01.2025 подписан обеими сторонами'},
-    {t:'2026-11-25', repaid:true, by:null, how:'все кредиты заёмщика погашены, акт сверки о полном погашении подписан'}]),
+    {t:'2026-11-25', repaid:true, by:null, how:'все кредиты заёмщика погашены'},
+    {t:'2026-11-27', repaidAct:{no:'АП-12', side:'заёмщик'}, by:'E3', how:'акт о полном погашении АП-12 подписан заёмщиком: суммы сходятся с реестром погашений'},
+    {t:'2026-12-08', repaidAct:{no:'АП-12', side:'Фонд'}, by:'E3', how:'акт о полном погашении АП-12 подписан со стороны Фонда'}]),
 ]; }
 function ZMB(id, name, born, debt, ev, ptype){ // заёмщик: первый кредит выдан — с этой даты действующий, низкий риск; тип лица — из ответа заёмщика
   return {type:'borrower', id, name, ptype:ptype||'организация', ev:[{t:born, debt, by:'E2', how:`первый кредит заёмщика выдан, суммарный остаток ${money(debt)}`}].concat(ev)};
@@ -2134,10 +2194,12 @@ function seedClassification(){ return [
   CLC('КД-2025/391', 'ОсОО «Талас Агро Трейд»', 24600000, '2025-04-14', [
     CLF('2026-11-12', 'E3', 'F-101', 'f-noAct', '2026-11-09')]),
   CLC('КД-2024/392', 'ОАО «Ош Курулуш Материалдары»', 61800000, '2024-06-03', [
-    CLF('2026-12-02', 'E39', 'F-102', 'f-collDown', '2026-12-01'),
+    {t:'2026-12-01', cond:{id:'У-2', kind:'f-collDown', src:'Залог', text:'акт обследования предмета с исходом «ухудшение» от 01.12.2026'}, by:null, how:'условие У-2 по данным модуля «Залог»: акт обследования предмета с исходом «ухудшение» от 01.12.2026'},
+    CLF('2026-12-02', 'E39', 'F-102', 'f-collDown', '2026-12-01', {cond:'У-2'}),
     CLF('2026-12-02', 'E39', 'F-103', 'f-nonTarget', '2026-11-27')]),
   CLC('КД-2025/393', 'ИП Жапаров К.Т.', 3900000, '2025-09-22', [
-    CLF('2026-11-26', 'E3', 'F-104', 'f-collDown', '2026-11-20', {doc:'протокол КАБК № 29 от 25.11.2026'})]),
+    CLF('2026-11-26', 'E3', 'F-104', 'f-collDown', '2026-11-20', {doc:'протокол КАБК № 29 от 25.11.2026'}),
+    {t:'2027-01-15', cond:{id:'У-4', kind:'f-noAct', src:'Заёмщик', text:'акт сверки на 01.01.2026 не подписан заёмщиком свыше 60 к.д. от 16.11.2026'}, by:null, how:'условие У-4 по данным модуля «Заёмщик»: акт сверки на 01.01.2026 не подписан заёмщиком свыше 60 к.д. от 16.11.2026'}]),
   CLC('КД-2023/394', 'КФХ «Ак-Талаа»', 1200000, '2023-03-15', [
     CLF('2026-10-22', 'E3', 'F-105', 'f-lostColl', '2026-10-19'),
     {t:'2026-12-07', closed:true, by:null, how:'кредит КД-2023/394 погашен полностью: вне области классификации'}]),
@@ -2146,7 +2208,9 @@ function seedClassification(){ return [
   CLC('КД-2024/396', 'ОсОО «Чүй Мебель»', 8700000, '2024-10-07', [
     CLF('2026-11-16', 'E39', 'F-107', 'f-noAct', '2026-11-13'),
     {t:'2026-11-18', annul:{fact:'F-107', reason:'введён ошибочно: акт сверки подписан 12.11.2026'}, by:'E39',
-     how:'факт F-107 аннулирован: введён ошибочно: акт сверки подписан 12.11.2026'}]),
+     how:'факт F-107 аннулирован: введён ошибочно: акт сверки подписан 12.11.2026'},
+    {t:'2026-12-10', cond:{id:'У-3', kind:'f-lostColl', src:'Залог', text:'акт обследования предмета с исходом «утрата» от 10.12.2026'}, by:null, how:'условие У-3 по данным модуля «Залог»: акт обследования предмета с исходом «утрата» от 10.12.2026'},
+    {t:'2026-12-14', notFactor:{cond:'У-3', reason:'пало 2 головы из 120, залогодатель восполнил'}, by:'E39', how:'условие У-3: рассмотрено, не фактор — пало 2 головы из 120, залогодатель восполнил'}]),
 ]; }
 function CLC(id, borrower, debt, issued, ev){ // кредит действующий с выдачи — в области классификации
   return {type:'cl-credit', id, borrower, debt, ev:[{t:issued, by:null, how:`кредит ${id} действующий: в области классификации, остаток основного долга ${money(debt)}`}].concat(ev)};
@@ -2408,6 +2472,9 @@ function zlAt(o, d){
       if(e.banOff) s.banOff = e;
       if(e.doc) s.missing = s.missing.filter(x=>x!==e.doc);
       if(e.restoreNotice) s.notice = e;
+      if(e.restored){ s.loss = null; s.notice = null; s.restoredEv = e; } // восполнен или заменён доп. соглашением
+      if(e.realizing){ s.realizing = e; s.realizingOff = null; }       // ответ взыскания: предмет передан в реализацию, с датой и мерой
+      if(e.realizingOff){ s.realizing = null; s.realizingOff = e; }
     });
     const k = state.owner.zl.find(x=>x.type==='credit' && x.id===o.credit);
     s.group = k ? k.group : 'Платёжеспособные'; s.movable = o.kind!=='недвижимость'; s.risk = (k && k.risk) || 'Низкий';
@@ -2434,6 +2501,13 @@ function zlAt(o, d){
       if(e.justify && below) s.justified = e;
     });
     s.cover = s.od>0 ? s.pledge/s.od : null;
+    return s;
+  }
+  if(o.type==='guarantee'){ // банковская гарантия: срок, продление, замещающее обеспечение; погашение — у кредита
+    const s = {type:'guarantee', id:o.id, bank:o.bank, credit:o.credit, till:o.till, replaced:null, last};
+    evs.forEach(e=>{ if(e.extend) s.till = e.extend; if(e.replaced) s.replaced = e; });
+    const k = zlAt(state.owner.zl.find(x=>x.type==='credit' && x.id===o.credit), d);
+    s.repaid = k && k.repaid; s.od = k ? k.od : null;
     return s;
   }
   if(o.type==='surety'){
@@ -2473,8 +2547,16 @@ function plAt(o, d){
     return s;
   }
   if(o.type==='receipt'){
-    const s = {type:'receipt', id:o.id, payer:o.payer, purpose:o.purpose, amount:o.amount, date:o.ev[0].t, hint:o.hint, bound:null, refund:null, storno:null, last};
-    evs.forEach(e=>{ if(e.bind) s.bound = e; if(e.refund) s.refund = e; if(e.storno) s.storno = e; });
+    const s = {type:'receipt', id:o.id, payer:o.payer, purpose:o.purpose, amount:o.amount, date:o.ev[0].t, hint:o.hint, bound:null, refund:null, storno:null,
+      blocked:null, refundExec:null, revoked:null, last};
+    evs.forEach(e=>{ if(e.bind) s.bound = e; if(e.refund){ s.refund = e; s.revoked = null; s.blocked = null; } if(e.storno) s.storno = e;
+      if(e.refundExec) s.refundExec = e; if(e.revoke){ s.revoked = e; s.refund = null; } if(e.debtFound && s.refund && !s.refundExec) s.blocked = e; });
+    s.admit = s.refund ? (s.blocked ? 'нельзя' : 'можно') : null; // допустимость возврата выводят платежи: у плательщика появился долг — нельзя
+    return s;
+  }
+  if(o.type==='pl-act'){ // внутренний акт сверки по кредиту за закрытый период: сформирован → согласован → подписан; отозван или пересобран
+    const s = {type:'pl-act', id:o.id, credit:o.credit, period:o.period, formed:null, agreed:null, signed:null, recalled:null, last};
+    evs.forEach(e=>{ if(e.formed){ s.formed = e; s.agreed = null; s.signed = null; s.recalled = null; } if(e.agree) s.agreed = e; if(e.sign) s.signed = e; if(e.recall) s.recalled = e; });
     return s;
   }
   const s = {type:'credit', id:o.id, borrower:o.borrower, reserve:0, advance:0, orphanSince:null, rebuild:null, directive:null, spent:null, repaid:null, last};
@@ -2529,22 +2611,26 @@ function zmAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
   const s = {type:'borrower', id:o.id, name:o.name, born:o.ev[0].t, ptype:o.ptype||'организация', cat:'low', catSince:o.ev[0].t, strip:null, debt:0, acts:{},
-    repaid:null, activeSince:o.ev[0].t, fhsSince:null, last};
+    repaid:null, activeSince:o.ev[0].t, fhsSince:null, gone:null, repaidActs:{}, last};
   evs.forEach(e=>{
     if(e.ptype) s.ptype = e.ptype; // тип лица — факт заёмщика с датой
     if(e.cat){ if(e.cat==='low') s.strip = null; else if(!s.strip) s.strip = e.t; s.cat = e.cat; s.catSince = e.t; } // средний → высокий — та же полоса
     if(e.debt!=null){ s.debt = e.debt; if(s.repaid && e.debt>0){ if(s.repaid.t!==e.t) s.activeSince = e.t; s.repaid = null; } } // новый кредит после погашения; в тот же день перерыва нет
     if(e.act) s.acts[e.act.year] = e;
     if(e.repaid){ s.repaid = e; s.cat = 'low'; s.catSince = e.t; s.strip = null; s.debt = 0; }
+    if(e.gone) s.gone = e; // смерть, ликвидация, перевод долга — запись субъекта у заёмщика
+    if(e.repaidAct){ const a = e.repaidAct; if(a.side==='заёмщик') s.repaidActs[a.no] = {no:a.no, borrowerSigned:e.t, fkf:null}; else if(s.repaidActs[a.no]) s.repaidActs[a.no].fkf = e; }
     const fhsNeed = !!s.strip && anFhsNeed(s.ptype, s.cat, s.debt); // анализ нужен с дня, когда условие строки расписания сошлось
     s.fhsSince = fhsNeed ? s.fhsSince || e.t : null;
   });
+  if(s.gone){ s.strip = null; s.fhsSince = null; } // обязательств заёмщика больше нет: анализировать нечего, второй стороны акта нет
+  s.repaidActsOpen = Object.values(s.repaidActs).filter(a=>!a.fkf);
   // пакет приходит ответом анализа и считается по своей дате; пакет прежней полосы не в счёт
   s.pack = s.strip ? analysisDocs(o.id, d).filter(x=>x.type===ZM_DOC.пакет && x.date>=s.strip)[0] || null : null;
   // акт нужен за каждый год, на 1 января которого заёмщик был действующим; погасил всё — больше не действующий,
   // прежние годы закрыл акт о полном погашении; новый кредит — годы считаются заново
   s.years = [];
-  if(!s.repaid) for(let y = Number(s.activeSince.slice(0, 4)); y<=Number(d.slice(0, 4)); y++){
+  if(!s.repaid && !s.gone) for(let y = Number(s.activeSince.slice(0, 4)); y<=Number(d.slice(0, 4)); y++){
     const jan = `${y}-01-01`; if(s.activeSince<=jan && jan<=d) s.years.push(String(y)); }
   s.signed = y=>!!s.acts[y] && s.acts[y].act.stage==='подписан';
   s.unsigned = s.years.filter(y=>!s.signed(y));
@@ -2568,7 +2654,7 @@ function analysisDocs(subj, d){
    за идущий период задания нет, период до ввода вида не входит; закрывает заключение именно за этот период */
 function zmFhsOpen(s, d){
   const out = [], o = ownerObj('zm', s.id);
-  if(s.repaid) return out;
+  if(s.repaid || s.gone) return out;
   const docs = analysisDocs(s.id, d).filter(e=>e.type===ZM_DOC.анализ);
   for(let p = halfOf(kindOf('pk-zm-fhs').activatedAt||d); p.to<d; p = halfOf(addDays(p.to, 1))){
     if(p.to<s.activeSince) continue; // период закончился раньше начала нового кредита после полного погашения: не считается
@@ -2581,7 +2667,7 @@ function zmFhsOpen(s, d){
 }
 function zmActText(e){ return e ? `${e.act.stage}${e.act.agreement ? ' · '+e.act.agreement : ''} с ${fmt(e.t)}` : 'не составлен'; }
 function zmCancel(s){
-  return s.repaid ? `заёмщик больше не действующий: ${s.repaid.how}` : !s.strip ? `заёмщик вернулся в низкий риск ${fmt(s.catSince)}` : s.last.how;
+  return s.gone ? s.gone.how : s.repaid ? `заёмщик больше не действующий: ${s.repaid.how}` : !s.strip ? `заёмщик вернулся в низкий риск ${fmt(s.catSince)}` : s.last.how;
 }
 /* норма-справочник реструктуризации: величина, единица, пункт, редакция, дата начала. Срок считается по записи, действующей
    на дату якоря (регистрация обращения, решение комитета): новая редакция не переписывает сроки начатых заявок */
@@ -2623,13 +2709,17 @@ function rsCancel(s){ return s.outcome ? s.outcome.how : s.last.how; }
 function clAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
   const evs = byDate(o.ev).filter(e=>e.t<=d), last = evs[evs.length-1];
-  const s = {type:'cl-credit', id:o.id, borrower:o.borrower, debt:o.debt, facts:{}, order:[], closed:null, last};
+  const s = {type:'cl-credit', id:o.id, borrower:o.borrower, debt:o.debt, facts:{}, order:[], conds:{}, closed:null, last};
   evs.forEach(e=>{
     if(e.fact){
       s.facts[e.fact.id] = Object.assign({}, e.fact, CL_FACTOR[e.fact.kind], {entered:e.t, by:e.by,
         decision:e.fact.doc ? {doc:e.fact.doc, t:e.t, by:e.by} : null, annulled:null});
       s.order.push(e.fact.id);
+      if(e.fact.cond && s.conds[e.fact.cond]) s.conds[e.fact.cond].fact = e;
     }
+    if(e.cond) s.conds[e.cond.id] = Object.assign({}, e.cond, {since:e.t, gone:null, noted:null, fact:null}); // условие п. 11 по данным владельца — ответ классификации
+    if(e.condGone && s.conds[e.condGone]) s.conds[e.condGone].gone = e;
+    if(e.notFactor && s.conds[e.notFactor.cond]) s.conds[e.notFactor.cond].noted = e;
     if(e.decision && s.facts[e.decision.fact]) s.facts[e.decision.fact].decision = {doc:e.decision.doc, t:e.t, by:e.by};
     if(e.annul && s.facts[e.annul.fact]) s.facts[e.annul.fact].annulled = {reason:e.annul.reason, t:e.t, by:e.by};
     if(e.closed) s.closed = e;
@@ -2637,6 +2727,7 @@ function clAt(o, d){
   });
   s.open = !s.closed;
   s.pending = s.open ? s.order.map(id=>s.facts[id]).filter(f=>!f.annulled && !f.decision && (!f.until || f.until>=d)) : [];
+  s.condsOpen = s.open ? Object.values(s.conds).filter(c=>!c.gone && !c.noted && !c.fact) : [];
   return s;
 }
 function clCancel(s, d, id){ // почему факт больше не ждёт решения, если решения нет
@@ -2656,6 +2747,7 @@ function objAt(o, d){ // карточка на дату: события по д�
   for(const e of o.ev.slice().sort((a,b)=>a.t<b.t?-1:a.t>b.t?1:0)){
     if(e.t>d) continue;
     if(e.deleted) return null;
+    if(e.com) s.com = Object.assign({}, s.com, e.com); // запись комиссии изменена: состав или председатель
     if(e.status){ s.status=e.status; s.statusSince=e.t; s.phase = e.status==='На рассмотрении' ? 'prelim' : null;
       if(s.phase){ s.phaseSince=e.t; s.votes={}; s.session=s.deadline=null; } }
     if('dateTo' in e) s.dateTo=e.dateTo;
@@ -2792,6 +2884,17 @@ const IMA = x=>Object.assign({src:'ima', objectType:'asset', cur:true}, x);
 const kd = (a, b)=>daysBetween(a, b); // календарные дни — пороги имущества в к.д. и месяцах
 const ZLC = x=>Object.assign({src:'zl', cur:true, cancel:s=>zlCancelItem(s)}, x); // вид объекта — из записи вида
 const zlSurety = s=>s.type==='surety' && !s.released && !s.repaid;
+const zlGuar = s=>s.type==='guarantee' && !s.replaced && !s.repaid;
+const ZL_LEAD = 30;        // за сколько к.д. до плановой даты обследования и «полис до» появляется повод — запись залога
+const ZL_NOPOLICY_WD = 10; // полиса нет у страхуемого предмета — срок от регистрации договора
+const ZL_LAPSE_CLOSERS = ['Требование досрочного исполнения', 'Служебная записка в ОПК']; // меры взыскания по кредиту после срока восполнения
+function zlLapseHit(s, d){ // мера взыскания по кредиту предмета со дня после срока восполнения
+  if(!s || !s.notice) return null;
+  const from = addDays(s.notice.restoreNotice.deadline, 1); let hit = null;
+  (state.owner.vz||[]).filter(r=>r.credit===s.credit).forEach(r=>r.ev.forEach(e=>{
+    if(e.measure && ZL_LAPSE_CLOSERS.indexOf(e.measure)!==-1 && e.t>=from && e.t<=d && (!hit || e.t>=hit.t)) hit = e; }));
+  return hit;
+}
 const zlPct = x=>x==null ? '—' : Math.round(x*100)+'%';
 function zlOrgan(kind){ return kind==='техника' ? 'ГАИ' : kind==='скот' ? 'айыл окмоту' : 'Госрегистр'; }
 function zlItemPledge(id){ const o = ownerObj('zl', id); return o ? o.pledge : null; }
@@ -2827,8 +2930,10 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     traits:()=>({фаза:'предварительное изучение'}), done:e=>e.phase==='session' || e.status==='Требуется доп. информация'}),
   'ap-vote':        AP({when:s=>s.status==='На рассмотрении' && s.phase==='session', since:s=>s.phaseSince, escWho:s=>s.com.chair,
     each:s=>s.com.members.filter(m=>!s.votes[m]).map(m=>({key:'член:'+m, sub:m, named:m, due:s.deadline, mark:m===s.author ? 'по своей заявке' : null})),
-    traits:(s,d,x)=>({член:emp(x.sub).name, крайний_срок:s.deadline}), done:(e,p)=>e.vote===p.sub}),
+    traits:(s,d,x)=>({член:emp(x.sub).name, крайний_срок:s.deadline}), done:(e,p)=>e.vote===p.sub,
+    cancel:(s,d,p)=>s.com.members.indexOf(p.sub)===-1 ? `${emp(p.sub)?.name||p.sub} выведен из состава комиссии` : null}),
   'ap-decide':      AP({when:s=>s.status==='На рассмотрении' && s.phase==='session', since:s=>s.phaseSince, named:s=>s.com.chair, due:s=>s.session,
+    each:s=>[{mark:s.com.chair===s.author ? 'по своей заявке' : null}],
     traits:s=>({дата_заседания:s.session, голосов:`${Object.keys(s.votes).length} из ${s.com.members.length}`, кворум:quorumOf(s)}),
     done:e=>['Одобрена','Отклонена','Требуется доп. информация'].includes(e.status)}),
   'ap-supplement':  AP({when:s=>s.status==='Требуется доп. информация', traits:s=>({с:s.statusSince}), done:e=>e.status==='На рассмотрении'}),
@@ -2988,15 +3093,16 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     done:(e,p)=>e.t>=p.sub && VZ_TPL[n].closers.indexOf(e.measure)!==-1,
     cancel:(s,d)=>vzCancel(s, d, n)}])),
   // Залог: ключ «вид · предмет» (кредит, поручительство, договор) без периода — состояние длится до факта у залога
-  'pk-zl-survey-overdue':  ZLC({when:(s,d)=>zlItem(s, s=>s.nextSurvey<d), since:s=>addDays(s.nextSurvey, 1),
+  'pk-zl-survey':          ZLC({when:(s,d)=>zlItem(s, s=>addDays(s.nextSurvey, -ZL_LEAD)<=d), since:s=>addDays(s.nextSurvey, -ZL_LEAD), each:s=>[{due:s.nextSurvey}],
     traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.group.toLowerCase()}, ${s.movable ? 'движимое' : 'недвижимое'}${s.surveyMonths!==ZL_SURVEY[s.group][s.movable ? 'movable' : 'immovable'] ? `, риск ${s.risk.toLowerCase()}: короче при согласовании зампреда` : ''})`, сумма:s.pledge}), done:e=>!!e.survey}),
   'pk-zl-reval-overdue':   ZLC({when:(s,d)=>zlItem(s, s=>s.nextReval<d && !zlStale(s, d)), since:s=>addDays(s.nextReval, 1),
     traits:s=>({предмет:s.name, плановая_дата:s.nextReval, интервал:`${s.revalMonths} мес. (${s.kind})`, сумма:s.pledge}), done:e=>!!e.reval}),
   'pk-zl-appraisal-stale': ZLC({when:(s,d)=>zlItem(s, s=>zlStale(s, d)), since:s=>addDays(s.apprTill, 1),
     traits:s=>({предмет:s.name, отчёт:`${s.report} от ${fmt(s.appr)}`, годен_до:s.apprTill, сумма:s.pledge}), done:e=>!!e.reval}),
-  'pk-zl-insurance':       ZLC({when:(s,d)=>zlItem(s, s=>s.insurable && (!s.policy || s.policy.till<d)),
-    since:s=>s.policy ? addDays(s.policy.till, 1) : s.reg,
-    traits:s=>({предмет:s.name, полис:s.policy ? `${s.policy.no} истёк ${fmt(s.policy.till)}` : 'полиса нет', сумма:s.pledge}),
+  'pk-zl-insurance':       ZLC({when:(s,d)=>zlItem(s, s=>s.insurable && (!s.policy || addDays(s.policy.till, -ZL_LEAD)<=d)),
+    since:s=>s.policy ? addDays(s.policy.till, -ZL_LEAD) : s.reg,
+    each:s=>[{due:s.policy ? s.policy.till : addWorkdays(s.reg, ZL_NOPOLICY_WD)}],
+    traits:s=>({предмет:s.name, полис:s.policy ? `${s.policy.no} до ${fmt(s.policy.till)}` : 'полиса нет', сумма:s.pledge}),
     done:e=>!!e.policy}),
   'pk-zl-ban-missing':     ZLC({when:(s,d)=>zlItem(s, s=>!s.ban), since:s=>s.reg, each:s=>[{due:s.banDue}],
     traits:s=>({предмет:s.name, орган:zlOrgan(s.kind), срок:s.banDue, сумма:s.pledge}), done:e=>!!e.ban}),
@@ -3010,6 +3116,15 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     done:(e,p)=>!!e.reval && e.reval.ccy===p.traits.валюта_кредита}),
   'pk-zl-restore':         ZLC({when:(s,d)=>zlItem(s, s=>!!s.loss && !s.notice), since:s=>s.loss.t,
     traits:s=>({предмет:s.name, исход_обследования:s.loss.how, сумма:s.pledge}), done:e=>!!e.restoreNotice}),
+  'pk-zl-restore-lapsed':  ZLC({cur:s=>s.credit, when:(s,d)=>zlItem(s, s=>!!s.notice && s.notice.restoreNotice.deadline<d && !zlLapseHit(s, d)),
+    each:s=>[{key:'извещение:'+s.notice.t, sub:`извещение от ${fmt(s.notice.t)}`}], since:s=>addDays(s.notice.restoreNotice.deadline, 1),
+    traits:s=>({предмет:s.name, кредит:s.credit, извещение:s.notice.t, срок_восполнения:s.notice.restoreNotice.deadline, сумма:s.pledge}),
+    attrib:(s,p,d)=>{ const hit = zlLapseHit(s, d);
+      if(hit) return {by:hit.by, how:`мера взыскания по кредиту ${s.credit}: ${hit.measure}`};
+      return {cancel:zlCancelItem(s) || (s.restoredEv ? s.restoredEv.how : s.last.how)}; }}),
+  'pk-zl-sale-appraisal':  ZLC({when:(s,d)=>zlItem(s, s=>!!s.realizing && zlStale(s, d)), since:s=>dateMax(s.realizing.t, addDays(s.apprTill, 1)),
+    traits:s=>({предмет:s.name, кредит:s.credit, в_реализации_с:s.realizing.t, отчёт:`${s.report} от ${fmt(s.appr)}`, годен_до:s.apprTill, сумма:s.pledge}),
+    done:e=>!!e.reval, cancel:s=>!s.realizing && s.realizingOff ? s.realizingOff.how : zlCancelItem(s)}),
   'pk-zl-coverage':        ZLC({when:s=>s.type==='credit' && !!s.belowSince && !s.justified && !s.repaid, since:s=>s.belowSince,
     traits:s=>({заёмщик:s.borrower, обеспеченность:zlPct(s.cover), порог:zlPct(s.req), ниже_с:s.belowSince, сумма:s.od}),
     done:e=>!!e.justify || !!e.topup,
@@ -3026,6 +3141,13 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     cancel:(s,d)=>d>s.till ? `срок поручительства истёк ${fmt(s.till)}` : s.repaid ? `кредит ${s.credit} погашен` : null}),
   'pk-zl-surety-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlSurety(s) && d>s.till, since:s=>addDays(s.till, 1),
     traits:s=>({поручитель:s.guarantor, кредит:s.credit, до:s.till, сумма:s.od}), done:e=>!!e.release || !!e.extend,
+    cancel:s=>s.repaid ? `кредит ${s.credit} погашен` : null}),
+  'pk-zl-guarantee-expiring': ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d<=s.till && kd(d, s.till)<=ZL_SURETY_WARN,
+    since:s=>addDays(s.till, -ZL_SURETY_WARN), traits:s=>({гарант:s.bank, кредит:s.credit, до:s.till, сумма:s.od}),
+    done:e=>!!e.extend || !!e.replaced,
+    cancel:(s,d)=>d>s.till ? `срок банковской гарантии истёк ${fmt(s.till)}` : s.repaid ? `кредит ${s.credit} погашен` : null}),
+  'pk-zl-guarantee-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d>s.till, since:s=>addDays(s.till, 1),
+    traits:s=>({гарант:s.bank, кредит:s.credit, до:s.till, сумма:s.od}), done:e=>!!e.replaced || !!e.extend,
     cancel:s=>s.repaid ? `кредит ${s.credit} погашен` : null}),
   'pk-zl-surety-repaid':   ZLC({cur:s=>s.credit, when:s=>s.type==='surety' && !s.released && !!s.repaid, since:s=>s.repaid.t,
     traits:s=>({поручитель:s.guarantor, кредит:s.credit, погашен:s.repaid.t}), done:e=>!!e.release}),
@@ -3051,6 +3173,13 @@ Object.assign(OWNER_CFG, {
   'pk-pl-unidentified': PLC({cur:false, when:s=>s.type==='receipt' && !s.bound && !s.refund && !s.storno, since:s=>s.date,
     traits:s=>({плательщик:s.payer, назначение:s.purpose, дата_поступления:s.date, сумма:s.amount}),
     done:e=>!!e.bind || !!e.refund, cancel:s=>s.storno ? s.storno.how : null}),
+  // шаги платежей: возврат — от основания, пока допустимость «можно»; положивший основание не исполняет (четыре глаза)
+  'pl-refund-exec': PLC({cur:false, objectType:'receipt', when:s=>s.type==='receipt' && s.admit==='можно' && !s.refundExec, since:s=>s.refund.t, named:s=>s.refund.by,
+    traits:s=>({плательщик:s.payer, основание:s.refund.refund, дата_поступления:s.date, сумма:s.amount}), done:e=>!!e.refundExec,
+    cancel:s=>s.revoked ? s.revoked.how : s.blocked ? `возврат недопустим: ${s.blocked.how}` : null}),
+  'pl-act-sign':    PLC({cur:false, objectType:'pl-act', when:s=>s.type==='pl-act' && !!s.formed && !s.signed && !s.recalled, since:s=>s.formed.t,
+    traits:s=>({кредит:s.credit, период:s.period, состояние:s.agreed ? 'согласован' : 'сформирован'}), done:e=>!!e.sign,
+    cancel:s=>s.recalled ? s.recalled.how : null}),
 });
 PL_STEPS.forEach(x=>{ OWNER_CFG[x.id].objectType = x.objectType; });
 // Заёмщик: пакет — «вид · заёмщик» без периода, база срока — начало полосы риска; анализ — «вид · заёмщик · период», срок называет
@@ -3076,6 +3205,12 @@ Object.assign(OWNER_CFG, {
     since:(s,d,x)=>x.since,
     traits:(s,d,x)=>({год:x.sub, на_дату:`${x.sub}-01-01`, акт:zmActText(s.acts[x.sub]), сумма:s.debt}),
     done:(e,p)=>!!e.act && e.act.year===p.sub && e.act.stage==='подписан', cancel:s=>zmCancel(s)}),
+  // акт о полном погашении (п. 64): ключ «вид · заёмщик · акт», срок — 10 р.д. от подписи заёмщика; гасит подпись Фонда, разногласия по суммам не гасят
+  'pk-zm-repaid-act':  ZMC({when:s=>s.repaidActsOpen.length>0,
+    each:s=>s.repaidActsOpen.map(a=>({key:'акт:'+a.no, sub:a.no, since:a.borrowerSigned})),
+    since:(s,d,x)=>x.since,
+    traits:(s,d,x)=>({акт:x.sub, подписал_заёмщик:x.since, сумма:s.debt}),
+    done:(e,p)=>!!e.repaidAct && e.repaidAct.no===p.sub && e.repaidAct.side==='Фонд', cancel:s=>s.gone ? s.gone.how : s.last.how}),
 });
 // Реструктуризация: ключ «вид · заявка» без периода; объект кураторства — основной кредит заявки; срок называет
 // реструктуризация по норме на дату якоря; гасит вынос на комитет или отправка письма; исход заявки — «снято» с причиной
@@ -3097,6 +3232,14 @@ Object.assign(OWNER_CFG, {
     traits:(s,d,x)=>{ const f = s.facts[x.sub];
       return {заёмщик:s.borrower, факт:f.id, фактор:f.name, уровень:`${f.level}, ${f.norm}`, наступил:f.occurred, внесён:f.entered, сумма:s.debt}; },
     done:(e,p)=>!!e.decision && e.decision.fact===p.sub, cancel:(s,d,p)=>clCancel(s, d, p.sub)},
+  // условие п. 11 по данным владельцев, факта нет: ключ «вид · условие»; гасит факт по условию или «рассмотрено, не фактор»
+  'pk-cl-factor-due': {src:'cl', objectType:'credit', cur:false, when:s=>s.condsOpen.length>0,
+    each:s=>s.condsOpen.map(c=>({key:'условие:'+c.id, sub:c.id})),
+    since:(s,d,x)=>s.conds[x.sub].since,
+    traits:(s,d,x)=>{ const c = s.conds[x.sub], f = CL_FACTOR[c.kind];
+      return {заёмщик:s.borrower, условие:c.text, фактор:`${f.name} (${f.level}, ${f.norm})`, источник:c.src, с:c.since, сумма:s.debt}; },
+    done:(e,p)=>(!!e.fact && e.fact.cond===p.sub) || (!!e.notFactor && e.notFactor.cond===p.sub),
+    cancel:(s,d,p)=>{ const c = s.conds[p.sub]; return s.closed ? s.closed.how : c && c.gone ? c.gone.how : s.last.how; }},
 });
 /* атрибуция отпадения: кто и что сделал у владельца; снятие — причина от владельца */
 function appearedOn(p){
@@ -3450,6 +3593,9 @@ const ZL_FACTS = {
   'продлить поручительство': {type:'surety',   ev:(a)=>({extend:a}),                          how:a=>`поручительство продлено до ${fmt(a)}`},
   'снять поручительство':    {type:'surety',   ev:(a)=>({release:a}),                         how:a=>`поручительство снято: ${a}`},
   'решение комитета':        {type:'contract', ev:(a)=>({decision:a}),                        how:a=>`решение комитета: ${a}`},
+  'восполнено':              {type:'item',     ev:()=>({restored:true}),                     how:()=>'предмет восполнен: акт обследования в норме'},
+  'продлить гарантию':       {type:'guarantee', ev:(a)=>({extend:a}),                         how:a=>`банковская гарантия продлена до ${fmt(a)}`},
+  'заменить гарантию':       {type:'guarantee', ev:(a)=>({replaced:a}),                       how:a=>`замещающее обеспечение вместо гарантии: ${a}`},
 };
 const ZL_STAFF = id=>{ const e = emp(id); return !!e && e.dept==='Отдел залогового обеспечения'; };
 function zlStepError(id, by, step){
@@ -3457,7 +3603,7 @@ function zlStepError(id, by, step){
   if(!s) return 'объекта залога нет';
   if(!f || f.type!==s.type) return `шага «${step}» у этого объекта нет`;
   if(s.type==='contract') return holds('zl-committee', by) ? null : 'решение вносит комитет по администрированию кредитов';
-  const role = s.type==='item' ? 'куратор залога' : 'куратор кредита', cur = curatorOn(role, s.type==='surety' ? s.credit : s.id, d);
+  const role = s.type==='item' ? 'куратор залога' : 'куратор кредита', cur = curatorOn(role, s.type==='surety' || s.type==='guarantee' ? s.credit : s.id, d);
   if(cur && (by===cur || by===actingFor(cur, d) || by===chiefOf(cur))) return null;
   return s.type!=='item' && ZL_STAFF(by) ? null : `факт вносит ${role}, его замещающий или руководитель`;
 }
@@ -3476,6 +3622,11 @@ const PL_FACTS = {
   'директива':        {types:['credit'], who:'куратор'},
   'решение комиссии': {types:['credit'], who:'куратор'},
   'опознать':         {types:['receipt'], who:'оба'},
+  'исполнить возврат':  {types:['receipt'], who:'бухгалтер'},
+  'отозвать основание': {types:['receipt'], who:'бухгалтер'},
+  'согласовать акт':    {types:['pl-act'], who:'бухгалтер'},
+  'подписать акт':      {types:['pl-act'], who:'бухгалтер'},
+  'отозвать акт':       {types:['pl-act'], who:'куратор'},
 };
 const plAccountant = id=>holds('pl-accountant', id) || id===deptHead('Бухгалтерия');
 function plCuratorOk(credit, by, d){ const cur = credit && curatorOn('куратор кредита', credit, d); return !!cur && (by===cur || by===actingFor(cur, d) || by===chiefOf(cur)); }
@@ -3489,8 +3640,14 @@ function plStepError(id, by, step, arg){
   if((step==='вернуть' || step==='опознать') && (s.bound || s.refund || s.storno)) return 'поступление уже разобрано';
   if(step==='директива' && !(s.orphanSince && !s.directive && s.advance>0)) return 'безадресного аванса нет';
   if(step==='решение комиссии' && !s.disputed.length) return 'спорной пени без решения нет';
+  if(step==='исполнить возврат' && s.admit!=='можно') return s.refund ? 'возврат недопустим: у плательщика появился долг' : 'основания возврата нет';
+  if(step==='исполнить возврат' && s.refundExec) return 'возврат уже исполнен';
+  if(step==='исполнить возврат' && by===s.refund.by) return 'исполняет другой бухгалтер: основание положили вы';
+  if(step==='отозвать основание' && (!s.refund || s.refundExec)) return 'отзывать нечего';
+  if(['согласовать акт','подписать акт','отозвать акт'].indexOf(step)!==-1 && (!s.formed || s.signed || s.recalled)) return 'акт не ждёт подписи';
+  if(step==='согласовать акт' && s.agreed) return 'акт уже согласован';
   if(f.who==='бухгалтер') return plAccountant(by) ? null : 'факт денег вносит бухгалтер';
-  const credit = s.type==='receipt' ? arg && arg.credit : s.type==='payment' ? s.credit : s.id;
+  const credit = s.type==='receipt' ? arg && arg.credit : s.type==='payment' || s.type==='pl-act' ? s.credit : s.id;
   if(s.type==='receipt' && !ownerObj('pl', credit)) return 'кредит для привязки не назван';
   if(plCuratorOk(credit, by, d) || (f.who==='оба' && plAccountant(by))) return null;
   return f.who==='оба' ? 'вносит бухгалтер или куратор кредита, его замещающий или руководитель'
@@ -3510,7 +3667,12 @@ function plStep(id, by, step, arg){
     : {confirm:{line:arg}, how:`платёж подтверждён: строка реестра ЦК ${arg}`});
   if(step==='сторно') Object.assign(e, {storno:arg, notice:s.type==='payment', how:`поступление ${s.receipt||s.id} сторнировано: ${arg}`});
   if(step==='восстановить') Object.assign(e, {restore:true, notice:true, how:`платёж ${s.id} восстановлен датой операции ${fmt(s.op)}, спорная пеня снята`});
-  if(step==='вернуть') Object.assign(e, {refund:arg, how:`возврат отправителю оформлен: ${arg}`});
+  if(step==='вернуть') Object.assign(e, {refund:arg, how:`основание возврата отправителю: ${arg}`});
+  if(step==='исполнить возврат') Object.assign(e, {refundExec:true, how:`возврат отправителю исполнен: ${money(s.amount)}, ${s.payer}`});
+  if(step==='отозвать основание') Object.assign(e, {revoke:true, how:`основание возврата отозвано: ${arg||'внесено ошибочно'}`});
+  if(step==='согласовать акт') Object.assign(e, {agree:true, how:`акт сверки ${s.id} согласован бухгалтерией`});
+  if(step==='подписать акт') Object.assign(e, {sign:true, how:`акт сверки ${s.id} за ${s.period} подписан бухгалтерией`});
+  if(step==='отозвать акт') Object.assign(e, {recall:true, how:`акт сверки ${s.id} отозван куратором: ${arg||'пересборка'}`});
   if(step==='директива') Object.assign(e, {directive:arg, how:`директива куратора по авансу: ${arg.text}`});
   if(step==='опознать') Object.assign(e, {bind:arg, notice:true, how:`поступление ${s.id} опознано: кредит ${arg.credit}, платёж датой поступления ${fmt(s.date)}`});
   o.ev.push(e);
@@ -3526,6 +3688,7 @@ function plStep(id, by, step, arg){
    они приходят ответом анализа */
 const ZM_FACTS = {
   'акт подписан': {ev:y=>({act:{year:y, stage:'подписан'}}), how:y=>`акт сверки на 01.01.${y} подписан обеими сторонами`},
+  'акт о погашении подписан Фондом': {ev:no=>({repaidAct:{no, side:'Фонд'}}), how:no=>`акт о полном погашении ${no} подписан со стороны Фонда`},
 };
 const ZM_DEPT = 'Сопровождение'; // отраслевой департамент: ведёт мониторинг заёмщика
 const zmDeptOk = by=>!!emp(by) && emp(by).dept===ZM_DEPT;
@@ -3537,6 +3700,7 @@ function zmStepError(id, by, step, arg){
   const later = ownerObj('zm', id).ev.filter(e=>e.t>d && e.act).map(e=>e.t).sort()[0];
   if(later) return `в карточке заёмщика уже есть запись от ${fmt(later)}: задним числом не вносится`;
   if(step==='акт подписан' && (s.years.indexOf(arg)===-1 || s.signed(arg))) return `акта на 01.01.${arg} заёмщик не должен или он уже подписан`;
+  if(step==='акт о погашении подписан Фондом' && !(s.repaidActs[arg] && !s.repaidActs[arg].fkf)) return `акта о полном погашении ${arg} без подписи Фонда нет`;
   return zmDeptOk(by) ? null : 'документ заёмщика вносит сотрудник отраслевого департамента';
 }
 function zmStep(id, by, step, arg){
@@ -3586,7 +3750,7 @@ function rsStep(id, by, step, arg){
 }
 /* факт п. 11 в реестре кредита (демо соседа): завести факт, внести в него реквизиты решения комитета, аннулировать с причиной —
    вносит и правит кредитный инспектор (роль доступа классификации); куратор кредита без роли — нет */
-const CL_STEP_NAMES = ['факт','решение','аннулировать'];
+const CL_STEP_NAMES = ['факт','решение','аннулировать','не фактор'];
 function clStepError(id, by, step, arg){
   const o = ownerObj('cl', id), d = state.today, s = clAt(o, d), a = arg || {};
   if(!s) return 'кредита в реестре классификации нет';
@@ -3595,6 +3759,8 @@ function clStepError(id, by, step, arg){
   const later = o.ev.filter(e=>e.t>d && (e.fact || e.decision || e.annul)).map(e=>e.t).sort()[0]; // записи реестра, не события кредита
   if(later) return `в реестре фактов кредита уже есть запись от ${fmt(later)}: задним числом не вносится`;
   if(!holds('cl-inspector', by)) return 'факты п. 11 вносит и правит кредитный инспектор';
+  if(step==='не фактор' || (step==='факт' && a.cond)){ const c = s.conds[a.cond]; if(!c || c.gone || c.noted || c.fact) return 'условие уже рассмотрено или снято'; }
+  if(step==='не фактор') return (a.reason||'').trim() ? null : 'нужна причина: почему условие не фактор';
   if(step==='факт'){
     if(!CL_FACTOR[a.kind]) return 'вид фактора не выбран';
     if(!a.occurred) return 'не указана дата наступления';
@@ -3618,9 +3784,10 @@ function clStep(id, by, step, arg){
   const o = ownerObj('cl', id), t = state.today, a = arg;
   if(step==='факт'){
     const n = state.owner.cl.reduce((k, x)=>k + x.ev.filter(e=>e.fact).length, 0);
-    o.ev.push(CLF(t, by, 'F-'+(101+n), a.kind, a.occurred, {until:a.until || undefined, doc:a.doc || undefined}));
+    o.ev.push(CLF(t, by, 'F-'+(101+n), a.kind, a.occurred, {until:a.until || undefined, doc:a.doc || undefined, cond:a.cond || undefined}));
     return 'F-'+(101+n);
   }
+  if(step==='не фактор'){ o.ev.push({t, by, notFactor:{cond:a.cond, reason:a.reason.trim()}, how:`условие ${a.cond}: рассмотрено, не фактор — ${a.reason.trim()}`}); return; }
   if(step==='решение') o.ev.push({t, by, decision:{fact:a.fact, doc:a.doc.trim()}, how:`факт ${a.fact}: внесены реквизиты решения комитета — ${a.doc.trim()}`});
   else o.ev.push({t, by, annul:{fact:a.fact, reason:a.reason.trim()}, how:`факт ${a.fact} аннулирован: ${a.reason.trim()}`});
 }
@@ -6035,6 +6202,7 @@ function renderOwnerCard(t, p){
     </div>
     <div class="btn-row">${steps.map(btn).join('')}
       ${src==='gd' && s.status==='Действует' && !s.doc ? `<button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.gdAttachDoc('${o.id}', ZD.state.viewer))">Приложить основной документ</button>` : ''}</div>
+    ${src==='lp' && s.status==='Действует' && (programBlock(o.id, state.today)||{}).why==='основание закрыто' ? `<div class="pill warn" style="margin-top:12px">Основание закрыто ${fmt(programBlock(o.id, state.today).since)}: заявки не принимаются — смените основание</div>` : ''}
     ${src==='lp' && s.status==='Действует' ? `<div class="form-row" style="margin-top:12px">
       <div class="fld"><label>Новая «Дата по»</label><input type="date" id="lpTo" value="${addDays(s.dateTo||state.today, 180)}"></div>
       <div class="fld"><label>Причина и реквизиты</label><input id="lpWhy"></div>
@@ -6239,7 +6407,7 @@ function renderVzCard(id){ // требование у владельца: сро
 }
 /* что гасит вид у залога: шаг карточки и его значение по умолчанию (демо) */
 const ZL_FIX = {
-  'pk-zl-survey-overdue':  ['обследование', ()=>'в норме'],
+  'pk-zl-survey':          ['обследование', ()=>'в норме'],
   'pk-zl-reval-overdue':   ['переоценка', (s,d)=>({report:`отчёт от ${fmt(d)}`})],
   'pk-zl-appraisal-stale': ['переоценка', (s,d)=>({report:`отчёт от ${fmt(d)}`})],
   'pk-zl-insurance':       ['полис', (s,d)=>({no:'СП-'+s.id.slice(2), till:addMonths(d, 12)})],
@@ -6254,26 +6422,34 @@ const ZL_FIX = {
   'pk-zl-surety-expired':  ['снять поручительство', ()=>'истечение срока'],
   'pk-zl-surety-repaid':   ['снять поручительство', ()=>'исполнение обеспеченного обязательства'],
   'pk-zl-committee':       ['решение комитета', ()=>'допущено с обоснованием'],
+  'pk-zl-restore-lapsed':  null, // гасит мера взыскания по кредиту — не факт залога
+  'pk-zl-sale-appraisal':  ['переоценка', (s,d)=>({report:`отчёт независимого оценщика от ${fmt(d)}`})],
+  'pk-zl-guarantee-expiring': ['продлить гарантию', (s,d)=>addMonths(s.till, 12)],
+  'pk-zl-guarantee-expired':  ['заменить гарантию', ()=>'догрузка залогом по доп. соглашению'],
 };
 function renderZlCard(id){ // залог у владельца: подсветка триггеров без исполнителя, факт, который гасит, журнал
   const o = ownerObj('zl', id), d = state.today, s = zlAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
-  const title = {item:'предмета залога', credit:'обеспечения кредита', surety:'договора поручительства', contract:'договора залога'}[o.type];
+  const title = {item:'предмета залога', credit:'обеспечения кредита', surety:'договора поручительства', guarantee:'банковской гарантии', contract:'договора залога'}[o.type];
   const head = `<h3>Карточка ${title} ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">объекта на ${fmt(d)} нет</div></div>`;
   const live = ZL_KINDS.filter(k=>OWNER_CFG[k].when(s, d)).flatMap(k=>(OWNER_CFG[k].each ? OWNER_CFG[k].each(s, d) : [{}]).map(x=>({k, x})));
   const btn = (step, arg, label)=>`<button class="btn btn-secondary btn-sm" onclick='ZD.ui(()=>ZD.zlStep(${JSON.stringify(o.id)}, ZD.state.viewer, ${JSON.stringify(step)}, ${JSON.stringify(arg)}))'>${esc(label)}</button>`;
-  const row = ({k, x})=>{ const [step, arg] = ZL_FIX[k], a = arg(s, d, x);
+  const row = ({k, x})=>{ const fix = ZL_FIX[k], [step, arg] = fix || [], a = fix ? arg(s, d, x) : null;
     return `<tr><td>${esc(kindOf(k).title)}${x.sub ? ` · ${esc(x.sub)}` : ''}</td><td class="small">${x.due ? 'срок '+fmt(x.due) : 'срок — правило заданий'}</td>
-      <td>${btn(step, a, step[0].toUpperCase()+step.slice(1))}</td></tr>`; };
+      ${fix ? `<td>${btn(step, a, step[0].toUpperCase()+step.slice(1))}</td>` : `<td class="small">${esc(ZL_STEPS.find(z=>z.id===k).where)}</td>`}</tr>`; };
   const kv = o.type==='item'
     ? `<div class="k">Предмет · вид</div><div class="v">${esc(s.name)} · ${esc(s.kind)} · кредит ${esc(s.credit)}</div>
        <div class="k">Залоговая стоимость</div><div class="v">${money(s.pledge)} ${esc(s.ccy)}</div>
        <div class="k">Куратор залога</div><div class="v">${who(curatorOn('куратор залога', s.id, d))}</div>
-       <div class="k">Обследование · переоценка</div><div class="v">следующее ${fmt(s.nextSurvey)} · следующая ${fmt(s.nextReval)}; отчёт годен до ${fmt(s.apprTill)}</div>`
+       <div class="k">Обследование · переоценка</div><div class="v">следующее ${fmt(s.nextSurvey)} · следующая ${fmt(s.nextReval)}; отчёт годен до ${fmt(s.apprTill)}</div>${s.realizing ? `
+       <div class="k">Реализация</div><div class="v">${esc(s.realizing.how)} · ${fmt(s.realizing.t)}</div>` : ''}`
     : o.type==='credit'
     ? `<div class="k">Заёмщик</div><div class="v">${esc(s.borrower)}</div>
        <div class="k">Обеспеченность</div><div class="v">${zlPct(s.cover)} при пороге ${zlPct(s.req)} · остаток ${money(s.od)} · залог ${money(s.pledge)}</div>
        <div class="k">Куратор кредита</div><div class="v">${who(curatorOn('куратор кредита', s.id, d))}</div>`
+    : o.type==='guarantee'
+    ? `<div class="k">Гарант · кредит</div><div class="v">${esc(s.bank)} · ${esc(s.credit)}</div>
+       <div class="k">Срок</div><div class="v">до ${fmt(s.till)}${s.replaced ? ` · ${esc(s.replaced.how)}` : ''}</div>`
     : o.type==='surety'
     ? `<div class="k">Поручитель · кредит</div><div class="v">${esc(s.guarantor)} · ${esc(s.credit)}</div>
        <div class="k">Срок</div><div class="v">до ${fmt(s.till)}${s.released ? ` · снято: ${esc(s.released.how)}` : ''}</div>`
@@ -6290,17 +6466,19 @@ function renderZlCard(id){ // залог у владельца: подсветк
 }
 /* что гасит вид у платежей: шаг карточки, значение по умолчанию и подпись кнопки (демо) */
 const PL_FIX = {
+  'pl-refund-exec':     [['исполнить возврат', ()=>null, 'Исполнить возврат']],
+  'pl-act-sign':        [['согласовать акт', ()=>null, 'Согласовать'], ['подписать акт', ()=>null, 'Подписать акт']],
   'pk-pl-await':        [['строка ЦК', s=>'ЦК-'+s.id.slice(3), 'Строка ЦК'], ['сторно', ()=>'денег в реестре ЦК нет', 'Сторно']],
   'pk-pl-advance':      [['директива', ()=>({mode:'резерв', text:'резерв под строки нового графика'}), 'Резерв под новый график'],
                          ['директива', ()=>({mode:'аванс', text:'оставить авансом'}), 'Оставить авансом'],
                          ['директива', ()=>({mode:'возврат', text:'возврат по заявлению заёмщика'}), 'Возврат заёмщику']],
   'pk-pl-disputed':     [['решение комиссии', ()=>({outcome:'не начислять', protocol:'№ 1'}), 'Решение комиссии']],
   'pk-pl-restore':      [['восстановить', ()=>null, 'Восстановить']],
-  'pk-pl-unidentified': [['опознать', s=>s.hint ? {credit:s.hint} : null, 'Привязать к кредиту'], ['вернуть', ()=>'чужие деньги, по заявлению банка', 'Возврат отправителю']],
+  'pk-pl-unidentified': [['опознать', s=>s.hint ? {credit:s.hint} : null, 'Привязать к кредиту'], ['вернуть', ()=>'чужие деньги, по заявлению банка', 'Основание возврата']],
 };
 function renderPlCard(id){ // платежи у владельца: подсветка случая без исполнителя, факт, который его гасит, журнал и известия кредита
   const o = ownerObj('pl', id), d = state.today, s = plAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
-  const title = {payment:'платежа', receipt:'поступления', credit:'кредита'}[o.type];
+  const title = {payment:'платежа', receipt:'поступления', credit:'кредита', 'pl-act':'акта сверки'}[o.type];
   const head = `<h3>Карточка ${title} ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">объекта на ${fmt(d)} нет</div></div>`;
   const live = PL_KINDS.filter(k=>OWNER_CFG[k].when(s, d));
@@ -6314,6 +6492,9 @@ function renderPlCard(id){ // платежи у владельца: подсве
        <div class="k">Сумма · операция</div><div class="v">${money(s.amount)} · ${fmt(s.op)} · ${esc(s.channel)} · поступление ${esc(s.receipt)}</div>
        <div class="k">Состояние</div><div class="v">${esc(s.phase)}${s.storno && !s.late && !s.restored && !s.decision ? ` · спорная пеня ${money(s.penalty)}` : ''}</div>
        <div class="k">Куратор кредита</div><div class="v">${curator}</div>`
+    : o.type==='pl-act'
+    ? `<div class="k">Кредит · период</div><div class="v">${esc(s.credit)} · ${esc(s.period)}</div>
+       <div class="k">Состояние</div><div class="v">${s.signed ? 'подписан' : s.recalled ? 'отозван' : s.agreed ? 'согласован' : 'сформирован'}</div>`
     : o.type==='receipt'
     ? `<div class="k">Плательщик</div><div class="v">${esc(s.payer)}</div>
        <div class="k">Назначение</div><div class="v">${esc(s.purpose)}</div>
@@ -6349,9 +6530,12 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
   analysisDocs(s.id, d).filter(x=>x.type===ZM_DOC.анализ || (s.strip && x.date>=s.strip)).forEach(x=>rows.push(`<tr><td>${esc(x.type)} за ${esc(x.period)}</td><td class="small">закрыто</td><td class="small">${x.type===ZM_DOC.пакет ? 'пакет получен полностью по запросу' : 'заключение'} ${esc(x.ref)} от ${fmt(x.date)}</td></tr>`));
   s.unsigned.forEach(y=>rows.push(`<tr><td>Акт сверки на 01.01.${y}<div class="small">${esc(zmActText(s.acts[y]))}</div></td>
     <td class="small">до 01.09.${y}</td><td>${btn('акт подписан', y, 'Акт подписан')}</td></tr>`));
+  s.repaidActsOpen.forEach(a=>rows.push(`<tr><td>Акт о полном погашении ${esc(a.no)}<div class="small">заёмщик подписал ${fmt(a.borrowerSigned)}</div></td>
+    <td class="small">до ${fmt(addWorkdays(a.borrowerSigned, 10))} — Порядок, п. 64</td><td>${btn('акт о погашении подписан Фондом', a.no, 'Подписать со стороны Фонда')}</td></tr>`));
   return `<div class="card">${head}
     <div class="kv">
       <div class="k">ИНН</div><div class="v">${esc(o.id)}</div>
+      <div class="k">Состояние субъекта</div><div class="v">${s.gone ? `<span class="pill warn">${esc(s.gone.how)}</span>` : 'действует'} <span class="small">ответ заёмщика</span></div>
       <div class="k">Категория риска</div><div class="v">${esc(ZM_CAT[s.cat])} с ${fmt(s.catSince)}${s.strip ? ` · полоса повышенного риска с ${fmt(s.strip)}` : ''}</div>
       <div class="k">Суммарный остаток</div><div class="v">${money(s.debt)} сом</div>
       <div class="k">Ведущий куратор на ${fmt(d)}</div><div class="v">${lead ? who(lead)+(actingFor(lead, d)!==lead ? `; действует ${who(actingFor(lead, d))}` : '') : 'нет'} <span class="small">ответ кураторства</span></div>
@@ -6427,6 +6611,9 @@ function renderClCard(id){ // реестр фактов п. 11 кредита у
       <div class="k">Куратор кредита на ${fmt(d)}</div><div class="v">${cur ? who(cur) : 'нет'} <span class="small">ответ кураторства</span></div>
       <div class="k">Последняя запись</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div>
     </div>
+    ${s.condsOpen.length ? `<div class="section-h">Условия п. 11 по данным владельцев: факта нет</div>
+      <table class="cgrid"><thead><tr><th>Условие</th><th>С</th><th>Гасит факт</th></tr></thead><tbody>${s.condsOpen.map(c=>`<tr><td>${esc(c.id)} · ${esc(c.text)}<div class="small">${esc(c.src)} · ${esc(CL_FACTOR[c.kind].name)}</div></td><td class="small">${fmt(c.since)}</td>
+        <td>${btn('факт', {kind:c.kind, occurred:c.since, cond:c.id}, 'Внести факт')} ${btn('не фактор', {cond:c.id, reason:'рассмотрено: на категорию не влияет'}, 'Рассмотрено, не фактор')}</td></tr>`).join('')}</tbody></table>` : ''}
     <div class="section-h">Факты п. 11: решение комитета</div>
     ${rows.length ? `<table class="cgrid"><thead><tr><th>Факт</th><th>Внесён</th><th>Решение комитета</th><th>Гасит факт</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
       : '<div class="small">фактов нет</div>'}
@@ -6469,12 +6656,15 @@ const KIND_THRESHOLD = Object.assign({
   'pk-rep-obligation-due':()=>thrO('за N к.д. до срока сдачи'),
   'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
   'pk-cr-payment-due':()=>thrR('cr.noticeDays', v=>`за ${v} к.д. до платежа`),
-  'pk-zl-survey-overdue':()=>Object.assign(thrT(`${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
+  'pk-zl-survey':()=>Object.assign(thrT(`за ${ZL_LEAD} к.д. до плановой даты; интервал ${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, `${ZL_NORM}, Прил. 2 §2.3`),
     {more:{text:`при согласовании зампреда короче по категории риска кредита: ${Object.values(ZL_TIGHT.k).map(v=>'×'+String(v).replace('.', ',')).join(' / ')}, не меньше ${ZL_TIGHT.min} мес.`, src:PROJECT_SRC}}),
   'pk-zl-coverage':()=>thrT('120 %, движимое неликвидное 150 %', `${ZL_NORM}, Прил. 1 §2.3–2.4`),
   'pk-zl-reval-overdue':()=>thrT('интервал переоценки предмета'),
   'pk-zl-appraisal-stale':()=>thrT(`${ZL_APPR_MONTHS} мес. от даты отчёта`),
   'pk-zl-surety-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
+  'pk-zl-guarantee-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
+  'pk-zl-insurance':()=>thrT(`за ${ZL_LEAD} к.д. до «полис до»; полиса нет — с регистрации договора`),
+  'pk-zl-sale-appraisal':()=>thrT(`предмет передан в реализацию, отчёт старше ${ZL_APPR_MONTHS} мес.`),
   'pk-zl-ban-missing':()=>thrT(`срок ${ZL_BAN_WD} р.д. от удостоверения договора`),
   'pk-zl-committee':()=>thrT(`срок комитета ${ZL_COMMITTEE_DAYS} дн.`),
   'pk-an-no-review':()=>thrO('срок обзора называет приказ к шаблону, не назван — значение правила', 'срок вносит в шаблон анализ по приказу: новый приказ — новая запись с датой'),
