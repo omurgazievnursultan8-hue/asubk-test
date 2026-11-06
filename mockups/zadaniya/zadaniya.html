@@ -549,7 +549,9 @@ function postHolderAt(id, d){
     if(h && !ABSENCES.some(a=>a.emp===h.emp && a.from<=d && d<=a.to)) return {emp:h.emp, why:'по записи состава'};
     const z = (p.deputy||[]).find(x=>onDate(x, d)); return z ? {emp:z.emp, why:'заместитель председателя'} : null; }
   if(h) return {emp:h.emp, why:'основной'};
-  if(p.lead===false){ const own = deptHead(p.unit); if(own) return {emp:own, why:'передано наверх', unit:p.unit}; } // неруководящая единица — сначала руководитель своего подразделения
+  if(p.lead===false){ const lp = POSTS.find(q=>q.unit===p.unit && q.lead!==false && q.id!==p.id), lh = lp ? postHolderAt(lp.id, d) : null;
+    if(lh) return {emp:lh.emp, why:'передано наверх', unit:lh.unit||p.unit};
+    const own = !lp && deptHead(p.unit); if(own) return {emp:own, why:'передано наверх', unit:p.unit}; } // неруководящая единица — сначала руководитель своего подразделения
   for(let u = unitParent(p.unit); u; u = unitParent(u)){ const head = deptHead(u); if(head) return {emp:head, why:'передано наверх', unit:u}; }
   return null;
 }
@@ -691,7 +693,7 @@ const ZL_STEPS = [
    act:'Оформить извещение о восполнении предмета', where:'карточка предмета: извещение о восполнении со сроком восполнения', dueN:5},
   {id:'pk-zl-restore-lapsed',  title:'Срок восполнения предмета истёк',             objectType:'pledge', traits:['предмет','кредит','извещение','срок_восполнения'],
    addr:'cr', act:'Потребовать досрочного исполнения или направить служебную записку в ОПК',
-   where:'взыскание: требование с основанием «нарушение условий залога (п. 41)» — мера «Требование о досрочном исполнении» с охватом «полный остаток» или служебная записка в ДПО (п. 42) по требованию с направлением «залог»', dueN:10, base:'состояние'},
+   where:'взыскание: требование с основанием «нарушение условий залога (п. 41)» — мера «Требование о досрочном исполнении» с охватом «полный остаток»; или служебная записка в отдел по работе с проблемными кредитами о передаче материалов на обращение взыскания на предмет (п. 42) — во взыскании мера «Служебная записка в ДПО» с путём «залог» по любому требованию по кредиту', dueN:10, base:'состояние'},
   {id:'pk-zl-sale-appraisal',  title:'Нет отчёта оценщика для начальной цены',      objectType:'pledge', traits:['предмет','кредит','в_реализации_с','отчёт','годен_до'],
    act:'Получить отчёт независимого оценщика для начальной цены', where:'карточка предмета: переоценка с отчётом независимого оценщика', dueN:15},
   {id:'pk-zl-coverage',        title:'Обеспеченность ниже порога',                  objectType:'credit', traits:['заёмщик','обеспеченность','порог','ниже_с'],
@@ -1194,7 +1196,7 @@ function seedRules(){ return [
   // Заёмщик: пакет — срок от начала полосы риска (прижатого к вводу вида), значение правила; анализ — срок называет расписание анализа;
   // акт сверки — до 1 сентября (п. 9), дата, прошедшая к выдаче, — 1 р.д. от выдачи
   {id:'rule-pk-cr-field-visit', kind:'pk-cr-field-visit', action:'act-cr-field-visit', addressee:A_CUR_CR, dueN:10, dueUnit:'workday',
-   dueBase:'состояние', dueSource:'Порядок, п. 7', editions:[ed('2026-11-06','вид заведён; ввод — с записью «выезд» у кредита')]},
+   dueBase:'состояние', dueSource:PROJECT_SRC, editions:[ed('2026-11-06','вид заведён; ввод — с записью «выезд» у кредита')]},
   ...ZM_STEPS.map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:A_CUR_ZM,
     editions:[ed('2026-11-16','подключение модуля «Заёмщик»')]},
     x.named ? {dueN:null, dueUnit:'named', dueSource:null, dueFrom:x.named}
@@ -2652,7 +2654,7 @@ const VZ_TPL = {
 };
 const vzPauseFits = (c, p)=>!c || c.p16===true || p.pause===c.p16; // шаг п. 16 снимает любая пауза; шаг 16 — только пауза реструктуризации
 function vzPauseOn(s, d, c){ return s.pauses.filter(p=>vzPauseFits(c, p) && p.t<=d && d<=p.to && !(p.ended && p.ended<=d)).pop() || null; }
-function vzApproved(s, d, c, from){ return s.pauses.filter(p=>vzPauseFits(c, p) && p.outcome==='одобрение' && p.ended && p.ended<=d && p.ended>from).pop() || null; }
+function vzApproved(s, d, c){ return s.pauses.filter(p=>vzPauseFits(c, p) && p.outcome==='одобрение' && p.ended && p.ended<=d).pop() || null; } // после одобрения — до закрытия требования
 const VZ_KIND_OF = n=>(VZ_STEPS.find(x=>x[1]===n)||[])[0];
 const vzPauseEnd = p=>p.ended || addDays(p.to, 1);
 /* срок шаблона на дату: основание — последнее такое событие (второй иск, второй возврат листа — новый срок); база
@@ -2664,13 +2666,13 @@ function vzOpenAll(s, d, n){
   const c = VZ_TPL[n], at = c.at ? c.at(s) : s.ev.filter(e=>c.on(e, s)).pop();
   if(!at || !at.t || (c.cond && !c.cond(s))) return [];
   let from = c.fromOf ? c.fromOf(at) : addDays(at.t, c.gap||0);
-  if(c.p16 && vzApproved(s, d, c, from)) return []; // реструктуризация одобрена — шаги п. 16 не возвращаются
+  if(c.p16 && vzApproved(s, d, c)) return []; // реструктуризация одобрена — шаги п. 16 не возвращаются
   if(c.p16){ const p = s.pauses.filter(p=>vzPauseFits(c, p) && vzPauseEnd(p)<=d && vzPauseEnd(p)>from).pop(); if(p) from = vzPauseEnd(p); } // пауза, перекрывшая базу
   if(from>d || s.closed || (c.p16 && vzPauseOn(s, d, c)) || (c.toBorrower && s.death && s.death<=d)) return [];
   if(!c.per && s.ev.some(e=>(c.anyTime || e.t>=at.t) && c.closers.indexOf(e.measure)!==-1)) return [];
   const [k, unit] = c.termOf ? c.termOf(at) : c.term;
-  const act = VZ_KIND_OF(n) && kindOf(VZ_KIND_OF(n)).activatedAt, base = act && from<act ? act : from; // срок — от базы, не раньше ввода вида (§2.6)
-  const due = unit==='р.д.' ? addWorkdays(base, k) : unit==='мес' ? addMonths(base, k) : addDays(base, k);
+  const act = VZ_KIND_OF(n) && kindOf(VZ_KIND_OF(n)).activatedAt, dueAt = b=>unit==='р.д.' ? addWorkdays(b, k) : unit==='мес' ? addMonths(b, k) : addDays(b, k);
+  const due = act && from<act && dueAt(from)<act ? dueAt(act) : dueAt(from); // к вводу вида сдвигается только срок, уже прошедший к вводу (§2.6)
   const x = {n, anchor:at.t, from, due, role:c.roleOf ? c.roleOf(at) : null, point:at.handover ? at.handover.point : null, no:at.handover ? at.handover.no||null : null};
   if(!c.per) return [x];
   return s.obliged.filter(o=>!vzObligedEnded(o, d) && !s.ev.some(e=>e.t>=at.t && vzDemandFits(c, e.measure, o.kind) && e.to===o.who))
@@ -2700,8 +2702,8 @@ function vzCancel(s, d, n, p){
   const c = VZ_TPL[n];
   if(c.toBorrower && s.death && s.death<=d) return `смерть заёмщика ${fmt(s.death)}`;
   const ol = p && p.traits && (p.traits.обязанное_лицо||'').match(/^(.*) \((.*)\)$/), ob = ol && s.obliged.find(o=>o.who===ol[1]), oe = ob && vzObligedEnded(ob, d);
-  if(oe) return `договор обеспечения прекращён: ${oe.how}`;
-  const ap = c.p16 && vzApproved(s, d, c, '');
+  if(oe) return `договор обеспечения прекращён ${fmt(oe.t)}: ${oe.how}`;
+  const ap = c.p16 && vzApproved(s, d, c);
   if(ap) return `реструктуризация одобрена ${fmt(ap.ended)} — меры п. 16 не возобновляются`;
   const pz = c.p16 && vzPauseOn(s, d, c);
   if(pz) return pz.pause==='реструктуризация' ? `рассмотрение реструктуризации, меры п. 16 приостановлены до ${fmt(pz.to)}`
@@ -3006,7 +3008,7 @@ function clAt(o, d){
   s.open = !s.closed;
   s.pending = s.open ? s.order.map(id=>s.facts[id]).filter(f=>!f.annulled && !f.decision && (!f.until || f.until>=d)) : [];
   Object.values(s.conds).forEach(c=>{ if(c.fact || c.gone || c.noted) return; // факт вида условия по кредитам условия — ссылка на условие не нужна
-    const ids = c.credits || [o.id];
+    const ids = c.credits || (c.src==='Заёмщик' ? (state.owner.cl||[]).filter(x=>x.borrower===o.borrower).map(x=>x.id) : [o.id]); // условие заёмщика — по любому его кредиту
     (state.owner.cl||[]).filter(x=>ids.indexOf(x.id)!==-1).forEach(x=>x.ev.forEach(e=>{
       if(c.fact || !e.fact || e.fact.kind!==c.kind || e.t>d || e.fact.occurred<c.since) return;
       if(x.ev.some(a=>a.annul && a.annul.fact===e.fact.id && a.t<=d)) return;
@@ -3127,8 +3129,9 @@ function docExecDone(s){ // исполнение и отправка закон�
 function resKey(r, who){ return `doc-execute|resolution:${r.id}·исполнитель:${who}|`; }
 function resDueFor(r, who){ // заменённому исполнителю — действующий срок резолюции с продлениями прежнего
   if(stepByKey(resKey(r, who))) return r.due;
-  const prev = Object.keys(r.out||{}).map(w=>stepByKey(resKey(r, w))).filter(Boolean).map(t=>t.setDue||r.due).sort();
-  return prev.length ? prev[prev.length-1] : r.due;
+  const cur = stepByKey(resKey(r, r.resp)), all = [cur ? cur.setDue||r.due : r.due]
+    .concat(Object.keys(r.out||{}).map(w=>stepByKey(resKey(r, w))).filter(Boolean).map(t=>t.setDue||r.due)).sort();
+  return all[all.length-1];
 }
 /* порог появления — записи модуля-владельца: значение с датой начала и основанием. Откуда число задаёт запись: act — норма (акт и пункт),
    order — настоящий внутренний акт, иначе решение проекта. Первая запись действует и для более ранних дат.
@@ -3258,15 +3261,16 @@ const zlGuar = s=>s.type==='guarantee' && !s.replaced && !s.repaid && !s.termina
 const ZL_LEAD = 30;        // за сколько к.д. до плановой даты обследования и «полис до» появляется повод — запись залога
 const zlNoPolicyWd = ()=>{ const r = ruleById('rule-pk-zl-insurance'); return (r && r.dueN) || 10; }; // полиса нет — N р.д. от регистрации договора: значение правила заданий
 /* мера, исполняющая п. 41, — по признакам меры из журнала взыскания, не по списку названий: требование о досрочном исполнении
-   с охватом «полный остаток» или служебная записка в ДПО (п. 42) по требованию с направлением «залог»; основание требования — п. 41 */
+   с охватом «полный остаток» по требованию с основанием п. 41 или служебная записка в отдел по работе с проблемными кредитами (п. 42;
+   в словаре взыскания — «Служебная записка в ДПО» с путём «залог») по любому требованию по кредиту */
 const VZ_MEASURE_CODE = {'Требование о досрочном исполнении':'досрочное требование', 'Служебная записка в ДПО':'записка в ДПО'};
 function zlLapseMeasure(r, e){ const code = e.measure && VZ_MEASURE_CODE[e.measure];
-  return code==='досрочное требование' ? e.cover==='полный остаток' : code==='записка в ДПО' && (e.track || r.track)==='залог'; }
+  return code==='досрочное требование' ? e.cover==='полный остаток' && r.ground===VZ_GROUND_P41 : code==='записка в ДПО' && (e.track || r.track)==='залог'; }
 const VZ_GROUND_P41 = 'нарушение условий залога (п. 41)'; // ручное основание открытия требования без просрочки // меры взыскания по кредиту после срока восполнения
 function zlLapseHit(s, d){ // мера взыскания по кредиту предмета со дня после срока восполнения
   if(!s || !s.notice) return null;
   const from = s.notice.t; let hit = null; // мера с даты извещения: принятая до конца срока восполнения тоже исполняет п. 41
-  (state.owner.vz||[]).filter(r=>r.credit===s.credit && r.ground===VZ_GROUND_P41).forEach(r=>r.ev.forEach(e=>{
+  (state.owner.vz||[]).filter(r=>r.credit===s.credit).forEach(r=>r.ev.forEach(e=>{
     if(zlLapseMeasure(r, e) && e.t>=from && e.t<=d && (!hit || e.t>=hit.t)) hit = e; }));
   return hit;
 }
@@ -4514,7 +4518,7 @@ function take(taskId, by){ // «Взять в работу»: только эт�
   if(inQueue(t)){ // в очереди роли «Взять в работу» — закрепление за взявшим
     if(!by || queueHolders(t).indexOf(by)===-1)
       throw new Error((t.queue.exclude||[]).indexOf(by)!==-1 ? 'по своему объекту автор задание не берёт' : 'из очереди берёт носитель роли');
-    t.assignee = by; t.addr = Object.assign({}, t.addr, {assignee:by, responsible:by});
+    t.assignee = by; t.queueAssignedBy = null; t.addr = Object.assign({}, t.addr, {assignee:by, responsible:by});
     log(t,'принято',{by, закреплено:roleTitle(t.queue.role)});
     [t.author, t.controller].filter((x,i,a)=>x && x!==by && a.indexOf(x)===i).forEach(x=>notify(t,'принято',x));
     return t;
@@ -4611,6 +4615,7 @@ function chiefExtendCheck(t, by, newDue, reason){
   if(!String(reason||'').trim()) throw new Error('нужно основание продления');
 }
 function tplDue(t){ return !!(t.dueOwn && t.dueOwn.n); } // срок назвал шаблон соседа — срок владельца
+function tplLocked(t){ const r = t.ruleId && ruleAsIssued(t); return tplDue(t) && !(r && r.extendBy); } // утверждающий не объявлен — в заданиях не продлевается
 function chiefMayExtend(t, v){ return !isTerminal(t) && isOverdueChief(t, v) && !namedDue(t) && !t.approver && !tplDue(t); }
 function extendByChief(taskId, by, newDue, reason){
   const t=taskOf(taskId);
@@ -4626,6 +4631,20 @@ function extendByChief(taskId, by, newDue, reason){
 function queueStep2Open(t, d){ const due = dueOf(t); return !!due && due<d && workdaysBetween(due, d)>=zdThr('overdueWd', `pk-overdue|task:${t.id}|никто не взял, 5-й р.д.`, d); }
 function queueAssigners(t, d){ const s1 = queueStepOf(t, 1, d), s2 = queueStep2Open(t, d) ? queueStepOf(t, 2, d) : null; // с замещающими на дату
   return [t.author, s1, s1 && actingFor(s1, d), s2, s2 && actingFor(s2, d)].filter((x, i, a)=>x && a.indexOf(x)===i); }
+/* отказ назначенного из очереди разбирает назначивший (или его замещающий): назначает другого носителя роли или возвращает в очередь */
+function assignerMay(t, v){ return !!t && !!t.queue && !!t.queueAssignedBy && !isTerminal(t) && lastEv(t)==='отказано' && !!v &&
+  (v===t.queueAssignedBy || actingFor(t.queueAssignedBy, state.today)===v); }
+function returnToQueue(taskId, by, reason){
+  const t = taskOf(taskId);
+  if(!t || isTerminal(t)) throw new Error('задание закрыто');
+  if(!assignerMay(t, by)) throw new Error('вернуть в очередь может назначивший после отказа назначенного');
+  if(!String(reason||'').trim()) throw new Error('нужно основание');
+  const from = t.assignee;
+  t.assignee = null; t.queueAssignedBy = null; t.addr = Object.assign({}, t.addr, {assignee:null, responsible:null});
+  log(t,'возвращено в очередь',{from, by, note:reason, assigner:true});
+  queueHolders(t).filter(h=>h!==from).forEach(h=>pushNotif('поручено', t.id, h, null, t.originKind));
+  return t;
+}
 function reassignTask(taskId, newAssignee, by, reason, newDue){ // решение человека: автор или руководитель исполнителя по цепочке
   const t=taskOf(taskId);
   if(!t || isTerminal(t)) throw new Error('задание закрыто — переназначать нечего');
@@ -4642,13 +4661,15 @@ function reassignTask(taskId, newAssignee, by, reason, newDue){ // решени�
     return t;
   }
   if(by===t.assignee) throw new Error('исполнитель задание не передаёт');
-  if(by!==t.author && !chiefChainIncludes(t.assignee, by) && !isOverdueChief(t, by)) throw new Error('переназначает автор или руководитель исполнителя по цепочке');
+  const asg = assignerMay(t, by);
+  if(by!==t.author && !chiefChainIncludes(t.assignee, by) && !isOverdueChief(t, by) && !asg) throw new Error('переназначает автор, руководитель исполнителя по цепочке или назначивший из очереди после отказа');
   if(!reason) throw new Error('нужно основание переназначения');
   if(!emp(newAssignee) || newAssignee===t.assignee) throw new Error('выберите другого исполнителя');
   if(t.queue && queueHolders(t).indexOf(newAssignee)===-1) throw new Error('задание очереди переназначается только носителю роли');
   if(newDue) chiefExtendCheck(t, by, newDue, reason); // новый срок в том же окне — только у руководителя по просрочке
   const from = t.assignee;
   t.assignee = newAssignee;
+  if(asg) t.queueAssignedBy = by; // назначил другого — следующий отказ снова к нему
   log(t,'переназначено',{from, to:newAssignee, by, reason});
   if(newDue){ log(t,'продление утверждено',{by, prevDue:dueOf(t), newDue, reason, без_запроса:true}); closeOverdueByChief(t, by);
     if(t.author && t.author!==by) notify(t,'решение-по-продлению', t.author); }
@@ -4662,6 +4683,7 @@ function requestExtension(taskId, by, newDue, reason){
   if(!t || isTerminal(t)) throw new Error('задание закрыто');
   if(!canActFor(t, by)) throw new Error('продление запрашивает исполнитель или его замещающий');
   if(namedDue(t)) throw new Error('срок называет владелец — переносится в его записи, не здесь');
+  if(tplLocked(t)) throw new Error('срок назвал шаблон соседа — продлевает утверждающий, объявленный правилом; его нет — в заданиях срок не продлевается');
   if(pendingExtension(t)) throw new Error('предыдущий запрос продления ещё без решения');
   if(!newDue || newDue<=dueOf(t)) throw new Error('новая дата должна быть позже установленного срока');
   if(!reason) throw new Error('нужно основание продления');
@@ -4926,7 +4948,7 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       const stateDate = dateMax(cfg.date(r), pkGate.activatedAt); // клэмп к дате подключения
       const up = cfg.up ? cfg.up(r) : null;
       out.set(`${kindId}|${cfg.objectType}:${objectId}|`, Object.assign({kind:kindId, objectType:cfg.objectType, objectId,
-        curObj:cfg.cur(r)||null, stateDate, approx:false, traits:cfg.traits(r)}, up ? {up:up.emp, upUnit:up.unit} : {}));
+        curObj:cfg.cur(r)||null, stateDate, approx:false, traits:cfg.traits(r)}, up ? {up:up.emp, upUnit:up.unit} : {}, rawOf(cfg.date(r), pkGate.activatedAt)));
     });
   } else if(OWNER_CFG[kindId]){
     // одна ветка на виды с исполнением у владельца: ключ «вид · объект» (у шага на участника — плюс участник), период — если его называет повод;
@@ -4936,14 +4958,15 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       const s = stateAt(src, o, asOf);
       if(!s || !cfg.when(s, asOf)) return;
       (cfg.each ? cfg.each(s, asOf) : [{}]).forEach(x=>{
-        const stateDate = dateMax(cfg.since ? cfg.since(s, asOf, x) : (s.statusSince||s.stageSince), pkGate.activatedAt); // клэмп к дате подключения
+        const rawSince = cfg.since ? cfg.since(s, asOf, x) : (s.statusSince||s.stageSince), stateDate = dateMax(rawSince, pkGate.activatedAt); // клэмп к дате подключения
         const obj = x.obj || o.id; // объект ключа — сам объект владельца или его часть (резолюция, выдача)
         const ot = x.objectType || cfg.objectType;
         out.set(`${kindId}|${ot}:${obj}${x.key ? '·'+x.key : ''}|${x.period||''}`, {kind:kindId, objectType:ot, objectId:obj, ownerId:o.id, src:cfg.srcs ? src : null, authorPost:x.authorPost||null, direct:x.direct||null,
           sub:x.sub||null, named:x.named!==undefined ? x.named : cfg.named ? cfg.named(s, asOf) : (s.author||null), namedRole:x.role && roleOf(x.role) ? x.role : null,
           curObj:typeof cfg.cur==='function' ? cfg.cur(s) : cfg.cur ? o.id : null, due:x.due || (cfg.due ? cfg.due(s) : null), mark:x.mark||null, escWho:cfg.escWho ? cfg.escWho(s) : null,
           approver:x.approver||null, unit:cfg.unit ? cfg.unit(s, asOf, x) : null, dueN:x.dueN||null, dueBasis:x.dueBasis||null,
-          stateDate, approx:false, traits:Object.assign(s.status||s.stage ? {статус:s.status||s.stage} : {}, 'author' in s ? {автор:s.author ? emp(s.author).name : 'нет'} : {}, cfg.traits ? cfg.traits(s, asOf, x) : {})});
+          stateDate, approx:false, traits:Object.assign(s.status||s.stage ? {статус:s.status||s.stage} : {}, 'author' in s ? {автор:s.author ? emp(s.author).name : 'нет'} : {}, cfg.traits ? cfg.traits(s, asOf, x) : {}),
+          rawDate:rawOf(rawSince, pkGate.activatedAt).rawDate||null});
       });
     }));
   } else if(kindId==='pk-stat-neighbor-silent'){
@@ -4951,14 +4974,14 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
     const ans = statMirrorAt(asOf);
     (ans.leads||[]).forEach(lead=>{
       const stateDate = dateMax(lead.from, pkGate.activatedAt); // клэмп к дате подключения
-      out.set(lead.key, {kind:kindId, objectType:'module', objectId:lead.nb, curObj:lead.nb, stateDate, approx:false,
+      out.set(lead.key, {kind:kindId, objectType:'module', objectId:lead.nb, curObj:lead.nb, stateDate, approx:false, rawDate:rawOf(lead.from, pkGate.activatedAt).rawDate||null,
         traits:{прогонов_подряд:lead.runs, причины:lead.reasons.join(', ')}});
     });
   } else if(kindId==='pk-rep-obligation-overdue'){
     // ключ шва — от соседа; поводом становится только «просрочено»
     reportsMirrorAt(asOf).filter(o=>o.state==='просрочено').forEach(o=>{
       const stateDate = dateMax(o.due, pkGate.activatedAt); // клэмп к дате подключения
-      out.set(o.id, {kind:kindId, objectType:'obligation', objectId:o.dept, curObj:o.dept, stateDate, approx:false,
+      out.set(o.id, {kind:kindId, objectType:'obligation', objectId:o.dept, curObj:o.dept, stateDate, approx:false, rawDate:rawOf(o.due, pkGate.activatedAt).rawDate||null,
         traits:{форма:o.tplName, подразделение:o.deptName, период:o.period, срок:o.due,
           дней_просрочки:daysBetween(o.due, asOf)}});
     });
@@ -4983,7 +5006,7 @@ function silenceOf(srcId, asOf){
 
 /* ---------- 7. сверка множества: полная, идемпотентная ---------- */
 /* что повод несёт от шва кроме признаков: объект кураторства, названный адресат или роль, срок владельца, пометка */
-const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN','dueBasis','up','upUnit','src','authorPost','direct'];
+const SEAM_FIELDS = ['curObj','named','namedRole','due','mark','escWho','esc','sub','ownerId','approver','unit','dueN','dueBasis','up','upUnit','src','authorPost','direct','rawDate'];
 function seamCopy(p, e){ SEAM_FIELDS.forEach(f=>{ p[f] = e[f]!==undefined ? e[f] : null; }); return p; }
 function reconcileKind(kindId, asOf){
   const expected = computeExpectedForKind(kindId, asOf);
@@ -5067,14 +5090,18 @@ function queueStepOf(t, step, asOf){ // пустая должность «Кто
   const h = t.authorPost ? (postHolderOn(t.authorPost, asOf) || ADMIN) : t.author;
   return step===2 ? (h && h!==ADMIN ? chiefOf(h) : null) : h;
 }
-const DOC_REG_STEPS = ['doc-register','doc-dispatch','doc-file'];
-function docRejectTo(t){ // кто разбирает отказ от шага документа: очередь регистратора, автор резолюции или автор документа
-  if(!t || !t.originKind || t.originKind.indexOf('doc-')!==0) return null;
-  if(DOC_REG_STEPS.indexOf(t.originKind)!==-1) return {role:'doc-registrar'};
+/* кто разбирает отказ от шага документа — тот, кто вправе заменить участника этой роли («Заменить участника»): автор резолюции,
+   автор документа, очередь «Регистратор» или «Архивариус». Назначенное из очереди — назначившему, взятое самим — обратно в очередь */
+const DOC_REJECT_BY = Object.values(DOC_REPLACE).reduce((m, R)=>(m[R.kind] = R.by, m), {});
+function docRejectTo(t){
+  if(!t || !t.originKind || !DOC_REJECT_BY[t.originKind] || t.queueAssignedBy) return null;
+  const by = DOC_REJECT_BY[t.originKind];
+  if(by==='регистратор') return {role:'doc-registrar', label:'регистратор'};
+  if(by==='архивариус или регистратор') return {role:'doc-archivist', label:'архивариус'};
   const p = povodByKey(t.povodKey), o = p && ownerObj('doc', p.ownerId||p.objectId), s = o && stateAt('doc', o, state.today);
   if(!s) return null;
-  if(t.originKind==='doc-execute' || t.originKind==='doc-control'){ const r = s.res && s.res[p.objectId]; return r ? {emp:r.author} : null; }
-  return s.author ? {emp:s.author} : null;
+  if(by==='автор резолюции'){ const r = s.res && s.res[p.objectId]; return r ? {emp:r.author, label:'автор резолюции'} : null; }
+  return s.author ? {emp:s.author, label:'автор документа'} : null;
 }
 function participantOf(who, t, povod, asOf){
   if(!t) return null;
@@ -5102,7 +5129,7 @@ function fallbackAddressee(rule, povod, asOf){ // одна цепочка для
 }
 function resolveAddressee(rule, povod, asOf){
   const dq = povod.kind==='pk-rejected' && povod.objectType==='task' ? docRejectTo(taskOf(povod.objectId)) : null;
-  if(dq && dq.role) // отказ от шага регистратора — разбирает очередь «Регистратор»
+  if(dq && dq.role) // отказ от шага документа, участника которого меняет регистратор или архивариус, — разбирает их очередь
     return {by:'очередь', role:roleTitle(dq.role), queueRole:dq.role, exclude:[], responsible:null, assignee:null, via:'очередь', subst:false};
   if(povod.esc) // эскалация к тому, кто вправе решить: очередь, которую объявил вид просроченного шага
     return {by:'очередь', role:roleTitle(povod.esc.role), queueRole:povod.esc.role, exclude:[], responsible:null, assignee:null, via:'очередь', subst:false};
@@ -5114,6 +5141,7 @@ function resolveAddressee(rule, povod, asOf){
   }
   if(f.by==='очередь'){ // все носители роли (у отдела роль называет повод); четыре глаза — без автора объекта
     const role = f.role || povod.namedRole;
+    if(!role) return fallbackAddressee(rule, povod, asOf); // повод не назвал очередь — ошибка реестра: «адресат не найден», не очередь без роли
     const exclude = kindOf(rule.kind).fourEyes && povod.named ? [povod.named] : [];
     const r = roleOf(role);
     if(r && !r.holders.some(h=>exclude.indexOf(h)===-1 && !goneOn(h, asOf))) return Object.assign(fallbackAddressee(rule, povod, asOf), {queueRole:role}); // носителей нет
@@ -5133,6 +5161,8 @@ function resolveAddressee(rule, povod, asOf){
   if(!responsible) return Object.assign(fallbackAddressee(rule, povod, asOf), {curObj:povod.curObj||null});
   const acting = actingFor(responsible, asOf);
   const a = {by:f.by, role:f.role||f.who, curObj:povod.curObj||null, responsible, assignee:acting, via:f.by, subst:acting!==responsible};
+  if(povod.kind==='pk-rejected' && f.by==='участник'){ const tt = taskOf(povod.objectId), dr = docRejectTo(tt); // кому вернулся отказ — словами
+    a.role = dr && dr.emp ? dr.label : tt && tt.queueAssignedBy ? 'назначивший из очереди' : 'автор задания'; }
   if(f.by==='должность' && (f.unit || povod.unit)) a.unit = f.unit || povod.unit;
   if(f.by==='оргструктура' && povod.upUnit) a.unit = povod.upUnit;
   if(hold) a.hold = hold; // ответ кураторства: работник не назван, объект держит заведующий отделом
@@ -5151,6 +5181,7 @@ function addrText(a){
 function priorTasksForKey(key){ return state.tasks.filter(t=>t.povodKey===key && isTerminal(t)); } // закрытые задания по ключу
 function computeImportance(action, rule){ return rule.importance || action.importance; }
 function pastToNext(d){ return d<state.today ? addWorkdays(state.today, 1) : d; } // срок, привязанный к дате объекта, прошедшей к выдаче
+const rawOf = (raw, act)=>raw && act && raw<act ? {rawDate:raw} : {}; // настоящая база до ввода вида: срок от неё, если к вводу не прошёл (§2.6)
 function namedDueOn(rule, povod){ const act = kindOf(rule.kind).activatedAt;
   return povod.due && act && povod.due<act ? addWorkdays(state.today, 1) : povod.due; }
 function dueFromRule(rule, base){ return rule.dueUnit==='month' ? addMonths(base, rule.dueN) : addWorkdays(base, rule.dueN || 1); }
@@ -5159,9 +5190,11 @@ function issueRuleTask(rule, povod){ // rule — действующая реда
   const addr = resolveAddressee(rule, povod, state.today);
   const base = rule.dueBase==='состояние' ? povod.stateDate : state.today; // от даты состояния (уже прижатой к подключению) или от выдачи
   const dueN = (rule.ownDue && povod.dueN) || rule.dueN;                  // собственный срок повода, если его назвал сосед
-  const dueDate = rule.dueUnit==='workday' ? addWorkdays(base, dueN)
+  const raw = rule.dueBase==='состояние' && povod.rawDate && povod.rawDate<povod.stateDate ? povod.rawDate : null; // база до ввода вида
+  const keepRaw = d=>raw && d(raw)>=povod.stateDate ? d(raw) : d(base); // срок, не прошедший к вводу, остаётся от настоящей базы
+  const dueDate = rule.dueUnit==='workday' ? keepRaw(b=>addWorkdays(b, dueN))
     : rule.dueUnit==='beforeDate' ? pastToNext(addDays(povod.due || povod.traits.дата_по, -rule.dueN)) // за N к.д. до даты объекта; прошла к выдаче — 1 р.д. от выдачи
-    : rule.dueUnit==='month' ? addMonths(povod.stateDate, rule.dueN)           // календарные месяцы от даты состояния
+    : rule.dueUnit==='month' ? (raw && addMonths(raw, rule.dueN)>=povod.stateDate ? addMonths(raw, rule.dueN) : addMonths(povod.stateDate, rule.dueN)) // календарные месяцы от даты состояния
     : rule.dueUnit==='named' ? namedDueOn(rule, povod)                         // срок называет владелец; прошёл до ввода вида — 1 р.д. от выдачи
     : addDays(state.today, rule.dueN);
   const authorPost = authorPostOf(rule, povod), au = authorOn(authorPost, state.today);
@@ -5223,7 +5256,7 @@ function readdressByDeparture(asOf){
     if(!g) return;
     const from = t.assignee, why = `${emp(g.who).name} ${g.how} ${fmt(g.at)}`;
     if(t.queue){
-      t.assignee = null; t.addr = Object.assign({}, t.addr, {assignee:null, responsible:null});
+      t.assignee = null; t.queueAssignedBy = null; t.addr = Object.assign({}, t.addr, {assignee:null, responsible:null});
       log(t,'возвращено в очередь',{from, note:why, gone:true});
       queueHolders(t).forEach(h=>pushNotif('поручено', t.id, h, null, t.originKind));
       return;
@@ -5547,7 +5580,8 @@ function moveIsMine(t, v, d){ return moveOnAssignee(t) && isMine(t, v, d); }
 function moveHolder(t){
   const st = lastEv(t);
   if(st==='ожидает приёмки') return {who:t.controller, what:'приёмка'};
-  if(st==='отказано') return {who:t.author, what:'рассмотрение отказа'};
+  if(st==='отказано'){ const dr = docRejectTo(t); // отказ разбирает назначивший из очереди, у шага документа — кто меняет участника роли, иначе автор
+    return {who:t.queue && t.queueAssignedBy ? t.queueAssignedBy : dr ? dr.emp || null : t.author, what:'рассмотрение отказа'}; }
   if(st==='заявлено') return {who:null, what:'ночной опрос подтвердит исполнение'};
   return null;
 }
@@ -5722,7 +5756,7 @@ function groupOps(g, v){
   const ops = [];
   if(any(t=>lastEv(t)==='поручено' && canActFor(t, v))) ops.push('взять');
   if(any(t=>['принято','возвращено'].indexOf(lastEv(t))!==-1 && canActFor(t, v))) ops.push('заявить');
-  if(any(t=>canActFor(t, v) && !namedDue(t) && !pendingExtension(t))) ops.push('продление');
+  if(any(t=>canActFor(t, v) && !namedDue(t) && !tplLocked(t) && !pendingExtension(t))) ops.push('продление');
   if(any(t=>visibleTo(t, v))) ops.push('отметка');
   return ops;
 }
@@ -6251,8 +6285,9 @@ const askName = id=>emp(id) ? emp(id).name : '';
 const WHY = label=>({f:'why', label, type:'textarea', required:true});
 const toOptions = list=>list.map(id=>({v:id, l:empName(id)}));
 const TASK_ASK = {
-  reject:t=>({title:'Отказаться от задания', submit:'Отказаться', done:t.queue ? 'Задание вернулось в очередь' : 'Отказ записан',
-    note:t.queue ? `Задание вернётся в очередь роли «${roleTitle(t.queue.role)}» с прежним сроком ${fmt(dueOf(t))}: возьмёт другой носитель роли.` : '',
+  reject:t=>({title:'Отказаться от задания', submit:'Отказаться', done:t.queue && !t.queueAssignedBy ? 'Задание вернулось в очередь' : 'Отказ записан',
+    note:t.queue && t.queueAssignedBy ? `Отказ уйдёт назначившему — ${askName(t.queueAssignedBy)}: он назначит другого носителя роли «${roleTitle(t.queue.role)}» или вернёт задание в очередь.`
+      : t.queue ? `Задание вернётся в очередь роли «${roleTitle(t.queue.role)}» с прежним сроком ${fmt(dueOf(t))}: возьмёт другой носитель роли.` : '',
     fields:[WHY('Причина отказа')], run:x=>reject(t.id, x.why.trim(), state.viewer)}),
   chiefExtend:t=>({title:'Продлить срок', submit:'Продлить', done:'Срок продлён', note:`Срок ${fmt(dueOf(t))} прошёл. Исполнитель продления не запрашивал.`,
     fields:[{f:'due', label:'Новый срок', type:'date', required:true}, WHY('Основание')],
@@ -6275,6 +6310,9 @@ const TASK_ASK = {
     run:x=>releaseTask(t.id, state.viewer, x.why.trim())}),
   assign:t=>({title:'Назначить из очереди', submit:'Назначить', done:'Исполнитель назначен', fields:[{f:'to', label:'Кому', type:'select', blank:'Выберите носителя роли', required:true, options:toOptions(queueHolders(t))}, WHY('Основание')],
     run:x=>reassignTask(t.id, x.to, state.viewer, x.why.trim())}),
+  toQueue:t=>({title:'Вернуть в очередь', submit:'Вернуть', done:'Задание вернулось в очередь',
+    note:`Исполнитель ${askName(t.assignee)} отказался от задания. Оно вернётся в очередь роли «${roleTitle(t.queue.role)}» с прежним сроком ${fmt(dueOf(t))}.`,
+    fields:[WHY('Основание')], run:x=>returnToQueue(t.id, state.viewer, x.why.trim())}),
   reassign:t=>{ const chief = chiefMayExtend(t, state.viewer); // руководитель по просрочке — с полем нового срока
     return {title:'Переназначить задание', submit:'Переназначить', done:'Исполнитель сменён',
       note:chief ? `Срок ${fmt(dueOf(t))} прошёл. Без нового срока задание перейдёт просроченным, задание о просрочке останется открытым.` : '',
@@ -6457,7 +6495,8 @@ function stateWords(t, v){
 function byWhomHtml(t){
   const who = esc(empName(t.author)||t.author);
   const why = t.authorVia==='не найден' || t.authorVia==='вакантна' ? 'оргструктура никого не назвала — администратор модуля' : HOLDER_WHY[t.authorVia];
-  return t.authorPost ? `${esc(postOf(t.authorPost).title)} — ${who}${why ? ` <span class="pill ${t.authorVia==='не найден' || t.authorVia==='вакантна' ? 'warn' : 'neutral'}">${esc(why)}</span>` : ''}` : who;
+  return t.authorPost ? `${esc(postOf(t.authorPost).title)} — ${who}${why ? ` <span class="pill ${t.authorVia==='не найден' || t.authorVia==='вакантна' ? 'warn' : 'neutral'}">${esc(why)}</span>` : ''}`
+    : t.authorVia==='не найден' ? `${who} <span class="pill warn">${esc('должность «Кто поручил» не определена — администратор модуля')}</span>` : who;
 }
 /* дело в карточке: все дела поручения или объект задания; ссылка как в строке, нет страницы — сообщение */
 function caseLink(text, page){
@@ -6491,7 +6530,7 @@ const JOURNAL_WORDS = {
   'запрошено продление':(t, e)=>({who:whoOf(e), what:`Запросил продление до ${fmt(e.newDue)}`, why:e.reason}),
   'продление утверждено':(t, e)=>(e.без_запроса ? {who:whoOf(e), what:`Продлил срок до ${fmt(e.newDue)} без запроса`, why:e.reason}
     : {who:whoOf(e), what:`Утвердил продление до ${fmt(e.newDue)}`}),
-  'возвращено в очередь':(t, e)=>({who:e.gone ? SYSTEM : whoOf(e), what:e.gone ? 'Исполнитель ушёл — задание вернулось в очередь' : 'Отказался — задание вернулось в очередь', why:e.note}),
+  'возвращено в очередь':(t, e)=>({who:e.gone ? SYSTEM : whoOf(e), what:e.gone ? 'Исполнитель ушёл — задание вернулось в очередь' : e.assigner ? 'Назначивший вернул задание в очередь' : 'Отказался — задание вернулось в очередь', why:e.note}),
   'продление отклонено':(t, e)=>({who:whoOf(e), what:'Отклонил продление', why:e.note}),
   'отметка о ходе':(t, e)=>({who:whoOf(e), what:'Отметка о ходе', why:[e.fixes!=null ? `исправление к записи от ${fmt(t.journal[e.fixes].t)}` : '', e.text, e.link].filter(Boolean).join(' · ')}),
   'повод отпал':()=>({who:SYSTEM, what:'Работа подтверждена, можно принимать'}),
@@ -6536,10 +6575,11 @@ function taskActions(t, v){
     ask('Отклонить продление', 'decline');
   }
   if(req && v!==approverOf(t)) out.notes.push(`Запрос продления до ${fmt(req.newDue)} ждёт решения: ${empName(approverOf(t))}.`);
-  if(!req && mine && !namedDue(t)) ask('Запросить продление', 'extend');
+  if(!req && mine && !namedDue(t) && !tplLocked(t)) ask('Запросить продление', 'extend');
   if(chiefMayExtend(t, v)) ask('Продлить срок', 'chiefExtend');
   if(visibleTo(t, v)) ask('Отметка о ходе', 'progress');
-  if(v!==t.assignee && (v===t.author || chiefChainIncludes(t.assignee, v)) && !(escalateOf(t) && escalateOf(t).reassign===false)){
+  if(assignerMay(t, v)) ask('Вернуть в очередь', 'toQueue');
+  if(v!==t.assignee && (v===t.author || chiefChainIncludes(t.assignee, v) || assignerMay(t, v)) && !(escalateOf(t) && escalateOf(t).reassign===false)){
     if(DOC_NAMED.indexOf(t.originKind)!==-1) out.notes.push('Сменить исполнителя — в карточке документа: «Заменить участника» (автор документа или резолюции, регистратор, архивариус — по роли; держатель «Кто поручил»).');
     else ask('Переназначить', 'reassign');
   }
@@ -7436,9 +7476,9 @@ function askRule(id){
     }});
 }
 /* порог самоопроса: новое значение с датой начала и основанием (приказ) — администратор заданий */
-function askSelfThr(f){
+function askSelfThr(f, title){
   const cur = thrRecOn('zd.'+f, state.today);
-  return openDialog({title:'Изменить порог', submit:'Сохранить', done:'Порог сохранён',
+  return openDialog({title:title||'Изменить порог', submit:'Сохранить', done:'Порог сохранён',
     note:`Сейчас: ${ZD_THR[f].text(cur.v)} · ${thrSrcText(cur)}. Новое значение действует только на новые поводы.`,
     values:{v:String(cur.v), from:state.today, order:'', why:''},
     fields:[{f:'v', label:'Значение', type:'number', required:true}, {f:'from', label:'Действует с', type:'date', required:true},
@@ -7470,7 +7510,7 @@ function renderHighlightTab(){
     const items = open ? x.rows.map(r=>`<tr class="grp-item" data-hl-obj="${esc(r.key)}"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)}${Object.keys(r.traits||{}).length ? ' · '+esc(traitsText(r.traits)) : ''}</td>
         <td><button class="linky" onclick="ZD.openHighlight('${k.id}', this.closest('tr').dataset.hlObj)">Открыть</button></td></tr>`).join('') : '';
     return `<tr data-hl="${k.id}"${x.count ? ` onclick="ZD.toggleHl('${k.id}')"` : ''}>
-      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}${admin && HL_THR[k.id] ? HL_THR[k.id].map(([f, l])=>` <button class="btn btn-secondary btn-xs" data-hl-thr="${f}" onclick="event.stopPropagation();ZD.askSelfThr('${f}')">${l}</button>`).join('') : ''}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
+      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}${admin && HL_THR[k.id] ? HL_THR[k.id].map(([f, l])=>` <button class="btn btn-secondary btn-xs" data-hl-thr="${f}" onclick="event.stopPropagation();ZD.askSelfThr('${f}', '${l}')">${l}</button>`).join('') : ''}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
       <td>${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}</td>
       <td>${x.count===null ? `<a class="q-case small" href="../${x.at.page}" target="_blank" title="Откроется в новой вкладке">${esc(x.at.text)}</a>`
         : x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
@@ -7792,7 +7832,7 @@ return {
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
   setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, renderDelivery, empName, notifLinks,
-  queueStep2Open, tplDue, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
+  queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
   SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
@@ -7814,7 +7854,7 @@ return {
   docStep:savedAt('docs', docStep), docSignBatch:savedDocSignBatch, stepByKey, signerOn, DOC_KINDS, docParticipants, DOC_REPLACE,
   imStep, IM_KINDS, IM_INSTR, IM_SECTOR, curationOn,
   zlStep, zlAt, ZL_SURVEY, ZL_TIGHT, zlSurveyMonths, ZL_KINDS,
-  plStep, plAt, plNotices, PL_KINDS, deptHead,
+  plStep:savedAt('payments', plStep), plAt, plNotices, PL_KINDS, deptHead,
   zmStep, zmAt, zmFhsOpen, analysisDocs, AN_SCHEDULE, anRow, ZM_KINDS,
   rsStep, rsAt, RS_KINDS, RS_NORM,
   clStep, clAt, CL_KINDS,
