@@ -271,6 +271,9 @@
 //   Переписаны под модель: #39, #88, #97, #98, #185, #190, #194, #236, #238, #239, #249, #260, #265, #276, #296, #297, #303, #317, #321,
 //      #368, #369, #372, #381, #386, #391, #392; числа стенда #314, #316, #393, #405. `pk-zl-survey-overdue` → `pk-zl-survey`.
 //      #294 падает на восьми строках оснований видов взыскания — виды волны 32. Снятых нет.
+// Волна 35 (09.11.2026) — механика сообщений службы уведомлений (СУ-20, СУ-24, СУ-25, СУ-27…СУ-29, СУ-36…СУ-46): #517…#527 — виды, «закрыто»
+//   кроме закрывшего, «срок близко» не в день выдачи, сводка на человека и вид, окошко, страница, прочитано, клик, номера заданий те же.
+//   Переписаны: #28, #77, #300, #301 (ключ сводки), #308, #361 (перечень, 50 на листе), #360, #362, #466; числа сообщений #314, #316, #393, #405, #513.
 // Правки по ревью волны 30 (06.11.2026): «Кто поручил» у очередей комитета, ОПК, отчётности; пустая должность — администратор;
 //   вакансия — у владельца, срок от «вакантно с»; руководитель по просрочке — одна проверка, продление гасит «исполнено»;
 //   правопреемник без руководителя — выше по дереву; порог статистики — запись; приказ у порога обязателен.
@@ -279,6 +282,7 @@
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
 import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -515,7 +519,7 @@ const noWork = kind => !ZD.state.tasks.some(t => t.originKind === kind) && !ZD.s
 /* ---------- K. Уведомления: закрытый список из девяти состояний (ИЗ-14 п.1) ---------- */
 (() => {
   ZD.seed();
-  const CLOSED = ['поручено','принято','срок-близко','срок-истёк','эскалация','возвращено','повод-отпал','закрыто',
+  const CLOSED = ['поручено','сдано-на-приёмку','срок-близко','срок-истёк','эскалация','возвращено','повод-отпал','закрыто',
     'переадресовано','запрошено-продление','решение-по-продлению'];
   ok(28, ZD.NOTIF_KINDS.length === 11 && ZD.NOTIF_KINDS.join(',') === CLOSED.join(','),
     `одиннадцать видов (ЭЗ-15), ни одного информационного («кредит выдан») — список закрыт буквально (канон §6, ИЗ-21)`);
@@ -1206,13 +1210,13 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
   const stranger = throws(() => ZD.take(t.id, 'E3'));
   ZD.take(t.id, 'E1');
   const taken = ZD.lastEv(t) === 'принято' && ZD.deriveState(t) === 'в работе';
-  const accepted = notes('принято', t.id).map(n => n.to).join(',');
+  const silent = notes('принято', t.id).length === 0 && notes('сдано-на-приёмку', t.id).length === 0;
   ZD.claim(t.id);
-  ok(77, /Взять в работу/.test(early) && !!stranger && taken && accepted === 'E4' &&
-       notes('принято', t.id).length === 1 && ZD.lastEv(t) === 'ожидает приёмки',
-    `заявить из «поручено» нельзя («${early}»); «Взять в работу» — событие «принято», уведомление «принято» ` +
-    `автору-контролёру E4 один раз (не исполнителю и не дважды); при заявлении второго «принято» нет; ` +
-    `посторонний в работу не берёт`);
+  const handed = notes('сдано-на-приёмку', t.id).map(n => n.to).join(',');
+  ok(77, /Взять в работу/.test(early) && !!stranger && taken && silent && handed === 'E4' &&
+       notes('принято', t.id).length === 0 && ZD.lastEv(t) === 'ожидает приёмки',
+    `заявить из «поручено» нельзя («${early}»); «Взять в работу» — событие «принято», уведомления нет (СУ-20); ` +
+    `при заявлении контролёр E4 получает «сдано на приёмку» один раз; посторонний в работу не берёт`);
 })();
 
 (() => {
@@ -5242,29 +5246,30 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   const noRelease = throws(() => ZD.batchTasks(ids.slice(5, 6), 'снять', rep[5].author, { reason: 'форма снята' }));
   ok(300, stranger.done.length === 0 && stranger.refused.length === 2 && stranger.refused.every(x => /исполнитель/.test(x.why)) && clean &&
        r.done.length === 10 && r.refused.length === 1 && r.refused[0].id === ids[0] && rep.slice(1).every((t, i) => t.journal[jl[i + 1]].ev === 'принято' && t.journal[jl[i + 1]].by === 'E1') &&
-       taken.length === 2 && taken[1].count === 10 && taken[1].items.length === 10 &&
+       taken.length === 0 &&
        noted.done.length === 3 && !!noOp && !!noIds &&
        noProof.done.length === 0 && noProof.refused.every(x => /ссылку на подтверждение/.test(x.why)) && proofed.done.length === 2 && rep[1].journal[rep[1].journal.length - 1].proof === 'письмо №7' && rep[2].journal[rep[2].journal.length - 1].proof === 'письмо №7' &&
        /такого пакетного действия нет/.test(noRelease) && !ZD.isTerminal(rep[5]),
-    `ЗНП-15, ЗНП-16 — «Взять» на 11: взято 10, по уже взятому отказ с причиной; у каждого своя запись, автору одно уведомление на 10; посторонний — 2 отказа, журналы не тронуты; заявить без ссылки отбито поштучно, со ссылкой — у каждого; снять пачкой нельзя (ЭЗ-10, ЭЗ-41)`);
+    `ЗНП-15, СУ-20 — «Взять» на 11: взято 10, по уже взятому отказ с причиной; у каждого своя запись, автору сообщения нет; посторонний — 2 отказа, журналы не тронуты; заявить без ссылки отбито поштучно, со ссылкой — у каждого; снять пачкой нельзя (ЭЗ-10, ЭЗ-41)`);
 })();
 
-/* ЗНП-3, ЗНП-16 — уведомления и эскалация сводятся в одно за прогон; задания эскалации остаются поштучно */
+/* ЗНП-3, СУ-24 — уведомления и эскалация сводятся в одно за прогон на человека и вид уведомления; задания эскалации остаются поштучно */
 (() => {
   ZD.seed();
   ZD.state.owner.rp.filter(o => o.period === 'июнь 2026').forEach(o => { o.ev = o.ev.filter(e => !e.issue); }); // июнь никто не сдал — все 11 форм просрочены
   ZD.runPoll();
   const KIND = 'pk-rep-obligation-overdue';
-  const rec = (kind, to, origin) => ZD.state.notifications.filter(n => n.kind === kind && n.to === to && n.originKind === origin);
-  const issued = rec('поручено', 'E1', KIND);
+  const repIds = () => ZD.state.tasks.filter(t => t.originKind === KIND && t.assignee === 'E1').map(t => t.id);
+  const rec = (kind, to, ids) => ZD.state.notifications.filter(n => n.kind === kind && n.to === to && n.items.some(i => ids.includes(i.taskId)));
+  const issued = rec('поручено', 'E1', repIds()), issuedN = issued[0].items.filter(i => repIds().includes(i.taskId)).length;
   const reN = ZD.state.notifications.length;
   ZD.runPoll();
   const same = ZD.state.notifications.length === reN;
   at('2026-09-08'); ZD.runPoll();
-  const late = rec('срок-истёк', 'E1', KIND);
-  const lateN = late.length, lateC = late[0].count;
+  const late = rec('срок-истёк', 'E1', repIds());
+  const lateN = late.length, lateAll = late[0].items.filter(i => repIds().includes(i.taskId)).length;
   ZD.runPoll();
-  const lateAgain = rec('срок-истёк', 'E1', KIND).length;
+  const lateAgain = rec('срок-истёк', 'E1', repIds()).length;
   const rep = ZD.state.tasks.filter(t => t.originKind === KIND && t.assignee === 'E1');
   at('2026-09-15'); ZD.runPoll();
   const esc = rep.map(t => ZD.state.tasks.find(x => x.originKind === 'pk-overdue' && x.povodKey.indexOf(`task:${t.id}|`) !== -1));
@@ -5272,12 +5277,12 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.state.viewer = 'E2';
   const g = ZD.queueGroups('mine').find(x => x.kind === 'pk-overdue');
   ZD.state.viewer = 'E4';
-  ok(301, issued.length === 1 && issued[0].count === 11 && new Set(issued[0].items.map(i => i.taskId)).size === 11 && same &&
-       lateN === 1 && lateC === 11 && lateAgain === 1 &&
+  ok(301, issued.length === 1 && issuedN === 11 && same &&
+       lateN === 1 && lateAll === repIds().length && lateAgain === 1 &&
        esc.every(x => !!x && x.assignee === 'E2') && esc.length === 10 && new Set(esc.map(x => x.id)).size === 10 && g && esc.every(x => g.tasks.includes(x)) &&
        toE2.length === 1 && esc.every(x => toE2[0].items.some(i => i.taskId === x.id)) &&
        ZD.state.notifications.every(n => n.items.length === 0 || n.count === n.items.length),
-    `ЗНП-3, ЗНП-16 — выдача 11 форм — одно «поручено» с перечнем; повторный прогон — тишина; «срок истёк» — одно на 11; на пятый р.д. — по оставшимся у исполнителя десяти (одна переадресована) десять заданий руководителю поштучно, группой в его списке, и одно уведомление «эскалация» (в нём ${toE2[0] && toE2[0].count} заданий)`);
+    `ЗНП-3, СУ-24 — 11 форм входят в одно «поручено» исполнителю (в нём всего ${issued[0].count}: сводка по виду уведомления); повторный прогон — тишина; «срок истёк» — одно; на пятый р.д. — по оставшимся у исполнителя десяти десять заданий руководителю поштучно, группой в его списке, и одно уведомление «эскалация» (в нём ${toE2[0] && toE2[0].count} заданий)`);
 })();
 
 /* ЗНП-5, ЗНП-17 — журнал главный: поле пишет одна операция, руками не правится, расхождение ловит ночь */
@@ -5437,17 +5442,19 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.state.view = 'notifs';
   const list = ZD.renderNotifPage();
   const n = crSig('E1')[0], at1 = n.items.findIndex(i => i.key === KEY);
-  ZD.notifGo(n.id, at1);
+  ZD.notifGo(n.id);
+  const panel = ZD.digestCard === n.id && n.read === true && ZD.renderDigestPanel(n.id).includes(`ZD.notifItem('${n.id}', ${at1})`);
+  ZD.notifItem(n.id, at1);
   const goes = ZD.highlightCard && ZD.highlightCard.kindId === S && ZD.highlightCard.key === KEY && n.read === true;
   const card = ZD.renderHighlightDrawer();
   ZD.closeCard();
   ZD.state.view = 'queue';
   ZD.state.viewer = 'E4';
   ok(308, before === 2 && crSig().length === 2 && noTaskCr() && ZD.povodByKey(KEY).status === 'appeared' && ZD.state.savePolls.length === 0 &&
-       !ZD.taskRows('2026-10-05').some(r => r.kind === S) && n.due === null && n.taskId === null && at1 !== -1 &&
-       /без задания/.test(list) && /Срок платежа по графику близко/.test(list) && list.indexOf(`ZD.notifGo('${n.id}', ${at1})`) !== -1 && goes &&
+       !ZD.taskRows('2026-10-05').some(r => r.kind === S) && n.due === null && n.taskId === null && at1 !== -1 && n.items.length > 1 &&
+       /без задания/.test(list) && /Срок платежа по графику близко/.test(list) && list.includes(`ZD.notifGo('${n.id}')`) && panel && goes &&
        /сигнал — только уведомление/.test(card) && !/подсветка/.test(card) && /Уведомить заёмщика/.test(card),
-    `ЗНП-7, ЗНП-21 — по платежам два уведомления, заданий и строк нет; уведомление заёмщику остаётся действием куратора в карточке и повод не гасит; из списка уведомлений карточка кредита открывается ссылкой`);
+    `ЗНП-7, ЗНП-21, СУ-29 — по платежам два уведомления, заданий и строк нет; уведомление заёмщику остаётся действием куратора в карточке и повод не гасит; сводка на странице открывает перечень, его строка — карточку кредита`);
 })();
 
 /* ЗНП-8, ЗНП-24 — ручного режима нет; ненужное снимает автор кнопкой «Снять», шаг — нет */
@@ -5563,7 +5570,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const back = sliceOf(), reset = ZD.lastEv(ZD.taskOf(t.id)) === 'поручено';
   ZD.seed(); ZD.goToDate('2026-11-02');
   const direct = sliceOf();
-  ok(314, first === '206/117/416' && later === '258/131/614' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
+  ok(314, first === '206/117/303' && later === '258/131/478' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
        ZD.STAND_START === '2026-09-01' && ZD.STAND_OPEN === '2026-10-01' && nights.length === 31 && nights[0] === '2026-09-01' && nights[30] === '2026-10-01' &&
        /onchange="ZD\.goToDate\(this\.value\)"/.test(src) && /goToDate\(STAND_OPEN\)/.test(src) &&
        ZD.runPollUI === undefined && !/runPollUI|Ночной прогон/.test(src) && [ZD.seed, ZD.setAsOf, ZD.runPoll].every(f => typeof f === 'function'),
@@ -5611,7 +5618,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const kinds = new Set(ZD.state.notifications.map(n => n.kind));
   const n = k => ZD.state.notifications.filter(x => x.kind === k).length;
   ok(316, ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('повод-появился') && /вне закрытого списка/.test(bad) && !/повод-появился|Повод появился/.test(src) &&
-       [...kinds].every(k => ZD.NOTIF_KINDS.includes(k) || k === 'сигнал') && n('поручено') === 132 && n('эскалация') === 30,
+       [...kinds].every(k => ZD.NOTIF_KINDS.includes(k) || k === 'сигнал') && n('поручено') === 101 && n('эскалация') === 30,
     `ЭЗ-15 — закрытый список 11; на 01.10 «поручено» ${n('поручено')}, «эскалация» ${n('эскалация')}: пара из старого движка (146 = 125 с «поручено» + 21 с «эскалацией») больше не шлётся`);
 })();
 
@@ -6808,7 +6815,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const u1 = ZD.unreadOf('E1'), u4 = ZD.unreadOf('E4'), closedBell = ZD.renderBell();
   ZD.bellToggle(true);
   const panel = ZD.renderBell(), rows = (panel.match(/bell-row/g) || []).length, afterOpen = ZD.unreadOf('E1');
-  const newest = ZD.notifsOf('E1')[0], task = ZD.notifsOf('E1').find(n => n.kind !== 'сигнал' && !n.read);
+  const newest = ZD.notifsOf('E1')[0], task = ZD.notifsOf('E1').find(n => n.kind !== 'сигнал' && !n.read && n.items.length === 1 && ZD.bucketOf(ZD.taskOf(n.items[0].taskId), 'E1') === 'mine');
   ZD.state.view = 'queue'; ZD.state.qTab = 'closed';
   ZD.notifGo(task.id);
   const afterClick = ZD.unreadOf('E1'), went = ZD.cardId === task.items[0].taskId && ZD.state.view === 'queue' && ZD.state.qTab === 'work' && task.read === true;
@@ -6835,7 +6842,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.openAllNotif();
   const h = ZD.renderNotifPage(), head = headOf(h), rows = [...h.matchAll(/data-n="(N\d+)"/g)].map(m => m[1]);
   const newestFirst = inOrder(list.map(n => n.t), (a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  const task = list.find(n => n.kind !== 'сигнал' && n.items.length > 1) || list.find(n => n.kind !== 'сигнал'), sig = list.find(n => n.kind === 'сигнал');
+  const task = list.find(n => n.kind !== 'сигнал' && n.items.length === 1 && !n.read), sig = list.find(n => n.kind === 'сигнал');
   const row = rowOf(h.replace(/data-n=/g, 'data-t='), task.id);
   ZD.notifGo(task.id, 0);
   const stay = ZD.state.view === 'notifs' && ZD.cardId === task.items[0].taskId && task.read === true && /прочитано/.test(rowOf(ZD.renderNotifPage().replace(/data-n=/g, 'data-t='), task.id));
@@ -6845,7 +6852,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const toSig = ZD.highlightCard && ZD.highlightCard.key === sig.items[0].key && sig.read === true;
   ZD.closeCard();
   ZD.state.view = 'queue';
-  ok(361, list.length === mine && rows.length === mine && rows.join() === list.map(n => n.id).join() && head === 'Статус,Дата,Откуда,Сообщение,Ссылка' && newestFirst && /не прочитано/.test(row) && row.includes(`ZD.notifGo('${task.id}', 0)`) && plain(row).includes(ruDate(task.t)) && plain(row).includes(task.text) && stay && stayed && toSig,
+  ok(361, list.length === mine && rows.length === Math.min(mine, ZD.NOTIF_PAGE) && rows.join() === list.slice(0, ZD.NOTIF_PAGE).map(n => n.id).join() && head === 'Статус,Дата,Откуда,Сообщение,Ссылка' && newestFirst && /не прочитано/.test(row) && row.includes(`ZD.notifGo('${task.id}', 0)`) && plain(row).includes(ruDate(task.t)) && plain(row).includes(task.text) && stay && stayed && toSig,
     `ЭЗ-16, ЭЗ-49 — у Есеновой на 01.10 ${mine} сообщений, новые сверху, статус, дата, откуда, текст, ссылка; со страницы панель открывается поверх неё и закрывается к ней; сигнал ведёт в карточку объекта`);
 })();
 
@@ -6854,7 +6861,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.seed();
   ZD.goToDate('2026-10-01');
   const all = ZD.state.notifications, total = all.length;
-  const shape = all.length > 100 && all.every(n => n.source === 'Задания' && n.read === false && Array.isArray(n.channels) && n.channels.length > 0 && Array.isArray(n.delivery) && n.delivery.length === 0 && typeof n.text === 'string' && n.text && n.t && n.to !== undefined);
+  const shape = all.length > 100 && all.every(n => n.source === 'Задания' && typeof n.read === 'boolean' && (n.read ? n.readHow === 'задание закрыто' && !!n.readAt : n.readHow === null && n.readAt === null) && Array.isArray(n.channels) && n.channels.length > 0 && Array.isArray(n.delivery) && n.delivery.length === 0 && typeof n.text === 'string' && n.text && n.t && n.to !== undefined);
   const kinds = new Set(all.map(n => n.kind));
   const sigBefore = all.filter(n => n.kind === 'сигнал').length;
   ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS', 'e-mail'] }, { by: 'E4', basis: 'приказ №1' });
@@ -7618,7 +7625,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const n4 = nums(), moved = ZD.thrVals('ap.stuckWd')[1].from === '2026-10-01';
   ZD.setStandThr(false);
   const off = ZD.thrVals('ap.stuckWd').length === 1 && ZD.thrOn('ap.stuckWd') === 10 && nums() === n1;
-  ok(393, box && n1 === '206/117/416' && n2 === '258/131/614' && n3 === n2 && on && lives && n4 === '206/117/416' && moved && off,
+  ok(393, box && n1 === '206/117/303' && n2 === '258/131/478' && n3 === n2 && on && lives && n4 === '206/117/303' && moved && off,
     `НЗ-25 — на полосе одна галочка; 02.11 с поднятым порогом ${n3}, как без него; панель показывает 60 р.д. и прежнее значение; выключена — 10 р.д.; стенд 01.10 ${n1}, 02.11 ${n2}`);
 })();
 
@@ -7851,7 +7858,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const nums = d => { ZD.goToDate(d); return [ZD.state.tasks.length, ZD.state.tasks.filter(t => !ZD.isTerminal(t)).length, ZD.state.notifications.length].join('/'); };
   const fhsOf = () => ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs').map(t => `${t.povodKey.split(':')[1]}${ZD.isTerminal(t) ? ' закрыто' : ''}`).sort().join();
   const n1 = nums('2026-10-01'), n2 = nums('2026-11-02'), n3 = nums('2026-11-16'), f3 = fhsOf(), n4 = nums('2027-01-04'), f4 = fhsOf(), n5 = nums('2027-03-01'), f5 = fhsOf();
-  ok(405, n1 === '206/117/416' && n2 === '258/131/614' && n3 === '301/172/701' && n4 === '453/251/1093' && n5 === '488/272/1209' && f3 === '' &&
+  ok(405, n1 === '206/117/303' && n2 === '258/131/478' && n3 === '301/172/552' && n4 === '453/251/867' && n5 === '488/272/976' && f3 === '' &&
        f4 === [`${ZM1}|${ZM_H2}`, `${ZM3}|${ZM_H2}`].sort().join() && f5 === [`${ZM1}|${ZM_H2} закрыто`, `${ZM3}|${ZM_H2}`].sort().join(),
     `НЗ-30 — 01.10: ${n1}, 02.11: ${n2}, 16.11: ${n3} (анализа нет), 04.01.2027: ${n4} (два задания за 2П 2026), 01.03.2027: ${n5} («Талас-Дан» закрыт ФА-7, «Ош-Курулуш» открыт)`);
 })();
@@ -8955,7 +8962,7 @@ const w31 = (kind, part) => ZD.state.tasks.filter(t => t.originKind === kind && 
   at('2026-12-02'); ZD.take(q.id, 'E8');
   const n0 = ZD.state.notifications.length;
   pollOn('2026-12-03');
-  const nn = ZD.state.notifications.slice(n0).map(x => x.kind + '>' + x.to + '>' + x.items.map(i => i.taskId).join('+')).join();
+  const nn = ZD.state.notifications.slice(n0).flatMap(x => x.items.map(i => x.kind + '>' + x.to + '>' + i.taskId)).join();
   const jq = q.journal.slice(-1)[0], jn = n.journal.find(e => e.ev === 'переадресовано'), card = plain(ZD.renderCard(q.id));
   ZD.state.owner.gd.push({ id: 'GD-20', title: 'Распоряжение №303-р', date: '2026-12-04', author: 'E1', doc: true,
     ev: [{ t: '2026-12-04', status: 'На рассмотрении', by: 'E1', how: 'отправлено' }] });
@@ -9788,7 +9795,7 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   const labels = q ? ZD.taskActions(q, v).btns.map(b => b.label) : [];
   const assigner = !!q && ZD.visibleTo(q, v) && ZD.bucketOf(q, v) === 'unassigned' && labels.includes('Назначить');
   ZD.setViewer('E4');
-  ok(513, nums === '49/45/65' && chief && opens && sub && gone && asks && after && assigner,
+  ok(513, nums === '49/45/35' && chief && opens && sub && gone && asks && after && assigner,
     `ВЗЕ-222 — 02.09 (${nums}, как до волны): Садыков Р.И. за Токтогулова получил «Просрочено задание» T80 — открывает T1 (вкладка «Подчинённые»); продлил — задание о просрочке закрыто, T1 ему больше не видно; ` +
     `утверждающий со стороны видит поручение, пока запрос ждёт решения («Ждут моего решения»), после решения — нет; ${q && q.id} видит назначающий ${v} (вкладка «Подчинённые», «Назначить»)`);
 })();
@@ -9852,6 +9859,317 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ZD.toggleDown('gosresh', false);
   ok(516, cols && noRelease && off && down,
     `ВЗЕ-225 — блок «Источники»: ${head}; колонки «Выпуск» и слов «первый выпуск», «по готовности» в журнале прогонов нет; круг «только механизм» — у ${ZD.SOURCES.length - 1} источников «не подключён»; недоступный — «не отвечает с …, ночей подряд: N»`);
+})();
+
+/* ---------- AX. Волна 35: механика сообщений — виды, сводка, окошко, страница, прочитано, клик ---------- */
+const CTL_DATES = ['2026-10-01', '2026-11-02', '2027-01-04', '2027-03-01'];
+const noteOf = (kind, id) => ZD.state.notifications.find(n => n.kind === kind && n.items.some(i => i.taskId === id));
+const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author: 'E2', dueDate: due || '2026-10-20' });
+
+/* СУ-20 — «принято» снято, контролёр узнаёт о сдаче; видов по-прежнему 11 */
+(() => {
+  ZD.seed();
+  const list = ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('принято') && ZD.NOTIF_KINDS.includes('сдано-на-приёмку') && !ZD.NOTIF_SPEC['принято'] && ZD.NOTIF_SPEC['сдано-на-приёмку'].who === 'контролёру';
+  const refused = throws(() => ZD.notify(ZD.state.tasks[0], 'принято'));
+  const t = giveE1('сдать контролёру');
+  ZD.take(t.id, 'E1');
+  const afterTake = ZD.state.notifications.filter(n => n.items.some(i => i.taskId === t.id)).map(n => n.kind).join();
+  ZD.claim(t.id, null, 'E1');
+  const h = noteOf('сдано-на-приёмку', t.id), text = ZD.notifText(h);
+  let stale = 0;
+  CTL_DATES.forEach(d => { ZD.goToDate(d); stale += ZD.state.notifications.filter(n => n.kind === 'принято').length; });
+  ZD.goToDate('2026-11-02');
+  const given = ZD.state.notifications.filter(n => n.kind === 'сдано-на-приёмку'), wrong = given.filter(n => !n.items.every(i => ZD.taskOf(i.taskId).controller === n.to)).length;
+  ok(517, list && /вне закрытого списка/.test(refused) && afterTake === 'поручено' && h.to === 'E2' && /Задание сдано на приёмку: сдать контролёру/.test(text) && stale === 0 && given.length === 6 && wrong === 0,
+    `СУ-20 — 11 видов, «принято» вне списка; взял в работу — сообщения нет; сдал — контролёру «${text}»; на 02.11 таких ${given.length}; «принято» на контрольных датах ${stale}`);
+})();
+
+/* СУ-20 — «закрыто» не приходит закрывшему, остальным приходит */
+(() => {
+  let total = 0, toCloser = 0;
+  ZD.seed();
+  CTL_DATES.forEach(d => { ZD.goToDate(d); ZD.state.notifications.filter(n => n.kind === 'закрыто').forEach(n => n.items.forEach(i => { total++; if (ZD.closerOf(ZD.taskOf(i.taskId)) === n.to) toCloser++; })); });
+  ZD.seed(); at('2026-10-05');
+  const t = giveE1('снять автором'), n0 = ZD.state.notifications.length;
+  ZD.releaseTask(t.id, 'E2', 'поручение отменено');
+  const fresh = ZD.state.notifications.slice(n0).map(n => n.kind + '>' + n.to).join();
+  /* закрывший — и контролёр, принявший работу: сам себе сообщения не шлёт */
+  const c = giveE1('принять контролёром');
+  ZD.take(c.id, 'E1'); ZD.claim(c.id, null, 'E1');
+  c.controller = 'E1';
+  ZD.acceptDecision(c.id, true, '', 'E1');
+  const byCtl = ZD.isTerminal(c) && !noteOf('закрыто', c.id);
+  ok(518, total > 0 && toCloser === 0 && fresh === 'закрыто>E1' && byCtl,
+    `СУ-20 — на контрольных датах заданий в «закрыто» ${total}, закрывшему ни одного; снял автор — сообщение исполнителю, автору нет`);
+})();
+
+/* СУ-20, «поручено» называет срок — «срок близко» не приходит в день выдачи и на этот срок больше не приходит */
+(() => {
+  ZD.seed(); at('2026-10-05');
+  const a = giveE1('срок завтра', '2026-10-06'), b = giveE1('срок через три дня', '2026-10-08');
+  const named = /срок 06\.10\.2026/.test(ZD.notifText(noteOf('поручено', a.id)));
+  ZD.runPoll(); const day0 = notes('срок-близко', a.id).length;
+  at('2026-10-06'); ZD.runPoll(); const day1 = notes('срок-близко', a.id).length;
+  at('2026-10-07'); ZD.runPoll(); const bSoon = notes('срок-близко', b.id).length, late = notes('срок-истёк', a.id).length;
+  let onIssue = 0, soon = 0;
+  CTL_DATES.forEach(d => { ZD.goToDate(d); ZD.state.notifications.filter(n => n.kind === 'срок-близко').forEach(n => { soon += n.items.length; onIssue += n.items.filter(i => ZD.taskOf(i.taskId).journal[0].t === n.t).length; }); });
+  ok(519, named && day0 === 0 && day1 === 0 && bSoon === 1 && late === 1 && soon > 0 && onIssue === 0,
+    `СУ-20 — выдано 05.10 со сроком 06.10: «поручено» называет срок, «срок близко» нет ни в день выдачи, ни 06.10; выдано со сроком 08.10 — одно 07.10; на контрольных датах заданий в «срок близко» ${soon}, в день выдачи 0`);
+})();
+
+/* СУ-24 — сводка на человека и вид уведомления: разные виды повода — одно сообщение, разные действия и разные виды уведомления — раздельно */
+(() => {
+  ZD.seed();
+  const n0 = ZD.state.notifications.length;
+  ZD.runPoll();
+  const fresh = ZD.state.notifications.slice(n0);
+  const byKey = {}; fresh.filter(n => n.kind !== 'сигнал').forEach(n => { const k = `${n.to}|${n.kind}`; byKey[k] = (byKey[k] || 0) + 1; });
+  const once = Object.values(byKey).every(x => x === 1);
+  const mixed = fresh.find(n => n.kind === 'поручено' && n.to === 'E1');
+  const kinds = new Set(mixed.items.map(i => ZD.taskOf(i.taskId).originKind));
+  const text = ZD.notifText(mixed);
+  const n1 = ZD.state.notifications.length;
+  const a = giveE1('первое действие'), b = giveE1('второе действие');
+  const apart = ZD.state.notifications.slice(n1).filter(n => n.kind === 'поручено').length === 2 && noteOf('поручено', a.id) !== noteOf('поручено', b.id);
+  ok(520, once && mixed.count === mixed.items.length && mixed.count > 1 && kinds.size > 1 && text === `${mixed.text}: ${mixed.count} заданий` && apart,
+    `СУ-24 — в прогон «${text}», внутри ${kinds.size} вида повода; на человека и вид уведомления одно сообщение; два отдельных действия — два сообщения`);
+})();
+
+/* СУ-25 — окошко: на 8 с, при каждом сообщении; вход без окошек; больше трёх — «и ещё N»; сводка одна; «Открыть» и × */
+(() => {
+  const w = {}, timers = [], sb = { window: w, console, setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout: () => {} };
+  vm.createContext(sb); vm.runInContext(m[1], sb);
+  const Z = w.ZD, html = () => Z.renderPops();
+  Z.seed(); Z.goToDate('2026-10-01');
+  const onOpen = Z.pops.length;
+  Z.setViewer('E1');
+  const onEnter = Z.pops.length, counted = Z.unreadOf('E1') > 0;
+  Z.goToDate('2026-12-14');
+  const today = Z.state.notifications.filter(n => n.t === '2026-12-14' && n.to === 'E1').length, shown = Z.pops.length;
+  const naturalMore = plain(html()).includes(`и ещё ${shown - Z.POP_MAX}`);
+  Z.setStatCleared(false);
+  const sameDay = Z.pops.length;
+  Z.setViewer('E1');
+  const give = l => Z.createFreeTask({ label: l, assignee: 'E1', author: 'E2', dueDate: '2026-12-30' });
+  const made = [give('раз'), give('два'), give('три'), give('четыре')];
+  const four = Z.pops.length, panes = (html().match(/class="npop"/g) || []).length, more = plain(html()).includes('и ещё 1');
+  const one = Z.state.notifications.find(n => n.items.some(i => i.taskId === made[3].id));
+  const opens = html().includes(`ZD.popOpen('${one.id}')`), newestOnTop = html().indexOf('четыре') < html().indexOf('три');
+  const dm = timers.slice(-4).every(x => x.ms === Z.POP_MS), eight = Z.POP_MS === 8000;
+  timers[timers.length - 1].f();
+  const dropped = Z.pops.length === 3 && !html().includes('и ещё');
+  Z.popClose(one.id);
+  const closedSame = Z.pops.length === 3 && one.read === false;
+  /* сводка — одно окошко */
+  Z.setViewer('E2');
+  const b = Z.pops.length;
+  made.forEach(t => Z.take(t.id, 'E1'));
+  Z.batchTasks(made.map(t => t.id), 'заявить', 'E1');
+  const dg = Z.state.notifications.filter(n => n.kind === 'сдано-на-приёмку' && n.to === 'E2').pop();
+  const digestOne = b === 0 && Z.pops.length === 1 && Z.pops[0].id === dg.id && dg.count === 4;
+  /* другому человеку окошка нет, «переадресовано» без кнопки */
+  Z.setViewer('E1');
+  const f = give('передать');
+  const pre = Z.pops.length;
+  Z.reassignTask(f.id, 'E3', 'E2', 'отпуск');
+  const moved = Z.state.notifications.find(n => n.kind === 'переадресовано' && n.items.some(i => i.taskId === f.id));
+  const noBtn = !html().includes(`ZD.popOpen('${moved.id}')`) && html().includes(`data-pop="${moved.id}"`), twoPops = Z.pops.length === 2;
+  /* задание закрылось в том же прогоне — сообщение уже прочитано, окошка нет */
+  Z.setViewer('E1');
+  Z.state.digest = {};
+  const shut = give('закрылось сразу');
+  Z.releaseTask(shut.id, 'E2', 'отменено');
+  Z.state.digest = null; Z.popFlush();
+  const noRead = Z.pops.length === 1 && Z.state.notifications.find(n => n.id === Z.pops[0].id).kind === 'закрыто';
+  ok(521, onOpen === 0 && onEnter === 0 && counted && today === 4 && shown === today && naturalMore && sameDay === 0 && four === 4 && panes === 3 && more && opens && newestOnTop && dm && eight && dropped && closedSame && digestOne && pre === 1 && noBtn && twoPops && noRead,
+    `СУ-25, СУ-36…39 — первое открытие и смена зрителя: окошек 0, только счётчик; смена даты на 14.12: ${shown} сообщения дня Есеновой — три окошка и «и ещё 1»; та же дата заново — 0; четыре сообщения подряд — три окошка и «и ещё 1», новое сверху; срок ${Z.POP_MS} мс; сводка на ${dg.count} заданий — одно окошко; «переадресовано» — окошко без «Открыть»`);
+})();
+
+/* СУ-25, СУ-37 — открытая форма не прерывается, «Открыть» с формы не уводит */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-10-01'); ZD.setViewer('E1');
+  const t = ZD.state.tasks.find(x => x.assignee === 'E1' && !ZD.isTerminal(x) && ZD.visibleTo(x, 'E1'));
+  ZD.ask('progress', t.id);
+  ZD.dialogSet('text', 'идёт ввод');
+  const d0 = ZD.dialog;
+  const made = giveE1('поручено во время ввода');
+  const n = noteOf('поручено', made.id);
+  const stays = ZD.dialog === d0 && ZD.dialog.values.text === 'идёт ввод' && ZD.pops.length === 1 && ZD.pops[0].id === n.id;
+  ZD.popOpen(n.id);
+  const notLeft = ZD.dialog === d0 && ZD.cardId === null && ZD.pops.length === 1 && n.read === false;
+  ZD.popMore();
+  const noPanel = !ZD.renderBell().includes('bell-panel');
+  ZD.dialogCancel();
+  ZD.popOpen(n.id);
+  const opened = ZD.cardId === made.id && n.read === true && ZD.pops.length === 0;
+  ZD.closeCard();
+  ok(522, stays && notLeft && noPanel && opened,
+    `СУ-25, СУ-37 — сообщение пришло при открытой форме: окно и введённое на месте, окошко показано; «Открыть» и «и ещё N» с формы не уводят; форма закрыта — «Открыть» ведёт в карточку и читает сообщение`);
+})();
+
+/* СУ-27 — страница: отбор, по 50 на листе, всё хранится */
+(() => {
+  ZD.seed(); ZD.goToDate('2027-03-01'); ZD.setViewer('E1');
+  const list = ZD.notifsOf('E1'), mine = list.length;
+  ZD.openAllNotif();
+  const ids = h => [...h.matchAll(/data-n="(N\d+)"/g)].map(x => x[1]);
+  const h1 = ZD.renderNotifPage(), page1 = ids(h1), pages = Math.ceil(mine / 50);
+  ZD.setNotifPage(2);
+  const h2 = ZD.renderNotifPage(), page2 = ids(h2);
+  const leafs = mine > 50 && page1.length === 50 && page1.join() === list.slice(0, 50).map(n => n.id).join() && page2.join() === list.slice(50, 100).map(n => n.id).join() &&
+    plain(h1).includes(`Лист 1 из ${pages}`) && plain(h1).includes(`1–50 из ${mine}`) && /disabled[^>]*onclick="ZD\.setNotifPage\(0\)"/.test(h1) && h1.includes('ZD.setNotifPage(2)') && plain(h2).includes(`51–${Math.min(100, mine)} из ${mine}`);
+  ZD.setNotifFilter('nfOnly', true);
+  const un = ZD.notifsFiltered('E1'), onlyUn = ZD.state.nfPage === 1 && un.length === ZD.unreadOf('E1') && un.every(n => !n.read);
+  ZD.setNotifFilter('nfOnly', false);
+  ZD.setNotifFilter('nfFrom', '2026-10-01'); ZD.setNotifFilter('nfTo', '2026-10-31');
+  const ranged = ZD.notifsFiltered('E1'), period = ranged.length > 0 && ranged.length < mine && ranged.every(n => n.t >= '2026-10-01' && n.t <= '2026-10-31') && plain(ZD.renderNotifPage()).includes(`Всего ${ranged.length}, непрочитанных ${ranged.filter(n => !n.read).length}`);
+  ZD.setNotifFilter('nfFrom', ''); ZD.setNotifFilter('nfTo', '');
+  const single = list.find(n => n.kind !== 'сигнал' && n.items.length === 1), tid = single.items[0].taskId;
+  ZD.setNotifFilter('nfQ', tid);
+  const found = ZD.notifsFiltered('E1'), searched = found.includes(single) && found.length < mine && found.every(n => n.items.some(i => String(i.taskId || '').toLowerCase().includes(tid.toLowerCase())) || ZD.notifText(n).toLowerCase().includes(tid.toLowerCase()));
+  ZD.setNotifFilter('nfQ', 'нет такого текста');
+  const none = ZD.notifsFiltered('E1').length === 0 && /По этому отбору сообщений нет/.test(ZD.renderNotifPage());
+  ZD.setNotifFilter('nfQ', '');
+  /* «откуда» — из самих сообщений; когда появятся другие модули, отбор сработает */
+  list[3].source = 'Кредит';
+  const hF = ZD.renderNotifPage(), hasOpt = /<option value="Кредит">Кредит<\/option>/.test(hF) && /<option value="Задания">Задания<\/option>/.test(hF);
+  ZD.setNotifFilter('nfSrc', 'Кредит');
+  const src1 = ZD.notifsFiltered('E1').map(n => n.id).join() === list[3].id;
+  ZD.state.nfSrc = ''; list[3].source = 'Задания'; ZD.state.view = 'queue';
+  /* смена зрителя — первый лист, старые сообщения не удаляются */
+  ZD.setNotifPage(3); ZD.setNotifFilter('nfQ', 'след отбора'); ZD.setNotifFilter('nfOnly', true); ZD.setViewer('E3');
+  const reset = ZD.state.nfPage === 1 && ZD.notifsOf('E1').length === mine && ZD.state.nfQ === '' && ZD.state.nfOnly === false && ZD.notifsFiltered('E3').length === ZD.notifsOf('E3').length;
+  ok(523, leafs && onlyUn && period && searched && none && hasOpt && src1 && reset,
+    `СУ-27 — у Есеновой на 01.03 ${mine} сообщений, по 50 на листе (${pages} листов); отбор «только непрочитанные», «откуда», период, поиск по тексту и номеру; смена отбора — первый лист; пусто — «По этому отбору сообщений нет»`);
+})();
+
+/* СУ-28 — прочитано: клик, «Прочитать все», само при закрытии; причина в строке; «закрыто» только кликом; панель статус не меняет */
+(() => {
+  ZD.seed(); at('2026-10-05'); ZD.setViewer('E1');
+  const a = giveE1('читается само'), b = giveE1('сводка раз'), c = giveE1('сводка два');
+  const nA = noteOf('поручено', a.id);
+  ZD.bellToggle(true); ZD.bellToggle(false);
+  const panelNoRead = nA.read === false;
+  ZD.releaseTask(a.id, 'E2', 'отменено');
+  const self = nA.read === true && nA.readHow === 'задание закрыто' && nA.readAt === '2026-10-05';
+  const closed = noteOf('закрыто', a.id), closedStays = closed.read === false && closed.to === 'E1';
+  const pageRow = () => { ZD.openAllNotif(); return ZD.renderNotifPage(); };
+  const rowHas = plain(rowOf(pageRow().replace(/data-n=/g, 'data-t='), nA.id)).includes('задание закрыто');
+  ZD.bellToggle(true);
+  const inBell = ZD.renderBell().includes('задание закрыто');
+  ZD.bellToggle(false);
+  ZD.notifGo(closed.id, 0);
+  const clicked = closed.read === true && closed.readHow === 'клик';
+  /* сводка — когда закрыто всё в перечне */
+  [b, c].forEach(t => ZD.take(t.id, 'E1'));
+  ZD.batchTasks([b.id, c.id], 'заявить', 'E1');
+  const dg = ZD.state.notifications.find(n => n.kind === 'сдано-на-приёмку' && n.to === 'E2');
+  ZD.acceptDecision(b.id, true, '', 'E2');
+  const half = dg.read === false;
+  ZD.acceptDecision(c.id, true, '', 'E2');
+  const whole = dg.read === true && dg.readHow === 'задание закрыто';
+  /* «Прочитать все» и сигнал */
+  ZD.closeCard();
+  ZD.seed(); ZD.goToDate('2026-10-01'); ZD.setViewer('E4');
+  const unreadOf = ZD.notifsOf('E4').filter(n => !n.read), wereAuto = ZD.notifsOf('E4').filter(n => n.readHow === 'задание закрыто').length;
+  ZD.notifReadAll();
+  const all = unreadOf.every(n => n.readHow === 'все') && ZD.notifsOf('E4').filter(n => n.readHow === 'задание закрыто').length === wereAuto && ZD.unreadOf('E4') === 0;
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  const task = ZD.state.notifications.filter(n => n.kind !== 'сигнал'), auto = task.filter(n => n.readHow === 'задание закрыто').length;
+  const noSignals = ZD.state.notifications.filter(n => n.kind === 'сигнал').every(n => !n.read), noClosed = ZD.state.notifications.filter(n => n.kind === 'закрыто').every(n => !n.read);
+  ok(524, panelNoRead && self && closedStays && rowHas && inBell && clicked && half && whole && all && auto === 136 && task.length === 473 && noSignals && noClosed,
+    `СУ-28 — панель статус не меняет; задание закрыто — сообщение прочитано само, причина в строке и панели; сводка — когда закрыто всё; «закрыто» только кликом; «Прочитать все» причину других не трогает; на 02.11 само прочитано ${auto} из ${task.length}`);
+})();
+
+/* СУ-29 — клик: одиночное — карточка на своей вкладке, сводка — перечень; прав нет — запись остаётся */
+(() => {
+  ZD.seed(); at('2026-10-05'); ZD.setViewer('E1');
+  const a = giveE1('одиночное'), n = noteOf('поручено', a.id);
+  ZD.state.view = 'settings'; ZD.state.qTab = 'closed';
+  ZD.notifGo(n.id);
+  const single = ZD.cardId === a.id && ZD.digestCard === null && ZD.state.view === 'queue' && ZD.state.qTab === 'work' && n.read === true && n.readHow === 'клик';
+  ZD.closeCard();
+  /* вкладка другого решения: запрос продления ждёт автора */
+  ZD.take(a.id, 'E1'); ZD.requestExtension(a.id, 'E1', '2026-10-27', 'ждём выписку');
+  ZD.setViewer('E2');
+  const asked = noteOf('запрошено-продление', a.id);
+  ZD.state.qTab = 'work';
+  ZD.notifGo(asked.id);
+  const tab = ZD.cardId === a.id && ZD.state.qTab === 'decide';
+  ZD.closeCard();
+  /* сводка: перечень, прочитано при открытии, строка ведёт к своему, «К перечню» */
+  ZD.setViewer('E1');
+  const b = giveE1('строка раз'), c = giveE1('строка два');
+  [b, c].forEach(t => ZD.take(t.id, 'E1'));
+  ZD.batchTasks([b.id, c.id], 'заявить', 'E1');
+  ZD.setViewer('E2');
+  const dg = ZD.state.notifications.filter(n2 => n2.kind === 'сдано-на-приёмку' && n2.to === 'E2').pop();
+  ZD.bellToggle(true);
+  ZD.notifGo(dg.id);
+  const panel = ZD.digestCard === dg.id && ZD.cardId === null && dg.read === true && !ZD.renderBell().includes('bell-panel');
+  const list = ZD.renderDigestPanel(dg.id), rows = ['строка раз', 'строка два'].every(s => list.includes(s)) && list.includes(`ZD.notifItem('${dg.id}', 1)`);
+  ZD.notifItem(dg.id, 1);
+  const row = ZD.cardId === c.id && ZD.digestFrom === dg.id && ZD.renderCard(c.id).includes('ZD.notifBack()');
+  ZD.notifBack();
+  const back = ZD.digestCard === dg.id && ZD.cardId === null;
+  ZD.closeCard();
+  const shut = ZD.digestCard === null && ZD.digestFrom === null;
+  /* в окошке «Открыть» у сводки — то же, в строке страницы — ссылка «Перечень (2)» */
+  dg.read = false; dg.readHow = null; dg.readAt = null;
+  ZD.openAllNotif();
+  const link = ZD.notifLinks(dg).includes('Перечень (2)');
+  ZD.state.view = 'queue';
+  ZD.notifGo(dg.id);
+  const again = ZD.digestCard === dg.id && dg.read === true;
+  ZD.closeCard();
+  /* нет прав: запись остаётся, открыть нельзя, остальное работает */
+  ZD.setViewer('E1');
+  const gone = giveE1('больше не моё');
+  const note = noteOf('поручено', gone.id);
+  ZD.reassignTask(gone.id, 'E3', 'E2', 'перевод');
+  const hidden = !ZD.bucketOf(gone, 'E1');
+  ZD.notifGo(note.id);
+  const denied = hidden && ZD.cardId === null && note.read === true && ZD.notifsOf('E1').includes(note) && /У вас нет доступа к заданию/.test(src);
+  /* «переадресовано» — ссылки нет, клик только читает */
+  const moved = noteOf('переадресовано', gone.id);
+  ZD.notifGo(moved.id);
+  const onlyRead = moved.read === true && ZD.cardId === null && ZD.digestCard === null;
+  ZD.state.qTab = 'work';
+  ok(525, single && tab && panel && rows && row && back && shut && link && again && denied && onlyRead,
+    `СУ-29 — одиночное сразу открывает карточку на своей вкладке («Ждут моего решения» для запроса продления); сводка — панель-перечень, строка ведёт к своему и обратно к перечню; прав нет — «У вас нет доступа к …», запись остаётся; «переадресовано» только читается`);
+})();
+
+/* СУ-41 — номера заданий и поводы стенда те же, что до волны: снятое сообщение номер занимает */
+(() => {
+  const OLD = { '2026-10-01': '8f90ed46103c/d7aa99b4a86f/654', '2026-11-02': '19278c662807/af8b8ff28a90/936', '2027-01-04': 'a73d8720635c/702b0892f2d7/1673', '2027-03-01': 'a36eb47d85a4/1c9af87bb8c6/1880' };
+  const sha = s => createHash('sha1').update(s).digest('hex').slice(0, 12);
+  const mism = [];
+  ZD.seed();
+  CTL_DATES.forEach(d => {
+    ZD.seed(); ZD.goToDate(d);
+    const s = ZD.state;
+    const tasks = s.tasks.map(t => ({ id: t.id, kind: t.kind, oK: t.originKind, a: t.assignee, c: t.controller, au: t.author, due: t.dueDate, pk: t.povodKey, q: t.queue, j: t.journal }));
+    const povods = s.povods.map(p => ({ k: p.key, st: p.status, j: p.journal }));
+    const got = `${sha(JSON.stringify(tasks))}/${sha(JSON.stringify(povods))}/${s.seq}`;
+    if (got !== OLD[d]) mism.push(`${d}: ${got}`);
+  });
+  ok(526, mism.length === 0,
+    `СУ-41 — на контрольных датах задания, поводы и счётчик номеров совпадают с набором до волны (ТЗ 25, P27) ${mism.join('; ')}`);
+})();
+
+/* Окошко, перечень и страница — без сырых значений и номеров решений */
+(() => {
+  const BAD = /\bundefined\b|\bnull\b|\[object|NaN|\{"|"by"|\bE\d{1,2}\b|20\d\d-\d\d-\d\d|ЭЗ-|ADR-|СУ-|волн|\bpk-[a-z]/;
+  const hits = [];
+  ZD.seed();
+  ZD.setViewer('E1');
+  ['2026-10-01', '2027-03-01'].forEach(d => {
+    ZD.goToDate(d);
+    if (BAD.test(plain(ZD.renderPops()))) hits.push(d + ' окошко');
+    ZD.state.notifications.filter(n => n.items.length > 1).forEach(n => { if (BAD.test(plain(ZD.renderDigestPanel(n.id)))) hits.push(n.id + ' перечень'); });
+  });
+  ZD.setViewer('E1');
+  ok(527, hits.length === 0, `окошко, перечень сводки — без сырых значений и номеров решений ${hits.slice(0, 3).join(', ')}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
