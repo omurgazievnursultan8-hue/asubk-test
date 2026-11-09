@@ -519,6 +519,10 @@ const CURATION = [ // закрепление: роль кураторства ×
   // классификация: факт п. 11 без решения — очереди «Кредитный инспектор»; куратор кредита задания не получает
   ...[['КД-2025/391','E1'],['КД-2024/392','E3'],['КД-2025/393','E1'],['КД-2023/394','E1'],['КД-2025/395','E3'],['КД-2024/396','E1']]
     .map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
+  // событие модулей: кредит куратор сменил — прежний сообщением больше не откроет (нет доступа); объекты только для событий службы
+  {role:'куратор кредита', obj:'КД-2026/912', emp:'E3', from:'2026-01-01', to:'2026-11-15'},
+  {role:'куратор кредита', obj:'КД-2026/912', emp:'E1', from:'2026-11-16', to:null},
+  {role:'куратор требования', obj:'ТР-2026/913', emp:'E1', from:'2026-01-01', to:null},
   // объекты выпуска 01.12: погашенные кредиты, требования с заседанием и вернувшейся претензией, предложения на втором ключе
   ...[['КД-2026/901','E1'],['КД-2026/902','E3']].map(([obj, emp])=>({role:'куратор кредита', obj, emp, from:'2026-01-01', to:null})),
   ...[['01012198800901','E1'],['01012198800902','E3']].map(([obj, emp])=>({role:'ведущий куратор заёмщика', obj, emp, from:'2026-01-01', to:null})),
@@ -748,7 +752,7 @@ const ZL_STEPS = [
    where:'реестр договоров залога: решение комитета по договору', named:'срок рассмотрения у залога: 10 к.д. от передачи на комитет'},
 ].map(x=>Object.assign({sum:'залоговая стоимость предмета', addr:'zl', named:null, dueN:null}, x));
 /* виды платежей: случай, после которого есть работа. Платёж и аванс — куратору кредита (трактовка), восстановление и
-   невыясненное поступление — очереди «Бухгалтер» (факт денег). Сторно и опознание — известие в журнал кредита, не вид */
+   невыясненное поступление — очереди «Бухгалтер» (факт денег). Сторно и опознание — событие для уведомления и строка журнала кредита, не вид повода */
 const PL_STEPS = [
   {id:'pk-pl-await',        title:'Платёж ожидает подтверждения казначейства', objectType:'payment', traits:['кредит','заёмщик','дата_операции','поступление'],
    sum:'сумма платежа', addr:'cr', dueN:5, act:'Выяснить у казначейства судьбу платежа',
@@ -2998,7 +3002,7 @@ function plAt(o, d){
   s.disputedSince = s.disputed.length ? s.disputed.map(x=>x.storno.t).sort()[0] : null;
   return s;
 }
-/* известия платежей в журнал кредита: сторно, восстановление, опознание — строка журнала, без рассылки и без задания */
+/* известия платежей в журнал кредита: сторно, восстановление, опознание — строка журнала без задания; сторно и опознание ещё и уведомляют куратора */
 function plNotices(credit, d){
   return state.owner.pl.flatMap(o=>o.ev.filter(e=>e.notice && e.t<=d &&
       ((o.type==='payment' && o.credit===credit) || (o.type==='receipt' && e.bind && e.bind.credit===credit))).map(e=>Object.assign({obj:o.id}, e)))
@@ -4541,7 +4545,10 @@ function seedState(){
     runDown: null,     // кто не ответил в идущем прогоне: {date, ids}
     digest: null,      // идёт прогон или пакетное действие: свод уведомлений
     notifications: [], // общий список сообщений системы: {id, t, source, kind, originKind, taskId, to, due, count, items, text, channels, delivery, read, readAt, readHow}
-    notifSettings: seedNotifSettings(), // текст и способ одиннадцати обычных уведомлений; получатели определены механизмом
+    notifSettings: seedNotifSettings(), // перечень видов: текст, способ, включён ли, история правок; у видов о заданиях получатели определены механизмом
+    noticeEvents: [],  // записи о событиях модулей: номер, вид, объект, дата и время, кто сделал; служба читает их и рассылает
+    noticeFacts: seedNoticeFacts(), // факты, которых у соседей на стенде нет: новые объекты, события выводятся так же, как из фактов соседей
+    noticeSeen: {}, eventDone: {}, eventSeq: 0, noteEv: 0, serviceDown: false, // повтор отбрасывается по номеру; служба упала — записи ждут
     noteExtra: 0,      // номера сообщений, которым номер из общего счётчика не положен
     soonHeld: {},      // «срок близко» не ушёл в день выдачи: задание|срок
     nfOnly: false, nfSrc: '', nfFrom: '', nfTo: '', nfQ: '', nfPage: 1, // страница «Все уведомления»: отбор и лист
@@ -4679,26 +4686,111 @@ function displayState(t){
   return STATE_LABEL[lastEv(t)] || lastEv(t);
 }
 
-/* ---------- 4. уведомления: закрытый список, только о задании ---------- */
-const NOTIF_KINDS = ['поручено','сдано-на-приёмку','срок-близко','срок-истёк','эскалация','возвращено','повод-отпал','закрыто',
-  'переадресовано','запрошено-продление','решение-по-продлению'];
-/* что настраивается у обычного уведомления — текст и способ; кому идёт, определяет механизм, настройка только показывает */
-const NOTIF_SPEC = {
-  'поручено':{title:'поручено', who:'исполнителю; в очереди роли — всем её носителям', text:'Вам поручено задание'},
-  'сдано-на-приёмку':{title:'сдано на приёмку', who:'контролёру', text:'Задание сдано на приёмку'},
-  'срок-близко':{title:'срок близко', who:'исполнителю; в очереди роли — всем её носителям; не в день выдачи', text:'Срок задания близко'},
-  'срок-истёк':{title:'срок истёк', who:'исполнителю; в очереди роли — всем её носителям', text:'Срок задания истёк'},
-  'эскалация':{title:'эскалация', who:'руководителю, получившему задание о просрочке; у видов со своим адресатом — ему', text:'Просрочено задание'},
-  'возвращено':{title:'возвращено', who:'исполнителю', text:'Задание возвращено на доработку'},
-  'повод-отпал':{title:'повод отпал', who:'контролёру задания, которое ждёт приёмки', text:'Работа подтверждена, задание можно принять'},
-  'закрыто':{title:'закрыто', who:'исполнителю; в очереди роли — всем её носителям; кроме закрывшего', text:'Задание закрыто'},
-  'переадресовано':{title:'переадресовано', who:'прежнему исполнителю', text:'Задание передано другому исполнителю'},
-  'запрошено-продление':{title:'запрошено продление', who:'утверждающему продление', text:'Запрошено продление срока'},
-  'решение-по-продлению':{title:'решение по продлению', who:'исполнителю и контролёру, если решал не он', text:'Принято решение по продлению срока'},
+/* ---------- 4. уведомления: закрытый перечень видов всей системы; задания — один из источников ---------- */
+const WAY_POPUP = 'всплывающее', WAY_SMS = 'SMS', WAY_MAIL = 'e-mail';
+/* что открывает клик по сообщению: слова для заголовка панели и для «нет доступа», формы для счёта в перечне */
+const NOTICE_OBJ = {
+  gd:{of:'госрешения', to:'госрешению', many:['госрешение','госрешения','госрешений']},
+  lp:{of:'программы', to:'программе', many:['программа','программы','программ']},
+  ap:{of:'заявки', to:'заявке', many:['заявка','заявки','заявок']},
+  zm:{of:'заёмщика', to:'заёмщику', many:['заёмщик','заёмщика','заёмщиков']},
+  cr:{of:'кредита', to:'кредиту', many:['кредит','кредита','кредитов']},
+  zli:{of:'предмета залога', to:'предмету залога', many:['предмет','предмета','предметов']},
+  zld:{of:'договора залога', to:'договору залога', many:['договор','договора','договоров']},
+  rs:{of:'заявки на реструктуризацию', to:'заявке на реструктуризацию', many:['заявка','заявки','заявок']},
+  vz:{of:'требования', to:'требованию', many:['требование','требования','требований']},
+  ima:{of:'объекта имущества', to:'объекту имущества', many:['объект','объекта','объектов']},
+  imo:{of:'предложения', to:'предложению', many:['предложение','предложения','предложений']},
+  an:{of:'обзора', to:'обзору', many:['обзор','обзора','обзоров']},
+  doc:{of:'документа', to:'документу', many:['документ','документа','документов']},
+  st:{of:'сотрудника', to:'сотруднику', many:['сотрудник','сотрудника','сотрудников']},
+  rp:{of:'отчёта', to:'отчёту', many:['отчёт','отчёта','отчётов']},
+  tile:{of:'плитки', to:'плитке', many:['плитка','плитки','плиток']},
+  run:{of:'прогона', to:'прогону', many:['прогон','прогона','прогонов']},
+  task:{of:'задания', to:'заданию', many:['задание','задания','заданий']},
+  imb:{of:'дела о банкротстве', to:'делу о банкротстве', many:['дело','дела','дел']},
+  any:{of:'объекта', to:'объекту', many:['объект','объекта','объектов']},
 };
+const plural = (n, f)=>{ const a = n%10, b = n%100; return b>=11 && b<=14 ? f[2] : a===1 ? f[0] : a>=2 && a<=4 ? f[1] : f[2]; };
+/* вид уведомления — одна запись на вид, всего 59: 25 закреплённых (получателя называет само событие) и 34 настраиваемых (начальные получатели, настройка — у администратора уведомлений).
+   Новый вид приходит только выпуском: вид вне перечня не отправляется, текст и способ берутся в момент отправки */
+const NK = (id, module, group, name, who, party, tuned, card, tab, channels)=>({id, module, group, name, who, party, tuned, text:name, channels:channels||[WAY_POPUP], on:true, card, tab});
+const NK_TASK = (id, name, who, text)=>Object.assign(NK(id, 'Задания', 'О заданиях', name, who, null, false, 'task', 'Задание'), {text});
+const NK_ON = (id, module, name, who, party, card, tab, channels)=>NK(id, module, 'События модулей', name, who, party, true, card, tab, channels);
+const NOTICE_LIST = [
+  // закреплённые — о заданиях (11): получателей определяет механизм заданий
+  NK_TASK('поручено', 'поручено', 'исполнителю; в очереди роли — всем её носителям', 'Вам поручено задание'),
+  NK_TASK('сдано-на-приёмку', 'сдано на приёмку', 'контролёру', 'Задание сдано на приёмку'),
+  NK_TASK('срок-близко', 'срок близко', 'исполнителю; в очереди роли — всем её носителям; не в день выдачи', 'Срок задания близко'),
+  NK_TASK('срок-истёк', 'срок истёк', 'исполнителю; в очереди роли — всем её носителям', 'Срок задания истёк'),
+  NK_TASK('эскалация', 'эскалация', 'руководителю, получившему задание о просрочке; у видов со своим адресатом — ему', 'Просрочено задание'),
+  NK_TASK('возвращено', 'возвращено', 'исполнителю', 'Задание возвращено на доработку'),
+  NK_TASK('повод-отпал', 'повод отпал', 'контролёру задания, которое ждёт приёмки', 'Работа подтверждена, задание можно принять'),
+  NK_TASK('закрыто', 'закрыто', 'исполнителю; в очереди роли — всем её носителям; кроме закрывшего', 'Задание закрыто'),
+  NK_TASK('переадресовано', 'переадресовано', 'прежнему исполнителю', 'Задание передано другому исполнителю'),
+  NK_TASK('запрошено-продление', 'запрошено продление', 'утверждающему продление', 'Запрошено продление срока'),
+  NK_TASK('решение-по-продлению', 'решение по продлению', 'исполнителю и контролёру, если решал не он', 'Принято решение по продлению срока'),
+  // закреплённые — отчётность и дашборд (9): в общий колокольчик
+  NK('rp-sub-ready', 'Отчётность', 'Отчётность и дашборд', 'Отчёт по подписке готов', 'подписчику', ['подписчик'], false, 'rp', 'Настройки'),
+  NK('rp-signal', 'Отчётность', 'Отчётность и дашборд', 'Сигнал отчёта', 'подписчику условия', ['подписчик'], false, 'rp', 'Настройки'),
+  NK('db-tile-signal', 'Дашборд', 'Отчётность и дашборд', 'Сигнал плитки', 'подписчику условия', ['подписчик'], false, 'tile', 'Детализация'),
+  NK('rp-cond-gone', 'Отчётность', 'Отчётность и дашборд', 'Условие больше не проверяется', 'подписчику', ['подписчик'], false, 'rp', 'Настройки'),
+  NK('rp-method', 'Отчётность', 'Отчётность и дашборд', 'Смена методики', 'уполномоченному', ['уполномоченный'], false, 'rp', 'Паспорт'),
+  NK('rp-heavy-ready', 'Отчётность', 'Отчётность и дашборд', 'Тяжёлый показ готов', 'заказавшему', ['заказавший'], false, 'rp', 'Настройки'),
+  NK('rp-export-ready', 'Отчётность', 'Отчётность и дашборд', 'Выгрузка готова', 'заказавшему', ['заказавший'], false, 'rp', 'Настройки'),
+  NK('rp-note', 'Отчётность', 'Отчётность и дашборд', 'Заметка', 'по нити заметки', ['нить заметки'], false, 'rp', 'Заметки'),
+  NK('db-tile-answer', 'Дашборд', 'Отчётность и дашборд', 'Ответ на предложение плитки', 'автору предложения', ['автор предложения'], false, 'tile', 'Детализация'),
+  // закреплённые — личные (4): получатель — тот, кого касается
+  NK('doc-mention', 'Документооборот', 'Личные', 'Вас упомянули в документе', 'упомянутому', ['упомянутый'], false, 'doc', 'Комментарии'),
+  NK('emp-deputy', 'Сотрудники', 'Личные', 'Вы назначены замещающим', 'назначенному замещающим', ['замещающий'], false, 'st', 'Отсутствия'),
+  NK('cur-object', 'Кураторство', 'Личные', 'Вам назначен объект', 'назначенному куратором объекта', ['назначенный'], false, 'any', 'Кураторство'),
+  NK('acc-changed', 'Пользователи', 'Личные', 'Учётная запись изменена или заблокирована', 'владельцу записи', ['владелец'], false, 'st', 'Учётная запись', [WAY_POPUP, WAY_SMS, WAY_MAIL]),
+  // закреплённый служебный: поведение — вместе с журналом доставки
+  NK('not-delivered', 'Уведомления', 'Служебный', 'Не доставлено', 'администратору уведомлений, раз в день', ['администратор уведомлений'], false, 'run', 'Журнал доставки'),
+  // настраиваемые — 33 вида событий модулей и ночной прогон
+  NK_ON('gd-approved', 'Госрешение', 'Госрешение одобрено', 'автору', ['автор'], 'gd', 'Общая информация'),
+  NK_ON('gd-rejected', 'Госрешение', 'Госрешение отклонено', 'автору', ['автор'], 'gd', 'История'),
+  NK_ON('gd-closed', 'Госрешение', 'Госрешение закрыто', 'авторам действующих программ под решением', ['авторы программ'], 'gd', 'Кредитные программы'),
+  NK_ON('lp-approved', 'Программа', 'Программа одобрена', 'автору', ['автор'], 'lp', 'Основные данные'),
+  NK_ON('lp-rejected', 'Программа', 'Программа отклонена', 'автору', ['автор'], 'lp', 'История'),
+  NK_ON('lp-expiring', 'Программа', 'Срок программы истекает', 'автору', ['автор'], 'lp', 'Основные данные'),
+  NK_ON('lp-expired', 'Программа', 'Срок программы истёк', 'автору', ['автор'], 'lp', 'Основные данные'),
+  NK_ON('ap-rejected', 'Заявка', 'Заявка отклонена', 'специалисту', ['специалист'], 'ap', 'Комиссия'),
+  NK_ON('ap-program-stopped', 'Заявка', 'Программа перестала принимать заявки', 'специалисту заявки в работе', ['специалист'], 'ap', 'Условия кредита'),
+  NK_ON('ap-quorum', 'Заявка', 'Кворум набран', 'председателю, если набрал не он', ['председатель'], 'ap', 'Комиссия'),
+  NK_ON('ap-doc-overdue', 'Заявка', 'Документ заявки просрочен', 'специалисту', ['специалист'], 'ap', 'Документы'),
+  NK_ON('zm-status', 'Заёмщик', 'Изменилось положение заёмщика', 'кураторам заёмщика, кроме внёсшего', ['кураторы заёмщика'], 'zm', 'Общая информация'),
+  NK_ON('cr-disb-expired', 'Кредит', 'Срок освоения истёк, остаток не закрыт', 'ведущему куратору', ['ведущий куратор'], 'cr', 'Условия'),
+  NK_ON('pl-storno', 'Платежи', 'Платёж сторнирован', 'куратору кредита', ['куратор кредита'], 'cr', 'Платежи'),
+  NK_ON('pl-identified', 'Платежи', 'Поступление опознано', 'куратору кредита, если опознал не он; куратору взыскания, если есть требование', ['куратор кредита', 'куратор взыскания'], 'cr', 'Платежи'),
+  NK_ON('pl-reserve-advance', 'Платежи', 'Резерв стал безадресным авансом', 'куратору', ['куратор кредита'], 'cr', 'Расчёты'),
+  NK_ON('zl-act-worse', 'Залог', 'Акт об ухудшении или утрате залога', 'ведущему куратору кредита', ['ведущий куратор'], 'zli', 'Обследования'),
+  NK_ON('zl-committee', 'Залог', 'Комитет решил по договору залога', 'куратору залога', ['куратор залога'], 'zld', 'Основное'),
+  NK_ON('cl-risk-up', 'Классификация', 'Риск повышен решением комитета', 'ведущему куратору', ['ведущий куратор'], 'cr', 'Проблемные'),
+  NK_ON('rs-concl-all', 'Реструктуризация', 'Все заключения получены', 'куратору кредита', ['куратор кредита'], 'rs', 'Заключения'),
+  NK_ON('rs-vz-paused', 'Реструктуризация', 'Взыскание приостановлено', 'куратору взыскания', ['куратор взыскания'], 'vz', 'Особые состояния'),
+  NK_ON('vz-limit', 'Взыскание', 'Исковая давность истекает', 'куратору требования', ['куратор требования'], 'vz', 'Суд'),
+  NK_ON('vz-court-act', 'Взыскание', 'Судебный акт внесён', 'ведущему куратору кредита', ['ведущий куратор'], 'vz', 'Суд'),
+  NK_ON('vz-transfer-rejected', 'Взыскание', 'Передача требования отклонена', 'отправителю', ['отправитель'], 'vz', 'Журнал мер'),
+  NK_ON('vz-bankrupt', 'Взыскание', 'Заёмщик признан банкротом', 'кураторам заёмщика, кроме внёсшего', ['кураторы заёмщика'], 'zm', 'Взыскание'),
+  NK_ON('im-decision', 'Имущество', 'Решение органа или Комитета', 'куратору объекта', ['куратор объекта'], 'ima', 'Журнал фактов'),
+  NK_ON('im-to-fund', 'Имущество', 'Предмет залога перешёл к Фонду', 'ведущему куратору кредита, куратору залога', ['ведущий куратор', 'куратор залога'], 'zli', 'История'),
+  NK_ON('an-approved', 'Анализ', 'Обзор утверждён', 'адресату обзора', ['адресат обзора'], 'an', 'Обзор'),
+  NK_ON('doc-res-final', 'Документооборот', 'Резолюция исполнена или отказана', 'автору резолюции', ['автор резолюции'], 'doc', 'Резолюции'),
+  NK_ON('doc-letter-back', 'Документооборот', 'Письмо вернулось, не вручено', 'автору исходящего', ['автор исходящего'], 'doc', 'Отправка'),
+  NK_ON('st-hired-moved', 'Сотрудники', 'Сотрудник принят или переведён', 'администратору системы', ['администратор системы'], 'st', 'Назначения'),
+  NK_ON('sec-autoblock', 'Безопасность', 'Автоблокировка учётной записи', 'администратору безопасности', ['администратор безопасности'], 'st', 'Учётная запись', [WAY_POPUP, WAY_SMS, WAY_MAIL]),
+  NK_ON('rp-changed', 'Отчётность', 'Числа изменились после сдачи', 'уполномоченному формы', ['уполномоченный'], 'rp', 'Паспорт'),
+  Object.assign(NK_ON('sys-night-failed', 'Система', 'Ночной прогон не прошёл', 'роли «Администратор»', ['администратор'], 'run', 'Журнал прогонов', [WAY_POPUP, WAY_MAIL]), {group:'Система'}),
+];
+const NOTICE_INDEX = Object.fromEntries(NOTICE_LIST.map(k=>[k.id, k]));
+const noticeKind = id=>NOTICE_INDEX[id] || null;
+/* одиннадцать видов о заданиях: их настройка — вкладка уведомлений настройки */
+const NOTIF_KINDS = NOTICE_LIST.filter(k=>k.group==='О заданиях').map(k=>k.id);
+const NOTIF_SPEC = Object.fromEntries(NOTICE_LIST.filter(k=>k.group==='О заданиях').map(k=>[k.id, {title:k.name, who:k.who, text:k.text}]));
 function seedNotifSettings(){
   const out = {};
-  NOTIF_KINDS.forEach(k=>{ out[k] = {text:NOTIF_SPEC[k].text, channels:['всплывающее'], history:[]}; });
+  NOTICE_LIST.forEach(k=>{ out[k.id] = {text:k.text, channels:k.channels.slice(), on:k.on, history:[]}; });
   return out;
 }
 /* запись общего списка: источник — чтобы дашборд и отчётность писали сюда же; прочитанность у записи своя, получатель один; доставка — только реквизит */
@@ -4784,6 +4876,236 @@ function withDigest(fn){
   if(state.digest) return fn(); // уже внутри прогона или пакетного действия
   state.digest = {};
   try{ return fn(); } finally { state.digest = null; popFlush(); }
+}
+
+/* ---------- 4а. служба уведомлений: записи о событиях модулей → сообщения ---------- */
+const NOTE_EV = 950000; // сообщения событий модулей — своя серия: счётчик заданий и ряды волн 35, 36 не трогает
+/* запись о событии пишется в транзакции факта; служба читает записи сама: упала — записи ждут, факт откатился — записи нет */
+function declareEvent(ev){
+  if(!noticeKind(ev.kind)) throw new Error('вид вне перечня: '+ev.kind);
+  const r = {no:'EV-'+(++state.eventSeq), kind:ev.kind, obj:ev.obj, at:ev.at||state.today, time:ev.time||(ev.night ? '02:00' : '10:00'), by:ev.by||null,
+    parties:ev.parties||{}, batch:ev.batch||null, acc:ev.acc||null, detail:ev.detail||'', tab:ev.tab||null};
+  r.what = `${r.obj.id}${r.obj.title ? ' · '+r.obj.title : ''}${r.detail ? ': '+r.detail : ''}`;
+  state.noticeEvents.push(r);
+  return r;
+}
+function factTx(fn){ // факт и запись — одной транзакцией: отказ откатывает и запись
+  const mark = state.noticeEvents.length, seq = state.eventSeq;
+  try{ return fn(); }catch(e){ state.noticeEvents.length = mark; state.eventSeq = seq; throw e; }
+}
+/* получатели — начальные, правило вида; сделавший действие сообщения о нём не получает; ушедший сотрудник — тоже */
+function eventRecipients(r){
+  const k = noticeKind(r.kind);
+  return [...new Set((k.party||[]).flatMap(p=>r.parties[p]||[]))].filter(x=>x && x!==r.by && !goneOn(x, state.today));
+}
+function deliverEvent(r, dg){
+  const k = noticeKind(r.kind), cfg = state.notifSettings[r.kind];
+  if(!k || !cfg) throw new Error('вид вне перечня: '+r.kind);
+  if(!cfg.on) return 0;
+  const to = eventRecipients(r);
+  const item = ()=>({obj:r.obj.id, ref:r.obj.ref||r.obj.id, type:r.obj.type||k.card, title:r.obj.title||'', src:r.obj.src||null, text:r.what, at:r.at, by:r.by, tab:r.tab||k.tab, acc:r.acc, ev:r.no});
+  to.forEach(x=>{
+    const key = dg && r.batch ? [r.batch, x, r.kind].join('|') : null; // одно действие или один прогон — одно сообщение на человека и вид
+    let n = key && dg[key];
+    if(n){ n.count++; n.items.push(item()); n.ev.push(r.no); return; }
+    n = messageOf({id:'N'+(NOTE_EV+state.noteEv++), t:state.today, source:k.module, kind:r.kind, originKind:null, taskId:null, to:x, due:null, count:1, items:[item()], text:cfg.text, channels:cfg.channels.slice(), ev:[r.no]}); // текст и способ — на момент отправки
+    state.notifications.push(n);
+    if(key) dg[key] = n;
+  });
+  return to.length;
+}
+function serviceRun(){ // служба читает записи; запись обрабатывается один раз
+  if(state.serviceDown) return 0;
+  const dg = {};
+  let sent = 0;
+  state.noticeEvents.forEach(r=>{ if(state.eventDone[r.no]) return; state.eventDone[r.no] = true; sent += deliverEvent(r, dg); });
+  popFlush();
+  return sent;
+}
+/* повторная доставка той же записи (сбой, повторный проход) — отбрасывается по номеру */
+function serviceConsume(r){
+  if(state.serviceDown || state.eventDone[r.no]) return 0;
+  state.eventDone[r.no] = true;
+  const sent = deliverEvent(r, null);
+  popFlush();
+  return sent;
+}
+/* день стенда: факты соседей этого дня (и факты-заготовки) → записи о событиях → рассылка; один факт — одна запись */
+function noticeDay(d){
+  const seen = state.noticeSeen;
+  noticeFactsOn(d).concat(state.noticeFacts.filter(f=>f.t===d)).forEach(f=>{
+    const key = [f.kind, f.obj.id, f.t, f.sub||''].join('|');
+    if(seen[key]) return;
+    seen[key] = true;
+    declareEvent(f);
+  });
+  serviceRun();
+}
+const IMB_CURATOR = {'Б-1':'E1', 'Б-2':'E3', 'Б-3':'E1'}; // кураторы заёмщиков-банкротов на стенде: ответ кураторства
+const COURT_ACTS = ['Решение суда','Постановление апелляционной инстанции'].concat(VZ_RULINGS);
+/* что случилось на дату: факты соседей, которые называют вид перечня; один факт — один вид, адресаты — по правилу вида и закреплению на дату */
+function noticeFactsOn(d){
+  const out = [], O = state.owner;
+  const add = (kind, obj, x)=>out.push(Object.assign({kind, obj, t:d}, x));
+  const evOf = o=>o.ev.filter(e=>e.t===d);
+  const night = {night:true, batch:'night:'+d};
+  // госрешение: одобрено, отклонено, закрыто
+  O.gd.forEach(o=>evOf(o).forEach(e=>{
+    const ob = {src:'gd', type:'gd', id:o.id, title:o.title}, x = {by:e.by, sub:e.status};
+    if(e.status==='Действует' && e.by) add('gd-approved', ob, Object.assign({parties:{автор:[o.author]}}, x));
+    if(e.status==='Отклонён') add('gd-rejected', ob, Object.assign({parties:{автор:[o.author]}}, x));
+    if(e.status==='Закрыт') add('gd-closed', ob, Object.assign({parties:{'авторы программ':O.lp.filter(p=>{ const s = objAt(p, d); return s && s.base===o.id && s.status==='Действует'; }).map(p=>p.author)}}, x));
+  }));
+  // программа: одобрена, отклонена, срок истекает, срок истёк; заявки: программа перестала принимать
+  O.lp.forEach(o=>{
+    const ob = {src:'lp', type:'lp', id:o.id, title:o.title};
+    evOf(o).forEach(e=>{
+      const x = {by:e.by, sub:e.status};
+      if(e.status==='Действует' && e.by) add('lp-approved', ob, Object.assign({parties:{автор:[o.author]}}, x));
+      if(e.status==='Отклонена') add('lp-rejected', ob, Object.assign({parties:{автор:[o.author]}}, x));
+    });
+    const s = objAt(o, d);
+    if(s && s.status==='Действует' && s.dateTo){
+      if(addDays(s.dateTo, -expiringDays(d))===d) add('lp-expiring', ob, Object.assign({parties:{автор:[s.author]}, detail:`срок ${fmt(s.dateTo)}`}, night));
+      if(addDays(s.dateTo, 1)===d) add('lp-expired', ob, Object.assign({parties:{автор:[s.author]}, detail:`срок был ${fmt(s.dateTo)}`}, night));
+    }
+    const was = programBlock(o.id, addDays(d, -1)), now = programBlock(o.id, d);
+    if(s && !was && now){ // перестала принимать именно сегодня: закрыта, основание закрыто, срок истёк
+      const g = objAt(ownerObj('gd', s.base), d), by = now.why==='основание закрыто' ? (g ? g.last.by : null) : (now.why==='срок программы истёк' ? null : s.last.by);
+      O.ap.forEach(a=>{
+        const x = objAt(a, d);
+        if(!x || x.program!==o.id || AP_FINAL.includes(x.status)) return;
+        add('ap-program-stopped', {src:'ap', type:'ap', id:a.id, title:a.title}, {by, sub:o.id, batch:`stop:${d}`, detail:`программа ${o.id}, ${now.why}`,
+          parties:{специалист:[apSpecOn(x, d)||x.author]}, acc:['специалист заявки', a.id]});
+      });
+    }
+  });
+  // заявка: отклонена, кворум, документ просрочен
+  O.ap.forEach(o=>{
+    const s = objAt(o, d);
+    if(!s) return;
+    const ob = {src:'ap', type:'ap', id:o.id, title:o.title}, spec = ()=>[apSpecOn(s, d)||s.author], acc = ['специалист заявки', o.id];
+    evOf(o).forEach(e=>{
+      if(e.status==='Отклонена') add('ap-rejected', ob, {by:e.by, sub:'отказ', parties:{специалист:spec()}, acc});
+      if(e.vote && s.com){
+        let n = 0; const reached = o.ev.filter(x=>{ if(x.status==='На рассмотрении') n = 0; return !!x.vote && ++n===quorumOf(s); });
+        if(reached.indexOf(e)!==-1) add('ap-quorum', ob, {by:e.vote, sub:e.t, detail:`голосов ${quorumOf(s)} из ${s.com.members.length}`, parties:{председатель:[s.com.chair]}});
+      }
+    });
+    if(!AP_FINAL.includes(s.status)) s.docs.forEach(x=>{ if(addDays(x.validTo, 1)===d && !s.renewed[x.name]) add('ap-doc-overdue', ob, Object.assign({sub:x.name, detail:x.name, parties:{специалист:spec()}, acc}, night)); });
+  });
+  // заёмщик: смерть, ликвидация, реорганизация, перевод долга — ведущему куратору и кураторам его кредитов
+  const creditsOf = (name, inn)=>[...new Set(O.cr.concat(O.pl.filter(x=>x.type==='credit'), O.cl).filter(c=>(c.borrower===name || (inn && c.inn===inn)) && c.ev[0].t<=d).map(c=>c.id))];
+  const creditCurators = (name, inn)=>creditsOf(name, inn).map(c=>curatorOn('куратор кредита', c, d));
+  O.zm.forEach(o=>evOf(o).forEach(e=>{
+    if(e.gone) add('zm-status', {src:'zm', type:'zm', id:o.id, title:o.name}, {by:e.by, sub:e.gone, detail:e.gone, parties:{'кураторы заёмщика':[curatorOn('ведущий куратор заёмщика', o.id, d)].concat(creditCurators(o.name, o.id))},
+      acc:[['ведущий куратор заёмщика', o.id]].concat(creditsOf(o.name, o.id).map(c=>['куратор кредита', c]))});
+  }));
+  // платежи: сторно, поступление опознано, резерв стал авансом
+  const vzOpen = credit=>O.vz.filter(v=>{ if(v.credit!==credit) return false; const x = vzAt(v, d); return !!x && !x.closed; }); // требование есть на дату и не закрыто
+  const crTitle = id=>{ const c = O.pl.find(x=>x.type==='credit' && x.id===id) || (O.cr||[]).find(x=>x.id===id); return c ? c.borrower : ''; };
+  O.pl.forEach(o=>evOf(o).forEach(e=>{
+    if(e.storno && o.credit) add('pl-storno', {src:'pl', type:'cr', id:o.credit, title:crTitle(o.credit)}, {by:e.by, sub:o.id, detail:`${o.id}: ${e.storno}`, parties:{'куратор кредита':[curatorOn('куратор кредита', o.credit, d)]}, acc:['куратор кредита', o.credit]});
+    if(e.bind) add('pl-identified', {src:'pl', type:'cr', id:e.bind.credit, title:crTitle(e.bind.credit)}, {by:e.by, sub:o.id, detail:`поступление ${o.id}`,
+      parties:{'куратор кредита':[curatorOn('куратор кредита', e.bind.credit, d)], 'куратор взыскания':vzOpen(e.bind.credit).map(v=>curatorOn('куратор требования', v.id, d))},
+      acc:[['куратор кредита', e.bind.credit]].concat(vzOpen(e.bind.credit).filter(v=>curatorOn('куратор требования', v.id, d)).map(v=>['куратор требования', v.id]))});
+    if(e.rebuild && o.type==='credit') add('pl-reserve-advance', {src:'pl', type:'cr', id:o.id, title:o.borrower}, {by:e.by, sub:'аванс', detail:e.how, parties:{'куратор кредита':[curatorOn('куратор кредита', o.id, d)]}, acc:['куратор кредита', o.id]});
+  }));
+  const pledgeCurators = c=>{ const x = O.zl.filter(i=>i.type==='item' && i.credit===c.credit).map(i=>curatorOn('куратор залога', i.id, d)).filter(Boolean); return x.length ? x : [c.ev[0].by]; };
+  // залог: акт об ухудшении или утрате, решение комитета, предмет перешёл к Фонду
+  O.zl.forEach(o=>evOf(o).forEach(e=>{
+    if(o.type==='item' && (e.survey==='ухудшение' || e.survey==='утрата')) add('zl-act-worse', {src:'zl', type:'zli', id:o.id, title:o.name}, {by:e.by, sub:e.survey, detail:`${e.survey}: ${e.how}`, parties:{'ведущий куратор':[curatorOn('куратор кредита', o.credit, d)]}});
+    if(o.type==='contract' && e.decision) add('zl-committee', {src:'zl', type:'zld', id:o.id, title:o.borrower}, {by:e.by, sub:'решение', detail:e.how, parties:{'куратор залога':pledgeCurators(o)}});
+    if(o.type==='item' && e.toFund) add('im-to-fund', {src:'zl', type:'zli', id:o.id, title:o.name}, {by:e.by, sub:'фонд', parties:{'ведущий куратор':[curatorOn('куратор кредита', o.credit, d)], 'куратор залога':[curatorOn('куратор залога', o.id, d)]}});
+  }));
+  // классификация: риск повышен решением комитета
+  O.cl.forEach(o=>evOf(o).forEach(e=>{
+    const doc = (e.fact && e.fact.doc) || (e.decision && e.decision.doc);
+    if(doc) add('cl-risk-up', {src:'cl', type:'cr', id:o.id, title:o.borrower}, {by:e.by, sub:(e.fact||e.decision).id||(e.decision||{}).fact||'', detail:doc, parties:{'ведущий куратор':[curatorOn('куратор кредита', o.id, d)]}, acc:['куратор кредита', o.id]});
+  }));
+  // реструктуризация: все заключения получены
+  O.rs.forEach(o=>evOf(o).forEach(e=>{
+    if(!e.visa) return;
+    const s = rsAt(o, d), s0 = rsAt(o, addDays(d, -1));
+    if(s.visasOk && !(s0 && s0.visasOk)) add('rs-concl-all', {src:'rs', type:'rs', id:o.id, title:o.borrower}, {by:e.by, sub:'заключения', parties:{'куратор кредита':[curatorOn('куратор кредита', o.credit, d)]}, acc:['куратор кредита', o.credit]});
+  }));
+  // взыскание: судебный акт, приостановлено реструктуризацией, отказ в передаче
+  O.vz.forEach(o=>evOf(o).forEach(e=>{
+    const ob = {src:'vz', type:'vz', id:o.id, title:o.borrower};
+    const lead = ()=>curatorOn('куратор кредита', o.credit, d)||curatorOn('куратор требования', o.id, d);
+    if(COURT_ACTS.indexOf(e.measure)!==-1) add('vz-court-act', ob, {by:e.by, sub:e.measure+e.t, detail:e.verdict ? `${e.measure}: ${e.verdict}` : e.measure, parties:{'ведущий куратор':[lead()]}, acc:[['куратор кредита', o.credit], ['куратор требования', o.id]]});
+    if(e.pause==='реструктуризация') add('rs-vz-paused', ob, {by:e.by, sub:'пауза', detail:e.how, parties:{'куратор взыскания':[curatorOn('куратор требования', o.id, d)]}, acc:['куратор требования', o.id]});
+    if(e.measure==='Отклонение передачи'){ const h = o.ev.filter(x=>x.handover && x.t<=d).pop(); add('vz-transfer-rejected', ob, {by:e.by, sub:'передача'+d, parties:{отправитель:[h ? h.by : null]}}); }
+  }));
+  // банкротство: взыскание объявляет, имущество решает по залогу
+  O.imb.forEach(o=>evOf(o).forEach(e=>{
+    if(e.declared) add('vz-bankrupt', {src:'imb', type:'zm', id:o.debtor, ref:o.id, title:''}, {by:e.by, sub:'банкрот', detail:`дело о банкротстве ${o.id}`, parties:{'кураторы заёмщика':[IMB_CURATOR[o.id]].concat(creditCurators(o.debtor))}});
+    if(e.decision) add('im-decision', {src:'imb', type:'imb', id:o.id, title:o.title}, {by:e.by, sub:'решение', detail:e.how, parties:{'куратор объекта':[postHolderOn('post-assets', d)]}});
+  }));
+  // имущество: решение органа или Комитета — предложение и объект
+  O.imo.forEach(o=>evOf(o).forEach(e=>{
+    if(e.decision) add('im-decision', {src:'imo', type:'imo', id:o.id, title:o.title}, {by:e.by, sub:'решение'+e.t, detail:e.how, parties:{'куратор объекта':[curatorOn('куратор имущества', o.id, d)||postHolderOn('post-assets', d)]}});
+  }));
+  O.ima.forEach(o=>evOf(o).forEach(e=>{
+    if(e.condDecision || e.appDecision) add('im-decision', {src:'ima', type:'ima', id:o.id, title:o.title}, {by:e.by, sub:'решение'+e.t, detail:e.how, parties:{'куратор объекта':[curatorOn('куратор имущества', o.id, d)||postHolderOn('post-assets', d)]}});
+  }));
+  // анализ: обзор утверждён — руководителю подразделения, которому направлен
+  O.an.forEach(o=>evOf(o).forEach(e=>{
+    if(e.approved) add('an-approved', {src:'an', type:'an', id:o.id, title:`обзор по шаблону ${o.tpl}`}, {by:e.by, sub:'утв', parties:{'адресат обзора':[deptHead(o.to)]}});
+  }));
+  // документооборот: итог резолюции без контролёра
+  O.doc.forEach(o=>evOf(o).forEach(e=>{
+    const id = e.resDone || e.resRefuse;
+    if(!id) return;
+    const r = o.ev.find(x=>x.resolution && x.resolution.id===id);
+    if(!r || r.resolution.control) return; // есть контролёр — итог идёт через него
+    add('doc-res-final', {src:'doc', type:'doc', id:o.id, title:o.title}, {by:e.by, sub:id, detail:`резолюция ${id}: ${e.resDone ? 'исполнена' : 'отказано'}`, parties:{'автор резолюции':[r.for||r.by]}});
+  }));
+  // замещение и назначения: кому назначено — из оргструктуры и кураторства на дату
+  ABSENCES.forEach(a=>{ if(a.from===d) add('emp-deputy', {src:'st', type:'st', id:emp(a.emp).name, title:''}, {by:null, sub:a.sub, detail:`${fmt(a.from)} — ${fmt(a.to)}`, parties:{замещающий:[a.sub]}}); });
+  const CUR_TYPE = {'специалист заявки':'ap', 'куратор имущества':'ima', 'ведущий куратор заёмщика':'zm', 'куратор кредита':'cr', 'куратор требования':'vz', 'куратор залога':'zli'};
+  const CUR_TAB = {ap:'Условия кредита', ima:'Характеристики', zm:'Кураторство', cr:'Договор', vz:'Обзор', zli:'Основное'};
+  CURATION.forEach(c=>{
+    if(c.from!==d || !CUR_TYPE[c.role] || !CURATION.some(p=>p.role===c.role && p.obj===c.obj && p.to && addDays(p.to, 1)===c.from)) return;
+    add('cur-object', {src:'kur', type:CUR_TYPE[c.role], id:c.obj, title:c.role}, {by:null, sub:c.role, tab:CUR_TAB[CUR_TYPE[c.role]], batch:`cur:${d}:${c.emp}`, parties:{назначенный:[c.emp]}});
+  });
+  return out;
+}
+/* факты, которых нет у соседей на стенде, — новые объекты, только для событий: прежним видам и заданиям не показываются. Даты заданы явно; случайных чисел нет */
+function seedNoticeFacts(){
+  const F = (t, kind, src, type, id, title, by, parties, x)=>Object.assign({t, kind, obj:{src, type, id, title}, by, parties}, x||{});
+  const REP = (t, kind, id, title, parties, detail, by)=>F(t, kind, 'rp', 'rp', id, title, by||null, parties, {detail});
+  return [
+    F('2026-09-14', 'st-hired-moved', 'st', 'st', 'Касымалиева Н.Т.', '', 'E41', {'администратор системы':['E42']}, {detail:'принята: кредитный инспектор, Сопровождение', sub:'принята', time:'11:20'}),
+    F('2026-09-15', 'lp-rejected', 'lp', 'lp', 'LP-901', 'Программа «Цифровое село»', 'E8', {автор:['E6']}, {detail:'нет подтверждённого финансирования'}),
+    F('2026-09-16', 'gd-approved', 'gd', 'gd', 'GD-901', 'Постановление №240 «О поддержке малых ГЭС»', 'E8', {автор:['E3']}),
+    F('2026-09-22', 'ap-rejected', 'ap', 'ap', 'AP-901', 'ИП Байгазиев Т.', 'E12', {специалист:['E3']}, {detail:'решение комиссии: отказать'}),
+    REP('2026-10-01', 'rp-sub-ready', 'ФО-04', 'Кредиты, по которым подходит срок', {подписчик:['E2']}, 'подписка: еженедельно, понедельник'),
+    REP('2026-10-02', 'rp-signal', 'ФО-59', 'Кредитный риск портфеля за период', {подписчик:['E2']}, 'доля проблемных выше порога 12 %'),
+    F('2026-10-02', 'db-tile-signal', 'tile', 'tile', 'ПЛ-07', 'Выдано за период', null, {подписчик:['E43']}, {detail:'показатель ниже нижней границы'}),
+    F('2026-10-05', 'pl-reserve-advance', 'pl', 'cr', 'КД-2026/913', 'ОсОО «Ала-Арча Сервис»', 'E2', {'куратор кредита':['E3']}, {detail:'график перестроен: резерв 90 000 стал безадресным авансом', sub:'аванс'}),
+    REP('2026-10-06', 'rp-cond-gone', 'ФО-54', 'План-факт погашений за период', {подписчик:['E14']}, 'колонки «план» в отчёте больше нет'),
+    F('2026-10-08', 'sec-autoblock', 'st', 'st', 'Сулайманова Б.К.', '', null, {'администратор безопасности':['E40']}, {detail:'пять неудачных попыток входа', sub:'блок', time:'08:42'}),
+    REP('2026-10-08', 'rp-method', 'ФО-01', 'Кредитный портфель по состоянию на дату', {уполномоченный:['E6']}, 'новая редакция показателя «просрочка»'),
+    F('2026-10-09', 'acc-changed', 'st', 'st', 'Сулайманова Б.К.', '', 'E40', {владелец:['E39']}, {detail:'учётная запись разблокирована', sub:'разблок', time:'09:05'}),
+    F('2026-10-09', 'doc-letter-back', 'doc', 'doc', 'D-901', 'Письмо ОсОО «Жаңы-Жол» о сверке расчётов', 'E15', {'автор исходящего':['E8']}, {detail:'вернулось: адресат не найден'}),
+    F('2026-10-12', 'pl-identified', 'pl', 'cr', 'КД-2026/912', 'ОсОО «Бишкек Логистик»', 'E25', {'куратор кредита':['E3'], 'куратор взыскания':['E1']}, {detail:'поступление ПС-9901 на 38 000', sub:'опознано', acc:[['куратор кредита', 'КД-2026/912'], ['куратор требования', 'ТР-2026/913']]}),
+    F('2026-10-12', 'doc-mention', 'doc', 'doc', 'D-902', 'Служебная записка о сверке портфеля', 'E6', {упомянутый:['E1']}, {detail:'упомянула Жээнбекова К.А.'}),
+    REP('2026-10-12', 'rp-heavy-ready', 'ФО-26', 'Портфель — оперативный срез', {заказавший:['E26']}, 'показ подготовлен в фоне'),
+    F('2026-10-14', 'sys-night-failed', 'run', 'run', 'Прогон за 14.10.2026', '', null, {администратор:['E42']}, {detail:'классификация: расчёт не завершился', night:true, time:'02:00'}),
+    F('2026-10-14', 'zm-status', 'zm', 'zm', '01012198800914', 'ОсОО «Нур-Транзит»', 'E3', {'кураторы заёмщика':['E1','E3']}, {detail:'реорганизация', sub:'реорганизация'}),
+    F('2026-10-15', 'zl-committee', 'zl', 'zld', 'ДЗ-901', 'ОсОО «Кара-Кол Агро»', 'E36', {'куратор залога':['E33']}, {detail:'комитет допустил недообеспечение', sub:'решение'}),
+    REP('2026-10-15', 'rp-export-ready', 'ФО-17', 'Меры взыскания за период', {заказавший:['E27']}, 'выгрузка в Excel готова'),
+    REP('2026-10-16', 'rp-note', 'ФО-05', 'Платежи по графику за период', {'нить заметки':['E2','E7']}, 'заметка к данным на 01.10', 'E7'),
+    F('2026-10-20', 'vz-limit', 'vz', 'vz', 'ТР-2026/911', 'ИП Сапарова Н.', null, {'куратор требования':['E1']}, {detail:'истекает 18.01.2027', night:true, batch:'night:2026-10-20'}),
+    F('2026-10-20', 'db-tile-answer', 'tile', 'tile', 'ПЛ-14', 'Просрочка по областям', 'E43', {'автор предложения':['E5']}, {detail:'предложение плитки принято'}),
+    F('2026-10-22', 'vz-transfer-rejected', 'vz', 'vz', 'ТР-2026/912', 'ОсОО «Ак-Жол»', 'E28', {отправитель:['E3']}, {detail:'нет документов о наследниках', sub:'передача'}),
+    F('2026-10-22', 'st-hired-moved', 'st', 'st', 'Жумагулов А.Н.', '', 'E41', {'администратор системы':['E42']}, {detail:'переведён: Отдел рисков → Сопровождение', sub:'переведён'}),
+    F('2026-10-26', 'cr-disb-expired', 'cr', 'cr', 'КД-2026/911', 'ОсОО «Кемин-Тех»', null, {'ведущий куратор':['E1']}, {detail:'остаток к освоению 1 250 000', night:true, batch:'night:2026-10-26'}),
+    REP('2026-10-30', 'rp-changed', 'ФО-53', 'Движение основного долга за октябрь', {уполномоченный:['E43']}, 'итог по кредитам изменился на 12 400 после сдачи'),
+    // кураторство: одно назначение — сводка на три кредита
+    ...['КД-2026/931','КД-2026/932','КД-2026/933'].map((id, i)=>F('2026-11-02', 'cur-object', 'kur', 'cr', id, 'куратор кредита', 'E2', {назначенный:['E3']}, {sub:'кред'+i, tab:'Договор', batch:'cur:2026-11-02:E3'})),
+  ];
 }
 /* носители роли очереди, кроме исключённых (автор объекта при четырёх глазах) */
 function queueHolders(q){ const r = roleOf(q.queue.role); return r ? r.holders.filter(h=>(q.queue.exclude||[]).indexOf(h)===-1 && !goneOn(h, state.today)) : []; }
@@ -6159,7 +6481,7 @@ function toast(msg, kind){
 }
 
 function ui(fn){ // действие из интерфейса: отказ движка — сообщением, не исключением
-  try{ fn(); }catch(e){ toast(e.message,'err'); }
+  try{ fn(); noticeDay(state.today); }catch(e){ toast(e.message,'err'); }
   renderCardDrawer(); render();
 }
 const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; остальным правило на чтение — панелью по ссылке из карточки
@@ -6178,7 +6500,7 @@ function renderDemoSwitch(){
   return `<label class="demo-sw" title="Показ стенда: дата среза, зритель, имитация недоступности, демо-карточки модулей"><input type="checkbox" role="switch" id="demoToggle"${demoOn ? ' checked' : ''} onchange="ZD.setDemo(this.checked)"><span class="trk"></span>Демонстрация</label>`;
 }
 function setAsOf(v){ state.today=v; applyEditions(v); render(); }
-function setViewer(v){ state.viewer=v; Object.assign(state, {nfPage:1, nfOnly:false, nfSrc:'', nfFrom:'', nfTo:'', nfQ:''}); groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; popReset(); if(ruleCard){ ruleCard=null; renderCardDrawer(); } if(digestCard || digestFrom) closeCard(); render(); } // другой зритель вошёл в систему: окошек нет, только счётчик
+function setViewer(v){ state.viewer=v; Object.assign(state, {nfPage:1, nfOnly:false, nfSrc:'', nfFrom:'', nfTo:'', nfQ:''}); groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; popReset(); if(ruleCard){ ruleCard=null; renderCardDrawer(); } if(digestCard || digestFrom || noticeCard) closeCard(); render(); } // другой зритель вошёл в систему: окошек нет, только счётчик
 /* стенд: ночи подряд от старта до выбранной даты включительно. Срез зависит только от даты и настроек полосы, клики зрителя
    не переживают смену даты. Настройки полосы — имитация недоступности, круг опроса, зритель — сохраняются; недоступность и
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
@@ -6235,6 +6557,7 @@ function goToDate(d){
     playStandScenes(x, scenes);
     if(x===d){ state.statCleared = keep.statCleared; runPoll(); }
     else runPoll({down:false});
+    noticeDay(x);
   });
   applyEditions(d);
   state.statCleared = keep.statCleared;
@@ -6725,7 +7048,7 @@ function openFreeForm(){
 }
 
 /* ---------- карточка: панель поверх очереди со своим адресом ---------- */
-let cardOpenId=null, hlCard=null, ruleCard=null, fold={}, cardShown=null;
+let cardOpenId=null, hlCard=null, ruleCard=null, fold={}, cardShown=null, noticeCard=null;
 const hasUrl = ()=>typeof history!=='undefined' && typeof location!=='undefined';
 function taskInUrl(){ const m = hasUrl() && /[?&]task=([^&]+)/.exec(location.search||''); return m ? decodeURIComponent(m[1]) : null; }
 function moveUrl(how, id){
@@ -6743,15 +7066,15 @@ function cardVisible(id){
 function openCard(id){
   if(!cardVisible(id)) return;
   moveUrl(taskInUrl() ? 'replaceState' : 'pushState', id); // панель одна: ссылка внутри неё меняет адрес, а не копит шаги «назад»
-  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; fold={};
+  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; noticeCard=null; fold={};
   renderCardDrawer();
 }
 function closeCard(){
   if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
-  cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null;
+  cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null;
   renderCardDrawer();
 }
-function openHighlight(kindId, key){ cardOpenId=null; ruleCard=null; digestCard=null; hlCard={kindId, key}; renderCardDrawer(); }
+function openHighlight(kindId, key){ cardOpenId=null; ruleCard=null; digestCard=null; noticeCard=null; hlCard={kindId, key}; renderCardDrawer(); }
 function cardFold(name, open){ fold[name] = open; }
 const foldOpen = (name, dflt)=>name in fold ? fold[name] : dflt;
 const noCasePage = ()=>toast('В макете у этого дела своей страницы нет', '');
@@ -6759,10 +7082,10 @@ const noCasePage = ()=>toast('В макете у этого дела своей 
 function syncFromUrl(){
   const id = taskInUrl();
   dlg = null; paintDialog(); // окно принадлежит экрану, с которого ушли
-  if(!id){ cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; renderCardDrawer(); return; }
+  if(!id){ cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
   if(id===cardOpenId) return;
-  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; renderCardDrawer(); return; }
-  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; fold={};
+  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
+  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; noticeCard=null; fold={};
   renderCardDrawer();
 }
 /* открыто прямым адресом: панель поверх «Моей работы», «назад» закрывает её, а не уводит со страницы */
@@ -7000,6 +7323,7 @@ function renderCardDrawer(){
   if(hlCard){ host.innerHTML = renderHighlightDrawer(); cardShown=null; return; }
   if(ruleCard){ host.innerHTML = renderRulePanel(ruleCard); cardShown=null; return; }
   if(digestCard){ host.innerHTML = renderDigestPanel(digestCard); cardShown=null; return; }
+  if(noticeCard){ host.innerHTML = renderNoticeCard(); cardShown=null; return; }
   if(!cardOpenId || !taskOf(cardOpenId)){ host.innerHTML=''; cardShown=null; return; }
   const body = host.querySelector('.drawer-b'), top = body && cardShown===cardOpenId ? body.scrollTop : 0;
   host.innerHTML = renderCard(cardOpenId);
@@ -7467,7 +7791,7 @@ function renderPlCard(id){ // платежи у владельца: подсве
     ${credit ? `<div class="section-h">Журнал кредита ${esc(credit)} — известия платежей</div>
       ${notes.length ? `<table class="cgrid"><tbody>${notes.slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>`
         : '<div class="small">известий нет</div>'}` : ''}
-    <div class="small">Случай здесь — подсветка без исполнителя; поручение — в заданиях. Факт денег (сторно, восстановление, возврат) вносит бухгалтер, трактовку (директива по авансу, решение комиссии) — куратор кредита, строку реестра ЦК и привязку — оба. Сторно, восстановление и опознание — строки журнала кредита, без рассылки и без задания. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Случай здесь — подсветка без исполнителя; поручение — в заданиях. Факт денег (сторно, восстановление, возврат) вносит бухгалтер, трактовку (директива по авансу, решение комиссии) — куратор кредита, строку реестра ЦК и привязку — оба. Сторно и опознание — строка журнала кредита и уведомление куратору, восстановление — только строка журнала; заданий они не рождают. Задания увидят факт на следующем опросе.</div></div>`;
 }
 function renderZmCard(id){ // заёмщик у владельца: обязательства — подсветка без исполнителя, факт, который гасит, журнал
   const o = ownerObj('zm', id), d = state.today, s = zmAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
@@ -7986,15 +8310,15 @@ function runDetail(r){
 /* доставка: строка на отправку по способу; всплывающие сюда не идут, статус только тот, что записан; видно, что ушло и кому, а не содержание чужих заданий */
 function deliveryRows(){
   const out = [];
-  notifsAll().forEach(n=>(n.delivery||[]).forEach(d=>out.push({id:n.id, t:n.t, to:n.to, channel:d.channel, status:d.status, what:(n.kind==='сигнал' ? n.text : NOTIF_SPEC[n.kind].title)+(n.count>1 ? ` (${n.count})` : '')})));
+  notifsAll().filter(n=>!n.ev).forEach(n=>(n.delivery||[]).forEach(d=>out.push({id:n.id, t:n.t, to:n.to, channel:d.channel, status:d.status, what:(n.kind==='сигнал' ? n.text : NOTIF_SPEC[n.kind].title)+(n.count>1 ? ` (${n.count})` : '')})));
   return out;
 }
 const notifsAll = ()=>state.notifications.slice().reverse().sort((a, b)=>cmpVal(b.t, a.t));
 const DELIVERY_LAST = 20;
 function renderDelivery(){
   if(!isTasksAdmin(state.viewer)) return '';
-  const rows = deliveryRows(), total = state.notifications.length;
-  const anyOn = Object.values(state.notifSettings).concat(Object.values(state.signals)).some(c=>c.channels.some(x=>x!=='всплывающее'));
+  const rows = deliveryRows(), total = state.notifications.filter(n=>!n.ev).length;
+  const anyOn = NOTIF_KINDS.map(k=>state.notifSettings[k]).concat(Object.values(state.signals)).some(c=>c.channels.some(x=>x!=='всплывающее'));
   const link = '<button class="linky" onclick="ZD.goSettings(\'notifs\')">вкладке «Уведомления» настройки</button>';
   const empty = anyOn ? `SMS или почта включены, отправок ещё не было: запись появится при следующем уведомлении этого вида. Сообщений всего ${total}, все всплывающие. Способы правятся на ${link}.`
     : `SMS и почта не включены: у всех уведомлений способ «всплывающее», сообщений ${total}. Способы правятся на ${link}.`;
@@ -8102,6 +8426,13 @@ let bellOpen = false;
 const notifsOf = v=>state.notifications.filter(n=>n.to===v).reverse().sort((a, b)=>cmpVal(b.t, a.t)); // новые сверху, за один день — последнее первым
 const unreadOf = v=>state.notifications.filter(n=>n.to===v && !n.read).length;
 function notifText(n){
+  if(n.ev){ // событие модуля: один объект — что случилось, сводка — сколько
+    if(n.count===1) return `${n.text}: ${n.items[0].text}`;
+    const objs = [...new Set(n.items.map(i=>i.obj))], types = [...new Set(n.items.map(i=>i.type))], x = n.items[0];
+    if(objs.length===1) return `${n.text}: ${x.obj}${x.title ? ' · '+x.title : ''}, случаев ${n.count}`;
+    const w = types.length===1 && NOTICE_OBJ[types[0]] || NOTICE_OBJ.any;
+    return `${n.text}: ${objs.length} ${plural(objs.length, w.many)}`;
+  }
   if(n.kind==='сигнал') return `${n.text} — ${n.items.map(x=>x.text).join('; ')}`;
   const t = n.items[0] && taskOf(n.items[0].taskId);
   if(!t) return n.text;
@@ -8126,6 +8457,14 @@ function tabForTask(t, v){
 /* одна строка сообщения: задание — на своей вкладке очереди, сигнал — карточка объекта; прав нет — запись остаётся, открывать нечего. Со страницы панель открывается поверх неё: закрытие вернёт к той же строке */
 function openNotifItem(n, i){
   const item = n.items[i];
+  if(n.ev){
+    if(!noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
+    if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
+    cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null;
+    noticeCard = {id:n.id, i};
+    renderCardDrawer();
+    return true;
+  }
   if(n.kind==='сигнал'){
     if(state.view!=='notifs'){ state.view = 'queue'; state.qTab = 'work'; }
     openHighlight(n.originKind, item.key);
@@ -8136,6 +8475,44 @@ function openNotifItem(n, i){
   if(state.view!=='notifs'){ state.view = 'queue'; state.qTab = tabForTask(t, state.viewer); }
   openCard(item.taskId);
   return true;
+}
+/* доступ к объекту события: закреплён куратор — он, его замещающий и его руководители; у записи может быть несколько закреплений — достаточно любого; не закреплён — доступ по роли модуля */
+function noticeAccess(item){
+  if(!item.acc) return true;
+  const d = state.today, v = state.viewer, pairs = Array.isArray(item.acc[0]) ? item.acc : [item.acc];
+  return pairs.some(([role, obj])=>{ const cur = curatorOn(role, obj, d); return !cur || cur===v || actingFor(cur, d)===v || chiefChainIncludes(cur, v); });
+}
+/* что открывает клик: страницы соседа в этом макете нет — панель называет карточку и вкладку; при «Демонстрации» под ней живая демо-карточка, если объект есть на стенде */
+function noticeDemo(x){
+  if(!demoOn || !x.src || !state.owner[x.src]) return '';
+  const id = x.ref, o = ownerObj(x.src, id);
+  if(!o || !stateAt(x.src, o, state.today)) return '';
+  const R = {ap:()=>renderAppCard({objectId:id}), doc:()=>renderDocCard(id), imo:()=>renderImCard('imo', id), ima:()=>renderImCard('ima', id), imb:()=>renderImCard('imb', id),
+    an:()=>renderAnCard('an', id), cr:()=>renderCrCard(id), vz:()=>renderVzCard(id), zl:()=>renderZlCard(id), pl:()=>renderPlCard(id), zm:()=>renderZmCard(id), rs:()=>renderRsCard(id), cl:()=>renderClCard(id),
+    gd:()=>renderOwnerCard(null, {kind:'gd-review', objectId:id}), lp:()=>renderOwnerCard(null, {kind:'lp-review', objectId:id})};
+  return R[x.src] ? R[x.src]() : '';
+}
+function renderNoticeCard(){
+  const n = noteById(noticeCard.id), x = n && n.items[noticeCard.i];
+  if(!x) return '';
+  const k = noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any;
+  return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
+    <div class="drawer" data-notice="${n.id}">
+      <div class="drawer-h">${digestBack()}<h3>Карточка ${esc(w.of)} ${esc(x.obj)}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+      <div class="drawer-b">
+        <div class="kv">
+          ${x.title ? `<div class="k">Объект</div><div class="v">${esc(x.title)}</div>` : ''}
+          <div class="k">Модуль</div><div class="v">${esc(k.module)}</div>
+          <div class="k">Вкладка</div><div class="v" data-notice-tab>${esc(x.tab)}</div>
+          <div class="k">Что случилось</div><div class="v">${esc(n.text)}</div>
+          <div class="k">Подробности</div><div class="v">${esc(x.text)}</div>
+          <div class="k">Дата</div><div class="v">${fmt(x.at)}</div>
+          <div class="k">Кто сделал</div><div class="v">${x.by ? esc(empName(x.by)) : 'система'}</div>
+        </div>
+        <div class="small" style="margin-top:12px">В системе откроется карточка ${esc(w.of)} ${esc(x.obj)} в модуле «${esc(k.module)}», вкладка «${esc(x.tab)}».</div>
+        ${noticeDemo(x)}
+      </div>
+    </div>`;
 }
 /* клик читает сообщение. Одиночное открывает своё сразу, сводка — панель-перечень; у «переадресовано» ссылки нет, клик только читает; открытие панели колокольчика статус не меняет */
 let digestCard = null, digestFrom = null;
@@ -8160,9 +8537,10 @@ const digestBack = ()=>digestFrom ? '<button class="linky" onclick="ZD.notifBack
 function renderDigestPanel(id){
   const n = noteById(id);
   if(!n) return '';
-  const sig = n.kind==='сигнал';
+  const sig = n.kind==='сигнал' || !!n.ev;
   const rows = n.items.map((x, i)=>{
     const open = l=>`<button class="linky" onclick="ZD.notifItem('${n.id}', ${i})">${esc(l)}</button>`;
+    if(n.ev) return `<tr data-i="${i}"><td>${open(x.obj)}</td><td>${esc(x.text)}</td></tr>`;
     if(sig) return `<tr data-i="${i}"><td>${open((povodByKey(x.key)||{}).objectId||'открыть')}</td><td>${esc(x.text)}</td></tr>`;
     const t = taskOf(x.taskId);
     return `<tr data-i="${i}"><td>${open(x.taskId)}</td><td>${esc(whatToDo(t))}</td><td>${fmt(dueOf(t))}</td><td>${esc(displayState(t))}</td></tr>`;
@@ -8170,7 +8548,7 @@ function renderDigestPanel(id){
   const head = sig ? '<th>Объект</th><th>Что случилось</th>' : '<th>Задание</th><th>Что сделать</th><th>Срок</th><th>Состояние</th>';
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
     <div class="drawer" data-digest="${n.id}">
-      <div class="drawer-h"><h3>${esc(sig ? `${n.text}: ${n.count}` : notifText(n))}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+      <div class="drawer-h"><h3>${esc(n.kind==='сигнал' ? `${n.text}: ${n.count}` : notifText(n))}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
       <div class="drawer-b"><table class="cgrid"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
@@ -8191,7 +8569,7 @@ function notifLinks(n){
   if(!hasNotifLink(n)) return '';
   const pre = n.kind==='сигнал' ? '<span class="small">без задания</span> ' : '';
   if(n.items.length>1) return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}')">Перечень (${n.items.length})</button>`;
-  const x = n.items[0], label = n.kind==='сигнал' ? (povodByKey(x.key)||{}).objectId||'открыть' : x.taskId;
+  const x = n.items[0], label = n.ev ? x.obj : n.kind==='сигнал' ? (povodByKey(x.key)||{}).objectId||'открыть' : x.taskId;
   return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}', 0)">${esc(label)}</button>`;
 }
 /* страница «Все уведомления»: отбор сверху, новые первыми, по 50 на листе; сообщения не удаляются */
@@ -8213,7 +8591,7 @@ function renderNotifPage(){
       <label><input type="checkbox"${state.nfOnly ? ' checked' : ''} onchange="ZD.setNotifFilter('nfOnly', this.checked)"> только непрочитанные</label>
       <label>Откуда <select onchange="ZD.setNotifFilter('nfSrc', this.value)"><option value="">все</option>${srcs.map(s=>`<option value="${esc(s)}"${s===state.nfSrc ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
       ${date('nfFrom', 'С')}${date('nfTo', 'по')}
-      <input type="search" id="nfQ" placeholder="Поиск по тексту и номеру задания" value="${esc(state.nfQ)}" oninput="ZD.setNotifFilter('nfQ', this.value, 'nfQ')">
+      <input type="search" id="nfQ" placeholder="Поиск по тексту и номеру" value="${esc(state.nfQ)}" oninput="ZD.setNotifFilter('nfQ', this.value, 'nfQ')">
       <span class="small push">Всего ${list.length}, непрочитанных ${list.filter(x=>!x.read).length}</span>${n ?'<button class="btn btn-secondary btn-sm" onclick="ZD.notifReadAll()">Прочитать все</button>' : ''}</div>
     <table class="cgrid"><thead><tr><th>Статус</th><th>Дата</th><th>Откуда</th><th>Сообщение</th><th>Ссылка</th></tr></thead>
     <tbody>${rows.map(x=>`<tr class="${x.read ? '' : 'unread'}" data-n="${x.id}"><td>${status(x)}</td><td>${fmt(x.t)}</td><td>${esc(x.source)}</td><td>${esc(notifText(x))}</td><td>${notifLinks(x)}</td></tr>`).join('') || `<tr><td colspan="5" class="muted">${sifted ? 'По этому отбору сообщений нет' : 'Уведомлений нет'}</td></tr>`}</tbody></table>
@@ -8245,7 +8623,7 @@ function popClose(id){ pops = pops.filter(p=>p.id!==id); paintPops(); }
 /* «Открыть» — то же, что клик по сообщению. Открытая форма важнее: окошко не уводит с неё */
 function popBusy(){ if(!dlg) return false; toast('Сначала завершите или закройте форму'); return true; }
 function popOpen(id){ if(popBusy()) return; popClose(id); notifGo(id); }
-function popMore(){ if(popBusy()) return; if(cardOpenId || hlCard || ruleCard || digestCard) closeCard(); bellToggle(true); }
+function popMore(){ if(popBusy()) return; if(cardOpenId || hlCard || ruleCard || digestCard || noticeCard) closeCard(); bellToggle(true); }
 
 function init(){
   if(typeof document==='undefined') return;
@@ -8276,6 +8654,7 @@ return {
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
   get dialog(){ return dlg; }, renderDialog, ask, dialogSet, dialogCheck, dialogSubmit, dialogCancel, dialogCaseQ, dialogCaseAdd, dialogCaseDel, caseCatalog, caseSearch,
+  NOTICE_LIST, noticeKind, declareEvent, factTx, serviceRun, serviceConsume, noticeDay, noticeFactsOn, eventRecipients, noticeAccess, renderNoticeCard, get noticeCard(){ return noticeCard; }, seedNoticeFacts,
   renderBell, bellToggle, notifGo, notifItem, notifBack, notifReadAll, openAllNotif, notifsOf, unreadOf, renderNotifPage, notifText, editNotif, askNotif, NOTIF_SPEC, BELL_LAST,
   renderDigestPanel, get digestCard(){ return digestCard; }, get digestFrom(){ return digestFrom; }, setNotifFilter, setNotifPage, notifsFiltered, NOTIF_PAGE,
   POP_MS, POP_MAX, renderPops, popFlush, popClose, popOpen, popMore, get pops(){ return pops; },
