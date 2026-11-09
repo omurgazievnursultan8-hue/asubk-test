@@ -300,6 +300,11 @@ details.fold[open] > summary{ border-bottom:1px solid var(--asubk-grid-line); }
 .nf-date{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
 .pager{ justify-content:flex-end; margin:10px 0 0; }
 table.cgrid tbody tr.unread td{ background:var(--asubk-blue-tint); }
+.nt-cards{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:6px; }
+.nt-cards .banner{ margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.nt-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+button.nt-chip{ border:none; cursor:pointer; font:var(--font-label); }
+button.nt-chip.on{ box-shadow:0 0 0 2px var(--asubk-blue) inset; }
 </style>
 </head>
 <body>
@@ -604,6 +609,10 @@ function authorOn(postId, d){ const h = postHolderAt(postId, d); return h ? {pos
 function abolishedOn(rule, d){ const a = rule.author, ids = !a ? [] : typeof a==='string' ? [a] : Object.values(a);
   return ids.map(postOf).filter(p=>p && p.abolished && p.abolished.at<=d); }
 function isTasksAdmin(by){ return !!by && postHolderOn('post-admin', state.today)===by; }
+/* роль доступа «Администратор уведомлений»: один экран на все виды и сигналы. Права идут от роли, а не от администратора заданий: носителем может быть и он */
+const NOTICE_ADMIN_ROLE = {name:'Администратор уведомлений', holders:[{emp:'E18', from:'2026-01-01'}]};
+function noticeAdminOn(d){ const h = NOTICE_ADMIN_ROLE.holders.filter(x=>onDate(x, d)).pop(); return h ? h.emp : null; }
+function isNoticeAdmin(by){ return !!by && noticeAdminOn(state.today)===by; }
 
 /* ---------- 1. даты: производственный календарь системы (общий справочник, только чтение) ----------
    постоянные праздники КР — ММ-ДД на любой год; переносы, религиозные праздники и рабочие субботы —
@@ -4528,6 +4537,8 @@ function seedState(){
     view: 'queue',
     qTab: 'work', qSearch: '', qSort: {}, closedFilter: 'mine', // очередь: вкладка, поиск, сортировка, отбор закрытых
     settingsTab: 'tasks', ruleQ: '', ruleMod: '', ruleSt: 'в действии', hlOpen: null, // настройка: вкладка, поиск и отборы таблицы заданий, раскрытая подсветка
+    ntQ: '', ntGroup: '', ntKind: '', // настройка уведомлений: поиск, группа, настраиваемые или закреплённые
+    dlSt: '', dlCh: '', dlDate: '', dlQ: '', dlPage: 1, dlOpen: null, // журнал доставки: отбор, лист, раскрытая строка
     runsTab: 'poll', runOpen: null, povQ: '', povKind: '', povSt: 'действует', povOpen: null, // журнал прогонов: вкладка, раскрытая ночь, поиск и отборы поводов
     povodKinds: seedPovodKinds(),
     actions: seedActions(),
@@ -4545,7 +4556,14 @@ function seedState(){
     runDown: null,     // кто не ответил в идущем прогоне: {date, ids}
     digest: null,      // идёт прогон или пакетное действие: свод уведомлений
     notifications: [], // общий список сообщений системы: {id, t, source, kind, originKind, taskId, to, due, count, items, text, channels, delivery, read, readAt, readHow}
-    notifSettings: seedNotifSettings(), // перечень видов: текст, способ, включён ли, история правок; у видов о заданиях получатели определены механизмом
+    notifSettings: seedNotifSettings(), // перечень видов: текст, способ, включён ли, получатели, история правок; у закреплённых получателя называет механизм или событие
+    noticeWindow: [{from:'2026-01-01', open:'09:00', close:'18:00'}], // окно отправки SMS и почты: запись с датой начала
+    noticeCal: [],     // исключения календаря только для окна отправки: {date, work}; общий производственный календарь не меняется
+    smsGate: [{from:'2026-01-01', on:false, note:''}], // оператор SMS: пока договора нет, SMS не уходят, работает почта
+    noticeLog: [],     // правки окна, исключений и оператора SMS: дата, кто, основание, что менялось
+    outbox: [],        // записи журнала доставки; одно накопленное — одна запись на человека и способ
+    outSeq: 0, dlvSeen: 0, noteNd: 0, outN: {}, ndDay: {}, // журнал доставки: номера, сколько сообщений уже разобрано, сводка «Не доставлено» на день
+    nightRun: false,   // идёт ночной опрос: его сообщения рождаются ночью
     noticeEvents: [],  // записи о событиях модулей: номер, вид, объект, дата и время, кто сделал; служба читает их и рассылает
     noticeFacts: seedNoticeFacts(), // факты, которых у соседей на стенде нет: новые объекты, события выводятся так же, как из фактов соседей
     noticeSeen: {}, eventDone: {}, eventSeq: 0, noteEv: 0, serviceDown: false, // повтор отбрасывается по номеру; служба упала — записи ждут
@@ -4785,17 +4803,24 @@ const NOTICE_LIST = [
 ];
 const NOTICE_INDEX = Object.fromEntries(NOTICE_LIST.map(k=>[k.id, k]));
 const noticeKind = id=>NOTICE_INDEX[id] || null;
-/* одиннадцать видов о заданиях: их настройка — вкладка уведомлений настройки */
+/* одиннадцать видов о заданиях: их настройка — экран «Настройка» кубика «Уведомления» */
 const NOTIF_KINDS = NOTICE_LIST.filter(k=>k.group==='О заданиях').map(k=>k.id);
 const NOTIF_SPEC = Object.fromEntries(NOTICE_LIST.filter(k=>k.group==='О заданиях').map(k=>[k.id, {title:k.name, who:k.who, text:k.text}]));
 function seedNotifSettings(){
   const out = {};
-  NOTICE_LIST.forEach(k=>{ out[k.id] = {text:k.text, channels:k.channels.slice(), on:k.on, history:[]}; });
+  NOTICE_LIST.forEach(k=>{ out[k.id] = Object.assign({text:k.text, channels:k.channels.slice(), on:k.on, history:[]}, k.tuned ? {recipients:k.party.map(role=>({by:'объект', role}))} : {}); });
   return out;
 }
-/* запись общего списка: источник — чтобы дашборд и отчётность писали сюда же; прочитанность у записи своя, получатель один; доставка — только реквизит */
+/* время сообщения: на стенде только даты, а окну нужно время суток. Ночной опрос идёт в ночь после рабочего дня, люди и события — днём; всё выводится из номера, случайных чисел нет */
+const clockStr = v=>`${String(Math.floor(v/60)).padStart(2, '0')}:${String(v%60).padStart(2, '0')}`;
+const clockVal = t=>{ const [h, m] = String(t).split(':').map(Number); return h*60+m; };
+const dayClock = n=>clockStr(9*60+10+(n*37)%521), nightClock = n=>clockStr(23*60+10+(n*13)%45);
+const noOfId = id=>+String(id).replace(/\D/g, '') || 0;
+/* запись общего списка: источник — чтобы дашборд и отчётность писали сюда же; прочитанность у записи своя, получатель один; доставка — по способу кроме всплывающего */
 function messageOf(x){
-  return Object.assign({source:'Задания', read:false, readAt:null, readHow:null, delivery:x.channels.filter(c=>c!=='всплывающее').map(c=>({channel:c, status:'ждёт отправки'}))}, x);
+  const time = x.time || (state.nightRun ? nightClock(noOfId(x.id)) : dayClock(noOfId(x.id)));
+  const delivery = x.to ? x.channels.filter(c=>c!==WAY_POPUP && channelWorks(c, x.t)).map(c=>({channel:c, status:firstDelivery(x, c, time)})) : [];
+  return Object.assign({source:'Задания', read:false, readAt:null, readHow:null, time, delivery}, x);
 }
 function markRead(n, how){ if(n.read) return; n.read = true; n.readAt = state.today; n.readHow = how; }
 /* сообщение о задании читается само, когда закрыто всё, о чём оно: у сводки — весь перечень. Само «закрыто» читают только кликом, у сигнала заданий нет */
@@ -4809,23 +4834,31 @@ function checkChannels(x){
   if(!Array.isArray(x) || !x.length) throw new Error('нужен хотя бы один способ: всплывающее, SMS или e-mail');
   if(x.some(y=>SIGNAL_CHANNELS.indexOf(y)===-1)) throw new Error('способ — всплывающее, SMS или e-mail');
 }
-/* настройка обычного уведомления — администратор заданий, с основанием; получателей и выключения нет */
+/* получатель настраиваемого вида: роль, которую называет событие, или должность; минимум один */
+function checkRecipients(k, list){
+  if(!Array.isArray(list) || !list.length) throw new Error('нужен хотя бы один получатель');
+  list.forEach(r=>{ if(!(r.by==='объект' && k.party.indexOf(r.role)!==-1) && !(r.by==='должность' && postOf(r.post))) throw new Error('получатель — роль по объекту или должность'); });
+}
+/* настройка вида — администратор уведомлений, с основанием. Текст и способ правятся у всех 59; получатели и включение — только у настраиваемых */
 function editNotif(kind, changes, o){
   o = o || {};
-  if(NOTIF_KINDS.indexOf(kind)===-1) throw new Error('уведомления вне закрытого списка нет');
-  if(!isTasksAdmin(o.by)) throw new Error('настраивает администратор заданий — остальным на чтение');
+  const k = noticeKind(kind);
+  if(!k) throw new Error('уведомления вне закрытого списка нет');
+  if(!isNoticeAdmin(o.by)) throw new Error('настраивает администратор уведомлений — остальным на чтение');
   if(!o.basis) throw new Error('нужно основание правки — приказ или служебная записка');
   const c = state.notifSettings[kind], was = {};
   Object.keys(changes).forEach(f=>{
     const x = changes[f];
     if(f==='text'){ if(!String(x||'').trim()) throw new Error('текст уведомления не пустой'); }
     else if(f==='channels') checkChannels(x);
-    else if(f==='recipients') throw new Error('получатели определены механизмом и не меняются');
+    else if(f==='recipients'){ if(!k.tuned) throw new Error('получатели определены механизмом и не меняются'); checkRecipients(k, x); }
+    else if(f==='on'){ if(!k.tuned) throw new Error('закреплённый вид выключить нельзя'); if(typeof x!=='boolean') throw new Error('включён или выключен'); }
     else if(f==='off' || f==='enabled') throw new Error('обычное уведомление выключить нельзя');
     else throw new Error(`«${f}» не настраивается`);
     was[f] = c[f];
   });
   if(!Object.keys(changes).some(f=>JSON.stringify(changes[f])!==JSON.stringify(c[f]))) throw new Error('значения не изменились');
+  if(changes.text!==undefined || changes.channels) checkSmsFit(changes.text!==undefined ? changes.text : c.text, changes.channels || c.channels);
   Object.assign(c, changes);
   c.history.push({t:state.today, by:o.by, basis:o.basis, was});
   return c;
@@ -4883,7 +4916,8 @@ const NOTE_EV = 950000; // сообщения событий модулей — 
 /* запись о событии пишется в транзакции факта; служба читает записи сама: упала — записи ждут, факт откатился — записи нет */
 function declareEvent(ev){
   if(!noticeKind(ev.kind)) throw new Error('вид вне перечня: '+ev.kind);
-  const r = {no:'EV-'+(++state.eventSeq), kind:ev.kind, obj:ev.obj, at:ev.at||state.today, time:ev.time||(ev.night ? '02:00' : '10:00'), by:ev.by||null,
+  const seq = ++state.eventSeq;
+  const r = {no:'EV-'+seq, kind:ev.kind, obj:ev.obj, at:ev.at||state.today, time:ev.time||(ev.night ? nightClock(seq) : dayClock(seq)), by:ev.by||null,
     parties:ev.parties||{}, batch:ev.batch||null, acc:ev.acc||null, detail:ev.detail||'', tab:ev.tab||null};
   r.what = `${r.obj.id}${r.obj.title ? ' · '+r.obj.title : ''}${r.detail ? ': '+r.detail : ''}`;
   state.noticeEvents.push(r);
@@ -4893,10 +4927,15 @@ function factTx(fn){ // факт и запись — одной транзакц
   const mark = state.noticeEvents.length, seq = state.eventSeq;
   try{ return fn(); }catch(e){ state.noticeEvents.length = mark; state.eventSeq = seq; throw e; }
 }
-/* получатели — начальные, правило вида; сделавший действие сообщения о нём не получает; ушедший сотрудник — тоже */
+/* получатели читаются в момент отправки: у настраиваемых вида — настройка (роль по объекту или должность), у закреплённых — правило вида; сделавший действие сообщения о нём не получает; ушедший сотрудник — тоже */
 function eventRecipients(r){
-  const k = noticeKind(r.kind);
-  return [...new Set((k.party||[]).flatMap(p=>r.parties[p]||[]))].filter(x=>x && x!==r.by && !goneOn(x, state.today));
+  const k = noticeKind(r.kind), cfg = state.notifSettings[r.kind] || {};
+  const list = cfg.recipients || (k.party||[]).map(role=>({by:'объект', role}));
+  const out = list.flatMap(x=>{
+    if(x.by==='должность'){ const h = postHolderOn(x.post, state.today); return h ? [actingFor(h, state.today)] : []; }
+    return r.parties[x.role]||[];
+  });
+  return [...new Set(out)].filter(x=>x && x!==r.by && !goneOn(x, state.today));
 }
 function deliverEvent(r, dg){
   const k = noticeKind(r.kind), cfg = state.notifSettings[r.kind];
@@ -4908,7 +4947,7 @@ function deliverEvent(r, dg){
     const key = dg && r.batch ? [r.batch, x, r.kind].join('|') : null; // одно действие или один прогон — одно сообщение на человека и вид
     let n = key && dg[key];
     if(n){ n.count++; n.items.push(item()); n.ev.push(r.no); return; }
-    n = messageOf({id:'N'+(NOTE_EV+state.noteEv++), t:state.today, source:k.module, kind:r.kind, originKind:null, taskId:null, to:x, due:null, count:1, items:[item()], text:cfg.text, channels:cfg.channels.slice(), ev:[r.no]}); // текст и способ — на момент отправки
+    n = messageOf({id:'N'+(NOTE_EV+state.noteEv++), t:state.today, time:r.time, source:k.module, kind:r.kind, originKind:null, taskId:null, to:x, due:null, count:1, items:[item()], text:cfg.text, channels:cfg.channels.slice(), ev:[r.no]}); // текст и способ — на момент отправки
     state.notifications.push(n);
     if(key) dg[key] = n;
   });
@@ -4940,7 +4979,128 @@ function noticeDay(d){
     declareEvent(f);
   });
   serviceRun();
+  deliveryDay(d);
 }
+/* ---------- 4б. доставка SMS и почты: журнал по способу, окно, попытки ---------- */
+const NOTE_ND = 970000; // «Не доставлено» — своя серия: счётчик заданий и ряды сообщений не трогает
+const URGENT_KINDS = ['acc-changed', 'sec-autoblock', 'sys-night-failed'], SAFE_KINDS = ['acc-changed', 'sec-autoblock']; // безопасность и упавший прогон — сразу, в любое время; безопасность — запасной способ
+const DLV_STATES = ['ждёт окна', 'отправляется', 'доставлено', 'не доставлено', 'нет контакта'];
+const SMS_SEGMENT = 70, OUT_LINK = 'asubk.kg/n/';
+const TRY_MIN = [0, 5, 30]; // минуты от начала отправки: первая попытка, вторая, третья
+/* контакты сотрудников: номер и почта. Качество адреса задаёт исход детерминированно, случайных чисел нет: flaky — каждая четвёртая отправка удаётся со второй попытки, bad — причина отказа */
+const CONTACT_FIX = {
+  E22:{mail:null}, E17:{phone:null}, E31:{mail:null, phone:null},
+  E35:{mailBad:'почтовый ящик переполнен'}, E40:{mailBad:'адрес не найден'}, E39:{phoneBad:'абонент недоступен'}, E12:{phoneBad:'номер не обслуживается'},
+  E3:{mailFlaky:true}, E2:{phoneFlaky:true}, E16:{phoneFlaky:true},
+};
+const contactRec = id=>{ const i = EMP.findIndex(e=>e.id===id); return i===-1 ? {phone:null, mail:null} : Object.assign({phone:`+996 555 ${String(100+i)} ${String(10+i)}`, mail:`${id.toLowerCase()}@fkf.kg`}, CONTACT_FIX[id]||{}); };
+function contactOf(id, c){ const x = contactRec(id); return c===WAY_SMS ? x.phone : x.mail; }
+const smsOn = d=>state.smsGate.filter(x=>x.from<=d).pop().on;
+const channelWorks = (c, d)=>c!==WAY_SMS || smsOn(d);
+const windowOn = d=>state.noticeWindow.filter(x=>x.from<=d).pop();
+function sendDay(d){ const x = state.noticeCal.filter(e=>e.date===d).pop(); return x ? x.work : isWork(d); }
+/* начало ближайшего окна после момента; внутри окна — null: отправлять сразу */
+function nextWindow(d, t){
+  const w = windowOn(d), v = clockVal(t);
+  if(sendDay(d) && v<clockVal(w.open)) return {d, t:w.open};
+  if(sendDay(d) && v<clockVal(w.close)) return null;
+  for(let x=addDays(d, 1), i=0; i<400; x=addDays(x, 1), i++) if(sendDay(x)) return {d:x, t:windowOn(x).open};
+  return {d:addDays(d, 1), t:w.open};
+}
+/* с чего начинается доставка: контакта нет — сразу «нет контакта»; безопасность и упавший прогон идут сразу, остальное вне окна ждёт начала окна */
+function firstDelivery(x, c, time){
+  if(!contactOf(x.to, c)) return 'нет контакта';
+  return URGENT_KINDS.indexOf(x.kind)===-1 && nextWindow(x.t, time) ? 'ждёт окна' : 'отправляется';
+}
+/* что уходит наружу: только вид и ссылка, без заёмщика, номеров договоров и сумм; SMS — один сегмент */
+const OUT_MANY = {
+  'поручено':n=>`Вам поручено ${n} ${zadan(n)}`, 'сдано-на-приёмку':n=>`Сдано на приёмку ${n} ${zadan(n)}`, 'срок-близко':n=>`Срок близко: ${n} ${zadan(n)}`, 'срок-истёк':n=>`Срок истёк: ${n} ${zadan(n)}`,
+  'эскалация':n=>`Просрочено ${n} ${zadan(n)}`, 'возвращено':n=>`На доработку возвращено ${n} ${zadan(n)}`, 'повод-отпал':n=>`Можно принять ${n} ${zadan(n)}`, 'закрыто':n=>`Закрыто ${n} ${zadan(n)}`,
+  'переадресовано':n=>`Передано другому исполнителю ${n} ${zadan(n)}`, 'запрошено-продление':n=>`Запрошено продление: ${n} ${zadan(n)}`, 'решение-по-продлению':n=>`Решение по продлению: ${n} ${zadan(n)}`,
+};
+const smsBase = t=>String(t).split(':')[0].trim(); // сигнал: только название, перечень объектов остаётся внутри системы
+const fitsSegment = t=>String(t).length+1+OUT_LINK.length+5<=SMS_SEGMENT;
+function outText(n){
+  const k = noticeKind(n.kind), base = n.kind==='сигнал' ? smsBase(n.text) : n.text;
+  if(n.count<=1) return base;
+  if(k && OUT_MANY[n.kind] && n.text===k.text) return OUT_MANY[n.kind](n.count);
+  let t = `${base}: ${n.count}`;
+  if(n.ev){ const objs = [...new Set(n.items.map(i=>i.obj))], types = [...new Set(n.items.map(i=>i.type))]; const w = types.length===1 && NOTICE_OBJ[types[0]] || NOTICE_OBJ.any; t = objs.length>1 ? `${base}: ${objs.length} ${plural(objs.length, w.many)}` : `${base}, случаев ${n.count}`; }
+  return fitsSegment(t) ? t : newNotices(n.count); // правленный текст со сводкой не умещается — общая фраза, один сегмент важнее
+}
+const outLinkOf = n=>OUT_LINK+noOfId(n.id).toString(36);
+const newNotices = n=>`${n} ${plural(n, ['новое уведомление', 'новых уведомления', 'новых уведомлений'])}`;
+/* проверка при правке: текст с короткой ссылкой укладывается в один сегмент SMS */
+function checkSmsFit(text, channels, isSignal){
+  if(channels.indexOf(WAY_SMS)===-1) return;
+  const len = String(isSignal ? smsBase(text) : text).length+1+OUT_LINK.length+5;
+  if(len>SMS_SEGMENT) throw new Error(`текст не умещается в один сегмент SMS: ${len} из ${SMS_SEGMENT} знаков вместе со ссылкой`);
+}
+const plusMin = (at, m)=>{ let v = clockVal(at.t)+m, d = at.d; while(v>=1440){ v -= 1440; d = addDays(d, 1); } return {d, t:clockStr(v)}; };
+/* исход отправки заранее определён адресом: flaky — каждая четвёртая со второй попытки, bad — три неудачи с причиной */
+function tryOut(r){
+  const c = contactRec(r.to), bad = r.channel===WAY_SMS ? c.phoneBad : c.mailBad, flaky = r.channel===WAY_SMS ? c.phoneFlaky : c.mailFlaky;
+  state.outN[r.to+r.channel] = (state.outN[r.to+r.channel]||0)+1;
+  const seq = state.outN[r.to+r.channel];
+  const plan = bad ? TRY_MIN.map(()=>bad) : flaky && seq%4===0 ? ['оператор не ответил', null] : [null];
+  r.tries = plan.map((why, i)=>Object.assign(plusMin(r.release, TRY_MIN[i]), {ok:!why, why:why||''}));
+  r.status = plan[plan.length-1] ? 'не доставлено' : 'доставлено';
+  r.why = r.status==='не доставлено' ? plan[plan.length-1] : '';
+  r.doneAt = r.tries[r.tries.length-1];
+  r.dvs.forEach(dv=>{ dv.status = r.status; });
+}
+/* служба доставки: новые сообщения — в журнал, ждавшие окна — одним сообщением человеку и способу; раз в день — сводка администратору */
+function deliveryDay(d){
+  const S = state;
+  for(; S.dlvSeen<S.notifications.length; S.dlvSeen++){
+    const n = S.notifications[S.dlvSeen];
+    n.delivery.forEach(dv=>{
+      const r = {no:'O'+(++S.outSeq), note:n.id, to:n.to, channel:dv.channel, kind:n.kind, what:n.kind==='сигнал' ? smsBase(n.text) : noticeKind(n.kind).name, madeD:n.t, madeT:n.time, status:dv.status, why:'', tries:[], text:outText(n), link:outLinkOf(n), release:null, bundle:0, dvs:[dv], doneAt:null, fallback:null, into:null};
+      dv.out = r.no;
+      if(r.status==='нет контакта') r.why = r.channel===WAY_SMS ? 'нет номера' : 'нет почты';
+      else if(r.status==='ждёт окна') r.release = nextWindow(n.t, n.time);
+      else r.release = {d:n.t, t:n.time};
+      S.outbox.push(r);
+    });
+  }
+  const due = S.outbox.filter(r=>!r.into && (r.status==='ждёт окна' || r.status==='отправляется') && r.release && r.release.d<=d);
+  /* накопленное одному человеку за ночь и выходные — одно сообщение на способ */
+  const lead = new Map(), sent = [], merged = [];
+  due.forEach(r=>{
+    const key = r.status==='ждёт окна' ? [r.to, r.channel, r.release.d, r.release.t].join('|') : r.no;
+    const first = lead.get(key);
+    if(!first){ lead.set(key, r); sent.push(r); return; }
+    first.bundle = (first.bundle||1)+1;
+    first.notes = (first.notes||[first.note]).concat(r.note);
+    first.dvs = first.dvs.concat(r.dvs);
+    first.text = newNotices(first.bundle);
+    first.link = OUT_LINK+'all';
+    first.what = 'Накопленные уведомления';
+    r.into = first.no;
+    merged.push([r, first]);
+  });
+  sent.forEach(tryOut);
+  merged.forEach(([r, f])=>{ r.status = f.status; r.why = f.why; });
+  /* безопасность: не дошло SMS — остаётся письмо, и наоборот */
+  sent.concat(S.outbox.filter(r=>r.status==='нет контакта')).filter(r=>SAFE_KINDS.indexOf(r.kind)!==-1 && r.fallback===null && (r.status==='не доставлено' || r.status==='нет контакта')).forEach(r=>{
+    const other = S.outbox.find(o=>o.note===r.note && o.channel!==r.channel);
+    if(other) r.fallback = {channel:other.channel, status:other.status};
+  });
+  const failed = sent.filter(r=>r.status==='не доставлено');
+  if(failed.length) sendNotDelivered(d, failed);
+  popFlush();
+}
+/* сводка «Не доставлено» раз в день: одно сообщение на день, копится до конца дня; адресат — носитель роли */
+function sendNotDelivered(d, failed){
+  const to = noticeAdminOn(d), cfg = state.notifSettings['not-delivered'], was = state.ndDay[d];
+  if(!to) return;
+  if(was){ was.count += failed.length; was.items[0].text = notDeliveredText(was.count); return; }
+  const n = messageOf({id:'N'+(NOTE_ND+state.noteNd++), t:d, time:'18:00', source:'Уведомления', kind:'not-delivered', originKind:null, taskId:null, to, due:null, count:failed.length,
+    items:[{obj:'Журнал доставки', ref:'', type:'run', title:'', src:null, text:notDeliveredText(failed.length), at:d, by:null, tab:'Журнал доставки', acc:null}], text:cfg.text, channels:cfg.channels.slice()});
+  state.notifications.push(n);
+  state.ndDay[d] = n;
+}
+const notDeliveredText = n=>`${n} ${plural(n, ['отправка не дошла', 'отправки не дошли', 'отправок не дошло'])} за три попытки`;
 const IMB_CURATOR = {'Б-1':'E1', 'Б-2':'E3', 'Б-3':'E1'}; // кураторы заёмщиков-банкротов на стенде: ответ кураторства
 const COURT_ACTS = ['Решение суда','Постановление апелляционной инстанции'].concat(VZ_RULINGS);
 /* что случилось на дату: факты соседей, которые называют вид перечня; один факт — один вид, адресаты — по правилу вида и закреплению на дату */
@@ -6007,7 +6167,7 @@ function editSignal(kindId, changes, o){
   o = o || {};
   const k = kindOf(kindId);
   if(!k || k.genus!=='сигнал') throw new Error('новое событие для сигнала — только выпуском');
-  if(!isTasksAdmin(o.by)) throw new Error('настраивает администратор заданий — остальным на чтение');
+  if(!isNoticeAdmin(o.by)) throw new Error('настраивает администратор уведомлений — остальным на чтение');
   if(!o.basis) throw new Error('нужно основание правки — приказ или служебная записка');
   const c = state.signals[kindId], was = {};
   Object.keys(changes).forEach(f=>{
@@ -6021,6 +6181,7 @@ function editSignal(kindId, changes, o){
     was[f] = c[f];
   });
   if(!Object.keys(changes).some(f=>JSON.stringify(changes[f])!==JSON.stringify(c[f]))) throw new Error('значения не изменились');
+  if(changes.text!==undefined || changes.channels) checkSmsFit(changes.text!==undefined ? changes.text : c.text, changes.channels || c.channels, true);
   Object.assign(c, changes);
   c.history.push({t:state.today, by:o.by, basis:o.basis, was});
   return c;
@@ -6124,6 +6285,7 @@ function runPoll(opts){
   const isDown = src=>opts.down!==undefined ? opts.down
     : (opts.downSources ? opts.downSources.indexOf(src.id)!==-1 : !!state.sourceDown[src.id]);
   state.runDown = {date:asOf, scope, ids:polled.filter(isDown).map(x=>x.id)}; // самоопрос видит ответ идущего прогона: две ночи — с текущей
+  state.nightRun = true; // сообщения этого опроса рождаются ночью
   try{ withDigest(()=>{
     // источники с шагами к самоопросу уже сверены — их сделанное закрыло задания раньше; остальные — после
     const self = SOURCES[0], steps = polled.filter(x=>x!==self && x.onSave);
@@ -6145,7 +6307,7 @@ function runPoll(opts){
     readdressByCuration(asOf);
     readdressByOwnerRecord(asOf);
     readdressByDeparture(asOf);
-  }); } finally { state.runDown = null; }
+  }); } finally { state.runDown = null; state.nightRun = false; }
   run.stateDrift = checkStateField();
   run.stateDrift.forEach(x=>syncCurrent(taskOf(x.task))); // журнал главный: поле пересобирается из него
   state.pollRuns.push(run);
@@ -6485,6 +6647,7 @@ function ui(fn){ // действие из интерфейса: отказ дв�
   renderCardDrawer(); render();
 }
 const ADMIN_VIEWS = ['settings','runs']; // устройство механизма видит администратор; остальным правило на чтение — панелью по ссылке из карточки
+const NOTICE_VIEWS = ['ntSet','ntLog']; // кубик «Уведомления»: только у роли «Администратор уведомлений»
 function go(view){ state.view=view; render(); } // экран администратора у остальных — «Моя работа» (render)
 /* переключатель «Демонстрация» в шапке: полоса стенда и демо-карточки модулей видны только при включённом; по умолчанию выключен,
    выбор помнится в браузере зрителя. В продукт не входит: без него макет — очередь, карточка, кнопки, настройка у администратора */
@@ -6524,6 +6687,21 @@ const STAND_SCENES = [
   {by:'E4',  to:'E10', label:'Подготовить план выездов на ноябрь', cases:[{type:'заявка', id:'AP-106'}], given:'2026-10-20', due:'2026-11-06', taken:'2026-10-21', claimed:'2026-10-30'},
   {by:'E32', to:'E31', label:'Уточнить адрес должника для претензии', cases:[{type:'взыскание', id:'ТР-2026/042'}], given:'2026-10-20', due:'2026-11-09', taken:'2026-10-21', ext:{on:'2026-10-30', to:'2026-11-23', why:'ждём ответ адресного бюро'}},
 ];
+/* действия администратора уведомлений на стенде: с какой даты какой вид получил почту или SMS и когда заключён договор с оператором; изначально SMS и почта только у трёх видов */
+const STAND_NOTICE = [
+  {t:'2026-09-14', kind:'срок-истёк', channels:[WAY_POPUP, WAY_MAIL], basis:'приказ №117 от 14.09.2026: кураторы не успевают заметить просрочку'},
+  {t:'2026-09-21', kind:'vz-court-act', channels:[WAY_POPUP, WAY_MAIL], basis:'служебная записка №45 от 21.09.2026'},
+  {t:'2026-10-05', sms:{on:true, note:'договор №58 с оператором связи'}, basis:'договор №58 от 05.10.2026'},
+  {t:'2026-10-06', kind:'эскалация', channels:[WAY_POPUP, WAY_SMS], basis:'приказ №131 от 06.10.2026'},
+  {t:'2026-10-06', kind:'срок-истёк', channels:[WAY_POPUP, WAY_SMS, WAY_MAIL], basis:'приказ №131 от 06.10.2026'},
+];
+function playStandNotice(d){
+  STAND_NOTICE.filter(x=>x.t===d).forEach(x=>{
+    const by = noticeAdminOn(d);
+    if(x.sms){ state.smsGate.push({from:d, on:x.sms.on, note:x.sms.note}); state.noticeLog.push({t:d, by, basis:x.basis, what:`оператор SMS: ${x.sms.note}`}); }
+    else editNotif(x.kind, {channels:x.channels}, {by, basis:x.basis});
+  });
+}
 function playStandScenes(d, ids){
   STAND_SCENES.forEach((s, i)=>{
     if(s.given===d) ids[i] = createFreeTask({label:s.label, assignee:s.to, author:s.by, dueDate:s.due, cases:s.cases}).id;
@@ -6535,7 +6713,7 @@ function playStandScenes(d, ids){
 }
 /* след действий на стенде: что изменилось после сбора среза, смена даты сбросит */
 function standMark(){
-  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals, state.notifSettings]).length, state.povodKinds.reduce((a, k)=>a+k.switches.length, 0)].join('/');
+  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals, state.notifSettings, state.noticeWindow, state.noticeCal, state.smsGate]).length, state.povodKinds.reduce((a, k)=>a+k.switches.length, 0)].join('/');
 }
 function goToDate(d){
   popMute = true; // ночи подряд идут без окошек: человек их не застал
@@ -6546,6 +6724,7 @@ function goToDate(d){
     runsTab:state.runsTab, povQ:state.povQ, povKind:state.povKind, povSt:state.povSt,
     qTab:state.qTab, qSearch:state.qSearch, qSort:state.qSort, closedFilter:state.closedFilter,
     nfOnly:state.nfOnly, nfSrc:state.nfSrc, nfFrom:state.nfFrom, nfTo:state.nfTo, nfQ:state.nfQ,
+    ntQ:state.ntQ, ntGroup:state.ntGroup, ntKind:state.ntKind, dlSt:state.dlSt, dlCh:state.dlCh, dlDate:state.dlDate, dlQ:state.dlQ,
     pollScope:state.pollScope, sourceDown:state.sourceDown, statCleared:state.statCleared, standThr:state.standThr};
   seedState();
   Object.assign(state, keep, {statCleared:false});
@@ -6554,6 +6733,7 @@ function goToDate(d){
   const scenes = {};
   standDates(d).forEach(x=>{
     state.today = x;
+    playStandNotice(x);
     playStandScenes(x, scenes);
     if(x===d){ state.statCleared = keep.statCleared; runPoll(); }
     else runPoll({down:false});
@@ -6577,10 +6757,11 @@ function setPollScope(v){ state.pollScope=v; goToDate(state.today); }
 function setStatCleared(v){ state.statCleared=v; goToDate(state.today); }
 function setStandThr(v){ state.standThr=v; goToDate(state.today); }
 
-/* пункты меню: настройка и журнал прогонов — только у администратора заданий */
+/* пункты меню: настройка и журнал прогонов — только у администратора заданий; кубик «Уведомления» — только у роли «Администратор уведомлений» */
 function menuItems(){
   const out = [{sec:'Работа'}, {view:'queue', label:'Задания', n:queueTasks('mine').length}];
   if(isTasksAdmin(state.viewer)) out.push({sec:'Настройка'}, {view:'settings', label:'Настройка'}, {view:'runs', label:'Журнал прогонов', n:state.pollRuns.length});
+  if(isNoticeAdmin(state.viewer)) out.push({sec:'Уведомления'}, {view:'ntSet', label:'Настройка'}, {view:'ntLog', label:'Журнал доставки', n:deliveryRows().length});
   return out;
 }
 function renderNav(){
@@ -6604,9 +6785,11 @@ function renderStand(){
     </details>`;
 }
 function render(){
+  if(!popMute && !state.digest) deliveryDay(state.today); // живое действие: отправка видна в журнале сразу; при пересборке стенда день закрывает noticeDay
   if(ADMIN_VIEWS.indexOf(state.view)!==-1 && !isTasksAdmin(state.viewer)){ state.view = 'queue'; state.qTab = 'work'; } // зритель сменился на этих экранах или пришёл прямым переходом — «Моя работа»
+  if(NOTICE_VIEWS.indexOf(state.view)!==-1 && !isNoticeAdmin(state.viewer)){ state.view = 'queue'; state.qTab = 'work'; }
   if(typeof document==='undefined') return;
-  const titles = {queue:'Задания', settings:'Настройка', runs:'Журнал прогонов', notifs:'Все уведомления'};
+  const titles = {queue:'Задания', settings:'Настройка', runs:'Журнал прогонов', notifs:'Все уведомления', ntSet:'Настройка уведомлений', ntLog:'Журнал доставки'};
   document.getElementById('title').textContent = titles[state.view] || '';
   document.getElementById('nav').innerHTML = renderNav();
   const stand = document.getElementById('stand');
@@ -6621,6 +6804,8 @@ function render(){
   else if(state.view==='settings') panel.innerHTML = renderSettings();
   else if(state.view==='runs') panel.innerHTML = renderRuns();
   else if(state.view==='notifs') panel.innerHTML = renderNotifPage();
+  else if(state.view==='ntSet') panel.innerHTML = renderNtSettings();
+  else if(state.view==='ntLog') panel.innerHTML = renderNtDelivery();
 }
 
 /* ---------- очередь: одна таблица на вкладку ---------- */
@@ -7901,7 +8086,7 @@ function renderClCard(id){ // реестр фактов п. 11 кредита у
     <div class="small">Факт без решения комитета здесь — подсветка без исполнителя: в категорию риска он не идёт; поручение — в заданиях, очереди кредитных инспекторов. Факт, решение комитета и аннулирование с причиной вносит кредитный инспектор. Задания увидят запись на следующем опросе.</div></div>`;
 }
 /* ---------- настройка заданий: одна таблица и панель; вид и действие приходят выпуском, правило правится редакциями ---------- */
-const SETTINGS_TABS = [['tasks','Задания'],['highlight','Подсветка'],['notifs','Уведомления']];
+const SETTINGS_TABS = [['tasks','Задания'],['highlight','Подсветка']];
 /* кураторство и календарь — у владельцев; задания их только читают. Экрана календаря в макетах нет, на чтение он показан в настройках документооборота */
 const OWNER_SCREENS = [
   {label:'Кураторство', page:'kuratorstvo/kuratorstvo.html', hint:'Экран модуля «Кураторство» в новой вкладке: закрепления ведёт он, задания только читают'},
@@ -8187,50 +8372,169 @@ function renderHighlightTab(){
 function renderSettings(){
   const tabs = SETTINGS_TABS.map(([k, l])=>`<button class="${state.settingsTab===k ? 'on' : ''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
   const links = OWNER_SCREENS.map(s=>`<a class="q-case" href="../${s.page}" target="_blank" title="${esc(s.hint)}">${esc(s.label)}</a>`).join('');
-  const admin = isTasksAdmin(state.viewer); // экран только администратору (render); подпись «Только чтение» — у панели правила из карточки
-  const body = state.settingsTab==='highlight' ? renderHighlightTab() : state.settingsTab==='notifs' ? renderNotifSettings(admin) : renderRulesTab();
+  const body = state.settingsTab==='highlight' ? renderHighlightTab() : `${renderRulesTab()}${renderSignalSwitches()}`;
   return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
 function goSettings(tab){ state.settingsTab=tab; state.view='settings'; render(); }
 function toggleHl(id){ state.hlOpen = state.hlOpen===id ? null : id; render(); }
-function recipText(r){ return r.by==='кураторство' ? r.role+' — по объекту, с замещением' : postOf(r.post).title; }
-/* запасного у сигнала нет (signalRecipients): без куратора — только должности настройки, без них сигнал не уходит */
-const SIG_NOBODY = 'нет куратора — получают только указанные должности; нет и их — сигнал не уходит';
-/* сигналы и обычные уведомления одним видом: строка, правка в окне с основанием. Получатели обычных определены механизмом, выключить нельзя; новое событие для сигнала — только выпуском */
-function renderNotifSettings(admin){
-  const rows = NOTIF_KINDS.map(k=>{ const c = state.notifSettings[k]; return `<tr data-n="${k}"><td>${esc(NOTIF_SPEC[k].title)}</td><td>${esc(NOTIF_SPEC[k].who)}</td><td>${esc(c.text)}</td><td>${esc(c.channels.join(', '))}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k}')">Изменить</button></td>` : ''}</tr>`; }).join('');
-  const sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
-  const sigRows = sigKinds.map(k=>{
-    const c = state.signals[k.id], on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
-    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button> <button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
-    return `<tr data-sig="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td><td>${esc(c.recipients.map(recipText).join('; '))}<div class="small">${SIG_NOBODY}</div></td><td>${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td>${esc(c.channels.join(', '))}</td>
+/* включение сигнала — настройка повода, остаётся у администратора заданий: выключение отпускает поводы. Кому и как — в кубике «Уведомления» */
+function renderSignalSwitches(){
+  const admin = isTasksAdmin(state.viewer), sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
+  if(!sigKinds.length) return '';
+  const rows = sigKinds.map(k=>{
+    const on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
+    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
+    return `<tr data-sig-switch="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td>
       <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
   }).join('');
-  const changed = (h, f)=>f==='text' ? `текст: было «${h.was.text}»` : f==='channels' ? `способ: было ${h.was.channels.join(', ')}` : `получатели: было ${h.was.recipients.map(recipText).join('; ')}`;
-  const hist = NOTIF_KINDS.flatMap(k=>state.notifSettings[k].history.map(h=>({title:NOTIF_SPEC[k].title, h})))
-    .concat(sigKinds.flatMap(k=>state.signals[k.id].history.map(h=>({title:k.title, h})))).sort((a, b)=>cmpVal(b.h.t, a.h.t));
   return `<div class="section-h">Сигналы</div>
-    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания: срока и ответа нет, опрос тот же, на новый случай — одно уведомление получателю за прогон. Новое событие приходит только выпуском.</div>
-    <table class="cgrid"><thead><tr><th>Сигнал</th><th>Кому</th><th>Текст</th><th>Способ</th><th>Состояние</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${sigRows}</tbody></table>
-    <div class="section-h">Обычные уведомления</div>
-    <div class="small" style="margin-bottom:8px">Список закрытый: получатели определены механизмом и не меняются, выключить уведомление нельзя, способ нужен хотя бы один.</div>
-    <table class="cgrid"><thead><tr><th>Уведомление</th><th>Кому</th><th>Текст</th><th>Способ</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
-    ${hist.length ? `<div class="section-h">История правок</div><table class="cgrid"><thead><tr><th>Дата</th><th>Уведомление</th><th>Кто</th><th>Основание</th><th>Что менялось</th></tr></thead>
-      <tbody>${hist.map(x=>`<tr><td>${fmt(x.h.t)}</td><td>${esc(x.title)}</td><td>${esc(empName(x.h.by))}</td><td>${esc(x.h.basis)}</td><td class="small">${esc(Object.keys(x.h.was).map(f=>changed(x.h, f)).join('; '))}</td></tr>`).join('')}</tbody></table>` : ''}`;
+    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания. Здесь его включение: выключение отпускает поводы. Кому и как — настраивает администратор уведомлений; новое событие приходит только выпуском.</div>
+    <table class="cgrid" data-sig-switches><thead><tr><th>Сигнал</th><th>Состояние</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>`;
 }
+function recipText(r){ return r.by==='кураторство' ? r.role+' — по объекту, с замещением' : r.by==='объект' ? r.role : postOf(r.post).title; }
+/* запасного у сигнала нет (signalRecipients): без куратора — только должности настройки, без них сигнал не уходит */
+const SIG_NOBODY = 'нет куратора — получают только указанные должности; нет и их — сигнал не уходит';
+/* сигналы и 59 видов одним экраном: строка, правка в окне с основанием. Получатели и включение — только у настраиваемых; новое событие — только выпуском */
+const NT_GROUPS = ['О заданиях', 'Отчётность и дашборд', 'Личные', 'Служебный', 'События модулей', 'Система'];
+const NT_KIND_WORD = {tuned:'настраиваемые', fixed:'закреплённые'};
+function recipLine(k){
+  const c = state.notifSettings[k.id];
+  if(!k.tuned || JSON.stringify(c.recipients)===JSON.stringify(k.party.map(role=>({by:'объект', role})))) return k.who;
+  return c.recipients.map(r=>r.by==='объект' ? r.role : postOf(r.post).title).join('; ');
+}
+const onPill = on=>on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>';
+const smsGateNow = ()=>state.smsGate.filter(x=>x.from<=state.today).pop();
+function ntChanged(h, f){
+  if(f==='text') return `текст: было «${h.was.text}»`;
+  if(f==='channels') return `способ: было ${h.was.channels.join(', ')}`;
+  if(f==='on') return `вид: был ${h.was.on ? 'включён' : 'выключен'}`;
+  return `получатели: было ${h.was.recipients.map(recipText).join('; ')}`;
+}
+function renderNtSettings(){
+  const admin = isNoticeAdmin(state.viewer), today = state.today;
+  const w = windowOn(today), g = smsGateNow();
+  const editBtn = (fn, l)=>admin ? `<button class="btn btn-secondary btn-xs" onclick="ZD.${fn}()">${l}</button>` : '';
+  const q = String(state.ntQ||'').trim().toLowerCase();
+  const shown = NOTICE_LIST.filter(k=>(!state.ntGroup || k.group===state.ntGroup) && (!state.ntKind || (state.ntKind==='настраиваемые' ? k.tuned : !k.tuned)) && (!q || `${k.name} ${k.module} ${k.who}`.toLowerCase().indexOf(q)!==-1));
+  const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
+  const kindRow = k=>{
+    const c = state.notifSettings[k.id];
+    return `<tr data-n="${k.id}"><td class="wrap">${esc(k.name)}<div class="small">${esc(k.module)} · ${k.tuned ? 'получатели настраиваются' : 'закреплён'}</div></td><td class="wrap">${esc(recipLine(k))}</td><td class="wrap">${esc(c.text)}</td><td class="wrap">${esc(c.channels.join(', '))}</td><td>${onPill(c.on)}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k.id}')">Изменить</button></td>` : ''}</tr>`;
+  };
+  const rows = NT_GROUPS.map(gr=>{
+    const list = shown.filter(k=>k.group===gr);
+    return list.length ? `<tr class="band"><td colspan="${admin ? 6 : 5}">${esc(gr)}</td></tr>${list.map(kindRow).join('')}` : '';
+  }).join('') || `<tr><td colspan="${admin ? 6 : 5}" class="muted">Ничего не найдено</td></tr>`;
+  const sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
+  const sigRows = sigKinds.map(k=>{
+    const c = state.signals[k.id], ap = appearOf(k);
+    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button></td>` : '';
+    return `<tr data-sig="${k.id}"><td class="wrap">${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)}</div>` : ''}</td><td class="wrap">${esc(c.recipients.map(recipText).join('; '))}<div class="small">${SIG_NOBODY}</div></td><td class="wrap">${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td class="wrap">${esc(c.channels.join(', '))}</td>${acts}</tr>`;
+  }).join('');
+  const hist = NOTICE_LIST.flatMap(k=>state.notifSettings[k.id].history.map(h=>({title:k.name, h})))
+    .concat(sigKinds.flatMap(k=>state.signals[k.id].history.map(h=>({title:k.title, h}))))
+    .map(x=>({t:x.h.t, title:x.title, by:x.h.by, basis:x.h.basis, what:Object.keys(x.h.was).map(f=>ntChanged(x.h, f)).join('; ')}))
+    .concat(state.noticeLog.map(x=>({t:x.t, title:'Доставка', by:x.by, basis:x.basis, what:x.what})))
+    .sort((a, b)=>cmpVal(b.t, a.t));
+  return `<div class="nt-cards" data-nt-setup>
+      <div class="banner ${g.on ? 'ok' : 'warn'}" data-sms-state>${g.on ? `<b>Оператор SMS подключён:</b> ${esc(g.note)}` : '<b>Договора с оператором SMS нет:</b> SMS не отправляются, работает почта'}${admin ? ` ${editBtn('askSmsGate', 'Изменить')}` : ''}</div>
+      <div class="banner info" data-window><b>Окно отправки SMS и почты:</b> ${esc(w.open)}–${esc(w.close)}, рабочие дни — производственный календарь${state.noticeCal.length ? `; исключения: ${state.noticeCal.map(x=>`${fmt(x.date)} — ${x.work ? 'рабочий' : 'нерабочий'}`).join(', ')}` : ''}. Вне окна уходит только безопасность и упавший прогон. ${admin ? `${editBtn('askNoticeWindow', 'Изменить окно')} ${editBtn('askNoticeCal', 'Исключение календаря')}` : ''}</div>
+    </div>
+    <div class="section-h">Сигналы</div>
+    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания. Здесь: кому, текст, способ. Включение сигнала — настройка повода, у администратора заданий. Новое событие приходит только выпуском.</div>
+    <table class="cgrid qgrid" data-sig-table>${qCols([340, 300, 0, 160, 100])}<thead><tr><th>Сигнал</th><th>Кому</th><th>Текст</th><th>Способ</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${sigRows}</tbody></table>
+    <div class="section-h">Виды уведомлений</div>
+    <div class="small" style="margin-bottom:6px">Перечень закрыт, новый вид приходит только выпуском: ${NOTICE_LIST.length} видов, ${NOTICE_LIST.filter(k=>k.tuned).length} настраиваются. У закреплённых получателя называет само событие: правятся только текст и способ. Хотя бы один способ обязателен. Наружу уходит только вид и ссылка.</div>
+    <div class="q-tools">
+      <input type="search" id="ntQ" placeholder="Вид, модуль, кому" value="${esc(state.ntQ)}" oninput="ZD.setFilter('ntQ', this.value, 'ntQ')">
+      <label>Группа <select onchange="ZD.setFilter('ntGroup', this.value)">${opt('', 'все', state.ntGroup)}${NT_GROUPS.map(x=>opt(x, x, state.ntGroup)).join('')}</select></label>
+      <label>Получатели <select onchange="ZD.setFilter('ntKind', this.value)">${opt('', 'все', state.ntKind)}${Object.values(NT_KIND_WORD).map(x=>opt(x, x, state.ntKind)).join('')}</select></label>
+      <span class="small push">Показано ${shown.length} из ${NOTICE_LIST.length}</span>
+    </div>
+    <table class="cgrid qgrid" data-kinds>${qCols([340, 300, 0, 170, 110].concat(admin ? [110] : []))}<thead><tr><th>Вид</th><th>Кому</th><th>Текст</th><th>Способ</th><th>Состояние</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
+    ${hist.length ? `<div class="section-h">История правок</div><table class="cgrid"><thead><tr><th>Дата</th><th>Что</th><th>Кто</th><th>Основание</th><th>Что менялось</th></tr></thead>
+      <tbody>${hist.map(x=>`<tr><td>${fmt(x.t)}</td><td>${esc(x.title)}</td><td>${esc(empName(x.by))}</td><td>${esc(x.basis)}</td><td class="small">${esc(x.what)}</td></tr>`).join('')}</tbody></table>` : ''}`;
+}
+/* окно правки вида: у настраиваемых — получатели и включение; у закреплённых получатели только показаны */
 function askNotif(kind){
-  const c = state.notifSettings[kind];
-  return openDialog({title:`Уведомление «${NOTIF_SPEC[kind].title}»`, submit:'Сохранить', done:'Настройка уведомления сохранена', note:`Кому: ${NOTIF_SPEC[kind].who}. Получатели не меняются.`,
-    values:{text:c.text, channels:c.channels.slice(), basis:''},
-    fields:[{f:'text', label:'Текст', type:'textarea', required:true}, {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS}, {f:'basis', label:'Основание', required:true}],
+  const k = noticeKind(kind), c = state.notifSettings[kind], postName = id=>postOf(id).title;
+  const tuned = k.tuned;
+  const fields = (tuned ? [
+    {f:'roles', label:'Роль по объекту', type:'checks', options:k.party},
+    {f:'posts', label:'Должности', type:'checks', options:POSTS.map(p=>p.title)},
+  ] : [{f:'who', label:'Кому', type:'info', text:k.who}]).concat([
+    {f:'text', label:'Текст', type:'textarea', required:true},
+    {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS},
+  ], tuned ? [{f:'on', label:'Рассылка вида', type:'checks', options:['включён']}] : [], [{f:'basis', label:'Основание', required:true}]);
+  return openDialog({title:`Уведомление «${k.name}»`, submit:'Сохранить', done:'Настройка уведомления сохранена', wide:tuned, note:tuned ? `Минимум один получатель. Выключенный вид не рассылается. Сейчас: ${recipLine(k)}.` : `Кому: ${k.who}. Получатели не меняются.`,
+    values:Object.assign({text:c.text, channels:c.channels.slice(), basis:''}, tuned ? {roles:c.recipients.filter(r=>r.by==='объект').map(r=>r.role), posts:c.recipients.filter(r=>r.by==='должность').map(r=>postName(r.post)), on:c.on ? ['включён'] : []} : {}),
+    fields,
     run:x=>{
       const ch = {};
       if(x.text.trim()!==c.text) ch.text = x.text.trim();
       if(JSON.stringify(x.channels.slice().sort())!==JSON.stringify(c.channels.slice().sort())) ch.channels = SIGNAL_CHANNELS.filter(y=>x.channels.indexOf(y)!==-1);
+      if(tuned){
+        const rec = (x.roles||[]).map(role=>({by:'объект', role})).concat(POSTS.filter(p=>(x.posts||[]).indexOf(p.title)!==-1).map(p=>({by:'должность', post:p.id})));
+        const keyOf = list=>list.map(r=>r.by==='объект' ? 'о:'+r.role : 'д:'+r.post).sort().join();
+        if(keyOf(rec)!==keyOf(c.recipients)) ch.recipients = rec;
+        const on = (x.on||[]).length>0;
+        if(on!==c.on) ch.on = on;
+      }
       if(!Object.keys(ch).length) throw new Error('значения не изменились');
       editNotif(kind, ch, {by:state.viewer, basis:x.basis.trim()});
     }});
+}
+/* окно отправки и исключения календаря — настройка доставки с основанием; общий производственный календарь задания и другие модули не трогает */
+function noticeAdminGuard(o){
+  if(!isNoticeAdmin(o.by)) throw new Error('настраивает администратор уведомлений — остальным на чтение');
+  if(!o.basis) throw new Error('нужно основание правки — приказ или служебная записка');
+}
+function editNoticeWindow(x, o){
+  o = o || {}; noticeAdminGuard(o);
+  const cur = windowOn(state.today), bad = v=>!/^([01]\d|2[0-3]):[0-5]\d$/.test(v||'');
+  if(bad(x.open) || bad(x.close)) throw new Error('время в виде ЧЧ:ММ');
+  if(clockVal(x.open)>=clockVal(x.close)) throw new Error('начало окна раньше конца');
+  if(cur.open===x.open && cur.close===x.close) throw new Error('значения не изменились');
+  state.noticeWindow.push({from:state.today, open:x.open, close:x.close});
+  state.noticeLog.push({t:state.today, by:o.by, basis:o.basis, what:`окно отправки: было ${cur.open}–${cur.close}, стало ${x.open}–${x.close}`});
+}
+function editNoticeCal(x, o){
+  o = o || {}; noticeAdminGuard(o);
+  if(!/^\d{4}-\d\d-\d\d$/.test(x.date||'') || isNaN(Date.parse(x.date))) throw new Error('нужна дата');
+  if(typeof x.work!=='boolean') throw new Error('рабочий или нерабочий');
+  if(sendDay(x.date)===x.work) throw new Error('значения не изменились');
+  state.noticeCal.push({date:x.date, work:x.work});
+  state.noticeLog.push({t:state.today, by:o.by, basis:o.basis, what:`исключение календаря: ${fmt(x.date)} — ${x.work ? 'рабочий' : 'нерабочий'}`});
+}
+function editSmsGate(x, o){
+  o = o || {}; noticeAdminGuard(o);
+  if(typeof x.on!=='boolean') throw new Error('подключён или нет');
+  if(x.on && !String(x.note||'').trim()) throw new Error('нужен договор с оператором');
+  const cur = smsGateNow();
+  if(cur.on===x.on && cur.note===(x.note||'')) throw new Error('значения не изменились');
+  state.smsGate.push({from:state.today, on:x.on, note:x.note||''});
+  state.noticeLog.push({t:state.today, by:o.by, basis:o.basis, what:x.on ? `оператор SMS подключён: ${x.note||''}` : 'договора с оператором SMS нет: SMS не отправляются, работает почта'});
+}
+function askNoticeWindow(){
+  const w = windowOn(state.today);
+  return openDialog({title:'Окно отправки SMS и почты', submit:'Сохранить', done:'Окно отправки сохранено', note:'Окно действует со следующего сообщения. Вне окна уходят только безопасность и упавший прогон.',
+    values:{open:w.open, close:w.close, basis:''},
+    fields:[{f:'open', label:'Начало', type:'time', required:true}, {f:'close', label:'Конец', type:'time', required:true}, {f:'basis', label:'Основание', required:true}],
+    run:x=>editNoticeWindow({open:x.open, close:x.close}, {by:state.viewer, basis:x.basis.trim()})});
+}
+function askNoticeCal(){
+  return openDialog({title:'Исключение календаря для окна отправки', submit:'Сохранить', done:'Исключение записано', note:'Только для отправки SMS и почты. Производственный календарь системы и сроки заданий не меняются.',
+    values:{date:state.today, kind:'нерабочий', basis:''},
+    fields:[{f:'date', label:'Дата', type:'date', required:true}, {f:'kind', label:'Считать', type:'select', required:true, options:[{v:'нерабочий', l:'нерабочим'}, {v:'рабочий', l:'рабочим'}]}, {f:'basis', label:'Основание', required:true}],
+    run:x=>editNoticeCal({date:x.date, work:x.kind==='рабочий'}, {by:state.viewer, basis:x.basis.trim()})});
+}
+function askSmsGate(){
+  const g = smsGateNow();
+  return openDialog({title:'Оператор SMS', submit:'Сохранить', done:'Настройка оператора SMS сохранена', note:'Пока договора нет, SMS не отправляются: работает почта.',
+    values:{state:g.on ? 'подключён' : 'нет договора', note:g.note, basis:''},
+    fields:[{f:'state', label:'Состояние', type:'select', required:true, options:[{v:'нет договора', l:'договора нет, SMS не отправляются'}, {v:'подключён', l:'договор действует, SMS отправляются'}]}, {f:'note', label:'Договор', required:false}, {f:'basis', label:'Основание', required:true}],
+    run:x=>editSmsGate({on:x.state==='подключён', note:x.state==='подключён' ? (x.note||'').trim() : ''}, {by:state.viewer, basis:x.basis.trim()})});
 }
 /* сигнал: кому, что и как; новое событие — только выпуском */
 function askSignal(kindId){
@@ -8307,25 +8611,58 @@ function runDetail(r){
     ${drift}
   </div>`;
 }
-/* доставка: строка на отправку по способу; всплывающие сюда не идут, статус только тот, что записан; видно, что ушло и кому, а не содержание чужих заданий */
+/* журнал доставки: одна строка — одна отправка по способу; всплывающие сюда не идут; видно, что ушло наружу и что случилось, а не содержание чужих заданий */
 function deliveryRows(){
-  const out = [];
-  notifsAll().filter(n=>!n.ev).forEach(n=>(n.delivery||[]).forEach(d=>out.push({id:n.id, t:n.t, to:n.to, channel:d.channel, status:d.status, what:(n.kind==='сигнал' ? n.text : NOTIF_SPEC[n.kind].title)+(n.count>1 ? ` (${n.count})` : '')})));
-  return out;
+  return state.outbox.filter(r=>!r.into).slice().reverse().sort((a, b)=>cmpVal(b.madeD, a.madeD) || cmpVal(b.madeT, a.madeT) || noOfId(b.no)-noOfId(a.no))
+    .map(r=>({no:r.no, id:r.note, t:r.madeD, time:r.madeT, to:r.to, channel:r.channel, status:r.status, what:r.what, text:r.text, link:r.link, why:r.why, tries:r.tries, release:r.release, doneAt:r.doneAt, fallback:r.fallback, bundle:r.bundle, kind:r.kind}));
 }
-const notifsAll = ()=>state.notifications.slice().reverse().sort((a, b)=>cmpVal(b.t, a.t));
-const DELIVERY_LAST = 20;
-function renderDelivery(){
-  if(!isTasksAdmin(state.viewer)) return '';
-  const rows = deliveryRows(), total = state.notifications.filter(n=>!n.ev).length;
-  const anyOn = NOTIF_KINDS.map(k=>state.notifSettings[k]).concat(Object.values(state.signals)).some(c=>c.channels.some(x=>x!=='всплывающее'));
-  const link = '<button class="linky" onclick="ZD.goSettings(\'notifs\')">вкладке «Уведомления» настройки</button>';
-  const empty = anyOn ? `SMS или почта включены, отправок ещё не было: запись появится при следующем уведомлении этого вида. Сообщений всего ${total}, все всплывающие. Способы правятся на ${link}.`
-    : `SMS и почта не включены: у всех уведомлений способ «всплывающее», сообщений ${total}. Способы правятся на ${link}.`;
-  return `<div class="section-h">Доставка SMS и почты</div>
-    ${rows.length ? `<div class="small" style="margin-bottom:6px">Отправок ${rows.length}${rows.length>DELIVERY_LAST ? `, показаны последние ${DELIVERY_LAST}` : ''}, всего сообщений ${total}. Способы правятся на ${link}.</div>
-    <table class="cgrid qgrid" data-delivery>${qCols([120, 300, 110, 0, 160])}<thead><tr><th>Дата</th><th>Кому</th><th>Способ</th><th>Уведомление</th><th>Статус</th></tr></thead>
-    <tbody>${rows.slice(0, DELIVERY_LAST).map(x=>`<tr data-send="${x.id}"><td>${fmt(x.t)}</td><td>${esc(empName(x.to))}</td><td>${esc(x.channel)}</td><td title="${tip(x.what)}">${esc(x.what)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table>` : `<div class="small" data-delivery-empty>${empty}</div>`}`;
+const DL_PILL = {'доставлено':'ok', 'не доставлено':'err', 'нет контакта':'neutral', 'ждёт окна':'warn', 'отправляется':'info'};
+function dlStatusCell(x){
+  const sub = x.status==='ждёт окна' ? `уйдёт ${fmt(x.release.d)} в ${x.release.t}`
+    : x.status==='доставлено' && x.doneAt ? `${fmt(x.doneAt.d)} ${x.doneAt.t}` : x.why;
+  const back = x.fallback ? `запасной способ: ${esc(x.fallback.channel)} — ${esc(x.fallback.status)}` : '';
+  return `<span class="pill ${DL_PILL[x.status]}">${esc(x.status)}</span>${sub ? `<div class="small">${esc(sub)}</div>` : ''}${back ? `<div class="small" data-fallback>${back}</div>` : ''}`;
+}
+const DL_PAGE = 50;
+function deliveryFiltered(){
+  const q = String(state.dlQ||'').trim().toLowerCase();
+  return deliveryRows().filter(x=>(!state.dlSt || x.status===state.dlSt) && (!state.dlCh || x.channel===state.dlCh) && (!state.dlDate || x.t===state.dlDate || (x.doneAt && x.doneAt.d===state.dlDate)) && (!q || `${empName(x.to)} ${x.what}`.toLowerCase().indexOf(q)!==-1));
+}
+function setDlFilter(f, v, inputId){ state.dlPage = 1; state.dlOpen = null; setFilter(f, v, inputId); }
+function setDlPage(p){ state.dlPage = p; state.dlOpen = null; render(); if(typeof document!=='undefined'){ const c = document.querySelector('.content'); if(c) c.scrollTop = 0; } }
+function toggleOut(no){ state.dlOpen = state.dlOpen===no ? null : no; render(); }
+function dlDetail(x){
+  const addr = contactOf(x.to, x.channel);
+  const tries = x.tries.map((t, i)=>`<tr><td>Попытка ${i+1}</td><td>${fmt(t.d)} ${t.t}</td><td>${t.ok ? 'принято' : `не принято: ${esc(t.why)}`}</td></tr>`).join('');
+  return `<div class="run-detail" data-out-detail>
+    <div class="small">Адрес: ${addr ? esc(addr) : 'нет'}${x.bundle ? ` · одно сообщение вместо ${x.bundle}` : ''}${x.release ? ` · отправка ${fmt(x.release.d)} в ${x.release.t}` : ''}</div>
+    ${tries ? `<table class="cgrid"><thead><tr><th>Попытка</th><th>Когда</th><th>Итог</th></tr></thead><tbody>${tries}</tbody></table>` : `<div class="small">Попыток не было: ${esc(x.status==='ждёт окна' ? 'ждёт начала окна' : x.why)}</div>`}
+  </div>`;
+}
+function renderNtDelivery(){
+  if(!isNoticeAdmin(state.viewer)) return '';
+  const all = deliveryRows(), list = deliveryFiltered(), g = smsGateNow();
+  const count = s=>all.filter(x=>x.status===s).length;
+  const pills = DLV_STATES.map(s=>`<button class="pill ${DL_PILL[s]} nt-chip${state.dlSt===s ? ' on' : ''}" onclick="ZD.setDlFilter('dlSt', '${state.dlSt===s ? '' : s}')">${esc(s)}: ${count(s)}</button>`).join(' ');
+  const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
+  const pages = Math.max(1, Math.ceil(list.length/DL_PAGE)), page = Math.min(state.dlPage||1, pages), from = (page-1)*DL_PAGE, rows = list.slice(from, from+DL_PAGE);
+  const empty = all.length ? 'По этому отбору отправок нет' : 'Отправок ещё не было: SMS и почта изначально только у трёх видов, остальное включает администратор на экране «Настройка».';
+  const body = rows.map(x=>{
+    const open = state.dlOpen===x.no;
+    return `<tr data-out="${x.no}" data-send="${x.id}" onclick="ZD.toggleOut('${x.no}')" style="cursor:pointer"><td>${open ? '▾' : '▸'} ${fmt(x.t)} ${x.time}</td><td>${esc(empName(x.to))}</td><td>${esc(x.channel)}</td><td title="${tip(x.what)}">${esc(x.what)}</td><td class="wrap" data-out-text>${esc(x.text)} <span class="small">${esc(x.link)}</span></td><td class="wrap">${dlStatusCell(x)}</td><td>${x.tries.length || (x.status==='ждёт окна' ? '' : 0)}</td></tr>${open ? `<tr class="sub"><td colspan="7" class="nest wrap">${dlDetail(x)}</td></tr>` : ''}`;
+  }).join('') || `<tr><td colspan="7" class="muted">${empty}</td></tr>`;
+  return `${g.on ? '' : '<div class="banner warn" data-sms-state><b>Договора с оператором SMS нет:</b> SMS не отправляются, работает почта</div>'}
+    <div class="nt-chips" data-dl-counts>${pills}</div>
+    <div class="q-tools">
+      <input type="search" id="dlQ" placeholder="Кому, вид" value="${esc(state.dlQ)}" oninput="ZD.setDlFilter('dlQ', this.value, 'dlQ')">
+      <label>Состояние <select onchange="ZD.setDlFilter('dlSt', this.value)">${opt('', 'все', state.dlSt)}${DLV_STATES.map(s=>opt(s, s, state.dlSt)).join('')}</select></label>
+      <label>Способ <select onchange="ZD.setDlFilter('dlCh', this.value)">${opt('', 'все', state.dlCh)}${[WAY_SMS, WAY_MAIL].map(s=>opt(s, s, state.dlCh)).join('')}</select></label>
+      <label>Дата <input class="nf-date" type="date" value="${esc(state.dlDate)}" onchange="ZD.setDlFilter('dlDate', this.value)"></label>
+      <span class="small push">Всего ${list.length} из ${all.length}</span>
+    </div>
+    <table class="cgrid qgrid" data-delivery>${qCols([150, 200, 80, 300, 0, 220, 90])}<thead><tr><th>Создано</th><th>Кому</th><th>Способ</th><th>Уведомление</th><th>Исходящий текст</th><th>Статус</th><th>Попыток</th></tr></thead>
+    <tbody>${body}</tbody></table>
+    ${pages>1 ? `<div class="q-tools pager"><span class="small">${from+1}–${from+rows.length} из ${list.length}</span><button class="btn btn-secondary btn-sm"${page<=1 ? ' disabled' : ''} onclick="ZD.setDlPage(${page-1})">Назад</button><span class="small">Лист ${page} из ${pages}</span><button class="btn btn-secondary btn-sm"${page>=pages ? ' disabled' : ''} onclick="ZD.setDlPage(${page+1})">Вперёд</button></div>` : ''}`;
 }
 function renderPollTab(){
   const sources = SOURCES.map(s=>{
@@ -8344,8 +8681,7 @@ function renderPollTab(){
     <div class="small" style="margin-bottom:6px">Ошибка не значит пусто: поводы источника не трогаются, прогон неполный. После двух ночей подряд — задание администратору.</div>
     <table class="cgrid qgrid" data-sources>${qCols([0, 260, 520])}<thead><tr><th>Источник</th><th>Как опрашивается</th><th>Состояние</th></tr></thead><tbody>${sources}</tbody></table>
     <div class="section-h">Журнал ночей</div>
-    <table class="cgrid qgrid" data-nights>${qCols([170, 220, 120, 120, 120, 0])}<thead><tr><th>Дата</th><th>Ответы</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th></tr></thead><tbody>${nights}</tbody></table>
-    ${renderDelivery()}`;
+    <table class="cgrid qgrid" data-nights>${qCols([170, 220, 120, 120, 120, 0])}<thead><tr><th>Дата</th><th>Ответы</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th></tr></thead><tbody>${nights}</tbody></table>`;
 }
 /* поводы: состояние на сегодня словами; ключ — только в подробностях */
 const POV_STATES = [['действует','Действующие'],['снят','Снятые'],['отпал','Отпавшие'],['все','Все']];
@@ -8426,6 +8762,7 @@ let bellOpen = false;
 const notifsOf = v=>state.notifications.filter(n=>n.to===v).reverse().sort((a, b)=>cmpVal(b.t, a.t)); // новые сверху, за один день — последнее первым
 const unreadOf = v=>state.notifications.filter(n=>n.to===v && !n.read).length;
 function notifText(n){
+  if(n.kind==='not-delivered') return `${n.text}: ${n.items[0].text}`;
   if(n.ev){ // событие модуля: один объект — что случилось, сводка — сколько
     if(n.count===1) return `${n.text}: ${n.items[0].text}`;
     const objs = [...new Set(n.items.map(i=>i.obj))], types = [...new Set(n.items.map(i=>i.type))], x = n.items[0];
@@ -8457,6 +8794,11 @@ function tabForTask(t, v){
 /* одна строка сообщения: задание — на своей вкладке очереди, сигнал — карточка объекта; прав нет — запись остаётся, открывать нечего. Со страницы панель открывается поверх неё: закрытие вернёт к той же строке */
 function openNotifItem(n, i){
   const item = n.items[i];
+  if(n.kind==='not-delivered'){ // сводка «Не доставлено» открывает журнал доставки на этом дне
+    if(!isNoticeAdmin(state.viewer)){ toast('У вас нет доступа к журналу доставки', 'err'); return false; }
+    closeCard(); Object.assign(state, {view:'ntLog', dlSt:'не доставлено', dlCh:'', dlQ:'', dlDate:n.t, dlPage:1, dlOpen:null});
+    return true;
+  }
   if(n.ev){
     if(!noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
     if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
@@ -8569,7 +8911,7 @@ function notifLinks(n){
   if(!hasNotifLink(n)) return '';
   const pre = n.kind==='сигнал' ? '<span class="small">без задания</span> ' : '';
   if(n.items.length>1) return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}')">Перечень (${n.items.length})</button>`;
-  const x = n.items[0], label = n.ev ? x.obj : n.kind==='сигнал' ? (povodByKey(x.key)||{}).objectId||'открыть' : x.taskId;
+  const x = n.items[0], label = n.ev || n.kind==='not-delivered' ? x.obj : n.kind==='сигнал' ? (povodByKey(x.key)||{}).objectId||'открыть' : x.taskId;
   return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}', 0)">${esc(label)}</button>`;
 }
 /* страница «Все уведомления»: отбор сверху, новые первыми, по 50 на листе; сообщения не удаляются */
@@ -8648,13 +8990,14 @@ return {
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
-  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, renderDelivery, empName, notifLinks,
+  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifLinks,
   queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
   SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
   go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
   get dialog(){ return dlg; }, renderDialog, ask, dialogSet, dialogCheck, dialogSubmit, dialogCancel, dialogCaseQ, dialogCaseAdd, dialogCaseDel, caseCatalog, caseSearch,
   NOTICE_LIST, noticeKind, declareEvent, factTx, serviceRun, serviceConsume, noticeDay, noticeFactsOn, eventRecipients, noticeAccess, renderNoticeCard, get noticeCard(){ return noticeCard; }, seedNoticeFacts,
+  openNotifItem, renderNtSettings, renderNtDelivery, setDlFilter, setDlPage, toggleOut, deliveryFiltered, NOTICE_VIEWS, askNoticeWindow, askNoticeCal, askSmsGate, editNoticeWindow, editNoticeCal, editSmsGate, isNoticeAdmin, noticeAdminOn, NOTICE_ADMIN_ROLE, deliveryDay, outText, nextWindow, sendDay, windowOn, smsOn, contactOf, DLV_STATES, SMS_SEGMENT, OUT_LINK, URGENT_KINDS, SAFE_KINDS, STAND_NOTICE, firstDelivery, renderSignalSwitches,
   renderBell, bellToggle, notifGo, notifItem, notifBack, notifReadAll, openAllNotif, notifsOf, unreadOf, renderNotifPage, notifText, editNotif, askNotif, NOTIF_SPEC, BELL_LAST,
   renderDigestPanel, get digestCard(){ return digestCard; }, get digestFrom(){ return digestFrom; }, setNotifFilter, setNotifPage, notifsFiltered, NOTIF_PAGE,
   POP_MS, POP_MAX, renderPops, popFlush, popClose, popOpen, popMore, get pops(){ return pops; },

@@ -275,6 +275,7 @@
 //   кроме закрывшего, «срок близко» не в день выдачи, сводка на человека и вид, окошко, страница, прочитано, клик, номера заданий те же.
 //   Переписаны: #28, #77, #300, #301 (ключ сводки), #308, #361 (перечень, 50 на листе), #360, #362, #466; числа сообщений #314, #316, #393, #405, #513.
 // Волна 36 (09.11.2026) — семь заданий из разбора уведомлений (СУ-9, СУ-19, СУ-47…СУ-55): #528…#543 — каждый вид: когда рождается, срок, адресат, чем гасится;
+//   #568-#594 — волна 38, кубик «Уведомления»: роль и экран вне администрирования, настройка 59 видов и сигналов (СУ-21…22), наружу только вид и ссылка, один сегмент (СУ-30), окно и накопленное (СУ-32), попытки, запасной способ и сводка (СУ-34), договор с оператором, начальные способы (СУ-31), личной настройки нет (СУ-23). Перенесены на новый экран: #306, #307, #348, #362-#365, #373, #375, #379, #386, #394, #509-#512, #546, #559.
 //   номера: своя серия T9001+, N800000+, прежний счётчик цел; правки по ревью — #540…#543. Счёт видов и правил переписан: #88, #145, #172, #190, #212, #225, #236,
 //   #294, #296, #297, #303, #317, #321, #368, #369, #372, #386, #391, #450; числа стенда #405; #526 сверяет прежний набор без своей серии.
 // Волна 37 (09.11.2026) — закрытый перечень 59 видов и события модулей (СУ-1…СУ-8, СУ-10…СУ-18, СУ-33, СУ-35, СУ-56…СУ-68): #544…#567, правки по ревью — #562…#567; числа сообщений
@@ -5384,15 +5385,15 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
 /* ЗНП-7, ЗНП-20 — сигнал: настройка у администратора, с основанием; новое событие только выпуском */
 (() => {
   ZD.seed();
-  const S = 'pk-cr-payment-due', c = ZD.state.signals[S], admin = { by: 'E4', basis: 'приказ' };
+  const S = 'pk-cr-payment-due', c = ZD.state.signals[S], admin = { by: 'E18', basis: 'приказ' };
   const was = c.text;
   const refusals = {
-    notAdmin: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E3', basis: 'приказ' })), noBasis: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E4' })),
+    notAdmin: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E3', basis: 'приказ' })), noBasis: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E18' })),
     empty: throws(() => ZD.editSignal(S, { text: '  ' }, admin)), badCh: throws(() => ZD.editSignal(S, { channels: ['голубь'] }, admin)), noCh: throws(() => ZD.editSignal(S, { channels: [] }, admin)),
     badRec: throws(() => ZD.editSignal(S, { recipients: [{ by: 'фамилия', who: 'E3' }] }, admin)), noRec: throws(() => ZD.editSignal(S, { recipients: [] }, admin)),
     other: throws(() => ZD.editSignal('lp-expiring', { text: 'x' }, admin)), field: throws(() => ZD.editSignal(S, { window: 10 }, admin)), same: throws(() => ZD.editSignal(S, { text: was }, admin)),
   };
-  ZD.editSignal(S, { text: 'Платёж близко', channels: ['всплывающее', 'SMS'], recipients: [{ by: 'кураторство', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }] }, { by: 'E4', basis: 'приказ №50' });
+  ZD.editSignal(S, { text: 'Платёж близко', channels: ['всплывающее', 'SMS'], recipients: [{ by: 'кураторство', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }] }, { by: 'E18', basis: 'приказ №50' });
   at('2026-10-01'); ZD.runPoll();
   const e4 = ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.to === 'E4'), e1 = ZD.state.notifications.find(n => n.kind === 'сигнал' && n.to === 'E1');
   const k = ZD.kindOf(S), noCur = ZD.signalRecipients(k, { curObj: 'нет-такого' }, '2026-10-01');
@@ -5421,19 +5422,21 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.activateKind(S, 'E4', 'приказ №52');
   ZD.runPoll();
   const on = sig() === 4;
-  const ord = throws(() => ZD.editSignal('поручено', { text: 'x' }, { by: 'E4', basis: 'приказ' })), out = throws(() => ZD.notify(ZD.state.tasks[0], 'сигнал'));
-  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs';
-  const html = ZD.renderSettings();
+  const ord = throws(() => ZD.editSignal('поручено', { text: 'x' }, { by: 'E18', basis: 'приказ' })), out = throws(() => ZD.notify(ZD.state.tasks[0], 'сигнал'));
+  ZD.state.viewer = 'E18';
+  const html = ZD.renderNtSettings();
   ZD.state.viewer = 'E1';
-  const ro = ZD.renderSettings();
-  ZD.state.viewer = 'E4';
+  const ro = ZD.renderNtSettings();
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
+  const sw = ZD.renderSettings();
+  ZD.state.viewer = 'E18';
   ZD.askSignal(S);
   const chans = ZD.dialog.fields.find(x => x.f === 'channels').options.join();
   ZD.dialogCancel();
   ok(307, /основание/.test(noBasis) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('сигнал') && /выпуском/.test(ord) && /вне закрытого списка/.test(out) &&
        /Срок платежа по графику близко/.test(html) && (html.match(/<tr data-sig="/g) || []).length === 1 && html.indexOf(`ZD.askSignal('${S}')`) !== -1 && /SMS/.test(chans) && /e-mail/.test(chans) &&
-       !/Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro),
-    `ЗНП-7, ЗНП-20 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; на вкладке «Уведомления» один сигнал, у остальных кнопок нет (экран им не открывается, подписи «Только чтение» нет); настройка сигнала обычные уведомления не трогает`);
+       !/Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro) && /Выключить/.test(sw) && sw.includes(`ZD.askKindOff('${S}')`) && !/ZD\.askSignal/.test(sw),
+    `ЗНП-7, ЗНП-20, СУ-22 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; настройка сигнала на экране кубика, включение осталось в настройке заданий; у остальных кнопок нет; настройка сигнала обычные уведомления не трогает`);
 })();
 
 /* ЗНП-7, ЗНП-21 — платёж больше не задание: ни срока, ни ответа, ни строки; уведомление заёмщику — действие в карточке */
@@ -5861,7 +5864,7 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   ZD.seed();
   ZD.goToDate('2026-10-01');
   const menu = v => { ZD.state.viewer = v; return ZD.menuItems().filter(x => x.view).map(x => x.view).join(); };
-  const byRole = ZD.EMP.every(e => menu(e.id) === (ZD.isTasksAdmin(e.id) ? 'queue,settings,runs' : 'queue'));
+  const byRole = ZD.EMP.every(e => menu(e.id) === (ZD.isTasksAdmin(e.id) ? 'queue,settings,runs' : 'queue') + (ZD.isNoticeAdmin(e.id) ? ',ntSet,ntLog' : ''));
   const admins = ZD.EMP.filter(e => ZD.isTasksAdmin(e.id)).map(e => e.id).join();
   ZD.state.viewer = 'E4';
   const navAdmin = ZD.renderNav();
@@ -5879,7 +5882,7 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   const read = ZD.state.view === 'queue' && ZD.ruleCard === ZD.state.rules[0].id && !ZD.renderNav().includes('Настройка') && !('ruleRead' in ZD.state);
   ZD.setViewer('E1');
   const readEnds = ZD.state.view === 'queue' && ZD.ruleCard === null;
-  ok(326, byRole && admins === 'E4' && /Настройка/.test(navAdmin) && /Журнал прогонов/.test(navAdmin) && !/Настройка|Журнал прогонов/.test(navPlain) && label === 'Задания' &&
+  ok(326, byRole && admins === 'E4' && /Настройка/.test(navAdmin) && /Журнал прогонов/.test(navAdmin) && !/Настройка|Журнал прогонов|Журнал доставки/.test(navPlain) && label === 'Задания' &&
        stays && fromRuns && fromSettings && noDirect && read && readEnds,
     `ЭЗ-1 — меню «Настройка» и «Журнал прогонов» только у администратора (${admins}), у остальных ${ZD.EMP.length - 1} только «${label}»; сменился зритель — назад в очередь, прямой переход тоже; правило по ссылке из карточки открывается панелью поверх очереди, без пунктов меню`);
 })();
@@ -6434,7 +6437,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.dialogSet('why', 'ждём ответ');
   const none = ZD.dialog.err, html = ZD.renderDialog();
   ZD.dialogCancel();
-  ZD.state.viewer = 'E4';
+  ZD.state.viewer = 'E18';
   ZD.askNotif('поручено');
   ZD.dialogCheck('channels', 'всплывающее', false);
   ZD.dialogSubmit();
@@ -6867,13 +6870,14 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.seed();
   ZD.goToDate('2026-10-01');
   const all = taskMsgs(), total = all.length;
-  const shape = all.length > 100 && all.every(n => n.source === 'Задания' && typeof n.read === 'boolean' && (n.read ? n.readHow === 'задание закрыто' && !!n.readAt : n.readHow === null && n.readAt === null) && Array.isArray(n.channels) && n.channels.length > 0 && Array.isArray(n.delivery) && n.delivery.length === 0 && typeof n.text === 'string' && n.text && n.t && n.to !== undefined);
+  const shape = all.length > 100 && all.every(n => n.source === 'Задания' && typeof n.read === 'boolean' && (n.read ? n.readHow === 'задание закрыто' && !!n.readAt : n.readHow === null && n.readAt === null) && Array.isArray(n.channels) && n.channels.length > 0 && Array.isArray(n.delivery) && n.delivery.length === (n.kind === 'срок-истёк' && n.t >= '2026-09-14' ? 1 : 0) && /^\d\d:\d\d$/.test(n.time) && typeof n.text === 'string' && n.text && n.t && n.to !== undefined);
   const kinds = new Set(all.map(n => n.kind));
   const sigBefore = all.filter(n => n.kind === 'сигнал').length;
-  ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS', 'e-mail'] }, { by: 'E4', basis: 'приказ №1' });
+  ZD.state.smsGate.push({ from: '2026-10-01', on: true, note: 'договор для проверки' });
+  ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS', 'e-mail'] }, { by: 'E18', basis: 'приказ №1' });
   const made = ZD.createFreeTask({ label: 'С доставкой', assignee: 'E1', author: 'E2', dueDate: '2026-10-20' });
   const m = ZD.state.notifications.find(n => n.items.some(i => i.taskId === made.id) && n.kind === 'поручено');
-  ZD.editSignal('pk-cr-payment-due', { channels: ['всплывающее', 'SMS'] }, { by: 'E4', basis: 'приказ №2' });
+  ZD.editSignal('pk-cr-payment-due', { channels: ['всплывающее', 'SMS'] }, { by: 'E18', basis: 'приказ №2' });
   ZD.deactivateKind('pk-cr-payment-due', 'E4', 'приказ №3');
   ZD.runPoll();
   ZD.activateKind('pk-cr-payment-due', 'E4', 'приказ №4');
@@ -6882,8 +6886,8 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const s = sigs[sigs.length - 1];
   ZD.state.viewer = 'E1';
   const page = ZD.renderNotifPage();
-  ok(362, shape && kinds.has('сигнал') && kinds.has('поручено') && JSON.stringify(m.delivery.map(d => d.channel)) === '["SMS","e-mail"]' && m.delivery.every(d => d.status === 'ждёт отправки') && sigs.length > sigBefore &&
-       JSON.stringify(s.delivery.map(d => d.channel)) === '["SMS"]' && !/ждёт отправки/.test(page),
+  ok(362, shape && kinds.has('сигнал') && kinds.has('поручено') && JSON.stringify(m.delivery.map(d => d.channel)) === '["SMS","e-mail"]' && m.delivery.every(d => d.status === 'отправляется') && sigs.length > sigBefore &&
+       JSON.stringify(s.delivery.map(d => d.channel)) === '["SMS"]' && s.delivery[0].status === 'ждёт окна' && !/ждёт окна|отправляется/.test(page),
     `ЭЗ-16, ЭЗ-54 — ${total} записей стенда в единой модели (источник, прочитанность, способ, доставка); SMS и почта дают реквизит доставки и у задания, и у сигнала; на странице зрителя его нет`);
 })();
 
@@ -6891,15 +6895,15 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
-  const o = { by: 'E4', basis: 'приказ №1' }, K = 'срок-близко', was = JSON.stringify(ZD.state.notifSettings[K]);
+  const o = { by: 'E18', basis: 'приказ №1' }, K = 'срок-близко', was = JSON.stringify(ZD.state.notifSettings[K]);
   const r = {
-    other: throws(() => ZD.editNotif(K, { text: 'x' }, { by: 'E1', basis: 'приказ' })), basis: throws(() => ZD.editNotif(K, { text: 'x' }, { by: 'E4', basis: '' })),
+    other: throws(() => ZD.editNotif(K, { text: 'x' }, { by: 'E1', basis: 'приказ' })), basis: throws(() => ZD.editNotif(K, { text: 'x' }, { by: 'E18', basis: '' })),
     empty: throws(() => ZD.editNotif(K, { text: '  ' }, o)), none: throws(() => ZD.editNotif(K, { channels: [] }, o)), wrong: throws(() => ZD.editNotif(K, { channels: ['голубь'] }, o)),
     rec: throws(() => ZD.editNotif(K, { recipients: ['E1'] }, o)), off: throws(() => ZD.editNotif(K, { off: true }, o)), en: throws(() => ZD.editNotif(K, { enabled: false }, o)),
     same: throws(() => ZD.editNotif(K, { text: ZD.state.notifSettings[K].text }, o)), out: throws(() => ZD.editNotif('сигнал', { text: 'x' }, o)),
   };
   const same = JSON.stringify(ZD.state.notifSettings[K]) === was;
-  ZD.state.viewer = 'E4';
+  ZD.state.viewer = 'E18';
   ZD.askNotif(K);
   ZD.dialogCheck('channels', 'всплывающее', false);
   ZD.dialogSet('basis', 'приказ');
@@ -6917,7 +6921,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.dialogSet('basis', 'приказ №7');
   const saved = ZD.dialogSubmit(), c = ZD.state.notifSettings[K], h = c.history[c.history.length - 1];
   ok(363, /администратор/.test(r.other) && /основание/.test(r.basis) && /не пустой/.test(r.empty) && /хотя бы один способ/.test(r.none) && /способ —/.test(r.wrong) && /получатели определены механизмом/.test(r.rec) && /выключить нельзя/.test(r.off) && /выключить нельзя/.test(r.en) && /не изменились/.test(r.same) && /закрытого списка/.test(r.out) && same &&
-       sent === false && /Способ/.test(err) && noChange === false && /не изменились/.test(err2) && cancelled && saved === true && c.text === 'Скоро срок' && c.channels.includes('SMS') && h.basis === 'приказ №7' && h.by === 'E4' && h.was.text === 'Срок задания близко',
+       sent === false && /Способ/.test(err) && noChange === false && /не изменились/.test(err2) && cancelled && saved === true && c.text === 'Скоро срок' && c.channels.includes('SMS') && h.basis === 'приказ №7' && h.by === 'E18' && h.was.text === 'Срок задания близко',
     'ЭЗ-17 — правит только администратор с основанием; текст не пустой, способ хотя бы один, получатели неизменны, выключить нельзя; в окне то же, отмена без изменений, правка в истории с прежним значением');
 })();
 
@@ -6926,36 +6930,38 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.seed();
   ZD.goToDate('2026-10-01');
   const K = 'срок-близко', old = ZD.state.notifSettings[K].text, sent = ZD.state.notifications.filter(n => n.kind === K), mark = ZD.state.notifications.length;
-  ZD.editNotif(K, { text: 'Скоро срок, проверьте', channels: ['SMS'] }, { by: 'E4', basis: 'приказ №7' });
+  ZD.editNotif(K, { text: 'Скоро срок, проверьте', channels: ['e-mail'] }, { by: 'E18', basis: 'приказ №7' });
   const untouched = sent.every(n => n.text === old && n.channels.join() === 'всплывающее');
   let d = '2026-10-01';
   for (let i = 0; i < 12; i++) { d = new Date(Date.parse(d) + 864e5).toISOString().slice(0, 10); ZD.setAsOf(d); ZD.runPoll(); }
   const fresh = ZD.state.notifications.slice(mark).filter(n => n.kind === K);
   const page = (() => { const n = fresh[0]; ZD.state.viewer = n.to; ZD.state.view = 'queue'; return ZD.renderNotifPage(); })();
-  ok(364, sent.length > 0 && untouched && fresh.length > 0 && fresh.every(n => n.text === 'Скоро срок, проверьте' && n.channels.join() === 'SMS' && n.delivery.length === 1) && page.includes('Скоро срок, проверьте') && ZD.state.notifications.slice(mark).filter(n => n.kind === 'срок-истёк').every(n => n.text === ZD.state.notifSettings['срок-истёк'].text),
+  ok(364, sent.length > 0 && untouched && fresh.length > 0 && fresh.every(n => n.text === 'Скоро срок, проверьте' && n.channels.join() === 'e-mail' && n.delivery.length === 1) && page.includes('Скоро срок, проверьте') && ZD.state.notifications.slice(mark).filter(n => n.kind === 'срок-истёк').every(n => n.text === ZD.state.notifSettings['срок-истёк'].text),
     `ЭЗ-17 — после правки следующие прогоны пишут новый текст и способ (${fresh.length} сообщений за 12 дней), отправленные ${sent.length} не меняются, другие виды не затронуты`);
 })();
 
-/* ЭЗ-17, ЭЗ-55 — вкладка «Уведомления»: сигналы и 11 обычных; получатели только показаны; у остальных чтение и нет пункта меню */
+/* ЭЗ-17, ЭЗ-55, СУ-22 — экран кубика: сигналы и 59 видов; получатели закреплённых только показаны; у остальных чтение и нет пункта меню */
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
-  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs'; ZD.state.view = 'settings';
-  const h = ZD.renderSettings(), rows = [...h.matchAll(/<tr data-n="([^"]+)">/g)].map(m => m[1]);
-  const tabs = /\['signals'/.test(src) === false && />Уведомления</.test(h) && !/>Сигналы<\/button>/.test(h);
-  const allPopup = ZD.NOTIF_KINDS.every(k => ZD.state.notifSettings[k].channels.join() === 'всплывающее' && ZD.state.notifSettings[k].history.length === 0 && ZD.state.notifSettings[k].text === ZD.NOTIF_SPEC[k].text);
+  ZD.state.viewer = 'E18'; ZD.state.view = 'ntSet';
+  const h = ZD.renderNtSettings(), rows = [...h.matchAll(/<tr data-n="([^"]+)">/g)].map(m => m[1]);
+  const tabs = /\['signals'/.test(src) === false && !/>Сигналы<\/button>/.test(h) && !/setSettingsTab\('notifs'\)/.test((ZD.state.viewer = 'E4', ZD.renderSettings()));
+  ZD.state.viewer = 'E18';
+  const allPopup = ZD.NOTIF_KINDS.filter(k => k !== 'срок-истёк').every(k => ZD.state.notifSettings[k].channels.join() === 'всплывающее' && ZD.state.notifSettings[k].history.length === 0 && ZD.state.notifSettings[k].text === ZD.NOTIF_SPEC[k].text);
+  const mailed = ZD.state.notifSettings['срок-истёк'].channels.join() === 'всплывающее,e-mail' && ZD.state.notifSettings['срок-истёк'].history.length === 1 && ZD.state.notifSettings['срок-истёк'].history[0].by === 'E18';
   const noInput = rows.length && !/<input[^>]*data-n/.test(h);
-  const sections = h.indexOf('Сигналы') < h.indexOf('Обычные уведомления') && /Срок платежа по графику близко/.test(h);
+  const sections = h.indexOf('Сигналы') < h.indexOf('Виды уведомлений') && /Срок платежа по графику близко/.test(h);
   const before = (h.match(/ZD\.askNotif/g) || []).length;
-  ZD.editNotif('возвращено', { text: 'Вернули на доработку' }, { by: 'E4', basis: 'приказ №7' });
-  const hist = ZD.renderSettings();
+  ZD.editNotif('возвращено', { text: 'Вернули на доработку' }, { by: 'E18', basis: 'приказ №7' });
+  const hist = ZD.renderNtSettings();
   ZD.state.viewer = 'E1';
-  const ro = ZD.renderSettings(), menu = ZD.menuItems().map(x => x.view).join();
-  ZD.state.viewer = 'E4'; ZD.state.view = 'queue';
-  ok(365, rows.join() === ZD.NOTIF_KINDS.join() && rows.length === 11 && tabs && allPopup && noInput && sections && before === 11 && /История правок/.test(hist) && /Вернули на доработку/.test(hist) && /приказ №7/.test(hist) &&
-       !/ZD\.askNotif/.test(ro) && !/Только чтение/.test(ro) && rowsHave(ro) && !/settings/.test(menu),
-    'ЭЗ-17, ЭЗ-55 — вкладка «Уведомления»: сигналы и таблица из 11, у каждого кому, текст, способ; по умолчанию всплывающее; правка в окне и в общей истории; не администратору пункта меню нет, кнопок нет, подписи «Только чтение» нет');
-  function rowsHave(x) { return ZD.NOTIF_KINDS.every(k => x.includes(`data-n="${k}"`)); }
+  const ro = ZD.renderNtSettings(), menu = ZD.menuItems().map(x => x.view).join();
+  ZD.state.viewer = 'E18'; ZD.state.view = 'queue';
+  ok(365, rows.join() === ZD.NOTICE_LIST.map(k => k.id).join() && rows.length === 59 && tabs && allPopup && mailed && noInput && sections && before === 59 && /История правок/.test(hist) && /Вернули на доработку/.test(hist) && /приказ №7/.test(hist) &&
+       !/ZD\.askNotif/.test(ro) && !/Только чтение/.test(ro) && rowsHave(ro) && !/ntSet|ntLog/.test(menu),
+    'ЭЗ-17, ЭЗ-55, СУ-22 — экран кубика: сигналы и таблица из 59 видов, у каждого кому, текст, способ; изначально всплывающее, почту у одного вида включил администратор с основанием; правка в окне и в общей истории; не носителю роли пункта меню нет, кнопок нет, подписи «Только чтение» нет');
+  function rowsHave(x) { return ZD.NOTICE_LIST.every(k => x.includes(`data-n="${k.id}"`)); }
 })();
 
 /* ЭЗ-49, ЭЗ-Д12, ЭЗ-65 — «переадресовано» бывшему исполнителю: без ссылки, текст называет нового исполнителя, клик только отмечает прочитанным; право видеть не меняется */
@@ -7146,7 +7152,7 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
   const links = /<a class="q-case" href="\.\.\/kuratorstvo\/kuratorstvo\.html"[^>]*>Кураторство<\/a>/.test(h) && /<a class="q-case" href="\.\.\/docflow\/docflow\.html"[^>]*>Производственный календарь<\/a>/.test(h);
   const hint = /Своего экрана в макетах нет/.test(ZD.OWNER_SCREENS[1].hint);
   const gone = !/askCurat|setCuration|renderCuration|renderCalendarTab|setKindCat|submitRuleEdit|submitSignalEdit|toggleRule\b/.test(src);
-  ok(373, tabs === 'Задания,Подсветка,Уведомления' && links && hint && gone && !('kindCat' in ZD.state) && !('ruleRead' in ZD.state),
+  ok(373, tabs === 'Задания,Подсветка' && links && hint && gone && !('kindCat' in ZD.state) && !('ruleRead' in ZD.state),
     `ЭЗ-19, ЭЗ-60 — вкладки: ${tabs}; «Кураторство» ведёт на экран модуля, календарь — на настройки документооборота с подсказкой; снятый код и экспорт убраны`);
 })();
 
@@ -7178,17 +7184,18 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
-  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs';
-  const S = 'pk-cr-payment-due', h = ZD.renderSettings(), v = plain(h);
-  const row = rowsIn(h, 'data-sig').join() === S, noRaw = !/pk-/.test(v) && !/<input|<textarea/.test(h);
+  ZD.state.viewer = 'E18';
+  const S = 'pk-cr-payment-due', h = ZD.renderNtSettings(), v = plain(h);
+  const row = rowsIn(h, 'data-sig').join() === S, noRaw = !/pk-/.test(v) && !/<textarea/.test(h) && !/<input(?![^>]*type="search")/.test(h);
   ZD.askSignal(S);
   ZD.dialogSet('channels', ['всплывающее', 'SMS']);
   const noWhy = ZD.dialogSubmit() === false && /Заполните/.test(ZD.dialog.err) && ZD.state.signals[S].channels.join() === 'всплывающее';
   ZD.dialogSet('basis', 'приказ №70');
   const done = ZD.dialogSubmit() === true && ZD.state.signals[S].channels.join() === 'всплывающее,SMS';
-  const h2 = ZD.renderSettings();
+  const h2 = ZD.renderNtSettings();
   const shown = /всплывающее, SMS/.test(h2) && /История правок/.test(h2) && /приказ №70/.test(h2) && /способ: было всплывающее/.test(h2) && !/текст: было|получатели: было/.test(h2);
   const foreign = throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E1', basis: 'приказ' }));
+  ZD.state.viewer = 'E4';
   ok(375, row && noRaw && noWhy && done && shown && !!foreign,
     'ЭЗ-Д11 — сигнал одной строкой таблицы; правка в окне с обязательным основанием; способ и основание в общей истории правок; кода вида и формы на странице нет; чужому отказ движка');
 })();
@@ -7290,33 +7297,35 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
     `ЭЗ-24, ЭЗ-62 — без задания: 01.10 ${a.none} из ${a.live}, 02.11 ${b.none} из ${b.live}, все сигналы (заход E4); ссылка и подробности задания по праву видеть, чужое и в строке, и в раскрытии только номером`);
 })();
 
-/* ЭЗ-24, ЭЗ-16, ЭЗ-64 — доставка: только администратору, по одной записи на способ, всплывающие не показываются; пусто — честно; SMS видно на следующем прогоне */
+/* ЭЗ-16, ЭЗ-64, СУ-26 — журнал доставки: только у роли, по одной записи на способ, всплывающие не показываются; пусто — честно; следующий прогон видно */
 (() => {
   ZD.seed();
-  ZD.goToDate('2026-10-01');
-  ZD.state.viewer = 'E4'; ZD.state.runsTab = 'poll';
-  const empty = ZD.renderRuns();
-  const honest = /data-delivery-empty/.test(empty) && /SMS и почта не включены/.test(empty) && !/data-delivery>/.test(empty) && !/ждёт отправки/.test(empty) && ZD.deliveryRows().length === 0;
+  ZD.goToDate('2026-09-10');
+  ZD.state.viewer = 'E18';
+  const empty = ZD.renderNtDelivery();
+  const honest = /Отправок ещё не было: SMS и почта изначально только у трёх видов/.test(empty) && /data-delivery/.test(empty) && !/data-send/.test(empty) && ZD.deliveryRows().length === 0;
   ZD.state.viewer = 'E1';
-  const foreign = ZD.renderDelivery() === '';
-  ZD.state.viewer = 'E4';
-  ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS'] }, { by: 'E4', basis: 'приказ №71' });
-  const waiting = /SMS или почта включены, отправок ещё не было/.test(ZD.renderRuns());
+  const foreign = ZD.renderNtDelivery() === '';
+  ZD.state.viewer = 'E18';
+  ZD.editNotif('поручено', { channels: ['всплывающее', 'e-mail'] }, { by: 'E18', basis: 'приказ №71' });
+  const noneYet = ZD.deliveryRows().length === 0;
   const was = ZD.state.notifications.length;
   ZD.createFreeTask({ label: 'Проверить доставку', assignee: 'E3', author: 'E2', dueDate: '2026-10-20' });
-  const fresh = ZD.deliveryRows(), h = ZD.renderRuns();
-  const one = fresh.length === 1 && fresh[0].channel === 'SMS' && fresh[0].status === 'ждёт отправки' && fresh[0].to === 'E3' && ZD.state.notifications.length === was + 1;
-  const block = h.slice(h.indexOf('data-delivery')), row = rowsIn(h, 'data-send').length === 1 && /ждёт отправки/.test(h) && !/всплывающее<\/td>/.test(block) && /<td[^>]*>поручено<\/td>/.test(block) && !block.includes('Проверить доставку');
+  ZD.deliveryDay(ZD.state.today);
+  const fresh = ZD.deliveryRows(), h = ZD.renderNtDelivery();
+  const one = fresh.length === 1 && fresh[0].channel === 'e-mail' && fresh[0].status === 'доставлено' && fresh[0].to === 'E3' && fresh[0].time && ZD.state.notifications.length === was + 1;
+  const block = h.slice(h.indexOf('data-delivery')), row = rowsIn(h, 'data-send').length === 1 && /доставлено/.test(h) && !/всплывающее<\/td>/.test(block) && /<td[^>]*>поручено<\/td>/.test(block) && !block.includes('Проверить доставку') && block.includes('Вам поручено задание');
   ZD.state.viewer = 'E2';
-  const hidden = !/Доставка SMS и почты/.test(ZD.renderDelivery());
-  ZD.state.viewer = 'E4';
+  const hidden = ZD.renderNtDelivery() === '';
+  ZD.state.viewer = 'E18';
   /* ночной прогон после включения: новое сообщение пишется с тем же способом */
-  ZD.editNotif('эскалация', { channels: ['всплывающее', 'e-mail'] }, { by: 'E4', basis: 'приказ №72' });
+  ZD.editNotif('эскалация', { channels: ['всплывающее', 'e-mail'] }, { by: 'E18', basis: 'приказ №72' });
   const before = ZD.deliveryRows().length;
-  ZD.state.today = '2026-10-16'; ZD.runPoll();
+  ZD.state.today = '2026-10-16'; ZD.runPoll(); ZD.deliveryDay('2026-10-16');
   const later = ZD.deliveryRows().slice(0, ZD.deliveryRows().length - before);
-  ok(379, honest && foreign && waiting && one && row && hidden && later.length > 0 && later.every(x => x.t === '2026-10-16') && ZD.deliveryRows().every(x => x.channel !== 'всплывающее'),
-    `ЭЗ-24, ЭЗ-64 — без включения блок честно пуст; у остальных блока нет; включили SMS для «поручено» — одна запись «ждёт отправки», всплывающих строк нет, содержания задания нет; на следующем прогоне новых отправок ${later.length}`);
+  const noBlockInRuns = !/Доставка SMS и почты|data-delivery/.test((ZD.state.viewer = 'E4', ZD.renderRuns()));
+  ok(379, honest && foreign && noneYet && one && row && hidden && later.length > 0 && later.every(x => x.t === '2026-10-16') && ZD.deliveryRows().every(x => x.channel !== 'всплывающее') && noBlockInRuns,
+    `ЭЗ-16, ЭЗ-64, СУ-26 — журнал доставки на своём экране: пусто — честно; у остальных экрана нет; включили почту для «поручено» — одна запись «доставлено», всплывающих строк нет, исходящий текст есть, содержания задания нет; на следующем прогоне новых отправок ${later.length}; в журнале прогонов блока нет`);
 })();
 
 /* ЭЗ-Д10, ЭЗ-66 — на экранах нет слова «сосед»: очередь всех зрителей, карточки, настройка, панели, журнал, полоса стенда, реестр вида и действия */
@@ -7333,7 +7342,8 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
     ZD.EMP.forEach(e => { ZD.state.viewer = e.id; check(`${d} ${e.id} страница уведомлений`, ZD.renderNotifPage()); check(`${d} ${e.id} колокольчик`, ZD.renderBell()); });
     ZD.state.notifications.forEach(n => check(`${d} уведомление`, ZD.notifText(n)));
     ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
-    ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ['tasks', 'highlight'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ZD.state.viewer = 'E18'; check(`${d} настройка уведомлений`, ZD.renderNtSettings()); check(`${d} журнал доставки`, ZD.renderNtDelivery()); ZD.state.viewer = 'E4';
     ZD.state.rules.forEach(r => check(`${d} панель ${r.id}`, ZD.renderRulePanel(r.id)));
     ZD.state.povSt = 'все'; ZD.state.runsTab = 'povods'; check(`${d} поводы`, ZD.renderRuns());
     ZD.state.runsTab = 'poll'; check(`${d} опрос`, ZD.renderRuns());
@@ -7453,7 +7463,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const src_ = {}; ZD.state.rules.forEach(r => { if (r.dueSource) src_[r.dueSource] = (src_[r.dueSource] || 0) + 1; });
   const three = JSON.stringify(src_) === JSON.stringify({ 'решение проекта': 68, 'Типовое положение, п. 66': 1, 'Порядок, п. 9': 1, 'Порядок, п. 64': 1 });
   ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
-  const pages = ['tasks', 'highlight', 'notifs'].map(k => { ZD.state.settingsTab = k; return ZD.renderSettings(); }).join(' ') + ZD.state.rules.map(r => ZD.renderRulePanel(r.id)).join(' ');
+  const pages = ['tasks', 'highlight'].map(k => { ZD.state.settingsTab = k; return ZD.renderSettings(); }).join(' ') + (ZD.state.viewer = 'E18', ZD.renderNtSettings()) + (ZD.state.viewer = 'E4', ZD.state.rules.map(r => ZD.renderRulePanel(r.id)).join(' '));
   const clean = !/внутренний акт|умолчание документооборота/.test(pages);
   const labels = ZD.ruleRows().concat(ZD.state.povodKinds.filter(k => k.genus !== 'шаг').map(k => ({ k }))).map(x => ZD.appearOf(x.k).src).filter(Boolean);
   const kinds = labels.every(x => x === 'решение проекта' || /^норма · /.test(x) || /^значение в модуле «(Отчётность|Анализ)»$/.test(x));
@@ -7473,9 +7483,9 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const screens = /loan-application\.html|loan-program\.html|payments\/payments\.html|loan-credit\/credit\.html/;
   const rows = ZD.renderSettings();
   ZD.state.settingsTab = 'highlight'; const hl = ZD.renderSettings();
-  ZD.state.settingsTab = 'notifs'; const nf = ZD.renderSettings();
+  ZD.state.settingsTab = 'tasks'; const nf = ZD.renderSettings();
   const lpRow = hl.slice(hl.indexOf('data-hl="lp-expiring"')); const lpOne = lpRow.slice(0, lpRow.indexOf('</tr>'));
-  const crRow = nf.slice(nf.indexOf('data-sig="pk-cr-payment-due"')); const crOne = crRow.slice(0, crRow.indexOf('</tr>'));
+  const crRow = nf.slice(nf.indexOf('data-sig-switch="pk-cr-payment-due"')); const crOne = crRow.slice(0, crRow.indexOf('</tr>'));
   const shown = /10 р\.д\. без событий/.test(pa) && /решение проекта/.test(pa) && /Как меняется/.test(pa) && /выпуском/.test(pa) &&
     /с 3-го р\.д\. от даты операции/.test(pp) && /выпуском/.test(pp) &&
     /за 30 к\.д\. до «Даты по»/.test(lpOne) && /решение проекта/.test(lpOne) &&
@@ -7642,7 +7652,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   ZD.goToDate('2026-12-07');
   ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
   const BAD = /\bundefined\b|\bnull\b|\[object|NaN|НЗ-|ЭЗ-|ЗЦ-|ADR-|волн|noScreen|пока нет/;
-  const pages = ['tasks', 'highlight', 'notifs'].map(k => { ZD.state.settingsTab = k; return ZD.renderSettings(); }).concat(ZD.state.rules.map(r => ZD.renderRulePanel(r.id)), ZD.renderStand());
+  const pages = ['tasks', 'highlight'].map(k => { ZD.state.settingsTab = k; return ZD.renderSettings(); }).concat((ZD.state.viewer = 'E18', ZD.renderNtSettings()), (ZD.state.viewer = 'E4', ZD.state.rules.map(r => ZD.renderRulePanel(r.id))), ZD.renderStand());
   const hits = pages.filter(h => BAD.test(h)).map(h => (h.match(BAD) || [])[0]);
   ZD.goToDate('2027-01-04');
   const t = ZD.state.tasks.find(x => x.originKind === 'pk-zm-fhs'), card = t ? ZD.renderCard(t.id) : '';
@@ -9665,8 +9675,8 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
 /* ВЗЕ-218 — сигнал без получателей не уходит: подпись под получателями и окно сигнала не обещают руководителя подразделения-владельца */
 (() => {
   ZD.seed(); ZD.goToDate('2026-10-01');
-  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'notifs';
-  const h = plain(ZD.renderSettings()), k = ZD.state.povodKinds.find(x => x.genus === 'сигнал' && x.signalRole) || ZD.state.povodKinds.find(x => x.genus === 'сигнал');
+  ZD.state.viewer = 'E18';
+  const h = plain(ZD.renderNtSettings()), k = ZD.state.povodKinds.find(x => x.genus === 'сигнал' && x.signalRole) || ZD.state.povodKinds.find(x => x.genus === 'сигнал');
   ZD.askSignal(k.id); const note = ZD.dialog.note; ZD.dialogCancel();
   const said = /нет куратора — получают только указанные должности; нет и их — сигнал не уходит/.test(h) && /^Нет куратора — получают только указанные должности; нет и их — сигнал не уходит\./.test(note) &&
     !/подразделения-владельца/.test(h + note);
@@ -9690,7 +9700,8 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ['2026-11-02', '2027-01-04'].forEach(d => {
     ZD.goToDate(d);
     ZD.state.viewer = 'E4'; ZD.state.ruleSt = 'все';
-    ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ['tasks', 'highlight'].forEach(k => { ZD.state.settingsTab = k; check(`${d} настройка ${k}`, ZD.renderSettings()); });
+    ZD.state.viewer = 'E18'; check(`${d} настройка уведомлений`, ZD.renderNtSettings()); check(`${d} журнал доставки`, ZD.renderNtDelivery()); ZD.state.viewer = 'E4';
     ZD.state.rules.forEach(r => check(`${d} панель ${r.id}`, ZD.renderRulePanel(r.id)));
     ZD.state.povSt = 'все'; ZD.state.runsTab = 'povods'; check(`${d} поводы`, ZD.renderRuns());
     ZD.state.runsTab = 'poll'; check(`${d} опрос`, ZD.renderRuns());
@@ -9727,7 +9738,7 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ZD.setViewer('E4'); ZD.go('settings'); ZD.state.qTab = 'decide'; ZD.setViewer('E22');
   const swap2 = ZD.state.view === 'queue' && ZD.state.qTab === 'work';
   ZD.setViewer('E4');
-  const noRo = ['tasks', 'highlight', 'notifs'].every(k => { ZD.state.settingsTab = k; return !/Только чтение/.test(ZD.renderSettings()); });
+  const noRo = ['tasks', 'highlight'].every(k => { ZD.state.settingsTab = k; return !/Только чтение/.test(ZD.renderSettings()); }) && !/Только чтение/.test((ZD.state.viewer = 'E18', ZD.renderNtSettings())) && (ZD.state.viewer = 'E4', true);
   const t = ZD.state.tasks.find(x => x.kind === 'rule' && x.ruleId && ZD.bucketOf(x, 'E1'));
   ZD.state.viewer = 'E1'; const link = ZD.renderCard(t.id).includes(`ZD.showRule('${t.ruleId}')`);
   ZD.showRule(t.ruleId);
@@ -9760,7 +9771,8 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
     ZD.state.viewer = e.id; leak(`${e.id} уведомления`, ZD.renderNotifPage()); leak(`${e.id} колокольчик`, ZD.renderBell());
   });
   ZD.state.viewer = 'E4';
-  ['tasks', 'highlight', 'notifs'].forEach(k => { ZD.state.settingsTab = k; leak(`настройка ${k}`, ZD.renderSettings()); });
+  ['tasks', 'highlight'].forEach(k => { ZD.state.settingsTab = k; leak(`настройка ${k}`, ZD.renderSettings()); });
+  ZD.state.viewer = 'E18'; leak('настройка уведомлений', ZD.renderNtSettings()); leak('журнал доставки', ZD.renderNtDelivery()); ZD.state.viewer = 'E4';
   ZD.state.rules.forEach(r => leak(`панель ${r.id}`, ZD.renderRulePanel(r.id)));
   ZD.state.runsTab = 'poll'; leak('опрос', ZD.renderRuns());
   ZD.state.runsTab = 'povods'; ZD.state.povSt = 'все'; ZD.state.povOpen = null;
@@ -10586,12 +10598,12 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   const sec = way('sec-autoblock') === 'всплывающее+SMS+e-mail' && way('acc-changed') === 'всплывающее+SMS+e-mail', night = way('sys-night-failed') === 'всплывающее+e-mail';
   const rest = L.filter(k => !['sec-autoblock', 'acc-changed', 'sys-night-failed'].includes(k.id)).every(k => k.channels.join() === 'всплывающее');
   const c = ZD.state.notifSettings['gd-rejected'];
-  c.text = 'Новый текст'; c.channels = ['всплывающее', 'SMS'];
+  c.text = 'Новый текст'; c.channels = ['всплывающее', 'e-mail'];
   const r = ZD.declareEvent(EV); ZD.serviceRun();
   const sent = evOf('gd-rejected', 'GD-T')[0];
   c.text = 'Ещё текст'; c.channels = ['всплывающее'];
   const auto = ZD.state.notifications.filter(n => n.kind === 'sec-autoblock')[0];
-  ok(546, sec && night && rest && sent.text === 'Новый текст' && sent.channels.join() === 'всплывающее,SMS' && sent.delivery.length === 1 && r.no && !auto,
+  ok(546, sec && night && rest && sent.text === 'Новый текст' && sent.channels.join() === 'всплывающее,e-mail' && sent.delivery.length === 1 && r.no && !auto,
     '§4.7 — всплывающее у всех, SMS и почта ещё у двух видов безопасности, ночной прогон — всплывающее и почта; текст и способ берутся при отправке, правка после отправки сообщение не меняет');
 })();
 
@@ -10767,19 +10779,19 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   ok(558, mods && only && found && all.length === 0 && !RAW.test(bell), '«Откуда» — по модулю; поиск находит событие по номеру объекта; в тексте сообщений и колокольчике нет сырых значений ' + all.slice(0, 3).join());
 })();
 
-/* вкладка настройки и журнал доставки до следующей волны — как были */
+/* событие модуля настраивается на экране кубика; журнал доставки показывает все виды; реквизит доставки у автоблокировки — SMS и почта */
 (() => {
   ZD.seed(); ZD.goToDate('2026-10-14');
-  const bad = throws(() => ZD.editNotif('gd-rejected', { text: 'x' }, { by: 'E4', basis: 'приказ' }));
-  ZD.state.viewer = 'E4';
-  const rows = ZD.deliveryRows(), noEv = !rows.some(x => /^N95/.test(x.id));
-  const page = plain(ZD.renderDelivery()), counted = page.includes('сообщений ' + taskMsgs().length);
-  ZD.state.settingsTab = 'notifs';
-  const set = ZD.renderSettings(), names = ZD.NOTICE_LIST.filter(k => k.group === 'О заданиях');
-  const shown = names.every(k => set.includes(k.name)), hidden = !/Автоблокировка|Госрешение отклонено/.test(set);
+  const taskAdmin = throws(() => ZD.editNotif('gd-rejected', { text: 'x' }, { by: 'E4', basis: 'приказ' }));
+  ZD.editNotif('gd-rejected', { text: 'Отклонено: проверьте' }, { by: 'E18', basis: 'приказ №81' });
+  ZD.state.viewer = 'E18';
+  const set = ZD.renderNtSettings();
+  const shown = ZD.NOTICE_LIST.every(k => set.includes(k.name)), edited = set.includes('Отклонено: проверьте');
+  const rows = ZD.deliveryRows(), evRow = rows.some(x => /^N95/.test(x.id));
   const sms = ZD.state.notifications.filter(n => n.kind === 'sec-autoblock')[0];
-  ok(559, /вне закрытого списка/.test(bad) && noEv && counted && shown && hidden && sms.delivery.map(d => d.channel).join() === 'SMS,e-mail',
-    'Вкладка настройки — те же 11 видов о заданиях; журнал доставки и его счётчик — как были; у автоблокировки реквизит SMS и почты записан');
+  ZD.state.viewer = 'E4';
+  ok(559, /администратор уведомлений/.test(taskAdmin) && shown && edited && evRow && sms.delivery.map(d => d.channel).join() === 'SMS,e-mail',
+    'СУ-21, СУ-26 — событие модуля правит только администратор уведомлений, на экране все 59 видов; в журнале доставки есть события модулей; у автоблокировки SMS и почта');
 })();
 
 /* живое действие рождает событие один раз; окошко приходит сразу */
@@ -10880,6 +10892,425 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   const sent = ZD.serviceRun(), m = evOf('gd-rejected', 'GD-T').length;
   ok(567, act === 1 && held === 0 && none === 0 && sent === 1 && m === 1, 'Определение по иску — судебный акт; упавшая служба запись не принимает, поднялась — одно сообщение');
 })();
+
+/* ---- волна 38: кубик «Уведомления» — настройка, журнал доставки, роль, отправка наружу ---- */
+const W38 = { by: 'E18', basis: 'приказ №90' };
+const seedAt = d => { ZD.seed(); ZD.goToDate(d); };
+const rows38 = () => ZD.deliveryRows();
+const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd', id, title: 'Проба' }, by: 'E8', parties: { автор: ['E1'] } });
+
+/* СУ-22 — права от роли, а не от администратора заданий; носителем может быть тот же человек */
+(() => {
+  seedAt('2026-10-01');
+  const no = /администратор уведомлений/;
+  const denied = [
+    () => ZD.editNotif('gd-rejected', { text: 'а' }, { by: 'E4', basis: 'приказ' }),
+    () => ZD.editSignal('pk-cr-payment-due', { text: 'а' }, { by: 'E4', basis: 'приказ' }),
+    () => ZD.editNoticeWindow({ open: '08:00', close: '18:00' }, { by: 'E4', basis: 'приказ' }),
+    () => ZD.editNoticeCal({ date: '2026-10-19', work: false }, { by: 'E4', basis: 'приказ' }),
+    () => ZD.editSmsGate({ on: true, note: 'х' }, { by: 'E4', basis: 'приказ' }),
+  ].every(f => no.test(throws(f)));
+  const separate = ZD.noticeAdminOn('2026-10-01') === 'E18' && !ZD.isTasksAdmin('E18') && ZD.isTasksAdmin('E4') && !ZD.isNoticeAdmin('E4');
+  const allowed = !throws(() => ZD.editNotif('gd-rejected', { text: 'Отклонено' }, W38));
+  /* один человек с обеими ролями: права складываются из ролей */
+  ZD.NOTICE_ADMIN_ROLE.holders.push({ emp: 'E4', from: '2026-01-01' });
+  const both = ZD.isNoticeAdmin('E4') && ZD.isTasksAdmin('E4') && !ZD.isNoticeAdmin('E18') && !throws(() => ZD.editNotif('gd-rejected', { text: 'Отклонено 2' }, { by: 'E4', basis: 'приказ' })) && no.test(throws(() => ZD.editNotif('gd-rejected', { text: 'Отклонено 3' }, W38)));
+  ZD.state.viewer = 'E4';
+  const fiveItems = ZD.menuItems().filter(x => x.view).map(x => x.view).join() === 'queue,settings,runs,ntSet,ntLog';
+  ZD.NOTICE_ADMIN_ROLE.holders.pop();
+  ok(568, denied && separate && allowed && both && fiveItems, 'СУ-22 — администратор заданий без роли настройку уведомлений, сигнала, окна, календаря и SMS не правит; носитель роли правит, хотя администратором заданий не является; у одного человека с двумя ролями — оба экрана');
+})();
+
+/* СУ-26 — кубик: два пункта только у роли, прямой переход и смена зрителя возвращают в очередь; колокольчик и «Все уведомления» — у всех; старых мест нет */
+(() => {
+  seedAt('2026-10-14');
+  const views = v => { ZD.state.viewer = v; return ZD.menuItems().filter(x => x.view).map(x => x.view); };
+  const only = ZD.EMP.filter(e => views(e.id).includes('ntSet')).map(e => e.id).join() === 'E18' && ZD.EMP.filter(e => views(e.id).includes('ntLog')).map(e => e.id).join() === 'E18';
+  ZD.state.viewer = 'E18';
+  const sec = ZD.menuItems().find(x => x.sec === 'Уведомления') && /Журнал доставки/.test(ZD.renderNav());
+  ZD.setViewer('E18'); ZD.go('ntLog');
+  const stays = ZD.state.view === 'ntLog';
+  ZD.setViewer('E1');
+  const fromLog = ZD.state.view === 'queue';
+  ZD.go('ntSet');
+  const noDirect = ZD.state.view === 'queue';
+  const bell = ['E1', 'E4', 'E18'].every(v => { ZD.state.viewer = v; return /bell|колокол|уведомлени/i.test(ZD.renderBell()) && typeof ZD.renderNotifPage() === 'string'; });
+  ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
+  const tabs = !/setSettingsTab\('notifs'\)/.test(ZD.renderSettings()) && !/Уведомления/.test(plain(ZD.renderSettings()).slice(0, 80));
+  const noRuns = !/Журнал доставки|Доставка SMS и почты|data-send/.test(ZD.renderRuns());
+  ok(569, only && sec && stays && fromLog && noDirect && bell && tabs && noRuns, 'СУ-26 — раздел «Уведомления» с двумя пунктами только у носителя роли; смена зрителя и прямой переход ведут в очередь; колокольчик у всех; на вкладке настройки заданий и в журнале прогонов уведомлений и доставки нет');
+})();
+
+/* СУ-21 — закреплённые: получатели только показаны, правятся текст и способ; настраиваемые: получатели, выключение */
+(() => {
+  seedAt('2026-10-01');
+  const fixed = ZD.NOTICE_LIST.filter(k => !k.tuned), tuned = ZD.NOTICE_LIST.filter(k => k.tuned);
+  const counts = fixed.length === 25 && tuned.length === 34;
+  const recNo = fixed.every(k => /не меняются/.test(throws(() => ZD.editNotif(k.id, { recipients: [{ by: 'должность', post: 'post-admin' }] }, W38))));
+  const offNo = fixed.every(k => /выключить нельзя/.test(throws(() => ZD.editNotif(k.id, { on: false }, W38))));
+  const textYes = fixed.every(k => !throws(() => ZD.editNotif(k.id, { text: k.text + '!' }, W38)) && ZD.state.notifSettings[k.id].history.slice(-1)[0].basis === W38.basis);
+  const chanYes = fixed.every(k => !throws(() => ZD.editNotif(k.id, { channels: ZD.state.notifSettings[k.id].channels.includes('e-mail') ? ['всплывающее'] : ['всплывающее', 'e-mail'] }, W38)));
+  ZD.state.viewer = 'E18';
+  const fixDlg = ZD.askNotif(fixed[0].id), fixF = fixDlg.fields.map(x => x.f).join();
+  ZD.dialogCancel();
+  const tunDlg = ZD.askNotif(tuned[0].id), tunF = tunDlg.fields.map(x => x.f).join();
+  ZD.dialogCancel();
+  ZD.state.viewer = 'E4';
+  ok(570, counts && recNo && offNo && textYes && chanYes && fixF === 'who,text,channels,basis' && tunF === 'roles,posts,text,channels,on,basis', `СУ-21 — ${fixed.length} закреплённых: получатель и выключение отклоняются, текст и способ правятся с основанием в истории, в окне получатель только показан; ${tuned.length} настраиваемых: роли, должности, текст, способ, включение`);
+})();
+
+/* СУ-21 — настроенный получатель работает: роль заменена должностью, письмо приходит держателю должности, а не автору */
+(() => {
+  seedAt('2026-10-01');
+  ZD.editNotif('gd-rejected', { recipients: [{ by: 'должность', post: 'post-admin' }] }, W38);
+  ZD.declareEvent(ev38('GD-R1')); ZD.serviceRun();
+  const m = evOf('gd-rejected', 'GD-R1');
+  const holder = ZD.postHolderOn('post-admin', ZD.state.today);
+  ZD.editNotif('gd-rejected', { recipients: [{ by: 'объект', role: 'автор' }, { by: 'должность', post: 'post-admin' }] }, W38);
+  ZD.declareEvent(ev38('GD-R2')); ZD.serviceRun();
+  const two = evOf('gd-rejected', 'GD-R2').map(x => x.to).sort().join();
+  const hist = ZD.state.notifSettings['gd-rejected'].history;
+  ZD.state.viewer = 'E18';
+  const line = plain(ZD.renderNtSettings());
+  ZD.state.viewer = 'E4';
+  ok(571, m.length === 1 && m[0].to === holder && m[0].to !== 'E1' && two === ['E1', holder].sort().join() && hist.length === 2 && hist[1].was.recipients[0].by === 'должность' && /Администратор|Руководитель|автор/.test(line),
+    `СУ-21 — получатель настраиваемого вида: заменён на должность — письмо держателю (${holder}), автору нет; автор и должность — оба; обе правки в истории; служба читает настройку в момент отправки`);
+})();
+
+/* СУ-21 — минимум один получатель и один способ, чужая роль отклоняется, в окне та же проверка */
+(() => {
+  seedAt('2026-10-01');
+  const K = 'gd-rejected';
+  const none = /хотя бы один получатель/.test(throws(() => ZD.editNotif(K, { recipients: [] }, W38)));
+  const way = /хотя бы один способ/.test(throws(() => ZD.editNotif(K, { channels: [] }, W38)));
+  const foreign = /роль по объекту или должность/.test(throws(() => ZD.editNotif(K, { recipients: [{ by: 'объект', role: 'контролёр' }] }, W38)));
+  const noBasis = /основание/.test(throws(() => ZD.editNotif(K, { text: 'Х' }, { by: 'E18' })));
+  ZD.state.viewer = 'E18';
+  ZD.askNotif(K); ZD.dialogCheck('roles', 'автор', false); ZD.dialogSet('basis', 'приказ №1');
+  const r1 = ZD.dialogSubmit(), e1 = ZD.dialog.err;
+  ZD.dialogCancel();
+  ZD.askNotif(K); ZD.dialogCheck('channels', 'всплывающее', false); ZD.dialogSet('basis', 'приказ №1');
+  const r2 = ZD.dialogSubmit(), e2 = ZD.dialog.err;
+  ZD.dialogCancel();
+  const same = ZD.state.notifSettings[K].history.length === 0;
+  ZD.state.viewer = 'E4';
+  ok(572, none && way && foreign && noBasis && r1 === false && /получатель/.test(e1) && r2 === false && /Способ/.test(e2) && same, `СУ-21 — без получателя, без способа, с ролью, которую событие не называет, и без основания правка не проходит; в окне отказ виден: «${e1}»`);
+})();
+
+/* СУ-21 — выключенный вид не рассылается; включили — следующие события идут, прошедшие не догоняются */
+(() => {
+  seedAt('2026-10-01');
+  ZD.editNotif('gd-rejected', { on: false }, W38);
+  ZD.declareEvent(ev38('GD-O1')); ZD.serviceRun();
+  const off = evOf('gd-rejected', 'GD-O1').length === 0;
+  ZD.editNotif('gd-rejected', { on: true }, W38);
+  ZD.declareEvent(ev38('GD-O2')); ZD.serviceRun();
+  ok(573, off && evOf('gd-rejected', 'GD-O2').length === 1 && evOf('gd-rejected', 'GD-O1').length === 0, 'СУ-21 — выключенный вид не рассылается; включён — идут новые, прошедшие не догоняются');
+})();
+
+/* СУ-30 — наружу только вид и ссылка: на всех видах, одно сообщение и сводка; без объекта и его названия */
+(() => {
+  const leak = /КД-777|Ак-Кайың|К-12|ОсОО|\d[\d\s]*(сом|KGS)|\d{5,}/;
+  const item = { obj: 'КД-777', ref: 'КД-777', type: 'loan', title: 'ОсОО «Ак-Кайың»', text: 'платёж 150 000 сом', at: '2026-10-01' };
+  const items = [item, Object.assign({}, item, { obj: 'КД-778', title: 'ОсОО «Ала-Тоо»' })];
+  const clean = ZD.NOTICE_LIST.every(k => {
+    const ev = k.group === 'О заданиях' ? undefined : 1;
+    const one = ZD.outText({ kind: k.id, text: k.text, count: 1, id: 'N1', ev, items: [item] });
+    const many = ZD.outText({ kind: k.id, text: k.text, count: 7, id: 'N2', ev, items });
+    return one === k.text && !leak.test(one) && !leak.test(many);
+  });
+  const signal = ZD.outText({ kind: 'сигнал', text: 'Срок платежа близко: К-12, К-15', count: 2, id: 'N3', items });
+  const digest = ZD.outText({ kind: 'поручено', text: 'Вам поручено задание', count: 16, id: 'N4', items: [] });
+  seedAt('2027-03-01');
+  const words = new Set();
+  ZD.state.notifications.forEach(n => (n.items || []).forEach(i => [i.obj, i.ref, i.title, i.taskId].forEach(v => { if (v && String(v).length > 3) words.add(String(v)); })));
+  const stand = ZD.state.outbox.every(r => ![...words].some(w => r.text.includes(w)) && !leak.test(r.text));
+  const links = ZD.state.outbox.every(r => /^asubk\.kg\/n\/[0-9a-z]+$/.test(r.link));
+  ok(574, clean && !leak.test(signal) && digest === 'Вам поручено 16 заданий' && stand && links && ZD.state.outbox.length > 400, `СУ-30 — все 59 видов и сигнал: наружу только вид; сводка «${digest}»; на стенде ${ZD.state.outbox.length} отправок без единого объекта, названия и суммы, у каждой короткая ссылка`);
+})();
+
+/* СУ-30 — SMS в один сегмент: все виды, сводка на сотни, правка длинного текста отклоняется при SMS */
+(() => {
+  const fits = (t, link) => `${t} ${link}`.length <= ZD.SMS_SEGMENT;
+  const all = ZD.NOTICE_LIST.every(k => fits(ZD.outText({ kind: k.id, text: k.text, count: 1, id: 'N1', ev: 1, items: [{}] }), 'asubk.kg/n/zzzzz') && fits(ZD.outText({ kind: k.id, text: k.text, count: 999, id: 'N2', ev: k.group === 'О заданиях' ? undefined : 1, items: [{ obj: 'А', type: 'loan' }, { obj: 'Б', type: 'loan' }] }), 'asubk.kg/n/zzzzz'));
+  seedAt('2027-03-01');
+  const sms = ZD.deliveryRows().filter(x => x.channel === 'SMS');
+  const stand = sms.length > 200 && sms.every(x => fits(x.text, x.link));
+  const long = 'Х'.repeat(60);
+  const refused = /один сегмент SMS/.test(throws(() => ZD.editNotif('эскалация', { text: long }, W38)));
+  const mailOnly = !throws(() => ZD.editNotif('gd-rejected', { text: long, channels: ['всплывающее', 'e-mail'] }, W38));
+  ok(575, ZD.SMS_SEGMENT === 70 && all && stand && refused && mailOnly, `СУ-30 — один сегмент: все 59 видов одним сообщением и сводкой вместе со ссылкой не длиннее ${ZD.SMS_SEGMENT}; на стенде ${sms.length} SMS; длинный текст при SMS отклоняется, при почте — нет`);
+})();
+
+/* СУ-32 — окно: вне окна ждёт начала, рабочий день по календарю, колокольчик сразу */
+(() => {
+  seedAt('2026-10-14');
+  const w = (d, t) => JSON.stringify(ZD.nextWindow(d, t));
+  const night = w('2026-10-14', '23:10') === JSON.stringify({ d: '2026-10-15', t: '09:00' });
+  const morning = w('2026-10-14', '08:00') === JSON.stringify({ d: '2026-10-14', t: '09:00' });
+  const inside = ZD.nextWindow('2026-10-14', '12:00') === null;
+  const edge = w('2026-10-14', '18:00') === JSON.stringify({ d: '2026-10-15', t: '09:00' });
+  const sat = w('2026-10-17', '12:00') === JSON.stringify({ d: '2026-10-19', t: '09:00' });
+  const fri = w('2026-10-16', '23:40') === JSON.stringify({ d: '2026-10-19', t: '09:00' });
+  const wait = ZD.deliveryRows().filter(x => x.status === 'ждёт окна');
+  const waiting = wait.length > 0 && wait.every(x => x.tries.length === 0 && x.release.t === '09:00' && x.release.d > x.t);
+  const bell = wait.every(x => { const n = ZD.state.notifications.find(m => m.id === x.id); return n && n.to === x.to && n.t === x.t; });
+  ok(576, night && morning && inside && edge && sat && fri && waiting && bell, `СУ-32 — ночью, в 18:00, в выходные SMS и почта ждут ближайшего начала окна рабочего дня; внутри окна — сразу; на дату ${wait.length} ждут окна, их сообщения в колокольчике уже есть`);
+})();
+
+/* СУ-32 — безопасность и упавший прогон уходят сразу в любое время; остальное — нет */
+(() => {
+  seedAt('2027-03-01');
+  const urgent = ZD.deliveryRows().filter(x => ZD.URGENT_KINDS.includes(x.kind));
+  const now = urgent.length >= 5 && urgent.every(x => x.tries.length === 0 || (x.tries[0].d === x.t && x.tries[0].t === x.time));
+  const outside = urgent.some(x => x.time < '09:00');
+  const unit = ZD.firstDelivery({ kind: 'sec-autoblock', t: '2026-10-17', to: 'E2' }, 'e-mail', '03:00') === 'отправляется' && ZD.firstDelivery({ kind: 'sys-night-failed', t: '2026-10-17', to: 'E2' }, 'e-mail', '03:00') === 'отправляется' && ZD.firstDelivery({ kind: 'поручено', t: '2026-10-17', to: 'E2' }, 'e-mail', '03:00') === 'ждёт окна';
+  const normal = ZD.deliveryRows().filter(x => !ZD.URGENT_KINDS.includes(x.kind) && x.tries.length).every(x => x.tries[0].t >= '09:00' && x.tries[0].t < '18:00');
+  ok(577, now && outside && unit && normal, `СУ-32 — ${urgent.length} срочных отправок ушли в момент события, в том числе вне окна; обычные начинаются только внутри окна`);
+})();
+
+/* СУ-32 — накопленное: одно сообщение на человека и способ, вместе ушедшие скрыты; выходные считаются */
+(() => {
+  seedAt('2027-03-01');
+  const rows = ZD.deliveryRows(), bundles = rows.filter(x => x.bundle > 0), sms = bundles.filter(x => x.channel === 'SMS');
+  const shape = sms.length > 0 && sms.every(x => new RegExp(`^${x.bundle} (новых|новое) уведомлени`).test(x.text) && x.link === 'asubk.kg/n/all' && x.bundle >= 2);
+  const hidden = ZD.state.outbox.filter(r => r.into);
+  const linked = hidden.length > 0 && hidden.every(r => { const lead = ZD.state.outbox.find(o => o.no === r.into); return lead && lead.bundle >= 2 && lead.to === r.to && lead.channel === r.channel && lead.notes.includes(r.note); });
+  const sum = bundles.reduce((a, x) => a + x.bundle - 1, 0) === hidden.length;
+  const onePerWindow = new Set(bundles.map(x => [x.to, x.channel, x.release.d, x.release.t].join('|'))).size === bundles.length;
+  const fresh = rows.filter(x => !x.bundle && x.channel === 'SMS').every(x => !/новых уведомлени/.test(x.text));
+  ok(578, shape && linked && sum && onePerWindow && fresh, `СУ-32 — накопленное за ночь и выходные: ${sms.length} SMS «N новых уведомлений» и ссылка на все, вошедшие ${hidden.length} отдельными строками не показаны`);
+})();
+
+/* СУ-32 — окно и календарь с основанием; исключение не трогает общий производственный календарь и сроки */
+(() => {
+  seedAt('2026-10-14');
+  const noBasis = /основание/.test(throws(() => ZD.editNoticeWindow({ open: '08:00', close: '19:00' }, { by: 'E18' })));
+  const badTime = /начало окна раньше/.test(throws(() => ZD.editNoticeWindow({ open: '19:00', close: '08:00' }, W38))) && /ЧЧ:ММ/.test(throws(() => ZD.editNoticeWindow({ open: 'утро', close: '18:00' }, W38)));
+  ZD.editNoticeWindow({ open: '08:00', close: '19:00' }, W38);
+  const moved = ZD.nextWindow('2026-10-14', '18:30') === null && JSON.stringify(ZD.nextWindow('2026-10-14', '07:30')) === JSON.stringify({ d: '2026-10-14', t: '08:00' });
+  const isW = ZD.isWork('2026-10-19');
+  ZD.editNoticeCal({ date: '2026-10-19', work: false }, W38);
+  const cal = !ZD.sendDay('2026-10-19') && ZD.isWork('2026-10-19') === isW && JSON.stringify(ZD.nextWindow('2026-10-16', '23:00')) === JSON.stringify({ d: '2026-10-20', t: '08:00' });
+  ZD.editNoticeCal({ date: '2026-10-24', work: true }, W38);
+  const sat = ZD.sendDay('2026-10-24');
+  ZD.state.viewer = 'E18';
+  const h = plain(ZD.renderNtSettings());
+  ZD.state.viewer = 'E4';
+  ok(579, noBasis && badTime && moved && cal && sat && /исключения/.test(h) && /08:00–19:00/.test(h) && ZD.state.noticeLog.length >= 3 && ZD.state.noticeLog.every(x => x.by && x.basis), 'СУ-32 — окно и исключения правит носитель роли с основанием, запись в истории; общий производственный календарь и сроки заданий не меняются');
+})();
+
+/* СУ-34 — три попытки: сразу, 5 и 30 минут; затем «не доставлено» с причиной; успех прекращает попытки */
+(() => {
+  seedAt('2027-03-01');
+  const mins = t => +t.slice(0, 2) * 60 + +t.slice(3);
+  const rows = ZD.deliveryRows(), bad = rows.filter(x => x.status === 'не доставлено'), good = rows.filter(x => x.status === 'доставлено');
+  const three = bad.length >= 10 && bad.every(x => x.tries.length === 3 && x.why && x.tries.every(t => !t.ok && t.why === x.why) && mins(x.tries[1].t) - mins(x.tries[0].t) === 5 && mins(x.tries[2].t) - mins(x.tries[0].t) === 30);
+  const okLast = good.every(x => x.tries.length >= 1 && x.tries.length <= 3 && x.tries[x.tries.length - 1].ok && x.tries.slice(0, -1).every(t => !t.ok) && x.doneAt && x.doneAt.d === x.tries[x.tries.length - 1].d && x.doneAt.t === x.tries[x.tries.length - 1].t);
+  const second = good.filter(x => x.tries.length === 2).length;
+  ok(580, three && okLast && second > 0, `СУ-34 — ${bad.length} не доставлено: три попытки через 0, 5, 30 минут и причина; из доставленных ${second} — со второй попытки; успех прекращает попытки`);
+})();
+
+/* СУ-34 — нет контакта: сразу, без попыток; причина названа */
+(() => {
+  seedAt('2027-03-01');
+  const none = ZD.deliveryRows().filter(x => x.status === 'нет контакта');
+  const shape = none.length >= 10 && none.every(x => x.tries.length === 0 && (x.channel === 'SMS' ? x.why === 'нет номера' : x.why === 'нет почты') && !ZD.contactOf(x.to, x.channel));
+  const have = ZD.deliveryRows().filter(x => x.status !== 'нет контакта').every(x => !!ZD.contactOf(x.to, x.channel));
+  const unit = ZD.firstDelivery({ kind: 'поручено', t: '2026-10-14', to: 'E22' }, 'e-mail', '12:00') === 'нет контакта' && ZD.firstDelivery({ kind: 'sec-autoblock', t: '2026-10-14', to: 'E31' }, 'SMS', '12:00') === 'нет контакта';
+  ok(581, shape && have && unit, `СУ-34 — ${none.length} отправок «нет контакта» без попыток, причина названа; срочные — так же`);
+})();
+
+/* СУ-34 — запасной способ у безопасности: не дошло SMS — осталось письмо, и наоборот; у прочих видов запасного нет */
+(() => {
+  seedAt('2027-03-01');
+  const rows = ZD.deliveryRows(), safe = rows.filter(x => ZD.SAFE_KINDS.includes(x.kind) && (x.status === 'не доставлено' || x.status === 'нет контакта'));
+  const shape = safe.length >= 2 && safe.every(x => x.fallback && x.fallback.channel !== x.channel && ZD.state.outbox.some(o => o.note === x.id && o.channel === x.fallback.channel && o.status === x.fallback.status));
+  const bothWays = safe.some(x => x.channel === 'SMS' && x.fallback.status === 'доставлено') && safe.some(x => x.channel === 'e-mail' && x.fallback.status === 'доставлено');
+  const others = rows.filter(x => !ZD.SAFE_KINDS.includes(x.kind)).every(x => !x.fallback);
+  const night = rows.filter(x => x.kind === 'sys-night-failed').length > 0;
+  ZD.state.viewer = 'E18'; ZD.state.dlSt = ''; ZD.state.dlPage = 1;
+  ZD.state.dlDate = safe[0].t;
+  const h = ZD.renderNtDelivery();
+  ZD.state.dlDate = ''; ZD.state.viewer = 'E4';
+  ok(582, shape && bothWays && others && night && /data-fallback/.test(h) && /запасной способ/.test(h), `СУ-34 — ${safe.length} недошедших сообщений безопасности: запасной способ показан, работает в обе стороны; у прочих видов запасного нет`);
+})();
+
+/* СУ-34 — сводка «Не доставлено» раз в день: одна на день, носителю роли, своя серия номеров, «нет контакта» не считается */
+(() => {
+  seedAt('2027-03-01');
+  const nd = ZD.state.notifications.filter(n => n.kind === 'not-delivered');
+  const failedOn = d => ZD.state.outbox.filter(r => !r.into && r.status === 'не доставлено' && r.tries[2].d === d).length; // накопленное — одна отправка, как строка журнала
+  const days = new Set(nd.map(n => n.t));
+  const once = nd.length === days.size && nd.length >= 10;
+  const counts = nd.every(n => n.count === failedOn(n.t) && n.to === ZD.noticeAdminOn(n.t) && n.time === '18:00' && n.source === 'Уведомления' && !n.ev && /^N97\d{4}$/.test(n.id));
+  const allDays = [...new Set(ZD.state.outbox.filter(r => !r.into && r.status === 'не доставлено').map(r => r.tries[2].d))].every(d => days.has(d));
+  const noContactOnly = [...new Set(ZD.state.outbox.filter(r => r.status === 'нет контакта').map(r => r.madeD))].filter(d => !failedOn(d)).every(d => !days.has(d));
+  const series = nd.map(n => +n.id.slice(1)).sort((a, b) => a - b).every((v, i) => v === 970000 + i);
+  const text = ZD.notifText(nd[0]);
+  ZD.state.viewer = 'E18';
+  const go = ZD.openNotifItem(nd[0], 0);
+  const opened = go === true && ZD.state.view === 'ntLog' && ZD.state.dlSt === 'не доставлено' && ZD.state.dlDate === nd[0].t;
+  ZD.state.view = 'queue'; ZD.state.dlSt = ''; ZD.state.dlDate = '';
+  ZD.state.viewer = 'E1';
+  const denied = ZD.openNotifItem(nd[0], 0) === false && ZD.state.view === 'queue';
+  ZD.state.viewer = 'E4';
+  ok(583, once && counts && allDays && noContactOnly && series && /^Не доставлено: \d+ /.test(text) && opened && denied, `СУ-34 — ${nd.length} сводок: по одной на день с недошедшими, носителю роли, в 18:00, числа совпадают с журналом; «нет контакта» не считается; открывает журнал на этом дне, не носителю — нет`);
+})();
+
+/* §4.7 — без договора с оператором SMS не отправляются и это видно на экранах; договор с датой */
+(() => {
+  seedAt('2026-10-02');
+  ZD.state.viewer = 'E18';
+  const set = ZD.renderNtSettings(), log = ZD.renderNtDelivery();
+  const shown = /Договора с оператором SMS нет/.test(plain(set)) && /Договора с оператором SMS нет/.test(plain(log)) && /работает почта/.test(plain(set));
+  const noSms = ZD.state.outbox.every(r => r.channel !== 'SMS') && ZD.state.notifications.every(n => n.delivery.every(d => d.channel !== 'SMS'));
+  const gate = /основание/.test(throws(() => ZD.editSmsGate({ on: true, note: 'х' }, { by: 'E18' }))) && /администратор уведомлений/.test(throws(() => ZD.editSmsGate({ on: true, note: 'х' }, { by: 'E4', basis: 'п' })));
+  seedAt('2026-10-09');
+  ZD.state.viewer = 'E18';
+  const set2 = plain(ZD.renderNtSettings());
+  const after = /Оператор SMS подключён/.test(set2) && !/Договора с оператором/.test(plain(ZD.renderNtDelivery())) && ZD.deliveryRows().some(x => x.channel === 'SMS') && ZD.smsOn('2026-10-04') === false && ZD.smsOn('2026-10-05') === true;
+  ZD.state.viewer = 'E4';
+  ok(584, shown && noSms && gate && after, '§4.7 — без договора SMS-строк нет, работает почта, состояние написано и в настройке, и в журнале; договор с датой, правит носитель роли с основанием');
+})();
+
+/* СУ-31 — способы изначально: всплывающее у всех; SMS и почта у двух видов безопасности; прогон — всплывающее и почта */
+(() => {
+  seedAt('2026-09-01');
+  const safe = ZD.SAFE_KINDS, of = k => ZD.state.notifSettings[k].channels.join();
+  const sec = safe.every(k => of(k) === 'всплывающее,SMS,e-mail'), night = of('sys-night-failed') === 'всплывающее,e-mail';
+  const rest = ZD.NOTICE_LIST.filter(k => !safe.includes(k.id) && k.id !== 'sys-night-failed').every(k => of(k.id) === 'всплывающее');
+  const on = ZD.NOTICE_LIST.every(k => ZD.state.notifSettings[k.id].on === true && ZD.state.notifSettings[k.id].history.length === 0);
+  ok(585, sec && night && rest && on && ZD.NOTICE_LIST.length === 59, 'СУ-31 — изначально всплывающее у всех 59; SMS и почта у двух видов безопасности; ночной прогон — всплывающее и почта; все включены, история пуста');
+})();
+
+/* СУ-23 — личной настройки нет: настройка по видам, не по людям; на колокольчике и странице нет отписки */
+(() => {
+  seedAt('2026-10-14');
+  const words = /настро[ий]\S* уведомлен|подписаться|отписаться|не беспокоить|выключить уведомления|мои настройки/i; // слово «подписка» в тексте сообщения об отчёте — содержание, а не настройка
+  const pages = ['E1', 'E4', 'E18', 'E2'].every(v => { ZD.state.viewer = v; ZD.state.view = 'notifs'; const h = plain(ZD.renderNotifPage()) + ' ' + plain(ZD.renderBell()); return !words.test(h); });
+  const keys = Object.keys(ZD.state.notifSettings).sort().join() === ZD.NOTICE_LIST.map(k => k.id).sort().join();
+  const noPerson = Object.values(ZD.state.notifSettings).every(c => !('byEmp' in c) && !('personal' in c) && !('muted' in c));
+  ZD.state.viewer = 'E4'; ZD.state.view = 'queue';
+  ok(586, pages && keys && noPerson, 'СУ-23 — личной настройки нет: настройка ведётся по видам, на колокольчике и странице «Все уведомления» отписки нет');
+})();
+
+/* номера стенда: новые сообщения только своей серией, общий счётчик цел */
+(() => {
+  seedAt('2026-11-02');
+  const seq = ZD.state.seq, tasks = ZD.state.tasks.length;
+  const n = ZD.state.notifications.filter(x => x.kind === 'not-delivered');
+  const ser = n.length === 3 && n.every(x => /^N97/.test(x.id)) && ZD.state.notifications.filter(x => x.kind !== 'not-delivered').every(x => !/^N97/.test(x.id));
+  const before = ZD.state.seq;
+  ZD.deliveryDay(ZD.state.today);
+  ok(587, seq === 936 && tasks === 258 && ser && ZD.state.seq === before, `Номера стенда: 02.11 счётчик ${seq}, заданий ${tasks}; сообщения «Не доставлено» только своей серией; доставка счётчик не двигает`);
+})();
+
+/* журнал доставки: отбор по состоянию, способу, дате и поиску; листы по 50; строка раскрывается попытками */
+(() => {
+  seedAt('2027-03-01');
+  ZD.state.viewer = 'E18';
+  const all = ZD.deliveryRows();
+  const chips = ZD.DLV_STATES.every(s => ZD.renderNtDelivery().includes(`${s}: ${all.filter(x => x.status === s).length}`));
+  ZD.setDlFilter('dlSt', 'не доставлено');
+  const bySt = ZD.deliveryFiltered().length === all.filter(x => x.status === 'не доставлено').length && ZD.deliveryFiltered().every(x => x.status === 'не доставлено');
+  ZD.setDlFilter('dlSt', ''); ZD.setDlFilter('dlCh', 'SMS');
+  const byCh = ZD.deliveryFiltered().every(x => x.channel === 'SMS') && ZD.deliveryFiltered().length > 0;
+  ZD.setDlFilter('dlCh', ''); ZD.setDlFilter('dlQ', ZD.EMP.find(e => e.id === 'E2').name.split(' ')[0]);
+  const byQ = ZD.deliveryFiltered().length > 0 && ZD.deliveryFiltered().every(x => x.to === 'E2');
+  ZD.setDlFilter('dlQ', '');
+  const first = ZD.renderNtDelivery(), one = rowsIn(first, 'data-out').length;
+  ZD.setDlPage(2);
+  const second = rowsIn(ZD.renderNtDelivery(), 'data-out')[0], page = second !== rowsIn(first, 'data-out')[0];
+  ZD.setDlPage(1);
+  const bad = all.find(x => x.status === 'не доставлено');
+  ZD.setDlFilter('dlSt', 'не доставлено');
+  ZD.toggleOut(bad.no);
+  const open = ZD.renderNtDelivery();
+  const detail = /data-out-detail/.test(open) && (plain(open).match(/Попытка \d/g) || []).length === 3 && /не принято/.test(open) && open.includes('Адрес');
+  ZD.toggleOut(bad.no);
+  ZD.state.dlSt = ''; ZD.state.viewer = 'E4';
+  ok(588, chips && bySt && byCh && byQ && one === 50 && page && detail, `Журнал доставки: всего ${all.length}, плашки совпадают со строками; отбор по состоянию, способу, поиску; листы по 50; раскрытая строка показывает три попытки и адрес`);
+})();
+
+/* на контрольных датах виден журнал: 14.10 все исходы; на экранах нет сырых значений */
+(() => {
+  seedAt('2026-10-14');
+  const rows = ZD.deliveryRows(), of = s => rows.filter(x => x.status === s).length;
+  const all = of('доставлено') > 0 && of('не доставлено') > 0 && of('нет контакта') > 0 && of('ждёт окна') > 0 && rows.some(x => x.channel === 'SMS' && x.bundle > 0) && rows.some(x => x.fallback) && ZD.state.notifications.some(n => n.kind === 'not-delivered');
+  const raw = /undefined|\bnull\b|NaN|\[object|\bN97\d+|\bO\d{2,}\b|ntSet|ntLog|sec-autoblock|acc-changed|sys-night|post-admin|not-delivered|СУ-\d|ЭЗ-\d|ADR-/;
+  let bad = '';
+  for (const d of [...CTL_DATES, '2026-10-14', '2026-10-09']) {
+    seedAt(d);
+    ZD.state.viewer = 'E18';
+    const a = plain(ZD.renderNtSettings()), b = plain(ZD.renderNtDelivery());
+    const m = raw.exec(a) || raw.exec(b);
+    if (m) bad = `${d}: ${m[0]}`;
+  }
+  ZD.state.viewer = 'E4';
+  ok(589, all && !bad, `14.10 на журнале доставлено ${of('доставлено')}, не доставлено ${of('не доставлено')}, нет контакта ${of('нет контакта')}, ждёт окна ${of('ждёт окна')}; накопленное, запасной способ и сводка есть; сырых значений нет${bad ? ' — ' + bad : ''}`);
+})();
+
+/* журнал ничего не добавляет к тому, что видит получатель; живое действие видно в журнале сразу; настройка действует на новые */
+(() => {
+  seedAt('2026-10-14');
+  ZD.state.viewer = 'E18';
+  ZD.editNotif('поручено', { channels: ['всплывающее', 'e-mail'] }, W38);
+  const before = ZD.deliveryRows().length, was = ZD.state.notifications.length;
+  ZD.createFreeTask({ label: 'Живая проверка', assignee: 'E3', author: 'E2', dueDate: '2026-10-30' });
+  ZD.render();
+  const after = ZD.deliveryRows(), row = after.filter(x => x.kind === 'поручено');
+  const shown = after.length === before + 1 && row.length === 1 && row[0].to === 'E3' && ['доставлено', 'не доставлено', 'ждёт окна'].includes(row[0].status);
+  const sameNotes = ZD.state.notifications.length === was + 1 && !row[0].text.includes('Живая проверка');
+  const again = ZD.deliveryRows().length;
+  ZD.render();
+  ZD.state.viewer = 'E4';
+  ok(590, shown && sameNotes && ZD.deliveryRows().length === again, 'Живое действие видно в журнале сразу; повторная отрисовка отправку не удваивает; название задания наружу не уходит');
+})();
+
+/* правки по ревью: сводка наружу в один сегмент и при правленном тексте; проверка сегмента не мешает правке получателей */
+(() => {
+  seedAt('2026-10-14');
+  const long = 'Я'.repeat(50), zz = 'asubk.kg/n/zzzzz', K = 'gd-rejected';
+  ZD.editNotif(K, { text: long, channels: ['всплывающее', 'SMS'] }, W38);
+  const items = Array.from({ length: 12 }, (_, i) => ({ obj: 'К-' + i, type: 'loan' }));
+  const many = ZD.outText({ kind: K, text: long, count: 12, id: 'N5', ev: 1, items }), one = ZD.outText({ kind: K, text: long, count: 1, id: 'N6', ev: 1, items: [items[0]] });
+  const legacy = 'Я'.repeat(80);
+  ZD.state.notifSettings[K].text = legacy;
+  const recipOk = !throws(() => ZD.editNotif(K, { recipients: [{ by: 'объект', role: 'автор' }, { by: 'должность', post: 'post-admin' }] }, W38));
+  const chanNo = /один сегмент SMS/.test(throws(() => ZD.editNotif(K, { channels: ['SMS'] }, W38)));
+  ok(591, `${many} ${zz}`.length <= 70 && /новых уведомлени/.test(many) && one === long && `${one} ${zz}`.length <= 70 && recipOk && chanNo, `СУ-30 — правленный текст в сводке не вылезает из сегмента: «${many}»; правка получателей длину не проверяет, правка способа — проверяет`);
+})();
+
+/* правки по ревью: вошедшие в накопленное получают исход общего сообщения, «ждёт окна» за ними не остаётся */
+(() => {
+  seedAt('2027-03-01');
+  const into = ZD.state.outbox.filter(r => r.into), lead = r => ZD.state.outbox.find(o => o.no === r.into);
+  ok(592, into.length > 0 && into.every(r => r.status === lead(r).status && r.why === lead(r).why) && ZD.state.outbox.filter(r => r.status === 'ждёт окна').length === 0, `СУ-32 — ${into.length} вошедших в накопленное несут исход общего сообщения, зависших «ждёт окна» нет`);
+})();
+
+/* правки по ревью: окно, исключение календаря и договор — действия на стенде: смена даты предупреждает о сбросе */
+(() => {
+  const touched = fn => { seedAt('2026-10-14'); fn(); return !!ZD.goToDate('2026-10-15'); };
+  const win = touched(() => ZD.editNoticeWindow({ open: '08:00', close: '18:00' }, W38));
+  const cal = touched(() => ZD.editNoticeCal({ date: '2026-10-19', work: false }, W38));
+  const sms = touched(() => ZD.editSmsGate({ on: false, note: '' }, W38));
+  seedAt('2026-10-14');
+  const none = !ZD.goToDate('2026-10-15');
+  ok(593, win && cal && sms && none, 'Правка окна, календаря или договора считается действием на стенде: смена даты её сбрасывает и говорит об этом; без правок молчит');
+})();
+
+/* правки по ревью: значения окна, календаря и договора проверяются */
+(() => {
+  seedAt('2026-10-14');
+  const time = /ЧЧ:ММ/.test(throws(() => ZD.editNoticeWindow({ open: '99:99', close: '18:00' }, W38)));
+  const date = /нужна дата/.test(throws(() => ZD.editNoticeCal({ date: '2026-13-45', work: false }, W38)));
+  const same = /не изменились/.test(throws(() => ZD.editNoticeCal({ date: '2026-10-19', work: true }, W38)));
+  const contract = /нужен договор/.test(throws(() => { ZD.editSmsGate({ on: false, note: '' }, W38); ZD.editSmsGate({ on: true, note: ' ' }, W38); }));
+  ok(594, time && date && same && contract, 'Окно: время ЧЧ:ММ в пределах суток; исключение: настоящая дата и не совпадает с календарём; договор нельзя включить без реквизита');
+})();
+
+
 
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
