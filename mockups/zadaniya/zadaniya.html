@@ -305,7 +305,14 @@ details.fold[open] > summary{ border-bottom:1px solid var(--asubk-grid-line); }
 .npop-more{ padding:4px 12px; background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-pill); box-shadow:0 6px 20px rgba(24,39,57,0.18); }
 .nf-date{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
 .pager{ justify-content:flex-end; margin:10px 0 0; }
-table.cgrid tbody tr.unread td{ background:var(--asubk-blue-tint); }
+table.nf-grid{ table-layout:fixed; }
+table.nf-grid tbody tr.nf-row{ cursor:pointer; }
+table.nf-grid tbody tr.nf-row:hover td{ background:var(--surface-hover); }
+table.nf-grid .dot{ display:inline-block; width:8px; height:8px; margin-right:8px; border-radius:50%; background:transparent; vertical-align:1px; }
+table.nf-grid tr.unread .dot{ background:var(--asubk-blue); }
+table.nf-grid tr.unread td{ font-weight:var(--weight-medium); color:var(--text-heading); }
+table.nf-grid .nf-why{ padding-left:16px; font-weight:normal; }
+table.nf-grid .nf-more{ white-space:nowrap; font-weight:normal; }
 .nt-cards{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:6px; }
 .nt-cards .banner{ margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
 .nt-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
@@ -4681,6 +4688,27 @@ function messageOf(x){
   return Object.assign({source:'Задания', read:false, readAt:null, readHow:null, time, delivery}, x);
 }
 function markRead(n, how){ if(n.read) return; n.read = true; n.readAt = state.today; n.readHow = how; }
+/* новое сообщение по заданию тому же человеку гасит прежние непрочитанные по нему: причина «пришло новее», записи не меняются.
+   Сводка гаснет, когда новее пришло по всем её заданиям. Что уже перекрыто у сводки — по ссылке на саму запись, в запись не пишется */
+const newerSeen = new WeakMap(), notesByTo = new WeakMap();
+function msgsTo(to){ // сообщения человека: список общий и только растёт — разбор по получателю дописывается с прошлого места
+  const arr = state.notifications;
+  let c = notesByTo.get(arr);
+  if(!c){ c = {len:0, map:new Map()}; notesByTo.set(arr, c); }
+  for(; c.len<arr.length; c.len++){ const m = arr[c.len]; if(!c.map.has(m.to)) c.map.set(m.to, []); c.map.get(m.to).push(m); }
+  return c.map.get(to) || [];
+}
+function readOnNewer(n, taskId){
+  if(!taskId || n.kind==='сигнал' || n.ev) return;
+  let batch = null; // пришедшие одним прогоном или одним действием — одновременно, друг друга не гасят
+  msgsTo(n.to).forEach(m=>{
+    if(m===n || m.read || m.kind==='сигнал' || m.ev || !m.items.some(i=>i.taskId===taskId)) return;
+    if(state.digest){ batch = batch || new Set(Object.values(state.digest)); if(batch.has(m)) return; }
+    const got = newerSeen.get(m) || new Set();
+    got.add(taskId); newerSeen.set(m, got);
+    if(m.items.every(i=>got.has(i.taskId))) markRead(m, m.kind!=='закрыто' && m.items.every(i=>isTerminal(taskOf(i.taskId))) ? 'задание закрыто' : 'пришло новее'); // всё в нём закрыто — причина та же, что у закрытия
+  });
+}
 /* сообщение о задании читается само, когда закрыто всё, о чём оно: у сводки — весь перечень. Само «закрыто» читают только кликом, у сигнала заданий нет */
 function readOnClose(t){
   state.notifications.forEach(n=>{
@@ -4753,6 +4781,7 @@ function pushNotif(kind, taskId, to, due, originKind, opts){
     if(n.own && !own){ n.id = held===null ? 'N'+(NOTE_EXTRA+state.noteExtra++) : 'N'+held; delete n.own; } // прежнее задание вошло в сводку: сообщение получает номер, который заняло бы само
     n.count++; if(taskId) n.items.push(item);
     if(n.readHow==='задание закрыто' && taskId && !isTerminal(taskOf(taskId))){ n.read = false; n.readAt = null; n.readHow = null; } // в перечень пришло открытое
+    readOnNewer(n, taskId);
     return n;
   }
   const cfg = state.notifSettings[kind]; // текст и способ — из настройки на момент отправки
@@ -4760,6 +4789,7 @@ function pushNotif(kind, taskId, to, due, originKind, opts){
   if(own) n.own = true;
   state.notifications.push(n);
   if(key) dg[key] = n;
+  readOnNewer(n, taskId);
   popFlush();
   return n;
 }
@@ -8613,29 +8643,45 @@ const BELL_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
 let bellOpen = false;
 const notifsOf = v=>state.notifications.filter(n=>n.to===v).reverse().sort((a, b)=>cmpVal(b.t, a.t)); // новые сверху, за один день — последнее первым
 const unreadOf = v=>state.notifications.filter(n=>n.to===v && !n.read).length;
+/* строка сообщения. О задании — «<текст вида>: <что сделать> · <дело> · срок <дата>»: текст вида из настройки, дело и срок добавляет система.
+   Сводка — первое и «ещё N»: у заданий первое с ближайшим сроком, у сигнала и события — с ближайшей к сегодня датой; остальное — в перечне */
+const caseWords = c=>c ? c.text+(c.more ? ` и ещё ${c.more}` : '') : '';
+const moreWords = n=>n>0 ? ` и ещё ${n}` : '';
+const itemDue = x=>x.due || (taskOf(x.taskId) ? dueOf(taskOf(x.taskId)) : null);
+const dayGap = d=>d ? Math.abs((Date.parse(d)-Date.parse(state.today))/864e5) : Infinity;
+/* порядок перечня: тот же, что выбирает первое в строке */
+function notifOrder(n){
+  const idx = n.items.map((x, i)=>i);
+  if(n.kind==='not-delivered') return idx;
+  if(n.ev) return idx.sort((a, b)=>dayGap(n.items[a].at)-dayGap(n.items[b].at) || a-b);
+  if(n.kind==='сигнал') return idx.sort((a, b)=>dayGap(signalDate(n.items[a]))-dayGap(signalDate(n.items[b])) || a-b);
+  const has = i=>!!taskOf(n.items[i].taskId);
+  return idx.sort((a, b)=>(has(b)-has(a)) || cmpVal(itemDue(n.items[a])||"9999", itemDue(n.items[b])||"9999") || taskNo(n.items[a].taskId)-taskNo(n.items[b].taskId) || a-b);
+}
+function taskLine(t, due){
+  const c = caseWords(caseOf(t));
+  return `${whatToDo(t)}${c ? ' · '+c : ''}${due ? ` · срок ${fmt(due)}` : ''}`;
+}
 function notifText(n){
   if(n.kind==='not-delivered') return `${n.text}: ${n.items[0].text}`;
-  if(n.ev){ // событие модуля: один объект — что случилось, сводка — сколько
-    if(n.count===1) return `${n.text}: ${n.items[0].text}`;
-    const objs = [...new Set(n.items.map(i=>i.obj))], types = [...new Set(n.items.map(i=>i.type))], x = n.items[0];
-    if(objs.length===1) return `${n.text}: ${x.obj}${x.title ? ' · '+x.title : ''}, случаев ${n.count}`;
-    const w = types.length===1 && NOTICE_OBJ[types[0]] || NOTICE_OBJ.any;
-    return `${n.text}: ${objs.length} ${plural(objs.length, w.many)}`;
-  }
-  if(n.kind==='сигнал') return `${n.text} — ${n.items.map(x=>x.text).join('; ')}`;
-  const t = n.items[0] && taskOf(n.items[0].taskId);
+  const ord = notifOrder(n), more = moreWords(ord.length-1);
+  if(n.ev) return `${n.text}: ${n.items[ord[0]].text}${more}`;
+  if(n.kind==='сигнал') return `${n.text}: ${n.items[ord[0]].text}${more}`;
+  if(!ord.length) return n.text;
+  const x = n.items[ord[0]], t = taskOf(x.taskId);
   if(!t) return n.text;
-  const what = n.count>1 ? `${n.count} ${zadan(n.count)}` : whatToDo(t); // в сводке задания разных видов: что сделать — в перечне
   if(n.kind==='переадресовано'){ // бывшему исполнителю: кому передано, ссылки нет — задание ему больше не видно
-    const to = [...new Set(n.items.map(x=>empName(x.newAssignee)).filter(Boolean))].join(', ');
-    return `${n.text}: ${what}${to ? ` · новый исполнитель: ${to}` : ' · ждёт в очереди'}`;
+    const to = [...new Set(n.items.map(y=>empName(y.newAssignee)).filter(Boolean))].join(', ');
+    return `${n.text}: ${taskLine(t, null)}${more}${to ? ` · новый исполнитель: ${to}` : ' · ждёт в очереди'}`;
   }
-  return `${n.text}: ${what}${n.count===1 && n.due ? ` · срок ${fmt(n.due)}` : ''}`;
+  return `${n.text}: ${taskLine(t, n.kind==='закрыто' ? null : n.count===1 ? n.due : itemDue(x))}${more}`; // у закрытого срок уже ничего не значит
 }
 function bellToggle(open){ bellOpen = open===undefined ? !bellOpen : open; render(); }
 const hasNotifLink = n=>n.kind!=='переадресовано';
 const noteById = id=>state.notifications.find(x=>x.id===id);
-const READ_HOW = {'клик':'кликом', 'все':'«Прочитать все»', 'задание закрыто':'задание закрыто'};
+/* под датой подписывается только причина, которой человек не делал сам */
+const AUTO_READ = ['задание закрыто', 'пришло новее'];
+const autoRead = x=>x.read && AUTO_READ.indexOf(x.readHow)!==-1 ? x.readHow : '';
 /* вкладка очереди, где задание у зрителя; закрытое — ещё и отбор, в котором оно есть */
 const TAB_OF_BUCKET = {mine:'work', role:'work', wait:'work', decide:'decide', sub:'sub', unassigned:'sub', gave:'gave', closed:'closed', 'closed-more':'closed'};
 function tabForTask(t, v){
@@ -8682,31 +8728,38 @@ function noticeDemo(x){
   return R[x.src] ? R[x.src]() : '';
 }
 /* сигнал называет объект своего повода: карточка, вкладка и демо — как у события модуля */
-const SIGNAL_CARD = {'pk-cr-payment-due':{type:'cr', src:'cr', tab:'График', title:p=>p.traits.заёмщик}};
+const SIGNAL_CARD = {'pk-cr-payment-due':{type:'cr', src:'cr', tab:'График', title:p=>p.traits.заёмщик, date:p=>p.traits.дата_платежа}};
+/* дата сигнала для «первого» в сводке: дата из признаков повода, иначе дата состояния повода */
+function signalDate(x){ const p = povodByKey(x.key); if(!p) return null; const c = SIGNAL_CARD[p.kind]; return (c && c.date && c.date(p)) || p.stateDate || null; }
 function signalItem(n, item){
   const p = povodByKey(item.key), c = SIGNAL_CARD[n.originKind] || {type:'any', src:null, tab:'—', title:()=>null};
   const id = p ? p.ownerId || p.objectId : null;
   return {obj:id || '—', type:c.type, src:c.src, ref:id, tab:c.tab, title:p ? c.title(p) : null, text:item.text, at:n.t, by:null};
 }
+/* панель события модуля на стенде: заголовок — карточка объекта, первой строкой — куда откроется в системе; подробности — только то, чего нет в объекте */
+function noticeDetail(x){
+  const head = `${x.obj}${x.title ? ' · '+x.title : ''}`;
+  let d = String(x.text||'');
+  if(d.indexOf(head)===0) d = d.slice(head.length).replace(/^[:·\s]+/, '');
+  else if(x.obj && x.obj!=='—') d = d.split(' · ').filter(p=>p.indexOf(x.obj)===-1 && p!==x.title).join(' · '); // сигнал называет объект словами: «кредит КД-… · заёмщик · платёж …»
+  return d && d!==x.obj && d!==x.title ? d : '';
+}
 function renderNoticeCard(){
   const n = noteById(noticeCard.id), raw = n && n.items[noticeCard.i];
   if(!raw) return '';
   const x = n.kind==='сигнал' ? signalItem(n, raw) : raw;
-  const k = n.kind==='сигнал' ? {module:ownerOfKind(n.originKind)} : noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any;
+  const k = n.kind==='сигнал' ? {module:ownerOfKind(n.originKind)} : noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any, more = noticeDetail(x);
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
     <div class="drawer" data-notice="${n.id}">
-      <div class="drawer-h">${digestBack()}<h3>Карточка ${esc(w.of)} ${esc(x.obj)}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+      <div class="drawer-h">${digestBack()}<h3>Карточка ${esc(w.of)} ${esc(x.obj)}${x.title ? ' · '+esc(x.title) : ''}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
       <div class="drawer-b">
+        <div class="small" style="margin-bottom:12px" data-notice-where>В системе — карточка в модуле «${esc(k.module)}», вкладка «<span data-notice-tab>${esc(x.tab)}</span>»</div>
         <div class="kv">
-          ${x.title ? `<div class="k">Объект</div><div class="v">${esc(x.title)}</div>` : ''}
-          <div class="k">Модуль</div><div class="v">${esc(k.module)}</div>
-          <div class="k">Вкладка</div><div class="v" data-notice-tab>${esc(x.tab)}</div>
           <div class="k">Что случилось</div><div class="v">${esc(n.text)}</div>
-          <div class="k">Подробности</div><div class="v">${esc(x.text)}</div>
-          <div class="k">Дата</div><div class="v">${fmt(x.at)}</div>
-          <div class="k">Кто сделал</div><div class="v">${x.by ? esc(empName(x.by)) : 'система'}</div>
+          <div class="k">Когда</div><div class="v">${fmt(x.at)}</div>
+          <div class="k">Кто</div><div class="v">${x.by ? esc(empName(x.by)) : 'система'}</div>
+          ${more ? `<div class="k">Подробности</div><div class="v">${esc(more)}</div>` : ''}
         </div>
-        <div class="small" style="margin-top:12px">В системе откроется карточка ${esc(w.of)} ${esc(x.obj)} в модуле «${esc(k.module)}», вкладка «${esc(x.tab)}».</div>
         ${noticeDemo(x)}
       </div>
     </div>`;
@@ -8735,17 +8788,18 @@ function renderDigestPanel(id){
   const n = noteById(id);
   if(!n) return '';
   const sig = n.kind==='сигнал' || !!n.ev;
-  const rows = n.items.map((x, i)=>{
-    const open = l=>`<button class="linky" onclick="ZD.notifItem('${n.id}', ${i})">${esc(l)}</button>`;
+  const rows = notifOrder(n).map(i=>{
+    const x = n.items[i], open = l=>`<button class="linky" onclick="ZD.notifItem('${n.id}', ${i})">${esc(l)}</button>`;
     if(n.ev) return `<tr data-i="${i}"><td>${open(x.obj)}</td><td>${esc(x.text)}</td></tr>`;
     if(sig) return `<tr data-i="${i}"><td>${open((povodByKey(x.key)||{}).objectId||'открыть')}</td><td>${esc(x.text)}</td></tr>`;
     const t = taskOf(x.taskId);
-    return `<tr data-i="${i}"><td>${open(x.taskId)}</td><td>${esc(whatToDo(t))}</td><td>${fmt(dueOf(t))}</td><td>${esc(displayState(t))}</td></tr>`;
+    if(!t) return `<tr data-i="${i}"><td colspan="4" class="muted">${esc(x.taskId||'')} — задания нет</td></tr>`;
+    return `<tr data-i="${i}"><td>${open(whatToDo(t))}</td><td>${caseHtml(t)}</td><td>${fmt(dueOf(t))}</td><td>${esc(displayState(t))}</td></tr>`;
   }).join('');
-  const head = sig ? '<th>Объект</th><th>Что случилось</th>' : '<th>Задание</th><th>Что сделать</th><th>Срок</th><th>Состояние</th>';
+  const head = sig ? '<th>Объект</th><th>Что случилось</th>' : '<th>Что сделать</th><th>Дело</th><th>Срок</th><th>Состояние</th>';
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
     <div class="drawer" data-digest="${n.id}">
-      <div class="drawer-h"><h3>${esc(n.kind==='сигнал' ? `${n.text}: ${n.count}` : notifText(n))}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+      <div class="drawer-h"><h3>${esc(notifText(n))}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
       <div class="drawer-b"><table class="cgrid"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
@@ -8758,17 +8812,12 @@ function renderBell(){
   return `${btn}<div class="bell-mask" onclick="ZD.bellToggle(false)"></div>
     <div class="bell-panel" data-bell>
       <div class="bell-h"><b>Уведомления</b>${n ? `<span class="small">непрочитанных ${n}</span><button class="linky" onclick="ZD.notifReadAll()">Прочитать все</button>` : ''}</div>
-      <div class="bell-list">${last.map(x=>`<button class="bell-row${x.read ? '' : ' new'}" data-n="${x.id}" onclick="ZD.notifGo('${x.id}')"><span class="dot"></span><span class="txt">${esc(notifText(x))}</span><span class="small bell-when">${fmt(x.t)}${x.readHow==='задание закрыто' ? '<br>задание закрыто' : ''}</span></button>`).join('') || '<div class="small" style="padding:12px 14px">Уведомлений нет</div>'}</div>
+      <div class="bell-list">${last.map(x=>`<button class="bell-row${x.read ? '' : ' new'}" data-n="${x.id}" onclick="ZD.notifGo('${x.id}')"><span class="dot"></span><span class="txt">${esc(notifText(x))}</span><span class="small bell-when">${fmt(x.t)}${autoRead(x) ? '<br>'+esc(autoRead(x)) : ''}</span></button>`).join('') || '<div class="small" style="padding:12px 14px">Уведомлений нет</div>'}</div>
       <div class="bell-f"><button class="linky" onclick="ZD.openAllNotif()">Все уведомления</button></div>
     </div>`;
 }
-function notifLinks(n){
-  if(!hasNotifLink(n)) return '';
-  const pre = n.kind==='сигнал' ? '<span class="small">без задания</span> ' : '';
-  if(n.items.length>1) return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}')">Перечень (${n.items.length})</button>`;
-  const x = n.items[0], label = n.ev || n.kind==='not-delivered' ? x.obj : n.kind==='сигнал' ? (povodByKey(x.key)||{}).objectId||'открыть' : x.taskId;
-  return `${pre}<button class="linky" onclick="ZD.notifGo('${n.id}', 0)">${esc(label)}</button>`;
-}
+/* у сводки на странице — пометка «перечень (N)»: открывается вся строка */
+const digestMark = n=>hasNotifLink(n) && n.items.length>1 ? ` <span class="small nf-more">перечень (${n.items.length})</span>` : '';
 /* страница «Все уведомления»: отбор сверху, новые первыми, по 50 на листе; сообщения не удаляются */
 const NOTIF_PAGE = 50;
 function setNotifFilter(f, v, inputId){ state.nfPage = 1; setFilter(f, v, inputId); }
@@ -8782,7 +8831,6 @@ function renderNotifPage(){
   const v = state.viewer, n = unreadOf(v), all = notifsOf(v), list = notifsFiltered(v);
   const pages = Math.max(1, Math.ceil(list.length/NOTIF_PAGE)), page = Math.min(state.nfPage||1, pages), from = (page-1)*NOTIF_PAGE, rows = list.slice(from, from+NOTIF_PAGE);
   const srcs = [...new Set(all.map(x=>x.source).concat(state.nfSrc ? [state.nfSrc] : []))], date =(f, l)=>`<label>${l} <input class="nf-date" type="date" value="${esc(state[f])}" onchange="ZD.setNotifFilter('${f}', this.value)"></label>`;
-  const status = x=>x.read ? `<span class="pill neutral">прочитано</span>${x.readHow ? `<div class="small">${esc(READ_HOW[x.readHow])}</div>` : ''}` : '<span class="pill info">не прочитано</span>';
   const sifted = state.nfOnly || state.nfSrc || state.nfFrom || state.nfTo || String(state.nfQ||'').trim();
   return `<div class="q-tools">
       <label><input type="checkbox"${state.nfOnly ? ' checked' : ''} onchange="ZD.setNotifFilter('nfOnly', this.checked)"> только непрочитанные</label>
@@ -8790,8 +8838,8 @@ function renderNotifPage(){
       ${date('nfFrom', 'С')}${date('nfTo', 'по')}
       <input type="search" id="nfQ" placeholder="Поиск по тексту и номеру" value="${esc(state.nfQ)}" oninput="ZD.setNotifFilter('nfQ', this.value, 'nfQ')">
       <span class="small push">Всего ${list.length}, непрочитанных ${list.filter(x=>!x.read).length}</span>${n ?'<button class="btn btn-secondary btn-sm" onclick="ZD.notifReadAll()">Прочитать все</button>' : ''}</div>
-    <table class="cgrid"><thead><tr><th>Статус</th><th>Дата</th><th>Откуда</th><th>Сообщение</th><th>Ссылка</th></tr></thead>
-    <tbody>${rows.map(x=>`<tr class="${x.read ? '' : 'unread'}" data-n="${x.id}"><td>${status(x)}</td><td>${fmt(x.t)}</td><td>${esc(x.source)}</td><td>${esc(notifText(x))}</td><td>${notifLinks(x)}</td></tr>`).join('') || `<tr><td colspan="5" class="muted">${sifted ? 'По этому отбору сообщений нет' : 'Уведомлений нет'}</td></tr>`}</tbody></table>
+    <table class="cgrid nf-grid">${qCols([150, 190, 0])}<thead><tr><th>Дата</th><th>Откуда</th><th>Сообщение</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr class="nf-row${x.read ? '' : ' unread'}" data-n="${x.id}" onclick="ZD.notifGo('${x.id}')"><td><span class="dot"></span>${fmt(x.t)}${autoRead(x) ? `<div class="small nf-why">${esc(autoRead(x))}</div>` : ''}</td><td>${esc(x.source)}</td><td>${esc(notifText(x))}${digestMark(x)}</td></tr>`).join('') || `<tr><td colspan="3" class="muted">${sifted ? 'По этому отбору сообщений нет' : 'Уведомлений нет'}</td></tr>`}</tbody></table>
     ${pages>1 ? `<div class="q-tools pager"><span class="small">${from+1}–${from+rows.length} из ${list.length}</span><button class="btn btn-secondary btn-sm"${page<=1 ? ' disabled' : ''} onclick="ZD.setNotifPage(${page-1})">Назад</button><span class="small">Лист ${page} из ${pages}</span><button class="btn btn-secondary btn-sm"${page>=pages ? ' disabled' : ''} onclick="ZD.setNotifPage(${page+1})">Вперёд</button></div>` : ''}`;
 }
 
@@ -8845,7 +8893,7 @@ return {
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, cardDetails, leftWords, plural, CASE_OPEN, escalateOf, actingOn, dueLeft,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
-  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifLinks,
+  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifOrder, autoRead, hasNotifLink, withDigest, signalDate,
   queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
   SELF_KINDS, NOTIF_KINDS, SIGNAL_KINDS, GENERA, rowMarksOn,
   go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render, renderQueue, renderSettings, renderRuns,
