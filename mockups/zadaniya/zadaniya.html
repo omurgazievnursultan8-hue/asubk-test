@@ -89,6 +89,9 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .drawer-h{ flex:none; display:flex; align-items:center; gap:12px; padding:14px 20px;
   border-bottom:1px solid var(--border-default); background:var(--surface-card); }
 .drawer-h h3{ margin:0; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.drawer[data-rule] .drawer-h{ flex-wrap:wrap; }
+.drawer-h .rp-state{ display:inline-flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.section-h.rp-group{ display:flex; align-items:center; gap:10px; }
 .drawer-x{ margin-left:auto; background:none; border:none; cursor:pointer; font-size:18px;
   line-height:1; color:var(--text-muted); padding:2px 6px; }
 .drawer-x:hover{ color:var(--text-body); }
@@ -8246,66 +8249,86 @@ function valText(f, x){
   if(f==='dueN') return x==null ? 'называет модуль' : String(x);
   return String(x);
 }
-function ruleHistory(r, admin){ // редакции хранят значения: «было → стало»
-  const rows = r.editions.slice().sort(byFrom).map(e=>{
+/* история правила: редакции и включения-выключения одной таблицей по дате; редакции хранят значения «было → стало» */
+function ruleHistory(r, k, admin){
+  const eds = r.editions.map(e=>{
     const prev = e.was ? r.editions.find(x=>x.n===e.was) : null, pend = e===pendingEdition(r);
     const diff = e.release ? (e.fields ? 'выпуск изменил: '+e.fields.map(f=>RELEASE_WORD[f]||f).join(', ') : 'начальные значения')
       : PROD_FIELDS.filter(f=>prev && JSON.stringify(e.values[f])!==JSON.stringify(prev.values[f])).map(f=>`${FIELD_TITLE[f]} ${valText(f, e.values[f])} (было ${valText(f, prev.values[f])})`).join(' · ');
-    const st = e.cancelled ? `<span class="pill neutral">отменена ${fmt(e.cancelled.t)}: ${esc(e.cancelled.basis)}</span>` : pend ? '<span class="pill warn">ждёт даты</span>' : e.n===r.edN ? '<span class="pill ok">действует</span>' : '';
+    const st = e.cancelled ? ` <span class="pill neutral">отменена ${fmt(e.cancelled.t)}: ${esc(e.cancelled.basis)}</span>` : pend ? ' <span class="pill warn">ждёт даты</span>' : e.n===r.edN ? ' <span class="pill ok">действует</span>' : '';
     const cancel = admin && pend ? ` <button class="btn btn-secondary btn-xs" onclick="ZD.askEditionCancel('${r.id}', ${e.n})">Отменить</button>` : '';
-    return `<tr class="${e.cancelled ? 'hole' : ''}"><td>${e.n}</td><td>${fmt(e.from)}</td><td>${esc(emp(e.by)?.name||e.by)}</td><td>${esc(e.basis)}</td><td class="small">${esc(diff)}</td><td>${st}${cancel}</td></tr>`;
-  }).join('');
-  return `<table class="cgrid" data-history><thead><tr><th>Ред.</th><th>Действует с</th><th>Кто</th><th>Основание</th><th>Что менялось</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    return {t:e.from, ord:0, cls:e.cancelled ? 'hole' : '', what:`Редакция ${e.n}: ${esc(diff)}${st}${cancel}`, by:esc(emp(e.by)?.name||e.by), basis:esc(e.basis)};
+  });
+  const sws = k.switches.map(x=>({t:x.t, ord:1, cls:'', what:esc(SWITCH_WORD[x.ev]||x.ev), by:esc(emp(x.by)?.name||x.by), basis:esc(x.basis)}));
+  const rows = eds.concat(sws).sort((a, b)=>cmpVal(a.t, b.t) || a.ord-b.ord);
+  const n = rows.length;
+  return `<details class="fold" data-history-fold${n>1 ? ' open' : ''}><summary>История · ${n} ${plural(n, ['запись', 'записи', 'записей'])}</summary><div class="fold-b">
+    <table class="cgrid" data-history><thead><tr><th>Дата</th><th>Что</th><th>Кто</th><th>Основание</th></tr></thead>
+    <tbody>${rows.map(x=>`<tr class="${x.cls}"><td>${fmt(x.t)}</td><td>${x.what}</td><td>${x.by}</td><td>${x.basis}</td></tr>`).join('')}</tbody></table></div></details>`;
 }
-const TRAIT_NAME = {с:'с какой даты', до:'до какой даты'};
-const TAKE_WORD = {'нужно':'исполнитель принимает задание', 'через очередь':'берут из очереди', 'не нужно':'принимать не нужно, работа начата сразу'};
-/* панель правила; у не администратора — только чтение, поверх той страницы, откуда пришёл */
+const SWITCH_WORD = {'введён в действие':'Введено в действие', 'выключен':'Выключено'};
+const TAKE_WORD = {'нужно':'исполнитель берёт в работу', 'через очередь':'исполнитель берёт из очереди', 'не нужно':'сразу в работе'};
+/* состояние правила словами — пилюля у заголовка панели */
+const RULE_PILL = {'в действии':['ok', 'в действии'], 'не введён':['warn', 'не введено'], 'снят':['neutral', 'выключено'], 'выведен':['neutral', 'выведено']};
+function rulePill(k, st){
+  const [cls, w] = RULE_PILL[st], d = st==='выведен' ? k.retiredAt : st==='снят' ? k.off.t : st==='не введён' && k.activatedAt && k.activatedAt>state.today ? k.activatedAt : null;
+  return `<span class="pill ${cls}" data-rule-state="${st}">${w}${d ? (st==='не введён' ? ', с ' : ' ')+fmt(d) : ''}</span>`;
+}
+/* «Если нет ответа»: кто получает просрочку и когда, с числом действующего порога самоопроса */
+function noAnswerText(k){
+  if(k.id==='pk-overdue') return 'дальше не передаётся: просрочка этого задания нового задания не даёт';
+  const n = thrOn('zd.overdueWd', state.today), wd = `${n} р.д.`;
+  if(k.escalate && k.escalate.to==='уведомление') return `сразу после срока — уведомление: ${esc(k.escalate.who)}; задание не передаётся`;
+  if(k.escalate) return `сразу после срока — очередь «${esc(roleTitle(k.escalate.role))}»`;
+  if(k.addrForm==='очередь') return `никто не взял до срока — сразу «Кто поручил», через ${wd} — его руководителю; взял — через ${wd} после срока руководителю исполнителя`;
+  return `через ${wd} после срока — руководителю исполнителя`;
+}
+/* «Кто поручил» — «должность — ФИО», как в карточке задания */
+function ruleAuthorHtml(r){
+  const one = p=>{ const h = postHolderAt(p, state.today), why = h && HOLDER_WHY[h.why];
+    return h ? `${esc(postOf(p).title)} — ${esc(emp(h.emp).name)}${why ? ` <span class="pill neutral">${esc(why)}</span>` : ''}`
+      : `${esc(postOf(p).title)} <span class="pill warn">оргструктура никого не назвала — администратор модуля</span>`; };
+  return typeof r.author==='string' ? one(r.author) : Object.keys(r.author).map(q=>`Очередь «${esc(roleOf(q) ? roleOf(q).name : q)}»: ${one(r.author[q])}`).join('<br>');
+}
+/* панель правила — одна администратору и читателю (из карточки задания): у читателя без кнопок.
+   Сверху — что выдаётся и кому; группа «Правится здесь» — то, что меняет редакция правила */
 function renderRulePanel(id){
   const r = ruleById(id), k = kindOf(r.kind), a = actionOf(r.action), admin = isTasksAdmin(state.viewer), st = ruleStateOf(k), ap = appearOf(k);
-  const holder = p=>{ const h = postHolderAt(p, state.today); return h ? emp(h.emp).name+(HOLDER_WHY[h.why] ? ` — ${HOLDER_WHY[h.why]}` : '') : 'оргструктура никого не назвала — администратор модуля'; };
-  const authorLine = typeof r.author==='string' ? `${esc(postOf(r.author).title)} <span class="small">${esc(holder(r.author))}</span>`
-    : Object.keys(r.author).map(q=>`${esc(roleOf(q) ? roleOf(q).name : q)} → ${esc(postOf(r.author[q]).title)} <span class="small">${esc(holder(r.author[q]))}</span>`).join('<br>');
-  const gone = abolishedOn(r, state.today);
+  const sig = k.genus==='сигнал', gone = abolishedOn(r, state.today);
   const line = (label, html)=>`<div class="k">${esc(label)}</div><div class="v">${html}</div>`;
-  const traits = (k.traits||[]).map(x=>TRAIT_NAME[x] || x.replace(/_/g, ' ').replace('раб дней', 'рабочих дней')).join(', ');
   const btn = (fn, arg, label, cls)=>`<button class="btn ${cls||'btn-secondary'} btn-sm" onclick="ZD.${fn}('${arg}')">${label}</button>`;
-  const off = switchable(k) && activeOn(k, state.today) ? btn('askKindOff', k.id, 'Выключить')
-    : st==='не введён' ? btn('askKindOn', k.id, 'Ввести в действие') : st==='снят' && switchable(k) ? btn('askKindOn', k.id, 'Включить') : '';
-  const lock = st==='выведен' ? `Выведен выпуском ${fmt(k.retiredAt)}: вернуть может только выпуск.` : st==='в действии' && !switchable(k) ? 'Выключается только выпуском.' : '';
-  const acts = !admin ? `<div class="banner info" style="margin-top:12px">Только чтение. Правит администратор заданий: ${esc(holder('post-admin'))}</div>`
-    : `<div class="btn-row" data-edit style="margin-top:12px">${st==='выведен' ? '' : btn('askRule', r.id, 'Изменить', 'btn-primary')}${off}</div>${lock ? `<div class="small" style="margin-top:6px">${lock}</div>` : ''}`;
-  const switches = k.switches.length ? `<div class="section-h">Ввод в действие и выключение</div>
-    <table class="cgrid"><thead><tr><th>Дата</th><th>Что</th><th>Кто</th><th>Основание</th></tr></thead>
-    <tbody>${k.switches.slice().reverse().map(x=>`<tr><td>${fmt(x.t)}</td><td>${esc(x.ev)}</td><td>${esc(emp(x.by)?.name||x.by)}</td><td>${esc(x.basis)}</td></tr>`).join('')}</tbody></table>` : '';
+  const onOff = !admin ? '' : switchable(k) && activeOn(k, state.today) ? btn('askKindOff', k.id, 'Выключить')
+    : st==='не введён' ? btn('askKindOn', k.id, 'Ввести в действие') : st==='снят' && switchable(k) ? btn('askKindOn', k.id, 'Включить')
+    : st==='выведен' ? '<span class="small">вернуть может только выпуск</span>' : st==='в действии' ? '<span class="small">выключается выпуском</span>' : '';
+  const editable = !!(ap.thr && !ap.norm && (ap.set || ap.zd)); // норма — на чтение, меняется выпуском новой редакции акта
+  const when = `${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap)+(editable ? '' : ' <span class="small">· меняется выпуском</span>') : ''}`;
+  const take = sig ? 'уведомление без срока и ответа' : TAKE_WORD[k.take]+(k.personal ? ' · лично' : '')+(k.fourEyes ? ' · четыре глаза' : '');
+  const ctrl = r.controller ? esc(controllerText(r.controller)) : `нет — задание закроется само, ${k.ownerExec ? 'когда работа сделана в деле' : 'когда отпадёт причина'}`;
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
   <div class="drawer" data-rule="${r.id}">
-    <div class="drawer-h"><h3>${esc(a.label)}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
+    <div class="drawer-h"><h3>${esc(a.label)}</h3><span class="rp-state" data-rule-head>${rulePill(k, st)}${onOff}</span><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
     <div class="drawer-b">
-      <div class="kv kv-top">
-        ${line('Когда появляется', `${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}`)}
-        ${ap.thr ? line('Как меняется', `${thrHow(ap)}<div class="small">Новое значение действует только на новые поводы</div>${admin && ap.zd ? ` <button class="btn btn-secondary btn-xs" data-zd-thr onclick="ZD.askSelfThr('${ap.zd}')">Изменить порог</button>` : ''}`) : ''}
+      <div class="kv kv-top" data-rule-main>
+        ${line('Когда появляется', when)}
+        ${editable ? line('Как меняется', `${thrHow(ap)}<div class="small">Новое значение действует только на новые поводы</div>${admin && ap.zd ? ` <button class="btn btn-secondary btn-xs" data-zd-thr onclick="ZD.askSelfThr('${ap.zd}')">Изменить порог</button>` : ''}`) : ''}
         ${ap.vals.length>1 ? line('Значения порога', ap.vals.map(esc).join('<br>')) : ''}
-        ${line('Модуль', esc(ownerOfKind(k.id)))}
         ${line('Кому', esc(ruleAddr(r)))}
-        ${line('Кто поручил', authorLine+gone.map(p=>` <span class="pill warn" data-abolished>единица «Кто поручил» упразднена ${fmt(p.abolished.at)}</span>`).join(''))}
-        ${line('Контролёр', r.controller ? esc(controllerText(r.controller)) : '<span class="small">нет: исполнение подтверждает отпадение причины</span>')}
-        ${line('Срок', esc(dueText(r)))}
-        ${line('С какой даты', ruleSince(k, st))}
-        ${line('Редакция', `${r.edN}`)}
-        ${line('Основание', `${esc(k.basis.group)}${k.basis.source ? ' · '+esc(k.basis.source) : ''}`)}
-        ${line('Признаки', esc(traits)||'—')}
-        ${line('Важность', r.importance ? esc(r.importance) : `как у действия: ${esc(a.importance)}`)}
         ${line('Где делается работа', a.where ? esc(a.where) : 'в самом задании')}
+        ${sig ? '' : line('Если нет ответа', noAnswerText(k))}
+        ${line('Принятие', take)}
+        ${k.basis.source ? line('Норма', esc(k.basis.source)) : ''}
         ${a.needsProof ? line('Подтверждение', 'ссылка обязательна') : ''}
         ${k.sumAttr ? line('Сумма по заданию', esc(k.sumAttr)) : ''}
-        ${line('Опрос', `${k.pollOnSave ? 'по сохранению и ночью' : 'ночью'} · ${k.periodic ? 'периодический' : 'событийный'}`)}
-        ${k.genus==='сигнал' ? line('Принятие', 'уведомление без срока и ответа') : line('Принятие', `${TAKE_WORD[k.take]}${k.ownerExec ? ' · работа у владельца' : ''}${k.fourEyes ? ' · четыре глаза' : ''}${k.personal ? ' · лично' : ''}`)}
-        ${k.genus==='сигнал' ? '' : line('Если нет ответа', k.escalate ? (k.escalate.to==='уведомление' ? `уведомление: ${esc(k.escalate.who)}, без передачи` : `очередь «${esc(roleTitle(k.escalate.role))}»`) : 'общий порядок: просрочка уходит руководителю')}
       </div>
-      ${acts}
-      <div class="section-h">История редакций</div>
-      ${ruleHistory(r, admin)}
-      ${switches}
+      <div class="section-h rp-group" data-rule-own>Правится здесь${admin && st!=='выведен' ? ` <button class="btn btn-secondary btn-xs" data-edit onclick="ZD.askRule('${r.id}')">Изменить</button>` : ''}</div>
+      <div class="kv kv-top">
+        ${line('Кто поручил', ruleAuthorHtml(r)+gone.map(p=>` <span class="pill warn" data-abolished>единица «Кто поручил» упразднена ${fmt(p.abolished.at)}</span>`).join(''))}
+        ${line('Контролёр', ctrl)}
+        ${line('Срок', esc(dueText(r)))}
+        ${line('Важность', esc(r.importance || a.importance))}
+      </div>
+      ${admin ? '' : `<div class="small" data-ro style="margin-top:12px">Правит: администратор заданий — ${esc(empName(postHolderOn('post-admin', state.today)) || 'не назначен')}</div>`}
+      ${ruleHistory(r, k, admin)}
     </div>
   </div>`;
 }
