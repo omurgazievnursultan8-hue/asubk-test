@@ -622,7 +622,7 @@ function authorOn(postId, d){ const h = postHolderAt(postId, d); return h ? {pos
 function abolishedOn(rule, d){ const a = rule.author, ids = !a ? [] : typeof a==='string' ? [a] : Object.values(a);
   return ids.map(postOf).filter(p=>p && p.abolished && p.abolished.at<=d); }
 function isTasksAdmin(by){ return !!by && postHolderOn('post-admin', state.today)===by; }
-/* роль доступа «Администратор уведомлений»: один экран на все виды и сигналы. Права идут от роли, а не от администратора заданий: носителем может быть и он */
+/* роль доступа «Администратор уведомлений»: один экран на все виды. Права идут от роли, а не от администратора заданий: носителем может быть и он */
 const NOTICE_ADMIN_ROLE = {name:'Администратор уведомлений', holders:[{emp:'E18', from:'2026-01-01'}]};
 function noticeAdminOn(d){ const h = NOTICE_ADMIN_ROLE.holders.filter(x=>onDate(x, d)).pop(); return h ? h.emp : null; }
 function isNoticeAdmin(by){ return !!by && noticeAdminOn(state.today)===by; }
@@ -927,10 +927,6 @@ function seedPovodKinds(){ return [
   // Анализ: закрытый период без обзора по всему портфелю
   {id:'pk-an-no-review', title:'Обзора за период нет',                 objectType:'template', traits:['период','периодичность','закрыт'],
    sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true, periodic:true, periodAbsorb:'нет'},
-  // Кредит: платёж по графику через 30 к.д. или ближе — сигнал куратору: одно уведомление, срока и ответа нет
-  {id:'pk-cr-payment-due', title:'Срок платежа по графику близко', objectType:'credit', traits:['заёмщик','дата_платежа','сумма','дней_до'],
-   sumAttr:'сумма платежа по графику', sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-10-01', activatedAt:'2026-10-01',
-   signalRole:'куратор кредита'},
   // Кредит: выездной мониторинг (п. 7) — записи «выезд» у кредита нет; вид заведён, в действие не введён, поводов нет
   {id:'pk-cr-field-visit', title:'Выездной мониторинг не проведён', objectType:'credit', traits:['заёмщик','последний_выезд'],
    sumAttr:'остаток основного долга', sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-06', activatedAt:null, ownerExec:true},
@@ -1343,15 +1339,13 @@ function controllerOf(rule, author){
   return postHolderOn(c, state.today) || ADMIN;
 }
 function controllerText(c){ return !c ? '—' : c==='автор' ? 'автор правила' : postOf(c).title; }
-/* род вида: шаг и самоопрос — выключаются только выпуском; надзор и сигнал — рубильник в проде */
+/* род вида: шаг и самоопрос — выключаются только выпуском; надзор — рубильник в проде */
 const STEP_KINDS = ['gd-review','gd-revise','lp-review','lp-revise',
   'ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
   'doc-revise','doc-approve','doc-sign','doc-register','doc-dispatch','doc-review','doc-execute','doc-control','doc-acquaint','doc-file','doc-return',
   'pl-refund-exec','pl-act-sign','vz-package-rework','vz-handover-accept',
   'rs-conclusion','rs-committee-decide','im-committee-decide','im-publish-or-return','im-fact-rework'];
-const GENERA =['шаг','надзор','самоопрос','сигнал'];
-/* сигнал: тот же опрос, вместо задания одно уведомление за прогон; срока и ответа нет */
-const SIGNAL_KINDS = ['pk-cr-payment-due'];
+const GENERA =['шаг','надзор','самоопрос'];
 /* основание вида: группа и документ; у шагов и видов про сам модуль основание — сам процесс */
 const KIND_BASIS = {
   'pk-zl-survey':['косвенно в нормах','Порядок №41 п. 6 пп. 4'],
@@ -1423,14 +1417,12 @@ const KIND_BASIS = {
 function kindBasis(k){
   if(KIND_BASIS[k.id]) return {group:KIND_BASIS[k.id][0], source:KIND_BASIS[k.id][1]};
   if(k.genus==='шаг') return {group:'шаг процесса', source:''};
-  if(k.genus==='сигнал') return {group:'прямо в Порядке', source:'Порядок №41 п. 15 пп. 1'};
   if(k.retiredAt) return {group:'выведен выпуском', source:''};
   return {group:'про модуль и систему', source:''};
 }
 function initRegistry(){ // запись вида объявляет род; начальные деловые значения правила — редакция «выпуск 1»
   state.povodKinds.forEach(k=>{
-    k.genus = SIGNAL_KINDS.indexOf(k.id)!==-1 ? 'сигнал'
-      : SELF_KINDS.indexOf(k.id)!==-1 ? 'самоопрос' : STEP_KINDS.indexOf(k.id)!==-1 ? 'шаг' : 'надзор';
+    k.genus = SELF_KINDS.indexOf(k.id)!==-1 ? 'самоопрос' : STEP_KINDS.indexOf(k.id)!==-1 ? 'шаг' : 'надзор';
     // сохранение объекта запускает опрос источника; шаг соседа с ночным опросом (платежи) и остальные роды — ночной прогон
     k.pollOnSave = k.genus==='шаг' && !!(sourceOfKind(k.id)||{}).onSave;
     k.basis = kindBasis(k);
@@ -1459,10 +1451,10 @@ function initRegistry(){ // запись вида объявляет род; н�
   });
   applyEditions(state.today);
 }
-/* категория реестра: задание, сигнал или выведенный выпуском */
-function kindCategory(k){ return k.retiredAt ? 'выведен' : k.genus==='сигнал' ? 'сигнал' : 'задание'; }
+/* категория реестра: задание или выведенный выпуском */
+function kindCategory(k){ return k.retiredAt ? 'выведен' : 'задание'; }
 function registryCounts(){
-  const c = {задание:0, сигнал:0, выведен:0, шаг:0, надзор:0, самоопрос:0};
+  const c = {задание:0, выведен:0, шаг:0, надзор:0, самоопрос:0};
   state.povodKinds.forEach(k=>{ const x = kindCategory(k); c[x]++; if(x==='задание') c[k.genus]++; });
   return c;
 }
@@ -1494,7 +1486,7 @@ const IM_KINDS = ['pk-im-offer-overdue','pk-im-act-pending','pk-im-registration-
   'pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','pk-im-relist','pk-im-application-pending','pk-im-topup-due','pk-im-bankruptcy','pk-im-pledge-term',
   'im-committee-decide','im-publish-or-return','im-fact-rework'];
 const AN_KINDS = ['pk-an-no-review'];
-const CR_KINDS = ['pk-cr-payment-due','pk-cr-field-visit','pk-cr-close']; // выездной мониторинг заведён, не введён — записи «выезд» у кредита нет
+const CR_KINDS = ['pk-cr-field-visit','pk-cr-close']; // выездной мониторинг заведён, не введён — записи «выезд» у кредита нет
 const VZ_KINDS = VZ_STEPS.map(x=>x[0]).concat(['pk-vz-death-start','pk-vz-hearing','pk-vz-claim-undelivered']);
 const ZL_KINDS = ZL_STEPS.map(x=>x.id);
 const PL_KINDS = PL_STEPS.map(x=>x.id).concat(PL_HANDOFF.map(x=>x.id));
@@ -2650,9 +2642,49 @@ function creditAt(o, d){
   }
   return s;
 }
-/* строки графика, до которых дошёл порог кредита (норма): срок не наступил, платёж не внесён; уведомление заёмщику повод не гасит */
+/* строки графика, до которых дошёл порог кредита (норма): срок не наступил, платёж не внесён; уведомление заёмщику строку не гасит */
 const crNoticeFrom = date=>thrFirst('cr.noticeDays', v=>addDays(date, -v));
 function crDue(s, d){ return s.repaid || s.closed ? [] : s.schedule.filter(x=>x.date>d && crNoticeFrom(x.date)<=d && !s.paid[x.date]); }
+/* платёж через 30 к.д. — событие модуля «Кредит» (п. 15 пп. 1: информирует кураторов). Дату проверяет кредит в своей ежедневной сверке
+   графика; по строке графика — одно сообщение, пометка у строки (state.crDueSent). На стенде кредит объявляет событие с 01.10.2026 */
+const CR_DUE_FROM = '2026-10-01';
+function crDueFacts(d){
+  if(d<CR_DUE_FROM) return [];
+  const out = [];
+  state.owner.cr.forEach(o=>{
+    const s = stateAt('cr', o, d);
+    if(!s) return;
+    crDue(s, d).forEach(x=>{
+      const key = o.id+'|'+x.date;
+      if(state.crDueSent[key]) return;
+      const cur = curatorOn('куратор кредита', o.id, d), ns = state.notifSettings['cr-payment-due'];
+      if(!cur || (ns && ns.on===false)) return; // пометка — только когда сообщение ушло: нет куратора или вид выключен — строка ждёт
+      state.crDueSent[key] = d;
+      out.push({kind:'cr-payment-due', obj:{src:'cr', type:'cr', id:o.id, title:s.borrower}, t:d, by:null, sub:x.date, date:x.date,
+        detail:`платёж ${fmt(x.date)}`, tab:'График', parties:{'куратор кредита':cur ? [actingFor(cur, d)] : []}, acc:['куратор кредита', o.id], night:true, batch:'night:'+d});
+    });
+  });
+  return out;
+}
+/* номера стенда: сообщение о платеже раньше брало номер из общего счётчика заданий в ночном опросе кредита. Счётчик идёт как шёл —
+   то же число номеров занимается в том же месте прогона, иначе сдвинулись бы номера заданий контрольного набора (как у снятых сообщений) */
+function crDueHold(asOf){
+  if(asOf<CR_DUE_FROM) return;
+  const live = {}, prev = state.crDueLive, to = new Set();
+  state.owner.cr.forEach(o=>{
+    const s = stateAt('cr', o, asOf);
+    if(!s) return;
+    crDue(s, asOf).forEach(x=>{
+      const key = o.id+'|'+x.date;
+      live[key] = true;
+      if(prev[key]) return;
+      const cur = curatorOn('куратор кредита', o.id, asOf);
+      if(cur) to.add(actingFor(cur, asOf));
+    });
+  });
+  state.crDueLive = live;
+  to.forEach(()=>state.seq++);
+}
 /* требование по взысканию на дату: журнал мер, решения органа, пауза и закрытие — факты владельца */
 function vzAt(o, d){
   if(!o || !o.ev.length || o.ev[0].t>d) return null;
@@ -3524,11 +3556,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
       срок_по_шаблону:x.x.c.dueWd ? `${x.x.c.dueWd} р.д. после закрытия периода${x.x.c.order ? ' · '+x.x.c.order : ''}` : AN_DUE_UNNAMED}),
     attrib:(s,p,d)=>{ const [from, to] = p.sub.split('..'), r = periodReview(s.id, {from, to}, d);
       return r ? {by:r.approvedBy, how:`обзор ${r.id} по всему портфелю за ${perText(r.period)} утверждён`} : {cancel:s.last.how}; }},
-  // Кредит: ключ «вид · кредит · дата платежа»; сигнал куратору при появлении, отпадает с внесением или датой платежа
-  'pk-cr-payment-due': {src:'cr', objectType:'credit', cur:true, when:(s,d)=>crDue(s, d).length>0,
-    each:(s,d)=>crDue(s, d).map(x=>({period:x.date, sub:x.date, since:crNoticeFrom(x.date), x})),
-    since:(s,d,x)=>x.since,
-    traits:(s,d,x)=>({заёмщик:s.borrower, дата_платежа:x.x.date, сумма:x.x.amount, дней_до:kd(d, x.x.date)})},
   // Взыскание: ключ «вид · требование · база»; срок — шаблона; гасит мера, исполняющая обязательство; паузу и закрытие называет взыскание
   ...Object.fromEntries(VZ_STEPS.map(([kind, n])=>[kind, {src:'vz', objectType:'requirement', cur:true, when:(s,d)=>vzOpenAll(s, d, n).length>0,
     each:(s,d)=>vzOpenAll(s, d, n).map(x=>Object.assign({period:x.from, sub:x.anchor, due:VZ_TPL[n].rule ? null : x.due, x},
@@ -4435,8 +4462,8 @@ function seedState(){
     noteExtra: 0,      // номера сообщений, которым номер из общего счётчика не положен
     soonHeld: {},      // «срок близко» не ушёл в день выдачи: задание|срок
     nfOnly: false, nfSrc: '', nfFrom: '', nfTo: '', nfQ: '', nfPage: 1, // страница «Все уведомления»: отбор и лист
-    signals: {'pk-cr-payment-due':{recipients:[{by:'кураторство', role:'куратор кредита'}],
-      text:'Срок платежа по графику близко: предупредите заёмщика', channels:['всплывающее'], history:[]}},
+    crDueSent: {},     // кредит: пометка у строки графика «сообщение о платеже ушло» — кредит·дата платежа → дата сообщения
+    crDueLive: {},     // номера стенда: строки графика в окне на прошлом опросе кредита (crDueHold)
     sourceDown: {self:false, orgstruct:false, statistics:false, reports:false, gosresh:false, programs:false, apps:false, docs:false, assets:false, analysis:false, credit:false, collection:false, collateral:false, payments:false, borrower:false, restructuring:false, classification:false}, // недоступность на источник, не глобально
     owner: seedNoticeWork(seedImInstr(Object.assign(seedOwnerObjects(), {rp: seedObligations(), // карточки Госрешения, программ, заявок, обязательства отчётности (демо соседа)
       rpRemind: [{from:'2026-05-01', v:7, basis:'начальное значение'}]}))), // настройка отчётности «напоминать за N к.д.»: записи у неё, задания их не читают
@@ -4595,7 +4622,7 @@ const NOTICE_OBJ = {
   any:{of:'объекта', to:'объекту', many:['объект','объекта','объектов']},
 };
 const plural = (n, f)=>{ const a = n%10, b = n%100; return b>=11 && b<=14 ? f[2] : a===1 ? f[0] : a>=2 && a<=4 ? f[1] : f[2]; };
-/* вид уведомления — одна запись на вид, всего 59: 25 закреплённых (получателя называет само событие) и 34 настраиваемых (начальные получатели, настройка — у администратора уведомлений).
+/* вид уведомления — одна запись на вид, всего 60: 25 закреплённых (получателя называет само событие) и 35 настраиваемых (начальные получатели, настройка — у администратора уведомлений).
    Новый вид приходит только выпуском: вид вне перечня не отправляется, текст и способ берутся в момент отправки */
 const NK = (id, module, group, name, who, party, tuned, card, tab, channels)=>({id, module, group, name, who, party, tuned, text:name, channels:channels||[WAY_POPUP], on:true, card, tab});
 const NK_TASK = (id, name, who, text)=>Object.assign(NK(id, 'Задания', 'О заданиях', name, who, null, false, 'task', 'Задание'), {text});
@@ -4630,7 +4657,7 @@ const NOTICE_LIST = [
   NK('acc-changed', 'Пользователи', 'Личные', 'Учётная запись изменена или заблокирована', 'владельцу записи', ['владелец'], false, 'st', 'Учётная запись', [WAY_POPUP, WAY_SMS, WAY_MAIL]),
   // закреплённый служебный: поведение — вместе с журналом доставки
   NK('not-delivered', 'Уведомления', 'Служебный', 'Не доставлено', 'администратору уведомлений, раз в день', ['администратор уведомлений'], false, 'run', 'Журнал доставки'),
-  // настраиваемые — 33 вида событий модулей и ночной прогон
+  // настраиваемые — 34 вида событий модулей и ночной прогон
   NK_ON('gd-approved', 'Госрешение', 'Госрешение одобрено', 'автору', ['автор'], 'gd', 'Общая информация'),
   NK_ON('gd-rejected', 'Госрешение', 'Госрешение отклонено', 'автору', ['автор'], 'gd', 'История'),
   NK_ON('gd-closed', 'Госрешение', 'Госрешение закрыто', 'авторам действующих программ под решением', ['авторы программ'], 'gd', 'Кредитные программы'),
@@ -4644,6 +4671,8 @@ const NOTICE_LIST = [
   NK_ON('ap-doc-overdue', 'Заявка', 'Документ заявки просрочен', 'специалисту', ['специалист'], 'ap', 'Документы'),
   NK_ON('zm-status', 'Заёмщик', 'Изменилось положение заёмщика', 'кураторам заёмщика, кроме внёсшего', ['кураторы заёмщика'], 'zm', 'Общая информация'),
   NK_ON('cr-disb-expired', 'Кредит', 'Срок освоения истёк, остаток не закрыт', 'ведущему куратору', ['ведущий куратор'], 'cr', 'Условия'),
+  Object.assign(NK_ON('cr-payment-due', 'Кредит', 'Срок платежа по графику близко', 'куратору кредита', ['куратор кредита'], 'cr', 'График'),
+    {text:'Срок платежа по графику близко: предупредите заёмщика'}),
   NK_ON('pl-storno', 'Платежи', 'Платёж сторнирован', 'куратору кредита', ['куратор кредита'], 'cr', 'Платежи'),
   NK_ON('pl-identified', 'Платежи', 'Поступление опознано', 'куратору кредита, если опознал не он; куратору взыскания, если есть требование', ['куратор кредита', 'куратор взыскания'], 'cr', 'Платежи'),
   NK_ON('pl-reserve-advance', 'Платежи', 'Резерв стал безадресным авансом', 'куратору', ['куратор кредита'], 'cr', 'Расчёты'),
@@ -4699,33 +4728,33 @@ function msgsTo(to){ // сообщения человека: список общ
   return c.map.get(to) || [];
 }
 function readOnNewer(n, taskId){
-  if(!taskId || n.kind==='сигнал' || n.ev) return;
+  if(!taskId || n.ev) return;
   let batch = null; // пришедшие одним прогоном или одним действием — одновременно, друг друга не гасят
   msgsTo(n.to).forEach(m=>{
-    if(m===n || m.read || m.kind==='сигнал' || m.ev || !m.items.some(i=>i.taskId===taskId)) return;
+    if(m===n || m.read || m.ev || !m.items.some(i=>i.taskId===taskId)) return;
     if(state.digest){ batch = batch || new Set(Object.values(state.digest)); if(batch.has(m)) return; }
     const got = newerSeen.get(m) || new Set();
     got.add(taskId); newerSeen.set(m, got);
     if(m.items.every(i=>got.has(i.taskId))) markRead(m, m.kind!=='закрыто' && m.items.every(i=>isTerminal(taskOf(i.taskId))) ? 'задание закрыто' : 'пришло новее'); // всё в нём закрыто — причина та же, что у закрытия
   });
 }
-/* сообщение о задании читается само, когда закрыто всё, о чём оно: у сводки — весь перечень. Само «закрыто» читают только кликом, у сигнала заданий нет */
+/* сообщение о задании читается само, когда закрыто всё, о чём оно: у сводки — весь перечень. Само «закрыто» читают только кликом */
 function readOnClose(t){
   state.notifications.forEach(n=>{
-    if(n.read || n.kind==='закрыто' || n.kind==='сигнал' || !n.items.some(i=>i.taskId===t.id)) return;
+    if(n.read || n.kind==='закрыто' || n.ev || !n.items.some(i=>i.taskId===t.id)) return;
     if(n.items.every(i=>isTerminal(taskOf(i.taskId)))) markRead(n, 'задание закрыто');
   });
 }
 function checkChannels(x){
   if(!Array.isArray(x) || !x.length) throw new Error('нужен хотя бы один способ: всплывающее, SMS или e-mail');
-  if(x.some(y=>SIGNAL_CHANNELS.indexOf(y)===-1)) throw new Error('способ — всплывающее, SMS или e-mail');
+  if(x.some(y=>NOTICE_CHANNELS.indexOf(y)===-1)) throw new Error('способ — всплывающее, SMS или e-mail');
 }
 /* получатель настраиваемого вида: роль, которую называет событие, или должность; минимум один */
 function checkRecipients(k, list){
   if(!Array.isArray(list) || !list.length) throw new Error('нужен хотя бы один получатель');
   list.forEach(r=>{ if(!(r.by==='объект' && k.party.indexOf(r.role)!==-1) && !(r.by==='должность' && postOf(r.post))) throw new Error('получатель — роль по объекту или должность'); });
 }
-/* настройка вида — администратор уведомлений, с основанием. Текст и способ правятся у всех 59; получатели и включение — только у настраиваемых */
+/* настройка вида — администратор уведомлений, с основанием. Текст и способ правятся у всех 60; получатели и включение — только у настраиваемых */
 function editNotif(kind, changes, o){
   o = o || {};
   const k = noticeKind(kind);
@@ -4806,7 +4835,7 @@ function declareEvent(ev){
   if(!noticeKind(ev.kind)) throw new Error('вид вне перечня: '+ev.kind);
   const seq = ++state.eventSeq;
   const r = {no:'EV-'+seq, kind:ev.kind, obj:ev.obj, at:ev.at||state.today, time:ev.time||(ev.night ? nightClock(seq) : dayClock(seq)), by:ev.by||null,
-    parties:ev.parties||{}, batch:ev.batch||null, acc:ev.acc||null, detail:ev.detail||'', tab:ev.tab||null};
+    parties:ev.parties||{}, batch:ev.batch||null, acc:ev.acc||null, detail:ev.detail||'', tab:ev.tab||null, date:ev.date||null}; // date — дата, к которой относится событие (платёж по графику)
   r.what = `${r.obj.id}${r.obj.title ? ' · '+r.obj.title : ''}${r.detail ? ': '+r.detail : ''}`;
   state.noticeEvents.push(r);
   return r;
@@ -4830,7 +4859,7 @@ function deliverEvent(r, dg){
   if(!k || !cfg) throw new Error('вид вне перечня: '+r.kind);
   if(!cfg.on) return 0;
   const to = eventRecipients(r);
-  const item = ()=>({obj:r.obj.id, ref:r.obj.ref||r.obj.id, type:r.obj.type||k.card, title:r.obj.title||'', src:r.obj.src||null, text:r.what, at:r.at, by:r.by, tab:r.tab||k.tab, acc:r.acc, ev:r.no});
+  const item = ()=>({obj:r.obj.id, ref:r.obj.ref||r.obj.id, type:r.obj.type||k.card, title:r.obj.title||'', src:r.obj.src||null, text:r.what, at:r.at, date:r.date, by:r.by, tab:r.tab||k.tab, acc:r.acc, ev:r.no});
   to.forEach(x=>{
     const key = dg && r.batch ? [r.batch, x, r.kind].join('|') : null; // одно действие или один прогон — одно сообщение на человека и вид
     let n = key && dg[key];
@@ -4860,7 +4889,7 @@ function serviceConsume(r){
 /* день стенда: факты соседей этого дня (и факты-заготовки) → записи о событиях → рассылка; один факт — одна запись */
 function noticeDay(d){
   const seen = state.noticeSeen;
-  noticeFactsOn(d).concat(state.noticeFacts.filter(f=>f.t===d)).forEach(f=>{
+  noticeFactsOn(d).concat(state.noticeFacts.filter(f=>f.t===d), crDueFacts(d)).forEach(f=>{
     const key = [f.kind, f.obj.id, f.t, f.sub||''].join('|');
     if(seen[key]) return;
     seen[key] = true;
@@ -4906,10 +4935,9 @@ const OUT_MANY = {
   'эскалация':n=>`Просрочено ${n} ${zadan(n)}`, 'возвращено':n=>`На доработку возвращено ${n} ${zadan(n)}`, 'повод-отпал':n=>`Можно принять ${n} ${zadan(n)}`, 'закрыто':n=>`Закрыто ${n} ${zadan(n)}`,
   'переадресовано':n=>`Передано другому исполнителю ${n} ${zadan(n)}`, 'запрошено-продление':n=>`Запрошено продление: ${n} ${zadan(n)}`, 'решение-по-продлению':n=>`Решение по продлению: ${n} ${zadan(n)}`,
 };
-const smsBase = t=>String(t).split(':')[0].trim(); // сигнал: только название, перечень объектов остаётся внутри системы
 const fitsSegment = t=>String(t).length+1+OUT_LINK.length+5<=SMS_SEGMENT;
 function outText(n){
-  const k = noticeKind(n.kind), base = n.kind==='сигнал' ? smsBase(n.text) : n.text;
+  const k = noticeKind(n.kind), base = n.text;
   if(n.count<=1) return base;
   if(k && OUT_MANY[n.kind] && n.text===k.text) return OUT_MANY[n.kind](n.count);
   let t = `${base}: ${n.count}`;
@@ -4919,9 +4947,9 @@ function outText(n){
 const outLinkOf = n=>OUT_LINK+noOfId(n.id).toString(36);
 const newNotices = n=>`${n} ${plural(n, ['новое уведомление', 'новых уведомления', 'новых уведомлений'])}`;
 /* проверка при правке: текст с короткой ссылкой укладывается в один сегмент SMS */
-function checkSmsFit(text, channels, isSignal){
+function checkSmsFit(text, channels){
   if(channels.indexOf(WAY_SMS)===-1) return;
-  const len = String(isSignal ? smsBase(text) : text).length+1+OUT_LINK.length+5;
+  const len = String(text).length+1+OUT_LINK.length+5;
   if(len>SMS_SEGMENT) throw new Error(`текст не умещается в один сегмент SMS: ${len} из ${SMS_SEGMENT} знаков вместе со ссылкой`);
 }
 const plusMin = (at, m)=>{ let v = clockVal(at.t)+m, d = at.d; while(v>=1440){ v -= 1440; d = addDays(d, 1); } return {d, t:clockStr(v)}; };
@@ -4943,7 +4971,7 @@ function deliveryDay(d){
   for(; S.dlvSeen<S.notifications.length; S.dlvSeen++){
     const n = S.notifications[S.dlvSeen];
     n.delivery.forEach(dv=>{
-      const r = {no:'O'+(++S.outSeq), note:n.id, to:n.to, channel:dv.channel, kind:n.kind, what:n.kind==='сигнал' ? smsBase(n.text) : noticeKind(n.kind).name, madeD:n.t, madeT:n.time, status:dv.status, why:'', tries:[], text:outText(n), link:outLinkOf(n), release:null, bundle:0, dvs:[dv], doneAt:null, fallback:null, into:null};
+      const r = {no:'O'+(++S.outSeq), note:n.id, to:n.to, channel:dv.channel, kind:n.kind, what:noticeKind(n.kind).name, madeD:n.t, madeT:n.time, status:dv.status, why:'', tries:[], text:outText(n), link:outLinkOf(n), release:null, bundle:0, dvs:[dv], doneAt:null, fallback:null, into:null};
       dv.out = r.no;
       if(r.status==='нет контакта') r.why = r.channel===WAY_SMS ? 'нет номера' : 'нет почты';
       else if(r.status==='ждёт окна') r.release = nextWindow(n.t, n.time);
@@ -6018,7 +6046,6 @@ function describePovod(p){
 
 function handleNewForKind(kindId, newKeys, asOf){
   const k = kindOf(kindId);
-  if(k.genus==='сигнал'){ sendSignal(k, newKeys, asOf); return; } // без задания, срока и ответа
   const rule = ruleForKind(kindId);
   if(!rule) return; // реестр не сходится — вид не поручает
   newKeys.filter(key=>!state.tasks.some(t=>coversKey(t, key))) // вернувшийся ключ с открытым заданием — второго не выдаём
@@ -6035,52 +6062,8 @@ function reissueForFreedPairs(kindId, matchedKeys){
   }).forEach(key=>issueRuleTask(rule, povodByKey(key)));
 }
 
-/* ---------- 7а. сигнал: уведомление без задания ---------- */
-const SIGNAL_CHANNELS = ['всплывающее','SMS','e-mail'];
-/* получатели: роль кураторства по объекту или должность; с замещением. Запасного у сигнала нет: работы нет, спрашивать не с кого */
-function signalRecipients(k, p, asOf){
-  const out = [];
-  state.signals[k.id].recipients.forEach(r=>{
-    let who = r.by==='кураторство' ? (p.curObj ? curatorOn(r.role, p.curObj, asOf) : null) : postHolderOn(r.post, asOf);
-    if(!who) return;
-    who = actingFor(who, asOf);
-    if(out.indexOf(who)===-1) out.push(who);
-  });
-  return out;
-}
-/* новые поводы прогона: одно уведомление каждому получателю, внутри перечень объектов; живой повод повторно не шлётся */
-function sendSignal(k, keys, asOf){
-  const c = state.signals[k.id], byTo = new Map();
-  if(!c || !keys.length) return;
-  keys.forEach(key=>{ const p = povodByKey(key);
-    signalRecipients(k, p, asOf).forEach(to=>{ if(!byTo.has(to)) byTo.set(to, []); byTo.get(to).push(p); }); });
-  byTo.forEach((ps, to)=>state.notifications.push(messageOf({id:nextId('N'), t:asOf, kind:'сигнал', originKind:k.id, taskId:null, to, due:null,
-    count:ps.length, text:c.text, channels:c.channels.slice(), items:ps.map(p=>({key:p.key, text:describePovod(p)}))})));
-}
-/* настройка сигнала — администратор заданий, с основанием; новое событие — только выпуском */
-function editSignal(kindId, changes, o){
-  o = o || {};
-  const k = kindOf(kindId);
-  if(!k || k.genus!=='сигнал') throw new Error('новое событие для сигнала — только выпуском');
-  if(!isNoticeAdmin(o.by)) throw new Error('настраивает администратор уведомлений — остальным на чтение');
-  if(!o.basis) throw new Error('нужно основание правки — приказ или служебная записка');
-  const c = state.signals[kindId], was = {};
-  Object.keys(changes).forEach(f=>{
-    const x = changes[f];
-    if(f==='text'){ if(!String(x||'').trim()) throw new Error('текст сигнала не пустой'); }
-    else if(f==='channels') checkChannels(x);
-    else if(f==='recipients'){
-      if(!Array.isArray(x) || !x.length) throw new Error('нужен хотя бы один получатель');
-      x.forEach(r=>{ if(!(r.by==='кураторство' && r.role) && !(r.by==='должность' && postOf(r.post))) throw new Error('получатель — роль кураторства или должность'); });
-    } else throw new Error(`«${f}» меняется выпуском`);
-    was[f] = c[f];
-  });
-  if(!Object.keys(changes).some(f=>JSON.stringify(changes[f])!==JSON.stringify(c[f]))) throw new Error('значения не изменились');
-  if(changes.text!==undefined || changes.channels) checkSmsFit(changes.text!==undefined ? changes.text : c.text, changes.channels || c.channels, true);
-  Object.assign(c, changes);
-  c.history.push({t:state.today, by:o.by, basis:o.basis, was});
-  return c;
-}
+/* каналы уведомлений: способ — любой набор, хотя бы один */
+const NOTICE_CHANNELS = ['всплывающее','SMS','e-mail'];
 
 /* ---------- 8. эскалация / срок-близко — периодические проверки ---------- */
 function checkDeadlines(asOf){
@@ -6125,6 +6108,7 @@ function retireKinds(asOf){ // выпуск вывел вид: открытые 
 /* сверка множества одного источника: тот же шаг у ночного прогона и опроса по сохранению */
 function reconcileSource(src, asOf){
   const tot = {new:0, gone:0, matched:0};
+  if(src.id==='credit') crDueHold(asOf); // номера стенда — там, где раньше шло сообщение о платеже
   src.kinds.forEach(kindId=>{
     const {new:nk, gone:gk, matched:mk} = reconcileKind(kindId, asOf);
     handleGoneForKind(gk, asOf);
@@ -6435,10 +6419,9 @@ function checkRegistry(){
     if(k.escalate && ['уведомление','очередь'].indexOf(k.escalate.to)===-1) errs.push(`«${k.title}»: адресат эскалации не той формы`);
     if(k.periodic && k.periodAbsorb!=='да' && k.periodAbsorb!=='нет') errs.push(`«${k.title}»: периодический вид не объявил поглощение периодом`);
     if(!k.periodic && k.periodAbsorb!=null) errs.push(`«${k.title}»: поглощение периодом у событийного вида`);
-    if(GENERA.indexOf(k.genus)===-1) errs.push(`«${k.title}»: не объявлен род — шаг, надзор, самоопрос или сигнал`);
-    const n = state.rules.filter(r=>r.kind===k.id).length, rules = k.genus==='сигнал' ? 0 : 1;
-    if(n!==rules) errs.push(rules ? `«${k.title}»: правил ${n} — у вида ровно одно правило` : `«${k.title}»: правил ${n} — у рода «${k.genus}» правила нет`);
-    if(k.genus==='сигнал' && !state.signals[k.id]) errs.push(`«${k.title}»: у сигнала нет настройки`);
+    if(GENERA.indexOf(k.genus)===-1) errs.push(`«${k.title}»: не объявлен род — шаг, надзор или самоопрос`);
+    const n = state.rules.filter(r=>r.kind===k.id).length;
+    if(n!==1) errs.push(`«${k.title}»: правил ${n} — у вида ровно одно правило`);
     if(k.pollOnSave && !(sourceOfKind(k.id)||{}).onSave) errs.push(`«${k.title}»: опрос по сохранению у вида, источник которого так не опрашивается`);
   });
   state.rules.forEach(r=>{
@@ -6589,7 +6572,7 @@ function playStandScenes(d, ids){
 }
 /* след действий на стенде: что изменилось после сбора среза, смена даты сбросит */
 function standMark(){
-  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.signals, state.notifSettings, state.noticeWindow, state.noticeCal, state.smsGate]).length, state.povodKinds.reduce((a, k)=>a+k.switches.length, 0)].join('/');
+  return [state.tasks.length, state.tasks.reduce((a, t)=>a+t.journal.length, 0), JSON.stringify([state.owner, state.rules, state.notifSettings, state.noticeWindow, state.noticeCal, state.smsGate]).length, state.povodKinds.reduce((a, k)=>a+k.switches.length, 0)].join('/');
 }
 function goToDate(d){
   popMute = true; // ночи подряд идут без окошек: человек их не застал
@@ -7691,7 +7674,7 @@ function renderCrCard(id){ // кредит у владельца: график, 
   const btn = (step, date, label)=>`<button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.crStep('${esc(o.id)}', ZD.state.viewer, '${step}', '${date}'))">${label}</button>`;
   const line = x=>{ const p = s.paid[x.date], n = s.notices[x.date], left = kd(d, x.date);
     const st = p ? `внесён ${fmt(p.t)}` : n ? `заёмщик уведомлён ${fmt(n.t)} · ${who(n.by)}` : left<=0 ? 'срок наступил'
-      : crNoticeFrom(x.date)<=d ? `<span class="pill warn">через ${left} дн.</span>` : '';
+      : crNoticeFrom(x.date)<=d ? `<span class="pill warn">через ${left} дн.</span>${state.crDueSent[o.id+'|'+x.date] ? ` куратору сообщено ${fmt(state.crDueSent[o.id+'|'+x.date])}` : ''}` : '';
     return `<tr><td>${fmt(x.date)}</td><td style="text-align:right">${money(x.amount)}</td><td class="small">${st}</td>
       <td>${!p && !n && left>0 ? btn('уведомить', x.date, 'Уведомить заёмщика') : ''}${!p ? btn('платёж', x.date, 'Платёж зачислен') : ''}</td></tr>`; };
   return `<div class="card">${head}
@@ -7704,7 +7687,7 @@ function renderCrCard(id){ // кредит у владельца: график, 
     ${s.repaid && !s.closed ? `<div class="btn-row">${btn('закрыть', '', 'Закрыть кредит')}</div>` : ''}
     ${s.schedule.length ? `<table class="cgrid"><thead><tr><th>Платёж по графику</th><th>Сумма, сом</th><th>Состояние</th><th></th></tr></thead>
       <tbody>${s.schedule.map(line).join('')}</tbody></table>` : ''}
-    <div class="small">Уведомляет куратор, его замещающий или руководитель; платёж отмечает бухгалтер в Платежах. Сигнал куратору приходит за 30 к.д. до платежа; уведомление заёмщику — действие куратора, сигнал его не заменяет.</div></div>`;
+    <div class="small">Уведомляет куратор, его замещающий или руководитель; платёж отмечает бухгалтер в Платежах. За 30 к.д. до платежа кредит сообщает куратору — одно сообщение на строку графика; уведомление заёмщику — действие куратора, сообщение его не заменяет.</div></div>`;
 }
 function renderVzCard(id){ // требование у владельца: сроки шаблонов — отметка без исполнителя, меры и журнал
   const o = ownerObj('vz', id), d = state.today, s = vzAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
@@ -7982,7 +7965,6 @@ const KIND_THRESHOLD = Object.assign({
   'pk-rep-obligation-due':()=>thrO('за N к.д. до срока сдачи'),
   'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
   'pk-stat-neighbor-silent':()=>thrR('stat.silentRuns', v=>`модуль молчит ${v} прогона подряд`),
-  'pk-cr-payment-due':()=>thrR('cr.noticeDays', v=>`за ${v} к.д. до платежа`),
   'pk-vz-hearing':()=>thrT(`за ${VZ_HEARING_LEAD} р.д. до даты заседания`),
   'pk-zl-survey':()=>Object.assign(thrT(`за ${ZL_LEAD} к.д. до плановой даты; при согласовании зампреда короче по категории риска кредита: ${Object.values(ZL_TIGHT.k).map(v=>'×'+String(v).replace('.', ',')).join(' / ')}, не меньше ${ZL_TIGHT.min} мес.`),
     {more:{text:`интервал ${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, src:`норма · ${ZL_NORM}, Прил. 2 §2.3`}}), // 30 к.д. и ужесточение — решение проекта, матрица — норма
@@ -8154,7 +8136,7 @@ function ruleAuthorHtml(r){
    Сверху — что выдаётся и кому; группа «Правится здесь» — то, что меняет редакция правила */
 function renderRulePanel(id){
   const r = ruleById(id), k = kindOf(r.kind), a = actionOf(r.action), admin = isTasksAdmin(state.viewer), st = ruleStateOf(k), ap = appearOf(k);
-  const sig = k.genus==='сигнал', gone = abolishedOn(r, state.today);
+  const gone = abolishedOn(r, state.today);
   const line = (label, html)=>`<div class="k">${esc(label)}</div><div class="v">${html}</div>`;
   const btn = (fn, arg, label, cls)=>`<button class="btn ${cls||'btn-secondary'} btn-sm" onclick="ZD.${fn}('${arg}')">${label}</button>`;
   const onOff = !admin ? '' : switchable(k) && activeOn(k, state.today) ? btn('askKindOff', k.id, 'Выключить')
@@ -8162,7 +8144,7 @@ function renderRulePanel(id){
     : st==='выведен' ? '<span class="small">вернуть может только выпуск</span>' : st==='в действии' ? '<span class="small">выключается выпуском</span>' : '';
   const editable = !!(ap.thr && !ap.norm && (ap.set || ap.zd)); // норма — на чтение, меняется выпуском новой редакции акта
   const when = `${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap)+(editable ? '' : ' <span class="small">· меняется выпуском</span>') : ''}`;
-  const take = sig ? 'уведомление без срока и ответа' : TAKE_WORD[k.take]+(k.personal ? ' · лично' : '')+(k.fourEyes ? ' · четыре глаза' : '');
+  const take = TAKE_WORD[k.take]+(k.personal ? ' · лично' : '')+(k.fourEyes ? ' · четыре глаза' : '');
   const ctrl = r.controller ? esc(controllerText(r.controller)) : `нет — задание закроется само, ${k.ownerExec ? 'когда работа сделана в деле' : 'когда отпадёт причина'}`;
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
   <div class="drawer" data-rule="${r.id}">
@@ -8175,7 +8157,7 @@ function renderRulePanel(id){
         ${ap.vals.length>1 ? line('Значения порога', ap.vals.map(esc).join('<br>')) : ''}
         ${line('Кому', esc(ruleAddr(r)))}
         ${line('Где делается работа', a.where ? esc(a.where) : 'в самом задании')}
-        ${sig ? '' : line('Если нет ответа', noAnswerText(k))}
+        ${line('Если нет ответа', noAnswerText(k))}
         ${line('Принятие', take)}
         ${k.basis.source ? line('Норма', esc(k.basis.source)) : ''}
         ${a.needsProof ? line('Подтверждение', 'ссылка обязательна') : ''}
@@ -8237,7 +8219,7 @@ function askEditionCancel(id, n){
 function askKindOff(id){
   const k = kindOf(id);
   return openDialog({title:`Выключить: ${k.title}`, submit:'Выключить', done:'Выключено',
-    note:k.genus==='сигнал' ? 'Новых уведомлений не будет.' : 'Новых заданий не будет, открытые закроются с итогом «снято».', values:{why:''}, fields:[WHY('Основание')],
+    note:'Новых заданий не будет, открытые закроются с итогом «снято».', values:{why:''}, fields:[WHY('Основание')],
     run:x=>deactivateKind(id, state.viewer, x.why.trim())});
 }
 function askKindOn(id){
@@ -8255,32 +8237,17 @@ function renderMarksThr(){
 function renderSettings(){
   const tabs = SETTINGS_TABS.map(([k, l])=>`<button class="${state.settingsTab===k ? 'on' : ''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
   const links = OWNER_SCREENS.map(s=>`<a class="q-case" href="../${s.page}" target="_blank" title="${esc(s.hint)}">${esc(s.label)}</a>`).join('');
-  const body = `${renderRulesTab()}${renderSignalSwitches()}`;
+  const body = renderRulesTab();
   return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
 function goSettings(tab){ state.settingsTab=tab; state.view='settings'; render(); }
-/* включение сигнала — настройка повода, остаётся у администратора заданий: выключение отпускает поводы. Кому и как — в кубике «Уведомления» */
-function renderSignalSwitches(){
-  const admin = isTasksAdmin(state.viewer), sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
-  if(!sigKinds.length) return '';
-  const rows = sigKinds.map(k=>{
-    const on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
-    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
-    const mk = rowMarks(k);
-    return `<tr data-sig-switch="${k.id}"><td>${esc(k.title)}${mk ? ' '+mk : ''}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td>
-      <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
-  }).join('');
-  return `<div class="section-h">Сигналы</div>
-    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания. Здесь его включение: выключение отпускает поводы. Кому и как — настраивает администратор уведомлений; новое событие приходит только выпуском.</div>
-    <table class="cgrid" data-sig-switches><thead><tr><th>Сигнал</th><th>Состояние</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table>`;
-}
 function recipText(r){ return r.by==='кураторство' ? r.role+' — по объекту, с замещением' : r.by==='объект' ? r.role : postOf(r.post).title; }
-/* запасного у сигнала нет (signalRecipients): без куратора — только должности настройки, без них сигнал не уходит */
-const SIG_NOBODY = 'нет куратора — получают только указанные должности; нет и их — сигнал не уходит';
-/* сигналы и 59 видов одним экраном: строка, правка в окне с основанием. Получатели и включение — только у настраиваемых; новое событие — только выпуском */
+/* 60 видов одним экраном: строка, правка в окне с основанием. Получатели и включение — только у настраиваемых; новое событие — только выпуском */
 const NT_GROUPS = ['О заданиях', 'Отчётность и дашборд', 'Личные', 'Служебный', 'События модулей', 'Система'];
 const NT_KIND_WORD = {tuned:'настраиваемые', fixed:'закреплённые'};
+/* когда модуль объявляет событие, если это порог: значение — у модуля-владельца, здесь только читается */
+const NT_WHEN = {'cr-payment-due':()=>`за ${thrOn('cr.noticeDays')} к.д. до платежа по графику, одно сообщение на строку графика · Порядок №41 п. 15 пп. 1 · порог — у кредита`};
 function recipLine(k){
   const c = state.notifSettings[k.id];
   if(!k.tuned || JSON.stringify(c.recipients)===JSON.stringify(k.party.map(role=>({by:'объект', role})))) return k.who;
@@ -8303,20 +8270,13 @@ function renderNtSettings(){
   const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
   const kindRow = k=>{
     const c = state.notifSettings[k.id];
-    return `<tr data-n="${k.id}"><td class="wrap">${esc(k.name)}<div class="small">${esc(k.module)} · ${k.tuned ? 'получатели настраиваются' : 'закреплён'}</div></td><td class="wrap">${esc(recipLine(k))}</td><td class="wrap">${esc(c.text)}</td><td class="wrap">${esc(c.channels.join(', '))}</td><td>${onPill(c.on)}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k.id}')">Изменить</button></td>` : ''}</tr>`;
+    return `<tr data-n="${k.id}"><td class="wrap">${esc(k.name)}<div class="small">${esc(k.module)} · ${k.tuned ? 'получатели настраиваются' : 'закреплён'}</div>${NT_WHEN[k.id] ? `<div class="small" data-nt-when>${esc(NT_WHEN[k.id]())}</div>` : ''}</td><td class="wrap">${esc(recipLine(k))}</td><td class="wrap">${esc(c.text)}</td><td class="wrap">${esc(c.channels.join(', '))}</td><td>${onPill(c.on)}</td>${admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askNotif('${k.id}')">Изменить</button></td>` : ''}</tr>`;
   };
   const rows = NT_GROUPS.map(gr=>{
     const list = shown.filter(k=>k.group===gr);
     return list.length ? `<tr class="band"><td colspan="${admin ? 6 : 5}">${esc(gr)}</td></tr>${list.map(kindRow).join('')}` : '';
   }).join('') || `<tr><td colspan="${admin ? 6 : 5}" class="muted">Ничего не найдено</td></tr>`;
-  const sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
-  const sigRows = sigKinds.map(k=>{
-    const c = state.signals[k.id], ap = appearOf(k);
-    const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.askSignal('${k.id}')">Изменить</button></td>` : '';
-    return `<tr data-sig="${k.id}"><td class="wrap">${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)}</div>` : ''}</td><td class="wrap">${esc(c.recipients.map(recipText).join('; '))}<div class="small">${SIG_NOBODY}</div></td><td class="wrap">${esc(c.text)}<div class="small">перечень объектов система добавляет сама</div></td><td class="wrap">${esc(c.channels.join(', '))}</td>${acts}</tr>`;
-  }).join('');
   const hist = NOTICE_LIST.flatMap(k=>state.notifSettings[k.id].history.map(h=>({title:k.name, h})))
-    .concat(sigKinds.flatMap(k=>state.signals[k.id].history.map(h=>({title:k.title, h}))))
     .map(x=>({t:x.h.t, title:x.title, by:x.h.by, basis:x.h.basis, what:Object.keys(x.h.was).map(f=>ntChanged(x.h, f)).join('; ')}))
     .concat(state.noticeLog.map(x=>({t:x.t, title:'Доставка', by:x.by, basis:x.basis, what:x.what})))
     .sort((a, b)=>cmpVal(b.t, a.t));
@@ -8324,9 +8284,6 @@ function renderNtSettings(){
       <div class="banner ${g.on ? 'ok' : 'warn'}" data-sms-state>${g.on ? `<b>Оператор SMS подключён:</b> ${esc(g.note)}` : '<b>Договора с оператором SMS нет:</b> SMS не отправляются, работает почта'}${admin ? ` ${editBtn('askSmsGate', 'Изменить')}` : ''}</div>
       <div class="banner info" data-window><b>Окно отправки SMS и почты:</b> ${esc(w.open)}–${esc(w.close)}, рабочие дни — производственный календарь${state.noticeCal.length ? `; исключения: ${state.noticeCal.map(x=>`${fmt(x.date)} — ${x.work ? 'рабочий' : 'нерабочий'}`).join(', ')}` : ''}. Вне окна уходит только безопасность и упавший прогон. ${admin ? `${editBtn('askNoticeWindow', 'Изменить окно')} ${editBtn('askNoticeCal', 'Исключение календаря')}` : ''}</div>
     </div>
-    <div class="section-h">Сигналы</div>
-    <div class="small" style="margin-bottom:8px">Сигнал — уведомление без задания. Здесь: кому, текст, способ. Включение сигнала — настройка повода, у администратора заданий. Новое событие приходит только выпуском.</div>
-    <table class="cgrid qgrid" data-sig-table>${qCols([340, 300, 0, 160, 100])}<thead><tr><th>Сигнал</th><th>Кому</th><th>Текст</th><th>Способ</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${sigRows}</tbody></table>
     <div class="section-h">Виды уведомлений</div>
     <div class="small" style="margin-bottom:6px">Перечень закрыт, новый вид приходит только выпуском: ${NOTICE_LIST.length} видов, ${NOTICE_LIST.filter(k=>k.tuned).length} настраиваются. У закреплённых получателя называет само событие: правятся только текст и способ. Хотя бы один способ обязателен. Наружу уходит только вид и ссылка.</div>
     <div class="q-tools">
@@ -8348,7 +8305,7 @@ function askNotif(kind){
     {f:'posts', label:'Должности', type:'checks', options:POSTS.map(p=>p.title)},
   ] : [{f:'who', label:'Кому', type:'info', text:k.who}]).concat([
     {f:'text', label:'Текст', type:'textarea', required:true},
-    {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS},
+    {f:'channels', label:'Способ', type:'checks', required:true, options:NOTICE_CHANNELS},
   ], tuned ? [{f:'on', label:'Рассылка вида', type:'checks', options:['включён']}] : [], [{f:'basis', label:'Основание', required:true}]);
   return openDialog({title:`Уведомление «${k.name}»`, submit:'Сохранить', done:'Настройка уведомления сохранена', wide:tuned, note:tuned ? `Минимум один получатель. Выключенный вид не рассылается. Сейчас: ${recipLine(k)}.` : `Кому: ${k.who}. Получатели не меняются.`,
     values:Object.assign({text:c.text, channels:c.channels.slice(), basis:''}, tuned ? {roles:c.recipients.filter(r=>r.by==='объект').map(r=>r.role), posts:c.recipients.filter(r=>r.by==='должность').map(r=>postName(r.post)), on:c.on ? ['включён'] : []} : {}),
@@ -8356,7 +8313,7 @@ function askNotif(kind){
     run:x=>{
       const ch = {};
       if(x.text.trim()!==c.text) ch.text = x.text.trim();
-      if(JSON.stringify(x.channels.slice().sort())!==JSON.stringify(c.channels.slice().sort())) ch.channels = SIGNAL_CHANNELS.filter(y=>x.channels.indexOf(y)!==-1);
+      if(JSON.stringify(x.channels.slice().sort())!==JSON.stringify(c.channels.slice().sort())) ch.channels = NOTICE_CHANNELS.filter(y=>x.channels.indexOf(y)!==-1);
       if(tuned){
         const rec = (x.roles||[]).map(role=>({by:'объект', role})).concat(POSTS.filter(p=>(x.posts||[]).indexOf(p.title)!==-1).map(p=>({by:'должность', post:p.id})));
         const keyOf = list=>list.map(r=>r.by==='объект' ? 'о:'+r.role : 'д:'+r.post).sort().join();
@@ -8419,29 +8376,9 @@ function askSmsGate(){
     fields:[{f:'state', label:'Состояние', type:'select', required:true, options:[{v:'нет договора', l:'договора нет, SMS не отправляются'}, {v:'подключён', l:'договор действует, SMS отправляются'}]}, {f:'note', label:'Договор', required:false}, {f:'basis', label:'Основание', required:true}],
     run:x=>editSmsGate({on:x.state==='подключён', note:x.state==='подключён' ? (x.note||'').trim() : ''}, {by:state.viewer, basis:x.basis.trim()})});
 }
-/* сигнал: кому, что и как; новое событие — только выпуском */
-function askSignal(kindId){
-  const k = kindOf(kindId), c = state.signals[kindId], role = k.signalRole, postName = id=>postOf(id).title;
-  const fields = (role ? [{f:'role', label:'Роль кураторства', type:'checks', options:[role]}] : []).concat([
-    {f:'posts', label:'Должности', type:'checks', options:POSTS.map(p=>p.title)},
-    {f:'text', label:'Текст', type:'textarea', required:true},
-    {f:'channels', label:'Способ', type:'checks', required:true, options:SIGNAL_CHANNELS},
-    {f:'basis', label:'Основание', required:true}]);
-  return openDialog({title:`Сигнал «${k.title}»`, submit:'Сохранить', done:'Настройка сигнала сохранена', wide:true, note:`${SIG_NOBODY[0].toUpperCase()+SIG_NOBODY.slice(1)}. Новое событие приходит только выпуском.`,
-    values:{role:c.recipients.filter(r=>r.by==='кураторство').map(r=>r.role), posts:c.recipients.filter(r=>r.by==='должность').map(r=>postName(r.post)), text:c.text, channels:c.channels.slice(), basis:''}, fields,
-    run:x=>{
-      const rec = (x.role||[]).map(r=>({by:'кураторство', role:r})).concat(POSTS.filter(p=>(x.posts||[]).indexOf(p.title)!==-1).map(p=>({by:'должность', post:p.id})));
-      const keyOf = list=>list.map(r=>r.by==='кураторство' ? r.role : r.post).sort().join(), ch = {}; // в историю идёт только изменённое
-      if(keyOf(rec)!==keyOf(c.recipients)) ch.recipients = rec;
-      if(x.text.trim()!==c.text) ch.text = x.text.trim();
-      if(x.channels.slice().sort().join()!==c.channels.slice().sort().join()) ch.channels = SIGNAL_CHANNELS.filter(y=>x.channels.indexOf(y)!==-1);
-      if(!Object.keys(ch).length) throw new Error('значения не изменились');
-      editSignal(kindId, ch, {by:state.viewer, basis:x.basis.trim()});
-    }});
-}
 
-/* ввод вида в действие и рубильник надзора и сигнала — администратор заданий, с основанием */
-const switchable = k=>k.genus==='надзор' || k.genus==='сигнал';
+/* ввод вида в действие и рубильник надзора — администратор заданий, с основанием */
+const switchable = k=>k.genus==='надзор';
 function activeOn(k, d){ return !!k.activatedAt && k.activatedAt<=d && !(k.retiredAt && k.retiredAt<=d); }
 function activateKind(kindId, by, basis){
   const k = kindOf(kindId);
@@ -8580,7 +8517,7 @@ function povodRows(){
 function povodStats(rows){
   rows = rows||povodRows();
   const live = rows.filter(x=>x.st==='действует'), none = live.filter(x=>!x.task);
-  return {total:rows.length, live:live.length, none:none.length, signals:none.filter(x=>x.k.genus==='сигнал').length};
+  return {total:rows.length, live:live.length, none:none.length};
 }
 function povodStatePill(x){
   if(x.st==='отпал') return '<span class="pill neutral">отпал</span>';
@@ -8588,7 +8525,6 @@ function povodStatePill(x){
   return x.p.status==='frozen' ? '<span class="pill warn">заморожен</span>' : '<span class="pill ok">действует</span>';
 }
 function povodTaskCell(x){
-  if(x.k.genus==='сигнал') return '<span class="small">сигнал</span>';
   if(!x.task) return '<span class="small">нет</span>';
   const t = x.task, done = isTerminal(t) ? ' <span class="small">закрыто</span>' : '';
   /* право видеть не меняется: чужое задание — только номер, и в строке, и в раскрытии */
@@ -8600,7 +8536,7 @@ function povodDetail(x){
     ${line('Ключ', `<span class="mono" data-key>${esc(p.key)}</span>`)}
     ${line('Источник', esc(ownerOfKind(p.kind)||'—'))}
     ${line('Впервые', fmt(p.firstSeen))}
-    ${t ? line('Задание', seen ? `${t.id} · ${esc(whatToDo(t))} · ${t.assignee ? esc(empName(t.assignee)) : 'никто не взял'} · ${esc(displayState(t))}` : `${t.id}: вам не видно`) : line('Задание', x.k.genus==='сигнал' ? 'нет: сигнал, только уведомление' : 'нет')}
+    ${t ? line('Задание', seen ? `${t.id} · ${esc(whatToDo(t))} · ${t.assignee ? esc(empName(t.assignee)) : 'никто не взял'} · ${esc(displayState(t))}` : `${t.id}: вам не видно`) : line('Задание', 'нет')}
     ${line('История', p.journal.map(e=>`${fmt(e.t)} ${esc(POV_EV[e.ev]||e.ev)}${e.reason ? ': '+esc(e.reason) : ''}`).join('; '))}
   </div></div>`;
 }
@@ -8620,7 +8556,7 @@ function renderPovodTab(){
       <td>${fmt(p.stateDate)}${p.approx ? ' <span class="small" title="Дата приблизительная">≈</span>' : ''}</td>
       <td title="${tip(tr)}" class="small">${esc(tr)}</td>
       <td>${povodTaskCell(x)}</td></tr>${open ? `<tr class="sub"><td colspan="6" class="nest wrap">${povodDetail(x)}</td></tr>` : ''}`; }).join('');
-  return `<div class="small" style="margin-bottom:8px">Действующих поводов ${s.live}, без задания ${s.none}${s.none ? (s.signals===s.none ? ', все — сигналы: уведомление без задания' : `, из них сигналов ${s.signals}`) : ''}.</div>
+  return `<div class="small" style="margin-bottom:8px">Действующих поводов ${s.live}, без задания ${s.none}.</div>
     <div class="q-tools">
       <input type="search" id="povQ" placeholder="Поиск по делу" value="${esc(state.povQ)}" oninput="ZD.setFilter('povQ', this.value, 'povQ')">
       <label>Вид <select onchange="ZD.setFilter('povKind', this.value)">${kindOpts}</select></label>
@@ -8644,7 +8580,7 @@ let bellOpen = false;
 const notifsOf = v=>state.notifications.filter(n=>n.to===v).reverse().sort((a, b)=>cmpVal(b.t, a.t)); // новые сверху, за один день — последнее первым
 const unreadOf = v=>state.notifications.filter(n=>n.to===v && !n.read).length;
 /* строка сообщения. О задании — «<текст вида>: <что сделать> · <дело> · срок <дата>»: текст вида из настройки, дело и срок добавляет система.
-   Сводка — первое и «ещё N»: у заданий первое с ближайшим сроком, у сигнала и события — с ближайшей к сегодня датой; остальное — в перечне */
+   Сводка — первое и «ещё N»: у заданий первое с ближайшим сроком, у события — с ближайшей к сегодня датой (у платежа — дата платежа); остальное — в перечне */
 const caseWords = c=>c ? c.text+(c.more ? ` и ещё ${c.more}` : '') : '';
 const moreWords = n=>n>0 ? ` и ещё ${n}` : '';
 const itemDue = x=>x.due || (taskOf(x.taskId) ? dueOf(taskOf(x.taskId)) : null);
@@ -8653,8 +8589,7 @@ const dayGap = d=>d ? Math.abs((Date.parse(d)-Date.parse(state.today))/864e5) : 
 function notifOrder(n){
   const idx = n.items.map((x, i)=>i);
   if(n.kind==='not-delivered') return idx;
-  if(n.ev) return idx.sort((a, b)=>dayGap(n.items[a].at)-dayGap(n.items[b].at) || a-b);
-  if(n.kind==='сигнал') return idx.sort((a, b)=>dayGap(signalDate(n.items[a]))-dayGap(signalDate(n.items[b])) || a-b);
+  if(n.ev) return idx.sort((a, b)=>dayGap(n.items[a].date||n.items[a].at)-dayGap(n.items[b].date||n.items[b].at) || a-b);
   const has = i=>!!taskOf(n.items[i].taskId);
   return idx.sort((a, b)=>(has(b)-has(a)) || cmpVal(itemDue(n.items[a])||"9999", itemDue(n.items[b])||"9999") || taskNo(n.items[a].taskId)-taskNo(n.items[b].taskId) || a-b);
 }
@@ -8666,7 +8601,6 @@ function notifText(n){
   if(n.kind==='not-delivered') return `${n.text}: ${n.items[0].text}`;
   const ord = notifOrder(n), more = moreWords(ord.length-1);
   if(n.ev) return `${n.text}: ${n.items[ord[0]].text}${more}`;
-  if(n.kind==='сигнал') return `${n.text}: ${n.items[ord[0]].text}${more}`;
   if(!ord.length) return n.text;
   const x = n.items[ord[0]], t = taskOf(x.taskId);
   if(!t) return n.text;
@@ -8689,7 +8623,7 @@ function tabForTask(t, v){
   if(b==='closed' || b==='closed-more'){ const f = closedFilters(v).find(x=>x.tasks.indexOf(t)!==-1); if(f) state.closedFilter = f.id; }
   return TAB_OF_BUCKET[b] || 'work';
 }
-/* одна строка сообщения: задание — на своей вкладке очереди, сигнал — карточка объекта; прав нет — запись остаётся, открывать нечего. Со страницы панель открывается поверх неё: закрытие вернёт к той же строке */
+/* одна строка сообщения: задание — на своей вкладке очереди, событие — карточка объекта; прав нет — запись остаётся, открывать нечего. Со страницы панель открывается поверх неё: закрытие вернёт к той же строке */
 function openNotifItem(n, i){
   const item = n.items[i];
   if(n.kind==='not-delivered'){ // сводка «Не доставлено» открывает журнал доставки на этом дне
@@ -8697,8 +8631,8 @@ function openNotifItem(n, i){
     closeCard(); Object.assign(state, {view:'ntLog', dlSt:'не доставлено', dlCh:'', dlQ:'', dlDate:n.t, dlPage:1, dlOpen:null});
     return true;
   }
-  if(n.ev || n.kind==='сигнал'){ // событие модуля и сигнал — карточка объекта в модуле-владельце
-    if(n.ev && !noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
+  if(n.ev){ // событие модуля — карточка объекта в модуле-владельце
+    if(!noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
     if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
     cardOpenId=null; ruleCard=null; digestCard=null;
     noticeCard = {id:n.id, i};
@@ -8727,28 +8661,18 @@ function noticeDemo(x){
     gd:()=>renderOwnerCard(null, {kind:'gd-review', objectId:id}), lp:()=>renderOwnerCard(null, {kind:'lp-review', objectId:id})};
   return R[x.src] ? R[x.src]() : '';
 }
-/* сигнал называет объект своего повода: карточка, вкладка и демо — как у события модуля */
-const SIGNAL_CARD = {'pk-cr-payment-due':{type:'cr', src:'cr', tab:'График', title:p=>p.traits.заёмщик, date:p=>p.traits.дата_платежа}};
-/* дата сигнала для «первого» в сводке: дата из признаков повода, иначе дата состояния повода */
-function signalDate(x){ const p = povodByKey(x.key); if(!p) return null; const c = SIGNAL_CARD[p.kind]; return (c && c.date && c.date(p)) || p.stateDate || null; }
-function signalItem(n, item){
-  const p = povodByKey(item.key), c = SIGNAL_CARD[n.originKind] || {type:'any', src:null, tab:'—', title:()=>null};
-  const id = p ? p.ownerId || p.objectId : null;
-  return {obj:id || '—', type:c.type, src:c.src, ref:id, tab:c.tab, title:p ? c.title(p) : null, text:item.text, at:n.t, by:null};
-}
 /* панель события модуля на стенде: заголовок — карточка объекта, первой строкой — куда откроется в системе; подробности — только то, чего нет в объекте */
 function noticeDetail(x){
   const head = `${x.obj}${x.title ? ' · '+x.title : ''}`;
   let d = String(x.text||'');
   if(d.indexOf(head)===0) d = d.slice(head.length).replace(/^[:·\s]+/, '');
-  else if(x.obj && x.obj!=='—') d = d.split(' · ').filter(p=>p.indexOf(x.obj)===-1 && p!==x.title).join(' · '); // сигнал называет объект словами: «кредит КД-… · заёмщик · платёж …»
   return d && d!==x.obj && d!==x.title ? d : '';
 }
 function renderNoticeCard(){
   const n = noteById(noticeCard.id), raw = n && n.items[noticeCard.i];
   if(!raw) return '';
-  const x = n.kind==='сигнал' ? signalItem(n, raw) : raw;
-  const k = n.kind==='сигнал' ? {module:ownerOfKind(n.originKind)} : noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any, more = noticeDetail(x);
+  const x = raw;
+  const k = noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any, more = noticeDetail(x);
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
     <div class="drawer" data-notice="${n.id}">
       <div class="drawer-h">${digestBack()}<h3>Карточка ${esc(w.of)} ${esc(x.obj)}${x.title ? ' · '+esc(x.title) : ''}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
@@ -8787,11 +8711,10 @@ const digestBack = ()=>digestFrom ? '<button class="linky" onclick="ZD.notifBack
 function renderDigestPanel(id){
   const n = noteById(id);
   if(!n) return '';
-  const sig = n.kind==='сигнал' || !!n.ev;
+  const sig = !!n.ev;
   const rows = notifOrder(n).map(i=>{
     const x = n.items[i], open = l=>`<button class="linky" onclick="ZD.notifItem('${n.id}', ${i})">${esc(l)}</button>`;
     if(n.ev) return `<tr data-i="${i}"><td>${open(x.obj)}</td><td>${esc(x.text)}</td></tr>`;
-    if(sig) return `<tr data-i="${i}"><td>${open((povodByKey(x.key)||{}).objectId||'открыть')}</td><td>${esc(x.text)}</td></tr>`;
     const t = taskOf(x.taskId);
     if(!t) return `<tr data-i="${i}"><td colspan="4" class="muted">${esc(x.taskId||'')} — задания нет</td></tr>`;
     return `<tr data-i="${i}"><td>${open(whatToDo(t))}</td><td>${caseHtml(t)}</td><td>${fmt(dueOf(t))}</td><td>${esc(displayState(t))}</td></tr>`;
@@ -8892,15 +8815,15 @@ return {
   checkRegistry, taskRows, myTile, isMine, isOverdue, assigneeOn, obligationAt, repSoonFromOf, repIssue, retireKinds, dueText, activeOn,
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
   editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, cardDetails, leftWords, plural, CASE_OPEN, escalateOf, actingOn, dueLeft,
-  showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
-  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifOrder, autoRead, hasNotifLink, withDigest, signalDate,
+  showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
+  setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifOrder, autoRead, hasNotifLink, withDigest, crDueFacts, CR_DUE_FROM, renderCrCard,
   queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
-  SELF_KINDS, NOTIF_KINDS, SIGNAL_KINDS, GENERA, rowMarksOn,
+  SELF_KINDS, NOTIF_KINDS, GENERA, rowMarksOn,
   go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render, renderQueue, renderSettings, renderRuns,
   renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; },
   get dialog(){ return dlg; }, renderDialog, ask, dialogSet, dialogCheck, dialogSubmit, dialogCancel, dialogCaseQ, dialogCaseAdd, dialogCaseDel, caseCatalog, caseSearch,
   NOTICE_LIST, noticeKind, declareEvent, factTx, serviceRun, serviceConsume, noticeDay, noticeFactsOn, eventRecipients, noticeAccess, renderNoticeCard, get noticeCard(){ return noticeCard; }, seedNoticeFacts,
-  openNotifItem, renderNtSettings, renderNtDelivery, setDlFilter, setDlPage, toggleOut, deliveryFiltered, NOTICE_VIEWS, askNoticeWindow, askNoticeCal, askSmsGate, editNoticeWindow, editNoticeCal, editSmsGate, isNoticeAdmin, noticeAdminOn, NOTICE_ADMIN_ROLE, deliveryDay, outText, nextWindow, sendDay, windowOn, smsOn, contactOf, DLV_STATES, SMS_SEGMENT, OUT_LINK, URGENT_KINDS, SAFE_KINDS, STAND_NOTICE, firstDelivery, renderSignalSwitches,
+  openNotifItem, renderNtSettings, renderNtDelivery, setDlFilter, setDlPage, toggleOut, deliveryFiltered, NOTICE_VIEWS, askNoticeWindow, askNoticeCal, askSmsGate, editNoticeWindow, editNoticeCal, editSmsGate, isNoticeAdmin, noticeAdminOn, NOTICE_ADMIN_ROLE, deliveryDay, outText, nextWindow, sendDay, windowOn, smsOn, contactOf, DLV_STATES, SMS_SEGMENT, OUT_LINK, URGENT_KINDS, SAFE_KINDS, STAND_NOTICE, firstDelivery,
   renderBell, bellToggle, notifGo, notifItem, notifBack, notifReadAll, openAllNotif, notifsOf, unreadOf, renderNotifPage, notifText, editNotif, askNotif, NOTIF_SPEC, BELL_LAST,
   renderDigestPanel, get digestCard(){ return digestCard; }, get digestFrom(){ return digestFrom; }, setNotifFilter, setNotifPage, notifsFiltered, NOTIF_PAGE,
   POP_MS, POP_MAX, renderPops, popFlush, popClose, popOpen, popMore, get pops(){ return pops; },
@@ -8911,7 +8834,7 @@ return {
   toggleDown, toggleStatCleared, setPollScope, ui,
   ROLES, roleOf, queueHolders, inQueue, queueTasks, queueGroups, batchTasks, groupOps, toggleGroup, batchUI, signGroup,
   checkStateField, kindCategory, registryCounts,
-  editSignal, signalRecipients, signalItem, SIGNAL_CHANNELS,
+  NOTICE_CHANNELS,
   ownerStep:savedAt(src=>src==='gd' ? 'gosresh' : 'programs', ownerStep), lpExtend:savedAt('programs', lpExtend), lpChangeBase:savedAt('programs', lpChangeBase),
   ownerAt,
   ownerOfKind, sourceOfKind, expiringDays, renderOwnerCard, thrOn, thrNew, thrFirst, thrVals, setStandThr, KIND_THRESHOLD,

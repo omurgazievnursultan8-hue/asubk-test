@@ -306,6 +306,12 @@
 //   Переписаны под пометки и отметки владельцев: #11, #25, #26, #33, #35, #37, #67, #75, #88, #90, #96, #97, #101, #103, #106, #108, #112,
 //   #113, #117, #118, #145, #146, #148, #161, #164-#166, #168, #170, #179, #181, #190, #193, #197, #213, #226, #236-#245, #247-#256, #259, #268,
 //   #273, #294-#296, #308, #317, #361, #368, #373, #383, #386, #387, #427, #479, #490, #508, #530, #531, #543, #602; числа реестра 132 → 108.
+// Волна 44 (10.11.2026) — сигнала нет, платёж через 30 к.д. — событие модуля «Кредит» (СГН-1, ADR-0337; СГН-2…СГН-9): #621…#624 —
+//   на контрольных датах те же сообщения, что давал сигнал; пометка у строки графика; общий счётчик номеров прежний; слова «сигнал» в макете нет.
+//   Переписаны под событие кредита: #212…#220, #222, #223 (блок Y), #306…#308, #361, #362, #365, #375, #385, #387, #432, #508, #509, #526
+//   (отпечаток поводов — без поводов платежа), #544, #551…#553, #568, #570, #574, #575, #585, #610, #616; числа: реестр 108 → 107 (#190, #294,
+//   #296, #317, #607), уведомлений о заданиях 303/478 → 301/473 (#314, #393, #405, #537), перечень 59 → 60 (35 настраиваемых).
+//   Снятых проверок нет: предмет каждой сохранён и проверяется на событии кредита.
 // Правки по ревью волны 30 (06.11.2026): «Кто поручил» у очередей комитета, ОПК, отчётности; пустая должность — администратор;
 //   вакансия — у владельца, срок от «вакантно с»; руководитель по просрочке — одна проверка, продление гасит «исполнено»;
 //   правопреемник без руководителя — выше по дереву; порог статистики — запись; приказ у порога обязателен.
@@ -532,7 +538,7 @@ const noWork = kind => !ZD.state.tasks.some(t => t.originKind === kind) && !ZD.s
   ok(25, /выпуском/.test(self) && /выпуском/.test(step) && /администратор/.test(user) && /основание/.test(bare) &&
        ZD.kindOf('pk-org-head-vacant').activatedAt === null && open.length === 2 &&
        open.every(t => ZD.outcomeOf(t) && ZD.outcomeOf(t).outcome === 'снято' && /вид выключен/.test(ZD.outcomeOf(t).reason)),
-    `рубильник — только у надзора и сигнала и только у администратора заданий с основанием: самоопрос и шаг документа выключаются выпуском; ` +
+    `рубильник — только у надзора и только у администратора заданий с основанием: самоопрос и шаг документа выключаются выпуском; ` +
     `выключение надзора закрыло его 3 открытых задания «снято: вид выключен»`);
   ZD.state.today = '2026-09-03';
   ZD.runPoll();
@@ -1449,7 +1455,7 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
   ok(88, ZD.ROLLUP_DEFAULT === undefined && ZD.rollupOf === undefined && ZD.state.rules.length === 107 &&
        ZD.state.rules.every(r => !('rollup' in r) && !('mode' in r) && r.editions.every(e => !('rollup' in e.values) && !('mode' in e.values))),
     `порога нет ни по умолчанию, ни у правила, ни в значениях редакции; правил 107 — по одному на каждое из 105 видов с заданием и 2 выведенных (вид разбора отпавшего снят, ЭЗ-20); ` +
-    `у сигнала правила нет`);
+    `сигнала нет (СГН-1)`);
 })();
 
 /* ИЗ-5 — вернувшийся ключ при открытом задании второго не порождает */
@@ -2925,14 +2931,14 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
     `порога свёртки нет ни у вида, ни у правила, ни в редакции; попытка поставить его отбита («${e}») и редакции не дала`);
 })();
 
-/* род вида: четыре рода; ручного режима нет ни у кого */
+/* род вида: три рода (СГН-1 — сигнала нет); ручного режима нет ни у кого */
 (() => {
   ZD.seed();
   const g = x => ZD.state.povodKinds.filter(k => k.genus === x).length;
   const modes = ['rule-doc-sign', 'rule-overdue', 'rule-pk-im-unsold'].map(id => throws(() => setRule(id, 'mode', 'ручной')));
-  ok(190, ZD.GENERA.join() === 'шаг,надзор,самоопрос,сигнал' && g('самоопрос') === 6 && g('шаг') === 33 && g('надзор') === 68 && g('сигнал') === 1 &&
-       ZD.state.povodKinds.length === 108 && GONE_HL.every(gone) && modes.every(x => /выпуском/.test(x)) && ZD.checkRegistry().length === 0,
-    `род объявлен у всех 108 видов: шаг 33, надзор 68 (из них два выведены выпуском), самоопрос 6, сигнал 1; рода «подсветка» нет, 24 вида ушли из реестра (ПДС-1); ` +
+  ok(190, ZD.GENERA.join() === 'шаг,надзор,самоопрос' && g('самоопрос') === 6 && g('шаг') === 33 && g('надзор') === 68 && g('сигнал') === 0 &&
+       ZD.state.povodKinds.length === 107 && GONE_HL.every(gone) && modes.every(x => /выпуском/.test(x)) && ZD.checkRegistry().length === 0,
+    `род объявлен у всех 107 видов: шаг 33, надзор 68 (из них два выведены выпуском), самоопрос 6; рода «подсветка» нет, 24 вида ушли из реестра (ПДС-1); рода «сигнал» нет (СГН-1); ` +
     `ручной режим отбит и у шага, и у самоопроса, и у надзора; реестр сходится`);
 })();
 
@@ -3278,164 +3284,146 @@ const outc = t => (ZD.outcomeOf(t) || {});
 })();
 
 
-/* ---------- Y. Подключение кредита (волна макета 15) ---------- */
-const crKey = (id, date) => `pk-cr-payment-due|credit:${id}|${date}`;
-const noTaskCr = () => !ZD.state.tasks.some(t => t.originKind === 'pk-cr-payment-due');
-const crSig = to => ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.originKind === 'pk-cr-payment-due' && (!to || n.to === to));
+/* ---------- Y. Подключение кредита (волна макета 15; с волны 44 — сообщение о платеже — событие кредита, СГН-1) ---------- */
+const crPay = to => ZD.state.notifications.filter(n => n.kind === 'cr-payment-due' && (!to || n.to === to));
+const crPayItems = (to, id, date) => crPay(to).filter(n => n.items.some(i => i.obj === id && i.date === date));
+const noTaskCrPay = () => !ZD.state.tasks.some(t => /payment-due/.test(t.originKind || ''));
+const dayOn = (...ds) => ds.forEach(d => { at(d); ZD.runPoll(); ZD.noticeDay(d); }); // ночь: опрос заданий, затем события модулей и рассылка
 
-/* одиннадцатый источник: один вид — сигнал, правила и действия нет */
+/* СГН-1: вида повода нет; источник «Кредит» опрашивается ради закрытия кредита; сообщение о платеже — вид перечня в событиях кредита */
 (() => {
   ZD.seed();
-  const cr = ZD.SOURCES.find(s => s.id === 'credit'), k = ZD.kindOf('pk-cr-payment-due'), c = ZD.state.signals['pk-cr-payment-due'];
+  const cr = ZD.SOURCES.find(s => s.id === 'credit'), k = ZD.NOTICE_LIST.find(x => x.id === 'cr-payment-due'), c = ZD.state.notifSettings['cr-payment-due'];
   ok(212, ZD.SOURCES.length === 17 && ZD.SOURCES[10] === cr && cr.name === 'Кредит' && cr.onSave === false &&
-       cr.kinds.join() === 'pk-cr-payment-due,pk-cr-field-visit,pk-cr-close' && ZD.CR_KINDS.join() === cr.kinds.join() && !ZD.kindOf('pk-cr-field-visit').activatedAt && ZD.SIGNAL_KINDS.join() === 'pk-cr-payment-due' &&
-       k.objectType === 'credit' && k.genus === 'сигнал' && !k.selfRelease && !k.periodic && k.sumAttr === 'сумма платежа по графику' && k.activatedAt === '2026-10-01' &&
-       !ZD.ruleForKind('pk-cr-payment-due') && !ZD.actionOf('act-cr-payment') && c.recipients[0].role === 'куратор кредита' && c.channels.join() === 'всплывающее' &&
-       ZD.ownerOfKind('pk-cr-payment-due') === 'Кредит' && ZD.checkRegistry().length === 0,
-    `Кредит — одиннадцатый источник, ночной опрос, молчание — две ночи подряд; один вид «срок платежа по графику близко» — сигнал: правила и действия нет, ` +
-    `получатель — куратор кредита, способ — всплывающее, реквизит — сумма платежа по графику; реестр сходится`);
+       cr.kinds.join() === 'pk-cr-field-visit,pk-cr-close' && ZD.CR_KINDS.join() === cr.kinds.join() && !ZD.kindOf('pk-cr-field-visit').activatedAt &&
+       !ZD.kindOf('pk-cr-payment-due') && !ZD.ruleForKind('pk-cr-payment-due') && !ZD.actionOf('act-cr-payment') && ZD.state.signals === undefined &&
+       k && k.module === 'Кредит' && k.group === 'События модулей' && k.tuned && k.party.join() === 'куратор кредита' && k.card === 'cr' && k.tab === 'График' &&
+       c.text === 'Срок платежа по графику близко: предупредите заёмщика' && c.channels.join() === 'всплывающее' && c.on && c.recipients.map(r => r.by + ':' + r.role).join() === 'объект:куратор кредита' &&
+       ZD.checkRegistry().length === 0,
+    `СГН-1 — Кредит остаётся одиннадцатым источником (закрытие кредита, выездной мониторинг); вида «срок платежа по графику близко» в реестре заданий нет; ` +
+    `в перечне уведомлений — событие кредита: настраиваемое, куратору кредита, вкладка «График», текст тот же, способ — всплывающее; реестр сходится`);
 })();
 
-/* рубильник и клэмп: до 01.10 поводов нет; 01.10 — 15, база срока прижата, ключ «вид · кредит · дата платежа» */
+/* до 01.10 событий нет; 01.10 — 15 строк графика, запись о событии на каждую: кредит, дата платежа, «платёж …» */
 (() => {
   ZD.seed();
-  const r0 = ZD.runPoll(), c0 = r0.sources.find(s => s.src === 'credit');
-  const inactive = [...marks().inactive.keys()].filter(k => /^pk-cr-/.test(k)).length;
-  at('2026-10-01');
-  const r1 = ZD.runPoll(), c1 = r1.sources.find(s => s.src === 'credit');
-  const ps = ZD.state.povods.filter(p => p.kind === 'pk-cr-payment-due');
-  const p187 = ZD.povodByKey(crKey('КД-2023/187', '2026-10-20'));
-  ok(213, c0.new === 0 && c0.answer === 'множество' && inactive === 0 && c1.new === 15 && ps.length === 15 &&
-       ps.every(p => p.stateDate === '2026-10-01' && /^pk-cr-payment-due\|credit:КД-\d{4}\/\d{3}\|\d{4}-\d{2}-\d{2}$/.test(p.key)) &&
-       p187.objectType === 'credit' && p187.curObj === 'КД-2023/187' && p187.sub === '2026-10-20' &&
-       p187.traits.дней_до === 19 && p187.traits.сумма === 412500 && p187.traits.заёмщик === 'ОсОО «Нарын-Сүт»',
-    `до ввода вида (01.10) кредит отвечает пустым множеством, «вид не введён» не возникает; 01.10 — 15 поводов, база срока ` +
-    `прижата к 01.10; ключ — «вид · кредит · дата платежа»; у КД-2023/187 платёж 20.10 на 412 500 через 19 дней`);
+  const early = ZD.crDueFacts('2026-09-30').length;
+  dayOn('2026-10-01');
+  const ev = ZD.state.noticeEvents.filter(r => r.kind === 'cr-payment-due');
+  const e187 = ev.find(r => r.obj.id === 'КД-2023/187');
+  ok(213, early === 0 && ZD.CR_DUE_FROM === '2026-10-01' && ev.length === 15 && ev.every(r => /^EV-\d+$/.test(r.no) && r.at === '2026-10-01' && r.by === null && r.date && r.obj.type === 'cr') &&
+       e187.date === '2026-10-20' && e187.detail === 'платёж 20.10.2026' && e187.obj.title === 'ОсОО «Нарын-Сүт»' && e187.tab === 'График' &&
+       !ZD.state.povods.some(p => /payment-due/.test(p.kind)) && ZD.state.crDueSent['КД-2023/187|2026-10-20'] === '2026-10-01',
+    `СГН-1 — до 01.10 кредит событий не объявляет; 01.10 — 15 записей о событии, по одной на строку графика в окне 30 к.д., с пометкой у строки; ` +
+    `у КД-2023/187 — «платёж 20.10.2026»; поводов заданий нет`);
 })();
 
-/* окно 30 к.д.: повод появляется ровно за 30 к.д. до платежа, не раньше */
+/* окно 30 к.д.: событие ровно за 30 к.д. до платежа, не раньше */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-05');
-  const before = !ZD.povodByKey(crKey('КД-2024/112', '2026-11-05'));
-  pollOn('2026-10-06');
-  const p = ZD.povodByKey(crKey('КД-2024/112', '2026-11-05')), left = p && p.traits.дней_до;
-  pollOn('2026-10-20');
-  const before2 = !ZD.povodByKey(crKey('КД-2023/187', '2026-11-20'));
-  pollOn('2026-10-21');
-  ok(214, before && !!p && p.stateDate === '2026-10-06' && left === 30 &&
-       before2 && !!ZD.povodByKey(crKey('КД-2023/187', '2026-11-20')),
-    `платёж КД-2024/112 05.11: 05.10 (31 день) повода нет, 06.10 (30 дней) — есть, база срока 06.10; следующий платёж ` +
-    `КД-2023/187 20.11 появляется 21.10, не 20.10`);
+  dayOn('2026-10-01', '2026-10-05');
+  const before = crPayItems('E1', 'КД-2024/112', '2026-11-05').length === 0;
+  dayOn('2026-10-06');
+  const on6 = crPayItems('E1', 'КД-2024/112', '2026-11-05');
+  dayOn('2026-10-20');
+  const before2 = crPayItems('E1', 'КД-2023/187', '2026-11-20').length === 0;
+  dayOn('2026-10-21');
+  ok(214, before && on6.length === 1 && on6[0].t === '2026-10-06' && before2 && crPayItems('E1', 'КД-2023/187', '2026-11-20')[0].t === '2026-10-21',
+    `СГН-1 — платёж КД-2024/112 05.11: 05.10 (31 день) сообщения нет, 06.10 (30 дней) — есть; следующий платёж КД-2023/187 20.11 — 21.10, не 20.10`);
 })();
 
-/* получатель — куратор кредита; за прогон одно уведомление с перечнем, заданий нет */
+/* получатель — куратор кредита; за ночь одно сообщение с перечнем, заданий нет */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01');
-  const e1 = crSig('E1'), e3 = crSig('E3');
-  const seenBefore = crSig().length;
-  ZD.runPoll();
-  ok(215, noTaskCr() && e1.length === 1 && e1[0].count === 3 && e1[0].items.length === 3 && e3.length === 1 && e3[0].count === 12 && e3[0].taskId === null && e3[0].due === null &&
-       /Срок платежа/.test(e1[0].text) && e1[0].channels.join() === 'всплывающее' && crSig().length === seenBefore &&
-       e1[0].items.some(i => /КД-2023\/187 · ОсОО «Нарын-Сүт» · платёж 20\.10\.2026/.test(i.text)),
-    `01.10: Есеновой одно уведомление о трёх платежах, Нурлановой одно о двенадцати; задания и срока нет; живой повод повторно не шлётся`);
+  dayOn('2026-10-01');
+  const e1 = crPay('E1'), e3 = crPay('E3');
+  const seenBefore = crPay().length;
+  ZD.runPoll(); ZD.noticeDay('2026-10-01');
+  ok(215, noTaskCrPay() && e1.length === 1 && e1[0].count === 3 && e1[0].items.length === 3 && e3.length === 1 && e3[0].count === 12 && e3[0].taskId === null && e3[0].due === null &&
+       e1[0].source === 'Кредит' && /^N95/.test(e1[0].id) && e1[0].text === 'Срок платежа по графику близко: предупредите заёмщика' && e1[0].channels.join() === 'всплывающее' && crPay().length === seenBefore &&
+       e1[0].items.some(i => i.text === 'КД-2023/187 · ОсОО «Нарын-Сүт»: платёж 20.10.2026'),
+    `СГН-1 — 01.10: Есеновой одно сообщение кредита о трёх платежах, Нурлановой одно о двенадцати; задания и срока нет; повторная ночь того же дня не шлёт`);
 })();
 
-/* уведомление заёмщику — действие куратора в карточке кредита: повод не гасит, закрывать нечего */
+/* уведомление заёмщику — действие куратора в карточке кредита: сообщение не повторяется, закрывать нечего */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-05');
-  const p187 = ZD.povodByKey(crKey('КД-2023/187', '2026-10-20'));
-  pollOn('2026-10-06');
+  dayOn('2026-10-01', '2026-10-05', '2026-10-06');
   at('2026-10-07');
   const stranger = throws(() => ZD.crStep('КД-2024/112', 'E6', 'уведомить', '2026-11-05'));
   const past = throws(() => ZD.crStep('КД-2023/187', 'E1', 'уведомить', '2026-09-20'));
   ZD.crStep('КД-2024/112', 'E2', 'уведомить', '2026-11-05');
-  pollOn('2026-10-08');
+  dayOn('2026-10-08');
   const s = ZD.creditAt(ZD.state.owner.cr.find(o => o.id === 'КД-2024/112'), '2026-10-08');
-  ok(216, p187.status === 'appeared' && ZD.povodByKey(crKey('КД-2024/112', '2026-11-05')).status === 'appeared' && noTaskCr() &&
+  ok(216, crPayItems('E1', 'КД-2024/112', '2026-11-05').length === 1 && noTaskCrPay() &&
        /куратор кредита/.test(stranger) && !!past && s.notices['2026-11-05'] && s.notices['2026-11-05'].by === 'E2',
-    `05.10 Есенова уведомила заёмщика о платеже 20.10 — запись в карточке, повод жив до даты платежа; по КД-2024/112 уведомил ` +
-    `руководитель Токтогулов — запись с его именем; чужой сотрудник и прошедший платёж — отказ; заданий нет`);
+    `по КД-2024/112 уведомил заёмщика руководитель Токтогулов — запись с его именем в карточке, сообщение куратору было одно; ` +
+    `чужой сотрудник и прошедший платёж — отказ; заданий нет`);
 })();
 
-/* отвечать на сигнал нечем: решения адресата нет, повод живёт до даты платежа */
+/* по строке графика — одно сообщение: пометка у строки, а не живой повод */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01');
-  const key = crKey('КД-2026/015', '2026-10-15');
-  const n0 = crSig('E1').length;
-  pollOn('2026-10-02', '2026-10-14');
-  const alive = ZD.povodByKey(key).status === 'appeared';
-  const again = crSig('E1').filter(n => n.items.some(i => i.key === key)).length;
-  pollOn('2026-10-15');
-  ok(217, n0 === 1 && alive && again === 1 && ZD.povodByKey(key).status === 'gone' && noTaskCr() && !ZD.kindOf('pk-cr-payment-due').selfRelease,
-    `платёж КД-2026/015 15.10: сигнал ушёл один раз, ответа и решения «не требуется» нет; повод жив до 15.10 и второго уведомления не даёт; 15.10 повод отпал`);
+  dayOn('2026-10-01');
+  const n0 = crPayItems('E1', 'КД-2026/015', '2026-10-15').length;
+  dayOn('2026-10-02', '2026-10-05', '2026-10-09', '2026-10-14', '2026-10-15');
+  const again = crPayItems('E1', 'КД-2026/015', '2026-10-15').length;
+  ok(217, n0 === 1 && again === 1 && ZD.state.crDueSent['КД-2026/015|2026-10-15'] === '2026-10-01' && noTaskCrPay(),
+    `СГН-1 — платёж КД-2026/015 15.10: сообщение ушло 01.10 один раз, пометка у строки графика; до даты платежа повторов нет, ответа нет`);
 })();
 
-/* досрочный платёж и наступление срока гасят повод; просрочки у сигнала нет */
+/* досрочный платёж и наступление срока: ничего больше не приходит; просрочки и эскалации нет */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-06', '2026-10-12');
-  const p022 = ZD.povodByKey(crKey('КД-2026/022', '2026-10-28'));
-  const p112 = ZD.povodByKey(crKey('КД-2024/112', '2026-11-05'));
-  const a112 = p112.status === 'appeared';
-  pollOn('2026-10-14', '2026-10-20', '2026-11-05');
-  ok(218, p022.status === 'gone' && a112 && p112.status === 'gone' && noTaskCr() && !ZD.state.tasks.some(t => t.originKind === 'pk-overdue' && /pk-cr-/.test(t.povodKey)) &&
-       ZD.state.notifications.filter(n => n.originKind === 'pk-cr-payment-due').every(n => n.kind === 'сигнал'),
-    `КД-2026/022: платёж 28.10 зачислен 12.10 — повод отпал; КД-2024/112: 05.11 наступил срок платежа — повод отпал; ` +
-    `ни просрочки, ни эскалации, ни других уведомлений: только сигнал`);
+  dayOn('2026-10-01', '2026-10-06', '2026-10-12', '2026-10-14', '2026-10-20', '2026-11-05');
+  ok(218, crPayItems(null, 'КД-2026/022', '2026-10-28').length === 1 && crPayItems(null, 'КД-2024/112', '2026-11-05').length === 1 && noTaskCrPay() &&
+       !ZD.state.tasks.some(t => t.originKind === 'pk-overdue' && /pk-cr-/.test(t.povodKey)) &&
+       crPay().every(n => n.ev && n.ev.length === n.items.length && n.originKind === null),
+    `КД-2026/022: платёж 28.10 зачислен 12.10; КД-2024/112: 05.11 наступил срок — по каждому одно сообщение, ни просрочки, ни эскалации, ни других сообщений`);
 })();
 
-/* следующий платёж — новый ключ, не «повтор после» */
+/* следующий платёж — новая строка графика, новое сообщение */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-05');
-  const a = ZD.povodByKey(crKey('КД-2023/187', '2026-10-20'));
-  pollOn('2026-10-20', '2026-10-21');
-  const b = ZD.povodByKey(crKey('КД-2023/187', '2026-11-20'));
-  const sent = crSig('E1').filter(n => n.t === '2026-10-21');
-  ok(219, a.status === 'gone' && !!b && b.key !== a.key && b.status === 'appeared' && sent.length === 1 && sent[0].items.some(i => i.key === b.key),
-    `платёж 20.10 прошёл; 21.10 по платежу 20.11 — новый ключ и новый сигнал Есеновой: у каждого платежа свой ключ`);
+  dayOn('2026-10-01', '2026-10-05', '2026-10-20', '2026-10-21');
+  const sent = crPay('E1').filter(n => n.t === '2026-10-21');
+  ok(219, sent.length === 1 && sent[0].items.length === 1 && sent[0].items[0].obj === 'КД-2023/187' && sent[0].items[0].date === '2026-11-20' && crPayItems('E1', 'КД-2023/187', '2026-10-20').length === 1,
+    `платёж 20.10 прошёл; 21.10 по платежу 20.11 — новое сообщение Есеновой: у каждой строки графика своя пометка`);
 })();
 
-/* свод: сколько новых поводов — один сигнал за прогон, в следующий — только новые */
+/* свод: новые строки ночи — одно сообщение человеку, в следующую — только новые */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01');
-  const n1 = crSig('E3').length, c1 = crSig('E3')[0].count;
-  pollOn('2026-10-07');
-  const e1 = crSig('E1').filter(n => n.t === '2026-10-07');
-  ok(220, n1 === 1 && c1 === 12 && crSig('E3').filter(n => n.t === '2026-10-07').length === 0 && e1.every(n => n.count === n.items.length),
-    `двенадцать платежей Нурлановой 01.10 — одно уведомление; на 07.10 новых её платежей нет — нового уведомления нет; счётчик равен перечню`);
+  dayOn('2026-10-01');
+  const n1 = crPay('E3').length, c1 = crPay('E3')[0].count;
+  dayOn('2026-10-07');
+  ok(220, n1 === 1 && c1 === 12 && crPay('E3').filter(n => n.t === '2026-10-07').length === 0 && crPay().every(n => n.count === n.items.length),
+    `двенадцать платежей Нурлановой 01.10 — одно сообщение; на 07.10 новых её строк нет — нового сообщения нет; счётчик равен перечню`);
 })();
 
-/* реквизит суммы и чей повод — в строке статистики; молчит кредит — замерзают только его поводы */
+/* статистике строк заданий нет; опрос заданий кредит не отвечает — сообщение о платеже всё равно уходит: дату проверяет сам кредит */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01');
-  const rows = ZD.taskRows('2026-10-01').filter(x => x.kind === 'pk-cr-payment-due');
-  at('2026-10-02'); const r = ZD.runPoll({ downSources: ['credit'] });
-  const frozen = ZD.state.povods.filter(p => p.kind === 'pk-cr-payment-due' && p.status === 'frozen').length;
-  ok(222, rows.length === 0 && ZD.kindOf('pk-cr-payment-due').sumAttr === 'сумма платежа по графику' &&
-       !r.complete && r.sources.find(s => s.src === 'credit').answer === 'ошибка' && frozen === 15 &&
-       ZD.state.povods.filter(p => p.kind !== 'pk-cr-payment-due' && p.status === 'frozen').length === 0,
-    `сигнал не даёт строки заданий статистике, реквизит суммы остался у вида; 02.10 кредит не ответил — ` +
-    `заморожены только его 15 поводов`);
+  dayOn('2026-10-01', '2026-10-05');
+  const rows = ZD.taskRows('2026-10-06').filter(x => /payment-due/.test(x.kind));
+  at('2026-10-06'); const r = ZD.runPoll({ downSources: ['credit'] }); ZD.noticeDay('2026-10-06');
+  ok(222, rows.length === 0 && !r.complete && r.sources.find(s => s.src === 'credit').answer === 'ошибка' &&
+       crPayItems('E1', 'КД-2024/112', '2026-11-05').length === 1,
+    `СГН-1 — сообщение о платеже не даёт строки заданий статистике; 06.10 кредит не ответил опросу заданий, а сообщение по платежу 05.11 ушло: ` +
+    `его рождает собственная сверка кредита`);
 })();
 
 /* демо-карточка кредита: график, кто уведомлён, платёж — бухгалтер */
 (() => {
   ZD.seed();
-  pollOn('2026-10-01', '2026-10-05');
-  const html = ZD.renderOwnerCard(null, ZD.povodByKey(crKey('КД-2026/022', '2026-10-28')));
-  const v = ZD.renderOwnerCard(null, ZD.povodByKey(crKey('КД-2023/187', '2026-10-20')));
+  dayOn('2026-10-01', '2026-10-05');
+  const html = ZD.renderCrCard('КД-2026/022');
+  const v = ZD.renderCrCard('КД-2023/187');
   const notBook = throws(() => ZD.crStep('КД-2026/022', 'E1', 'платёж', '2026-10-28'));
   ok(223, /Карточка кредита КД-2026\/022/.test(html) && /ОсОО «Талас-Агро»/.test(html) && /через 23 дн\./.test(html) &&
        /Уведомить заёмщика/.test(html) && /640\s000/.test(html) && /заёмщик уведомлён 05\.10\.2026 · Есенова/.test(v) &&
-       /бухгалтер/.test(notBook),
-    `в карточке кредита — график с суммами, «через 23 дн.» и «Уведомить заёмщика» у ближайшего платежа, у КД-2023/187 — ` +
+       /бухгалтер/.test(notBook) && /через 23 дн\.<\/span> куратору сообщено 01\.10\.2026/.test(html),
+    `в карточке кредита — график с суммами, «через 23 дн.» с пометкой «куратору сообщено 01.10.2026» (СГН-1) и «Уведомить заёмщика» у ближайшего платежа, у КД-2023/187 — ` +
     `«заёмщик уведомлён 05.10 · Есенова»; платёж отмечает только бухгалтер`);
 })();
 
@@ -3993,7 +3981,7 @@ const PL_TASK = ['pk-pl-await','pk-pl-restore','pk-pl-unidentified'], PL_HL = ['
   const notes = ZD.plNotices('КД-2025/344', '2026-11-13');
   const plIds = ZD.state.tasks.filter(t => t.originKind && /^pk-pl-/.test(t.originKind)).map(t => t.id);
   const toCur = ZD.state.notifications.slice(nn0).filter(n => n.to === 'E3' && n.items.some(i => plIds.includes(i.taskId))).map(n => n.kind).sort().join();
-  const noLetter = ZD.state.notifications.slice(nn0).every(n => n.kind === 'сигнал' || ZD.NOTIF_KINDS.includes(n.kind)) && toCur === 'закрыто';
+  const noLetter = ZD.state.notifications.slice(nn0).every(n => ZD.NOTIF_KINDS.includes(n.kind)) && toCur === 'закрыто';
   ok(253, byCur === 'факт денег вносит бухгалтер' && o.outcome === 'снято' && o.reason === 'поступление ПС-9001 сторнировано: денег в реестре ЦК нет' &&
        noWork('pk-pl-disputed') &&
        fresh.map(t => t.originKind).join() === 'pk-pl-await' &&
@@ -4952,14 +4940,14 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   const inFile = new Set(rows.map(r => r.id));
   const rest = {}; ZD.state.povodKinds.filter(k => !inFile.has(k.id)).forEach(k => { rest[k.basis.group] = (rest[k.basis.group] || 0) + 1; });
   const groups = {}; ZD.state.povodKinds.filter(k => ZD.kindCategory(k) === 'задание').forEach(k => { groups[k.basis.group] = (groups[k.basis.group] || 0) + 1; });
-  const snyato = ZD.state.povodKinds.filter(k => ['сигнал', 'выведен'].includes(ZD.kindCategory(k))).map(k => k.id).sort().join();
-  ok(294, ZD.state.povodKinds.length === 108 && c.задание === 105 && !('подсветка' in c) && c.сигнал === 1 && c.выведен === 2 && c.шаг === 33 && c.надзор === 66 && c.самоопрос === 6 &&
+  const snyato = ZD.state.povodKinds.filter(k => ZD.kindCategory(k) === 'выведен').map(k => k.id).sort().join();
+  ok(294, ZD.state.povodKinds.length === 107 && c.задание === 105 && !('подсветка' in c) && !('сигнал' in c) && !ZD.kindOf('pk-cr-payment-due') && c.выведен === 2 && c.шаг === 33 && c.надзор === 66 && c.самоопрос === 6 &&
        rows.length === 87 && inFile.size === 87 && rows.filter(r => r.decision === 'подсветка').length === 21 && rows.filter(r => r.decision.startsWith('выведен')).length === 1 && wrong.length === 0 &&
        rest['шаг процесса'] === 33 && rest['про модуль и систему'] === 7 && !('про реестр' in rest) &&
        groups['шаг процесса'] === 33 && groups['про модуль и систему'] === 7 && groups['прямо в Порядке'] === 21 && groups['косвенно в нормах'] === 17 &&
        groups['проект Инструкции'] === 15 && groups['угроза без документа'] === 12 &&
-       snyato === 'pk-cr-payment-due,pk-im-topup-pending,pk-rep-obligation-overdue' && ZD.checkRegistry().length === 0,
-    `ЗНП-1, ЗНП-12, ЭЗ-20, ПДС-1 — 108 видов в реестре: заданий 105 (шаг 33, надзор 66, самоопрос 6; выездной мониторинг заведён, не введён), сигнал 1, выведено 2; 22 строки «не стало заданием» в реестр не входят; вид разбора отпавшего удалён; ` +
+       snyato === 'pk-im-topup-pending,pk-rep-obligation-overdue' && ZD.checkRegistry().length === 0,
+    `ЗНП-1, ЗНП-12, ЭЗ-20, ПДС-1, СГН-1 — 107 видов в реестре: заданий 105 (шаг 33, надзор 66, самоопрос 6; выездной мониторинг заведён, не введён), выведено 2, сигнала нет (платёж — событие кредита); 22 строки «не стало заданием» в реестр не входят; вид разбора отпавшего удалён; ` +
     `87 строк файла оснований сошлись с реестром по решению и группе${wrong.length ? ' — расхождения: ' + wrong.join(', ') : ''}; ` +
     `основание задания: прямо 21, косвенно 17, проект Инструкции 15, угроза 12, шаги 33, про модуль 7`);
 })();
@@ -4984,11 +4972,11 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   const tabs = (t.match(/<div class="tabs">([\s\S]*?)<span class="tab-links"/) || [])[1] || '';
   const thr = (t.match(/data-marks-thr="/g) || []).length;
   ZD.state.viewer = 'E1'; const ro = ZD.renderSettings(); ZD.state.viewer = 'E4';
-  ok(296, c.задание === 105 && c.шаг === 33 && c.надзор === 66 && c.самоопрос === 6 && c.сигнал === 1 && c.выведен === 2 &&
+  ok(296, c.задание === 105 && c.шаг === 33 && c.надзор === 66 && c.самоопрос === 6 && !('сигнал' in c) && c.выведен === 2 &&
        (tabs.match(/<button/g) || []).length === 1 && />Задания</.test(tabs) && !/Подсветка|data-hl/.test(t) && /data-marks/.test(t) && thr === 3 &&
        /«не введено» — вид не введён в действие дольше 3 к\.д\./.test(t) && /«повод возвращается» — 3 возвращения ключа · решение проекта/.test(t) && /за 30 к\.д\. · решение проекта/.test(t) &&
        !/data-marks-thr/.test(ro) && /data-marks/.test(ro) && ZD.kindOf('gd-review').pollOnSave === true && !/Опрос|по сохранению и ночью/.test(panel),
-    `ПДС-1 — реестр 105 · 1 · 2; в настройке одна вкладка «Задания», вкладки «Подсветка» нет; под таблицей — пороги пометок строки («не введено» дольше 3 к.д., «повод возвращается» 3 раза за 30 к.д.) с тремя кнопками у администратора, у остальных — на чтение; у шагов опрос по сохранению — в модели, на панели правила не выводится (ПРП-4)`);
+    `ПДС-1, СГН-1 — реестр 105 · 2 (сигнала нет); в настройке одна вкладка «Задания», вкладки «Подсветка» нет; под таблицей — пороги пометок строки («не введено» дольше 3 к.д., «повод возвращается» 3 раза за 30 к.д.) с тремя кнопками у администратора, у остальных — на чтение; у шагов опрос по сохранению — в модели, на панели правила не выводится (ПРП-4)`);
 })();
 
 /* ЗНП-3 — вала нет: при 11 и при 10 просрочках счёт идёт ровно по числу заданий */
@@ -5193,47 +5181,46 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
     `ЗНП-6, ЗНП-19 — ночь без ответа: поводы заморожены, ни одно задание не отпало, ответ один — «ошибка»; ответил — счёт с нуля; снова две ночи подряд 10.09 и 11.09 — задание в очередь «Администратор» в тот же прогон`);
 })();
 
-/* ЗНП-7, ЗНП-20 — сигнал: настройка у администратора, с основанием; новое событие только выпуском */
+/* СГН-1 (было ЗНП-7, ЗНП-20) — сообщение о платеже настраивается как любой вид событий: администратор уведомлений, с основанием, общая история */
 (() => {
   ZD.seed();
-  const S = 'pk-cr-payment-due', c = ZD.state.signals[S], admin = { by: 'E18', basis: 'приказ' };
+  const S = 'cr-payment-due', c = ZD.state.notifSettings[S], admin = { by: 'E18', basis: 'приказ' };
   const was = c.text;
   const refusals = {
-    notAdmin: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E3', basis: 'приказ' })), noBasis: throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E18' })),
-    empty: throws(() => ZD.editSignal(S, { text: '  ' }, admin)), badCh: throws(() => ZD.editSignal(S, { channels: ['голубь'] }, admin)), noCh: throws(() => ZD.editSignal(S, { channels: [] }, admin)),
-    badRec: throws(() => ZD.editSignal(S, { recipients: [{ by: 'фамилия', who: 'E3' }] }, admin)), noRec: throws(() => ZD.editSignal(S, { recipients: [] }, admin)),
-    other: throws(() => ZD.editSignal('lp-expiring', { text: 'x' }, admin)), field: throws(() => ZD.editSignal(S, { window: 10 }, admin)), same: throws(() => ZD.editSignal(S, { text: was }, admin)),
+    notAdmin: throws(() => ZD.editNotif(S, { text: 'x' }, { by: 'E3', basis: 'приказ' })), noBasis: throws(() => ZD.editNotif(S, { text: 'x' }, { by: 'E18' })),
+    empty: throws(() => ZD.editNotif(S, { text: '  ' }, admin)), badCh: throws(() => ZD.editNotif(S, { channels: ['голубь'] }, admin)), noCh: throws(() => ZD.editNotif(S, { channels: [] }, admin)),
+    badRec: throws(() => ZD.editNotif(S, { recipients: [{ by: 'фамилия', who: 'E3' }] }, admin)), noRec: throws(() => ZD.editNotif(S, { recipients: [] }, admin)),
+    field: throws(() => ZD.editNotif(S, { window: 10 }, admin)), same: throws(() => ZD.editNotif(S, { text: was }, admin)),
   };
-  ZD.editSignal(S, { text: 'Платёж близко', channels: ['всплывающее', 'SMS'], recipients: [{ by: 'кураторство', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }] }, { by: 'E18', basis: 'приказ №50' });
-  at('2026-10-01'); ZD.runPoll();
-  const e4 = ZD.state.notifications.filter(n => n.kind === 'сигнал' && n.to === 'E4'), e1 = ZD.state.notifications.find(n => n.kind === 'сигнал' && n.to === 'E1');
-  const k = ZD.kindOf(S), noCur = ZD.signalRecipients(k, { curObj: 'нет-такого' }, '2026-10-01');
+  ZD.editNotif(S, { text: 'Платёж близко', channels: ['всплывающее', 'SMS'], recipients: [{ by: 'объект', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }] }, { by: 'E18', basis: 'приказ №50' });
+  dayOn('2026-10-01');
+  const e4 = crPay('E4'), e1 = crPay('E1')[0];
+  const noCur = ZD.eventRecipients({ kind: S, parties: { 'куратор кредита': [] }, by: null });
   ok(306, /администратор/.test(refusals.notAdmin) && /основание/.test(refusals.noBasis) && /не пустой/.test(refusals.empty) && /способ/.test(refusals.badCh) && /способ/.test(refusals.noCh) &&
-       /получатель/.test(refusals.badRec) && /получатель/.test(refusals.noRec) && /только выпуском/.test(refusals.other) && /выпуском/.test(refusals.field) && /не изменились/.test(refusals.same) &&
+       /получател/.test(refusals.badRec) && /получател/.test(refusals.noRec) && /не настраивается/.test(refusals.field) && /не изменились/.test(refusals.same) &&
        c.history.length === 1 && c.history[0].basis === 'приказ №50' && c.history[0].was.text === was &&
-       e4.length === 1 && e4[0].count === 15 && e1.text === 'Платёж близко' && e1.channels.join() === 'всплывающее,SMS' && e1.count === 3 &&
-       ZD.signalRecipients(k, { curObj: 'КД-2023/187' }, '2026-10-01').join() === 'E1,E4' && noCur.join() === 'E4',
-    `ЗНП-7, ЗНП-20 — правит администратор с основанием, история хранит прежнее; получатели — роль кураторства и должности, текст, способ; добавили должность — администратор получил свод на ${e4[0] && e4[0].count} объектов, куратор на 3; нет куратора — только названная должность: у сигнала запасного адресата нет (ВЗЕ-170); новое событие — только выпуском`);
+       e4.length === 1 && e4[0].count === 15 && e1.text === 'Платёж близко' && e1.channels.join() === 'всплывающее,SMS' && e1.count === 3 && noCur.join() === 'E4',
+    `СГН-1 — сообщение о платеже правит администратор уведомлений с основанием, история хранит прежнее; получатели — роль по объекту и должности, текст, способ; ` +
+    `добавили должность — администратор получил свод на ${e4[0] && e4[0].count} платежей, куратор на 3; нет куратора — только названная должность`);
 })();
 
-/* ЗНП-7 — рубильник сигнала, чтение для остальных; обычные уведомления правятся своей настройкой (#357), не настройкой сигнала */
+/* СГН-1 (было ЗНП-7) — включение у администратора уведомлений в общей таблице; блоков «Сигналы» в настройке заданий и уведомлений нет */
 (() => {
   ZD.seed();
-  at('2026-10-01');
-  const S = 'pk-cr-payment-due', sig = () => ZD.state.notifications.filter(n => n.kind === 'сигнал').length;
-  const noBasis = throws(() => ZD.deactivateKind(S, 'E4', ''));
-  ZD.runPoll();
-  const first = sig() === 2;
-  ZD.runPoll();
-  const noRepeat = sig() === 2;
-  ZD.deactivateKind(S, 'E4', 'приказ №51');
-  ZD.runPoll();
-  const off = sig() === 2 && !ZD.state.povods.some(p => p.kind === S && p.status === 'appeared') &&
-    ZD.state.povods.filter(p => p.kind === S).every(p => p.journal[p.journal.length - 1].reason === 'вид выключен');
-  ZD.activateKind(S, 'E4', 'приказ №52');
-  ZD.runPoll();
-  const on = sig() === 4;
-  const ord = throws(() => ZD.editSignal('поручено', { text: 'x' }, { by: 'E18', basis: 'приказ' })), out = throws(() => ZD.notify(ZD.state.tasks[0], 'сигнал'));
+  const S = 'cr-payment-due', n = () => crPay().length;
+  dayOn('2026-10-01');
+  const first = n() === 2;
+  ZD.noticeDay('2026-10-01');
+  const noRepeat = n() === 2;
+  at('2026-10-05');
+  const noBasis = throws(() => ZD.editNotif(S, { on: false }, { by: 'E18', basis: '' })), tasksAdmin = throws(() => ZD.editNotif(S, { on: false }, { by: 'E4', basis: 'приказ' }));
+  ZD.editNotif(S, { on: false }, { by: 'E18', basis: 'приказ №51' });
+  dayOn('2026-10-06');
+  const off = n() === 2 && !ZD.state.noticeEvents.some(r => r.kind === S && r.at === '2026-10-06') && !ZD.state.crDueSent['КД-2024/112|2026-11-05']; // СГН-2: выключен — строка не помечается
+  ZD.editNotif(S, { on: true }, { by: 'E18', basis: 'приказ №52' });
+  dayOn('2026-10-16');
+  const on = n() === 3 && crPayItems('E1', 'КД-2024/112', '2026-11-05').length === 1 && crPayItems('E1', 'КД-2026/015', '2026-11-15').length === 1;
+  const out = throws(() => ZD.notify(ZD.state.tasks[0], 'сигнал'));
   ZD.state.viewer = 'E18';
   const html = ZD.renderNtSettings();
   ZD.state.viewer = 'E1';
@@ -5241,26 +5228,26 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
   const sw = ZD.renderSettings();
   ZD.state.viewer = 'E18';
-  ZD.askSignal(S);
-  const chans = ZD.dialog.fields.find(x => x.f === 'channels').options.join();
+  ZD.askNotif(S);
+  const chans = ZD.dialog.fields.find(x => x.f === 'channels').options.join(), roles = ZD.dialog.fields.find(x => x.f === 'roles').options.join(), onF = !!ZD.dialog.fields.find(x => x.f === 'on');
   ZD.dialogCancel();
-  ok(307, /основание/.test(noBasis) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('сигнал') && /выпуском/.test(ord) && /вне закрытого списка/.test(out) &&
-       /Срок платежа по графику близко/.test(html) && (html.match(/<tr data-sig="/g) || []).length === 1 && html.indexOf(`ZD.askSignal('${S}')`) !== -1 && /SMS/.test(chans) && /e-mail/.test(chans) &&
-       !/Только чтение/.test(ro) && !/ZD\.askSignal/.test(ro) && !/Выключить/.test(ro) && /Выключить/.test(sw) && sw.includes(`ZD.askKindOff('${S}')`) && !/ZD\.askSignal/.test(sw),
-    `ЗНП-7, ЗНП-20, СУ-22 — живой повод повторно не шлётся; выключен с основанием: нового сигнала и повода нет; включён — шлётся заново; настройка сигнала на экране кубика, включение осталось в настройке заданий; у остальных кнопок нет; настройка сигнала обычные уведомления не трогает`);
+  ok(307, /основание/.test(noBasis) && /администратор уведомлений/.test(tasksAdmin) && first && noRepeat && off && on && ZD.NOTIF_KINDS.length === 11 && /вне закрытого списка/.test(out) &&
+       /<tr data-n="cr-payment-due">/.test(html) && html.includes(`ZD.askNotif('${S}')`) && !/data-sig/.test(html) && !/>Сигналы</.test(html) && /SMS/.test(chans) && /e-mail/.test(chans) && roles === 'куратор кредита' && onF &&
+       !/ZD\.askNotif/.test(ro) && !/data-sig/.test(sw) && !/Сигнал/.test(sw) && !sw.includes(`'pk-cr-payment-due'`),
+    `СГН-1 — повторная ночь не шлёт; выключил администратор уведомлений с основанием (администратор заданий — нет): 06.10 события и пометки строки нет; ` +
+    `включил — 16.10 одним сообщением и платёж 15.11, и ждавшая строка 05.11 (не сообщённая — не повтор); строка вида в общей таблице, у остальных только чтение; блоков «Сигналы» нет`);
 })();
 
-/* ЗНП-7, ЗНП-21 — платёж больше не задание: ни срока, ни ответа, ни строки; уведомление заёмщику — действие в карточке */
+/* СГН-1 (было ЗНП-7, ЗНП-21) — платёж не задание: ни срока, ни ответа, ни строки; уведомление заёмщику — действие в карточке; клик — карточка кредита, «График» */
 (() => {
   ZD.seed();
-  at('2026-10-01'); ZD.runPoll();
-  const S = 'pk-cr-payment-due', KEY = crKey('КД-2026/015', '2026-10-15');
-  const before = crSig().length;
-  at('2026-10-05'); ZD.crStep('КД-2026/015', 'E1', 'уведомить', '2026-10-15'); ZD.runPoll();
+  dayOn('2026-10-01');
+  const before = crPay().length;
+  at('2026-10-05'); ZD.crStep('КД-2026/015', 'E1', 'уведомить', '2026-10-15'); ZD.runPoll(); ZD.noticeDay('2026-10-05');
   ZD.state.viewer = 'E1';
   ZD.state.view = 'notifs';
   const list = ZD.renderNotifPage();
-  const n = crSig('E1')[0], at1 = n.items.findIndex(i => i.key === KEY);
+  const n = crPay('E1')[0], at1 = n.items.findIndex(i => i.obj === 'КД-2026/015');
   ZD.notifGo(n.id);
   const panel = ZD.digestCard === n.id && n.read === true && ZD.renderDigestPanel(n.id).includes(`ZD.notifItem('${n.id}', ${at1})`);
   ZD.notifItem(n.id, at1);
@@ -5269,11 +5256,12 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
   ZD.closeCard();
   ZD.state.view = 'queue';
   ZD.state.viewer = 'E4';
-  ok(308, before === 2 && crSig().length === 2 && noTaskCr() && ZD.povodByKey(KEY).status === 'appeared' && ZD.state.savePolls.length === 0 &&
-       !ZD.taskRows('2026-10-05').some(r => r.kind === S) && n.due === null && n.taskId === null && at1 !== -1 && n.items.length > 1 &&
+  ok(308, before === 2 && crPay().length === 2 && noTaskCrPay() && ZD.state.savePolls.length === 0 &&
+       !ZD.taskRows('2026-10-05').some(r => /payment-due/.test(r.kind)) && n.due === null && n.taskId === null && at1 !== -1 && n.items.length > 1 &&
        !/без задания/.test(list) && /Срок платежа по графику близко/.test(list) && list.includes(`ZD.notifGo('${n.id}')`) && panel && goes &&
-       /Карточка кредита КД-2026\/015/.test(card) && /data-notice-tab>График</.test(card) && /в модуле «Кредит»/.test(card) && !/подсвет/.test(card) && /Уведомить заёмщика/.test(card),
-    `ЗНП-7, ЗНП-21, СУ-29 — по платежам два уведомления, заданий и строк нет; уведомление заёмщику остаётся действием куратора в карточке и повод не гасит; сводка на странице открывает перечень (строка целиком, пометки «без задания» нет — КУВ-5), его строка — карточку кредита на вкладке «График» (ПДС-1, КУВ-6)`);
+       /Карточка кредита КД-2026\/015/.test(card) && /data-notice-tab>График</.test(card) && /в модуле «Кредит»/.test(card) && /платёж 15\.10\.2026/.test(card) && /Уведомить заёмщика|заёмщик уведомлён/.test(card),
+    `СГН-1, СУ-29 — по платежам два сообщения кредита, заданий и строк нет; уведомление заёмщику — действие куратора в карточке; сводка на странице открывает перечень, его строка — ` +
+    `карточку кредита на вкладке «График», в подробностях — дата платежа`);
 })();
 
 /* ЗНП-8, ЗНП-24 — ручного режима нет; ненужное снимает автор кнопкой «Снять», шаг — нет */
@@ -5372,7 +5360,7 @@ const IM_KEY = (kind, obj) => `${kind}|${obj}|`;
 })();
 
 /* ---------- Волна 24 (04.11.2026) — движок под решения гриллинга экранов: ЭЗ-4, ЭЗ-6, ЭЗ-13, ЭЗ-14, ЭЗ-15, ЭЗ-20, ЭЗ-22, ЭЗ-25, ЭЗ-26…, ЭЗ-Д4, ЭЗ-Д6 ---------- */
-const taskMsgs = () => ZD.state.notifications.filter(n => n.source === 'Задания'); // сообщения о заданиях и сигналы; события модулей — своя серия
+const taskMsgs = () => ZD.state.notifications.filter(n => n.source === 'Задания'); // сообщения о заданиях; события модулей (с СГН-1 и платёж через 30 к.д.) — своя серия
 const sliceOf = () => { const s = ZD.state; return `${s.tasks.length}/${s.tasks.filter(t => !ZD.isTerminal(t)).length}/${taskMsgs().length}`; };
 const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" data-t="${id}"`)); return m ? m[1] : null; };
 
@@ -5390,7 +5378,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const back = sliceOf(), reset = ZD.lastEv(ZD.taskOf(t.id)) === 'поручено';
   ZD.seed(); ZD.goToDate('2026-11-02');
   const direct = sliceOf();
-  ok(314, first === '206/117/303' && later === '258/131/478' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
+  ok(314, first === '206/117/301' && later === '258/131/473' && back === first && direct === later && clicked && reset && opened === '2026-10-01' &&
        ZD.STAND_START === '2026-09-01' && ZD.STAND_OPEN === '2026-10-01' && nights.length === 31 && nights[0] === '2026-09-01' && nights[30] === '2026-10-01' &&
        /onchange="ZD\.goToDate\(this\.value\)"/.test(src) && /goToDate\(STAND_OPEN\)/.test(src) &&
        ZD.runPollUI === undefined && !/runPollUI|>\s*Ночной прогон\s*</.test(src) && [ZD.seed, ZD.setAsOf, ZD.runPoll].every(f => typeof f === 'function'),
@@ -5438,7 +5426,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const kinds = new Set(taskMsgs().map(n => n.kind));
   const n = k => taskMsgs().filter(x => x.kind === k).length;
   ok(316, ZD.NOTIF_KINDS.length === 11 && !ZD.NOTIF_KINDS.includes('повод-появился') && /вне закрытого списка/.test(bad) && !/повод-появился|Повод появился/.test(src) &&
-       [...kinds].every(k => ZD.NOTIF_KINDS.includes(k) || k === 'сигнал') && n('поручено') === 101 && n('эскалация') === 30,
+       [...kinds].every(k => ZD.NOTIF_KINDS.includes(k)) && n('поручено') === 101 && n('эскалация') === 30,
     `ЭЗ-15 — закрытый список 11; на 01.10 «поручено» ${n('поручено')}, «эскалация» ${n('эскалация')}: пара из старого движка (146 = 125 с «поручено» + 21 с «эскалацией») больше не шлётся`);
 })();
 
@@ -5454,7 +5442,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   const noRecord = ['pk-lapsed-review', 'act-lapsed', 'rule-lapsed', 'disposeLapsed', 'Разобрать отпавшее', 'требует разбора', 'ждёт разбора'].every(w => !src.includes(w));
   ok(317, lapsed.length === 26 && lapsed.every(t => ZD.deriveState(t) === 'закрыто — отпало') && told && inClosed && noRecord &&
        ZD.disposeLapsed === undefined && !ZD.state.povodKinds.some(k => k.id === 'pk-lapsed-review') && !ZD.ruleForKind('pk-lapsed-review') &&
-       !ZD.state.tasks.some(t => t.originKind === 'pk-lapsed-review') && ZD.state.povodKinds.length === 108,
+       !ZD.state.tasks.some(t => t.originKind === 'pk-lapsed-review') && ZD.state.povodKinds.length === 107,
     `ЭЗ-20, ЭЗ-Д6 — на 01.10 ${lapsed.length} заданий закрыто — отпало, исполнитель каждого получил «закрыто», у исполнителя — в «Мои закрытые»; вида, действия и правила разбора, кнопок и disposeLapsed нет`);
 })();
 
@@ -5530,7 +5518,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
 (() => {
   ZD.seed();
   const tbl = ZD.workTable(), sum = Object.values(tbl).reduce((a, x) => a + x, 0);
-  const inCard = ZD.state.povodKinds.filter(k => k.genus !== 'сигнал' && !k.retiredAt && k.addrForm === 'формула' && k.ownerExec);
+  const inCard = ZD.state.povodKinds.filter(k => !k.retiredAt && k.addrForm === 'формула' && k.ownerExec);
   ZD.goToDate('2026-10-01');
   const own = ZD.state.tasks.filter(t => t.originKind && inCard.some(k => k.id === t.originKind) && t.assignee);
   const atOnce = own.every(t => t.journal.some(e => e.ev === 'принято' && e.без_принятия));
@@ -5539,7 +5527,7 @@ const rowClass = (h, id) => { const m = h.match(new RegExp(`<tr class="([^"]*)" 
   ZD.state.viewer = live.assignee;
   const noBtn = !ZD.renderOwnerCard(live, ZD.povodByKey(live.povodKey)).includes('Взять в работу');
   const noNote = !ZD.state.notifications.some(n => n.kind === 'принято' && n.items.some(i => own.some(t => t.id === i.taskId)));
-  const asked = ZD.state.povodKinds.filter(k => k.genus !== 'сигнал' && !k.retiredAt && !k.ownerExec && k.addrForm === 'формула');
+  const asked = ZD.state.povodKinds.filter(k => !k.retiredAt && !k.ownerExec && k.addrForm === 'формула');
   const was = live.assignee, other = was === 'E39' ? 'E3' : 'E39';
   const stranger = throws(() => ZD.reassignTask(live.id, other, was, 'передаю'));
   ZD.reject(live.id, 'не мой участок');
@@ -6642,7 +6630,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const u1 = ZD.unreadOf('E1'), u4 = ZD.unreadOf('E4'), closedBell = ZD.renderBell();
   ZD.bellToggle(true);
   const panel = ZD.renderBell(), rows = (panel.match(/bell-row/g) || []).length, afterOpen = ZD.unreadOf('E1');
-  const newest = ZD.notifsOf('E1')[0], task = ZD.notifsOf('E1').find(n => n.kind !== 'сигнал' && !n.read && n.items.length === 1 && ZD.bucketOf(ZD.taskOf(n.items[0].taskId), 'E1') === 'mine');
+  const newest = ZD.notifsOf('E1')[0], task = ZD.notifsOf('E1').find(n => !n.read && n.items.length === 1 && ZD.bucketOf(ZD.taskOf(n.items[0].taskId), 'E1') === 'mine');
   ZD.state.view = 'queue'; ZD.state.qTab = 'closed';
   ZD.notifGo(task.id);
   const afterClick = ZD.unreadOf('E1'), went = ZD.cardId === task.items[0].taskId && ZD.state.view === 'queue' && ZD.state.qTab === 'work' && task.read === true;
@@ -6669,7 +6657,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.openAllNotif();
   const h = ZD.renderNotifPage(), head = headOf(h), rows = [...h.matchAll(/data-n="(N\d+)"/g)].map(m => m[1]);
   const newestFirst = inOrder(list.map(n => n.t), (a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  const task = list.find(n => n.kind !== 'сигнал' && n.items.length === 1 && !n.read), sig = list.find(n => n.kind === 'сигнал');
+  const task = list.find(n => !n.ev && n.items.length === 1 && !n.read), sig = list.find(n => n.kind === 'cr-payment-due');
   const row = rowOf(h.replace(/data-n=/g, 'data-t='), task.id);
   ZD.notifGo(task.id, 0);
   const stay = ZD.state.view === 'notifs' && ZD.cardId === task.items[0].taskId && task.read === true && !/class="nf-row unread"/.test(rowOf(ZD.renderNotifPage().replace(/data-n=/g, 'data-t='), task.id));
@@ -6680,7 +6668,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.closeCard();
   ZD.state.view = 'queue';
   ok(361, list.length === mine && rows.length === Math.min(mine, ZD.NOTIF_PAGE) && rows.join() === list.slice(0, ZD.NOTIF_PAGE).map(n => n.id).join() && head === 'Дата,Откуда,Сообщение' && newestFirst && /class="nf-row unread"/.test(row) && row.includes(`onclick="ZD.notifGo('${task.id}')"`) && plain(row).includes(ruDate(task.t)) && plain(row).includes(task.text) && stay && stayed && toSig,
-    `ЭЗ-16, ЭЗ-49, КУВ-5 — у Есеновой на 01.10 ${mine} сообщений, новые сверху; колонки «Дата · Откуда · Сообщение», непрочитанное — точкой и жирным, строка открывает целиком; со страницы панель открывается поверх неё и закрывается к ней; сигнал ведёт в карточку объекта`);
+    `ЭЗ-16, ЭЗ-49, КУВ-5 — у Есеновой на 01.10 ${mine} сообщений, новые сверху; колонки «Дата · Откуда · Сообщение», непрочитанное — точкой и жирным, строка открывает целиком; со страницы панель открывается поверх неё и закрывается к ней; сообщение кредита о платеже ведёт в карточку кредита (СГН-1)`);
 })();
 
 /* ЭЗ-16, ЭЗ-54 — единая запись общего списка: источник, прочитанность, способ, реквизит доставки; доставка на экран не выводится */
@@ -6690,23 +6678,21 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const all = taskMsgs(), total = all.length;
   const shape = all.length > 100 && all.every(n => n.source === 'Задания' && typeof n.read === 'boolean' && (n.read ? ['задание закрыто', 'пришло новее'].includes(n.readHow) && !!n.readAt : n.readHow === null && n.readAt === null) && Array.isArray(n.channels) && n.channels.length > 0 && Array.isArray(n.delivery) && n.delivery.length === (n.kind === 'срок-истёк' && n.t >= '2026-09-14' ? 1 : 0) && /^\d\d:\d\d$/.test(n.time) && typeof n.text === 'string' && n.text && n.t && n.to !== undefined);
   const kinds = new Set(all.map(n => n.kind));
-  const sigBefore = all.filter(n => n.kind === 'сигнал').length;
+  const sigBefore = ZD.state.notifications.filter(n => n.kind === 'cr-payment-due').length;
   ZD.state.smsGate.push({ from: '2026-10-01', on: true, note: 'договор для проверки' });
   ZD.editNotif('поручено', { channels: ['всплывающее', 'SMS', 'e-mail'] }, { by: 'E18', basis: 'приказ №1' });
   const made = ZD.createFreeTask({ label: 'С доставкой', assignee: 'E1', author: 'E2', dueDate: '2026-10-20' });
   const m = ZD.state.notifications.find(n => n.items.some(i => i.taskId === made.id) && n.kind === 'поручено');
-  ZD.editSignal('pk-cr-payment-due', { channels: ['всплывающее', 'SMS'] }, { by: 'E18', basis: 'приказ №2' });
-  ZD.deactivateKind('pk-cr-payment-due', 'E4', 'приказ №3');
-  ZD.runPoll();
-  ZD.activateKind('pk-cr-payment-due', 'E4', 'приказ №4');
-  ZD.runPoll();
-  const sigs = ZD.state.notifications.filter(n => n.kind === 'сигнал');
+  const mOk = JSON.stringify(m.delivery.map(d => d.channel)) === '["SMS","e-mail"]' && m.delivery.every(d => d.status === 'отправляется');
+  ZD.editNotif('cr-payment-due', { channels: ['всплывающее', 'SMS'] }, { by: 'E18', basis: 'приказ №2' });
+  for (const d of ['2026-10-02', '2026-10-05', '2026-10-06']) { ZD.state.today = d; ZD.runPoll(); ZD.noticeDay(d); }
+  const sigs = ZD.state.notifications.filter(n => n.kind === 'cr-payment-due');
   const s = sigs[sigs.length - 1];
   ZD.state.viewer = 'E1';
   const page = ZD.renderNotifPage();
-  ok(362, shape && kinds.has('сигнал') && kinds.has('поручено') && JSON.stringify(m.delivery.map(d => d.channel)) === '["SMS","e-mail"]' && m.delivery.every(d => d.status === 'отправляется') && sigs.length > sigBefore &&
+  ok(362, shape && !kinds.has('сигнал') && kinds.has('поручено') && mOk && sigs.length > sigBefore &&
        JSON.stringify(s.delivery.map(d => d.channel)) === '["SMS"]' && s.delivery[0].status === 'ждёт окна' && !/ждёт окна|отправляется/.test(page),
-    `ЭЗ-16, ЭЗ-54 — ${total} записей стенда в единой модели (источник, прочитанность, способ, доставка); SMS и почта дают реквизит доставки и у задания, и у сигнала; на странице зрителя его нет`);
+    `ЭЗ-16, ЭЗ-54 — ${total} записей стенда в единой модели (источник, прочитанность, способ, доставка); SMS и почта дают реквизит доставки и у задания, и у сообщения кредита о платеже (СГН-1); на странице зрителя его нет`);
 })();
 
 /* ЭЗ-17 — настройка обычных уведомлений: отказы */
@@ -6758,7 +6744,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
     `ЭЗ-17 — после правки следующие прогоны пишут новый текст и способ (${fresh.length} сообщений за 12 дней), отправленные ${sent.length} не меняются, другие виды не затронуты`);
 })();
 
-/* ЭЗ-17, ЭЗ-55, СУ-22 — экран кубика: сигналы и 59 видов; получатели закреплённых только показаны; у остальных чтение и нет пункта меню */
+/* ЭЗ-17, ЭЗ-55, СУ-22, СГН-1 — экран кубика: 60 видов одной таблицей, блока «Сигналы» нет; получатели закреплённых только показаны; у остальных чтение и нет пункта меню */
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
@@ -6769,16 +6755,16 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   const allPopup = ZD.NOTIF_KINDS.filter(k => k !== 'срок-истёк').every(k => ZD.state.notifSettings[k].channels.join() === 'всплывающее' && ZD.state.notifSettings[k].history.length === 0 && ZD.state.notifSettings[k].text === ZD.NOTIF_SPEC[k].text);
   const mailed = ZD.state.notifSettings['срок-истёк'].channels.join() === 'всплывающее,e-mail' && ZD.state.notifSettings['срок-истёк'].history.length === 1 && ZD.state.notifSettings['срок-истёк'].history[0].by === 'E18';
   const noInput = rows.length && !/<input[^>]*data-n/.test(h);
-  const sections = h.indexOf('Сигналы') < h.indexOf('Виды уведомлений') && /Срок платежа по графику близко/.test(h);
+  const sections = !/Сигнал(ы|ов)?</.test(h) && h.indexOf('Виды уведомлений') !== -1 && rows.includes('cr-payment-due') && /Срок платежа по графику близко/.test(h);
   const before = (h.match(/ZD\.askNotif/g) || []).length;
   ZD.editNotif('возвращено', { text: 'Вернули на доработку' }, { by: 'E18', basis: 'приказ №7' });
   const hist = ZD.renderNtSettings();
   ZD.state.viewer = 'E1';
   const ro = ZD.renderNtSettings(), menu = ZD.menuItems().map(x => x.view).join();
   ZD.state.viewer = 'E18'; ZD.state.view = 'queue';
-  ok(365, rows.join() === ZD.NOTICE_LIST.map(k => k.id).join() && rows.length === 59 && tabs && allPopup && mailed && noInput && sections && before === 59 && /История правок/.test(hist) && /Вернули на доработку/.test(hist) && /приказ №7/.test(hist) &&
+  ok(365, rows.join() === ZD.NOTICE_LIST.map(k => k.id).join() && rows.length === 60 && tabs && allPopup && mailed && noInput && sections && before === 60 && /История правок/.test(hist) && /Вернули на доработку/.test(hist) && /приказ №7/.test(hist) &&
        !/ZD\.askNotif/.test(ro) && !/Только чтение/.test(ro) && rowsHave(ro) && !/ntSet|ntLog/.test(menu),
-    'ЭЗ-17, ЭЗ-55, СУ-22 — экран кубика: сигналы и таблица из 59 видов, у каждого кому, текст, способ; изначально всплывающее, почту у одного вида включил администратор с основанием; правка в окне и в общей истории; не носителю роли пункта меню нет, кнопок нет, подписи «Только чтение» нет');
+    'ЭЗ-17, ЭЗ-55, СУ-22 — экран кубика: одна таблица из 60 видов (сообщение о платеже — строка событий кредита), у каждого кому, текст, способ; изначально всплывающее, почту у одного вида включил администратор с основанием; правка в окне и в общей истории; не носителю роли пункта меню нет, кнопок нет, подписи «Только чтение» нет');
   function rowsHave(x) { return ZD.NOTICE_LIST.every(k => x.includes(`data-n="${k.id}"`)); }
 })();
 
@@ -6805,7 +6791,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.closeCard();
   const moved = ZD.state.notifications.filter(x => x.kind === 'переадресовано');
   const former = moved.filter(x => x.items.some(i => i.taskId && !ZD.bucketOf(ZD.taskOf(i.taskId), x.to))).length, linked = moved.filter(x => ZD.hasNotifLink(x)).length;
-  const others = ZD.state.notifications.filter(x => x.kind !== 'переадресовано' && x.kind !== 'сигнал' && ZD.hasNotifLink(x)).length;
+  const others = ZD.state.notifications.filter(x => x.kind !== 'переадресовано' && ZD.hasNotifLink(x)).length;
   ok(367, hidden && named && noLink && row.indexOf(ZD.empName('E3')) !== -1 && shut && shut2 && opened && moved.length > 0 && former > 0 && linked === 0 && others > 0,
     `ЭЗ-49, ЭЗ-Д12, ЭЗ-65 — у «переадресовано» ссылки нет, текст: ${text}; клик только отмечает прочитанным; видимость не расширена: прямое открытие отказано, новый исполнитель открывает; на 01.10 таких ${moved.length}, задание не видно получателю у ${former}, со ссылкой 0; у остальных видов ссылки на месте`);
 })();
@@ -6828,7 +6814,7 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
 /* ---------- волна 27: настройка заданий и журнал прогонов ---------- */
 const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)"`, 'g'))].map(m => m[1]);
 
-/* ЭЗ-18, ADR-0290, ЭЗ-58 — строка на задание: вид, действие и правило один к одному; сигнала в таблице нет; состояние считается на дату */
+/* ЭЗ-18, ADR-0290, ЭЗ-58 — строка на задание: вид, действие и правило один к одному; вне таблицы видов нет (СГН-1); состояние считается на дату */
 (() => {
   ZD.seed();
   const dates = {};
@@ -6846,10 +6832,10 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
   const noRule = ZD.state.actions.filter(a => !acts.has(a.id)).map(a => a.id).join();
   const outside = ZD.state.povodKinds.filter(k => !kinds.has(k.id)).map(k => ZD.kindCategory(k)).sort().join();
   const a = dates['2026-10-01'], b = dates['2026-11-02'];
-  ok(368, r.length === 107 && kinds.size === 107 && acts.size === 107 && reg.задание + reg.выведен === 107 && noRule === 'act-ap-reject-unfixed' && // 105 + 2 выведенных = 107 правил; вне таблицы только сигнал
-       outside === 'сигнал' && a.n === 107 && b.n === 107 &&
+  ok(368, r.length === 107 && kinds.size === 107 && acts.size === 107 && reg.задание + reg.выведен === 107 && noRule === 'act-ap-reject-unfixed' && // 105 + 2 выведенных = 107 правил; вне таблицы видов нет
+       outside === '' && a.n === 107 && b.n === 107 &&
        a.c['в действии'] === 52 && a.c['не введён'] === 55 && b.c['в действии'] === 64 && b.c['выведен'] === 1 && b.c['не введён'] === 42 && far['в действии'] === 104 && far['выведен'] === 2,
-    `ЭЗ-18, ЭЗ-58 — 86 строк: одно задание, один вид, одно действие (без правила только действие эскалации); на 01.10 в действии 52, не введены 34; на 02.11 в действии 64, выведен 1, не введены 21; на 01.03.2027 в действии 84 + выведены 2; вне таблицы только сигнал`);
+    `ЭЗ-18, ЭЗ-58 — 86 строк: одно задание, один вид, одно действие (без правила только действие эскалации); на 01.10 в действии 52, не введены 34; на 02.11 в действии 64, выведен 1, не введены 21; на 01.03.2027 в действии 84 + выведены 2; вне таблицы видов нет`);
 })();
 
 /* ЭЗ-18 — поиск и отборы: число в подписи равно строкам, поиск сужает, порядок применения не важен */
@@ -6975,24 +6961,24 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
     `ЭЗ-19, ЭЗ-60 — вкладки: ${tabs}; «Кураторство» ведёт на экран модуля, календарь — на настройки документооборота с подсказкой; снятый код и экспорт убраны`);
 })();
 
-/* ЭЗ-Д11 — сигнал строкой, как обычные уведомления: правка в окне с основанием, сырого кода вида и постоянной формы нет */
+/* ЭЗ-Д11, СГН-1 — сообщение о платеже строкой общей таблицы, как остальные виды: правка в окне с основанием, сырого кода вида и постоянной формы нет */
 (() => {
   ZD.seed();
   ZD.goToDate('2026-10-01');
   ZD.state.viewer = 'E18';
-  const S = 'pk-cr-payment-due', h = ZD.renderNtSettings(), v = plain(h);
-  const row = rowsIn(h, 'data-sig').join() === S, noRaw = !/pk-/.test(v) && !/<textarea/.test(h) && !/<input(?![^>]*type="search")/.test(h);
-  ZD.askSignal(S);
+  const S = 'cr-payment-due', h = ZD.renderNtSettings(), v = plain(h);
+  const row = rowsIn(h, 'data-n').includes(S) && !/data-sig/.test(h) && /за 30 к\.д\. до платежа по графику, одно сообщение на строку графика/.test(rowOf(h.replace(/data-n=/g, 'data-t='), S)), noRaw = !/pk-/.test(v) && !/<textarea/.test(h) && !/<input(?![^>]*type="search")/.test(h);
+  ZD.askNotif(S);
   ZD.dialogSet('channels', ['всплывающее', 'SMS']);
-  const noWhy = ZD.dialogSubmit() === false && /Заполните/.test(ZD.dialog.err) && ZD.state.signals[S].channels.join() === 'всплывающее';
+  const noWhy = ZD.dialogSubmit() === false && /Заполните/.test(ZD.dialog.err) && ZD.state.notifSettings[S].channels.join() === 'всплывающее';
   ZD.dialogSet('basis', 'приказ №70');
-  const done = ZD.dialogSubmit() === true && ZD.state.signals[S].channels.join() === 'всплывающее,SMS';
+  const done = ZD.dialogSubmit() === true && ZD.state.notifSettings[S].channels.join() === 'всплывающее,SMS';
   const h2 = ZD.renderNtSettings();
   const shown = /всплывающее, SMS/.test(h2) && /История правок/.test(h2) && /приказ №70/.test(h2) && /способ: было всплывающее/.test(h2) && !/текст: было|получатели: было/.test(h2);
-  const foreign = throws(() => ZD.editSignal(S, { text: 'x' }, { by: 'E1', basis: 'приказ' }));
+  const foreign = throws(() => ZD.editNotif(S, { text: 'x' }, { by: 'E1', basis: 'приказ' }));
   ZD.state.viewer = 'E4';
   ok(375, row && noRaw && noWhy && done && shown && !!foreign,
-    'ЭЗ-Д11 — сигнал одной строкой таблицы; правка в окне с обязательным основанием; способ и основание в общей истории правок; кода вида и формы на странице нет; чужому отказ движка');
+    'ЭЗ-Д11, СГН-1 — сообщение о платеже одной строкой общей таблицы, порог кредита подписан под названием; правка в окне с обязательным основанием; способ и основание в общей истории правок; кода вида и формы на странице нет; чужому отказ движка');
 })();
 
 /* ЭЗ-24 — «Опрос»: источники и ночи короткой строкой, сверху новые, ответы и опросы по сохранению в раскрытии, расхождение поля только если есть */
@@ -7067,7 +7053,7 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
     `ЭЗ-24, ЭЗ-Д7, ЭЗ-63 — на 02.11 по умолчанию действующие ${live.length} из ${rows.length}; поиск «нарын» ${found.length}; по виду ${byKind.length}; отпавшие ${gone.length}; ключ только в раскрытии, в строке нет JSON, кода вида и сырых дат; снятый без поручения уходит из действующих, замороженные (${frozen.length}) остаются с отметкой`);
 })();
 
-/* ЭЗ-24, ЭЗ-62 — действующие поводы без задания: все сигналы; считаем заново от заданий; ссылка на задание только по праву видеть */
+/* ЭЗ-24, ЭЗ-62, СГН-1 — действующих поводов без задания нет (сигнала нет); считаем заново от заданий; ссылка на задание только по праву видеть */
 (() => {
   ZD.seed();
   const res = {};
@@ -7077,7 +7063,7 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
     const has = new Set(ZD.state.tasks.map(t => t.povodKey).filter(Boolean));
     const live = ZD.state.povods.filter(p => p.status !== 'gone' && !ZD.povodReleased(p)), none = live.filter(p => !has.has(p.key));
     const s = ZD.povodStats();
-    res[d] = { live: live.length, none: none.length, sig: none.filter(p => ZD.kindOf(p.kind).genus === 'сигнал').length, stats: s, said: new RegExp(`Действующих поводов ${live.length}, без задания ${none.length}, все — сигналы`).test(plain(ZD.renderRuns())) };
+    res[d] = { live: live.length, none: none.length, sig: none.filter(p => /payment-due/.test(p.kind)).length, stats: s, said: new RegExp(`Действующих поводов ${live.length}, без задания ${none.length}\\.`).test(plain(ZD.renderRuns())) };
   });
   const a = res['2026-10-01'], b = res['2026-11-02'];
   const rows = ZD.povodRows().filter(x => x.st === 'действует' && x.task);
@@ -7088,8 +7074,8 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
   const lineOf = k => { ZD.togglePovod(k); const r = ZD.renderRuns(); ZD.togglePovod(k); const m = r.match(/<div class="k">Задание<\/div><div class="v">([^<]*)/); return m ? m[1] : ''; };
   const hiddenLine = lineOf(other.p.key), shownLine = lineOf(mine.p.key);
   const noLeak = hiddenLine === `${other.task.id}: вам не видно` && shownLine.startsWith(`${mine.task.id} · `);
-  ok(378, a.live === 120 && a.none === 15 && a.sig === 15 && b.live === 118 && b.none === 3 && b.sig === 3 && a.stats.live === a.live && a.stats.none === a.none && b.stats.none === b.none && a.said && b.said && link && text && noLeak,
-    `ЭЗ-24, ЭЗ-62 — без задания: 01.10 ${a.none} из ${a.live}, 02.11 ${b.none} из ${b.live}, все сигналы (заход E4); ссылка и подробности задания по праву видеть, чужое и в строке, и в раскрытии только номером`);
+  ok(378, a.live === 105 && a.none === 0 && a.sig === 0 && b.live === 115 && b.none === 0 && b.sig === 0 && a.stats.live === a.live && a.stats.none === a.none && b.stats.none === b.none && a.said && b.said && link && text && noLeak,
+    `ЭЗ-24, ЭЗ-62 — без задания: 01.10 ${a.none} из ${a.live}, 02.11 ${b.none} из ${b.live}: сигналов больше нет, платёж — событие кредита (заход E4); ссылка и подробности задания по праву видеть, чужое и в строке, и в раскрытии только номером`);
 })();
 
 /* ЭЗ-16, ЭЗ-64, СУ-26 — журнал доставки: только у роли, по одной записи на способ, всплывающие не показываются; пусто — честно; следующий прогон видно */
@@ -7238,10 +7224,10 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   ZD.thrNew('cr.noticeDays', { v: 20, from: '2026-10-05', basis: 'новая редакция Порядка', act: 'Порядок №50 п. 15 пп. 1' }, true);
   const old = ZD.thrVals('cr.noticeDays')[0], fresh = ZD.thrVals('cr.noticeDays')[1];
   const reached = ZD.thrFirst('cr.noticeDays', v => CD('2026-10-20', -v)), late = ZD.thrFirst('cr.noticeDays', v => CD('2026-12-20', -v));
-  const k = ZD.kindOf('pk-cr-payment-due'), ap = ZD.appearOf(k);
+  ZD.state.viewer = 'E18'; const ntRow = plain(ZD.renderNtSettings().split('data-n="cr-payment-due"')[1].split('</tr>')[0]); ZD.state.viewer = 'E4';
   const noScreen = throws(() => ZD.thrNew('ap.stuckWd', { v: 5, from: '2026-10-05', basis: 'приказ' }));
-  ok(385, /выпуском/.test(noScreen) && ZD.thrVals('ap.stuckWd').length === 1 && !('rp' in ZD.state.neighborSet) && /выпуском/.test(screen) && old.v === 30 && old.act === 'Порядок №41 п. 15 пп. 1' && fresh.v === 20 && reached === '2026-09-20' && late === '2026-11-30' && ap.norm && ap.src === 'норма · Порядок №50 п. 15 пп. 1' && ap.set === null,
-    `НЗ-4, НЗ-8 — кредит: 30 к.д., п. 15 пп. 1; без выпуска отказ — у модулей, чьи записи лежат у заданий, экрана нет; записей отчётности у заданий нет; новая редакция — вторая запись с актом, платёж 20.10 дошёл по старой (20.09), платёж 20.12 — по новой (30.11)`);
+  ok(385, /выпуском/.test(noScreen) && ZD.thrVals('ap.stuckWd').length === 1 && !('rp' in ZD.state.neighborSet) && /выпуском/.test(screen) && old.v === 30 && old.act === 'Порядок №41 п. 15 пп. 1' && fresh.v === 20 && reached === '2026-09-20' && late === '2026-11-30' && /за 20 к\.д\. до платежа по графику/.test(ntRow) && /порог — у кредита/.test(ntRow),
+    `НЗ-4, НЗ-8 — кредит: 30 к.д., п. 15 пп. 1; без выпуска отказ — у модулей, чьи записи лежат у заданий, экрана нет; записей отчётности у заданий нет; новая редакция — вторая запись с актом, платёж 20.10 дошёл по старой (20.09), платёж 20.12 — по новой (30.11); в строке сообщения о платеже в кубике — 20 к.д. (СГН-1)`);
 })();
 
 /* НЗ-17, НЗ-18 — откуда число: три значения; «внутренний акт» только при настоящем акте, в подписи акт */
@@ -7271,11 +7257,11 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const pa = ZD.renderRulePanel('rule-ap-stuck-new'), pp = ZD.renderRulePanel('rule-pk-pl-await');
   const screens = /loan-application\.html|loan-program\.html|payments\/payments\.html|loan-credit\/credit\.html/;
   const rows = ZD.renderSettings();
-  const nf = rows;
-  const crRow = nf.slice(nf.indexOf('data-sig-switch="pk-cr-payment-due"')); const crOne = crRow.slice(0, crRow.indexOf('</tr>'));
+  const nf = (ZD.state.viewer = 'E18', ZD.renderNtSettings()); ZD.state.viewer = 'E4';
+  const crRow = nf.slice(nf.indexOf('data-n="cr-payment-due"')); const crOne = crRow.slice(0, crRow.indexOf('</tr>'));
   const shown = /10 р\.д\. без событий/.test(pa) && /решение проекта/.test(pa) && !/Как меняется/.test(pa) && /меняется выпуском/.test(pa) &&
     /с 3-го р\.д\. от даты операции/.test(pp) && !/Как меняется/.test(pp) && /меняется выпуском/.test(pp) &&
-    /за 30 к\.д\. до платежа/.test(crOne) && /Порядок №41 п\. 15 пп\. 1/.test(crOne) && /выпуском/.test(crOne);
+    /за 30 к\.д\. до платежа/.test(crOne) && /Порядок №41 п\. 15 пп\. 1/.test(crOne) && /порог — у кредита/.test(crOne) && !/data-sig/.test(rows);
   const noLink = !screens.test(rows + pa + pp) && !/<a /.test(crOne);
   const noScreen = /выпуском/.test(throws(() => ZD.thrNew('ap.stuckWd', { v: 12, from: '2026-11-02', basis: 'приказ' }))) && /выпуском/.test(throws(() => ZD.thrNew('lp.expiringDays', { v: 12, from: '2026-11-02', basis: 'приказ' }))) && /выпуском/.test(throws(() => ZD.thrNew('pl.awaitWd', { v: 5, from: '2026-11-02', basis: 'приказ' })));
   ok(387, shown && noLink && noScreen,
@@ -7427,7 +7413,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const n4 = nums(), moved = ZD.thrVals('ap.stuckWd')[1].from === '2026-10-01';
   ZD.setStandThr(false);
   const off = ZD.thrVals('ap.stuckWd').length === 1 && ZD.thrOn('ap.stuckWd') === 10 && nums() === n1;
-  ok(393, box && n1 === '206/117/303' && n2 === '258/131/478' && n3 === n2 && on && lives && n4 === '206/117/303' && moved && off,
+  ok(393, box && n1 === '206/117/301' && n2 === '258/131/473' && n3 === n2 && on && lives && n4 === '206/117/301' && moved && off,
     `НЗ-25 — на полосе одна галочка; 02.11 с поднятым порогом ${n3}, как без него; панель показывает 60 р.д. и прежнее значение; выключена — 10 р.д.; стенд 01.10 ${n1}, 02.11 ${n2}`);
 })();
 
@@ -7661,7 +7647,7 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const nums = d => { ZD.goToDate(d); return [ZD.state.tasks.length, ZD.state.tasks.filter(t => !ZD.isTerminal(t)).length, taskMsgs().length].join('/'); };
   const fhsOf = () => ZD.state.tasks.filter(t => t.originKind === 'pk-zm-fhs').map(t => `${t.povodKey.split(':')[1]}${ZD.isTerminal(t) ? ' закрыто' : ''}`).sort().join();
   const n1 = nums('2026-10-01'), n2 = nums('2026-11-02'), n3 = nums('2026-11-16'), f3 = fhsOf(), n4 = nums('2027-01-04'), f4 = fhsOf(), n5 = nums('2027-03-01'), f5 = fhsOf();
-  ok(405, n1 === '206/117/303' && n2 === '258/131/478' && n3 === '301/172/552' && n4 === '474/256/889' && n5 === '509/276/998' && f3 === '' &&
+  ok(405, n1 === '206/117/301' && n2 === '258/131/473' && n3 === '301/172/547' && n4 === '474/256/883' && n5 === '509/276/991' && f3 === '' &&
        f4 === [`${ZM1}|${ZM_H2}`, `${ZM3}|${ZM_H2}`].sort().join() && f5 === [`${ZM1}|${ZM_H2} закрыто`, `${ZM3}|${ZM_H2}`].sort().join(),
     `НЗ-30 — 01.10: ${n1}, 02.11: ${n2}, 16.11: ${n3} (анализа нет), 04.01.2027: ${n4} (два задания за 2П 2026), 01.03.2027: ${n5} («Талас-Дан» закрыт ФА-7, «Ош-Курулуш» открыт)`);
 })();
@@ -8070,19 +8056,19 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
     `«Кто поручил» — руководитель ИТ E40; в панели правила всё названо`);
 })();
 
-/* ВЗЕ-170 — запасной адресат — держатель «Кто поручил», администратор — последним; у сигнала запасного нет */
+/* ВЗЕ-170 — запасной адресат — держатель «Кто поручил», администратор — последним; у сообщения кредита о платеже запасного нет (СГН-1) */
 (() => {
   ZD.seed();
   ZD.runPoll();
   const osh = taskByKey(/rep-osh/);
   /* переписано под КРЗ-3, КРЗ-8: строки «Адресат на выдачу» в карточке нет — запасной адресат назван серой строкой под «Выдано по правилу» в журнале */
   const jr = ZD.journalRows(osh)[0], card = jr.what + ' ' + jr.why;
-  const k = ZD.kindOf('pk-cr-payment-due'), sig = ZD.signalRecipients(k, { curObj: 'нет-такого' }, '2026-10-01');
+  const sig = ZD.eventRecipients({ kind: 'cr-payment-due', parties: { 'куратор кредита': [] }, by: null });
   const named = ZD.fallbackAddressee(ZD.ruleForKind('pk-rep-obligation-overdue'), ZD.povodByKey(osh.povodKey), '2026-09-02');
   ok(432, osh.addr.via === 'запасной' && osh.addr.post === 'post-escort' && named.responsible === 'E2' && named.via === 'запасной' && /запасной адресат — «Кто поручил»/.test(card) &&
-       !ZD.state.tasks.some(t => t.addr && t.addr.via === 'администратор') && sig.indexOf('E2') === -1 && sig.indexOf('E4') === -1,
+       !ZD.state.tasks.some(t => t.addr && t.addr.via === 'администратор') && sig.length === 0,
     `ВЗЕ-170 — у формы «Ош» куратора нет: запасной — держатель «Кто поручил» правила (E2, действует E5), в карточке «запасной адресат — «Кто поручил»»; ` +
-    `администратору на стенде не ушло ни одно задание; сигнал без куратора никому не уходит — запасного у сигнала нет`);
+    `администратору на стенде не ушло ни одно задание; сообщение о платеже без куратора никому не уходит — запасного у события нет`);
 })();
 
 /* ВЗЕ-171 — «Кто поручил» — на каждую очередь правила «Дать заключение» */
@@ -9446,7 +9432,7 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   const queueWorks = /data-t="/.test(viewAs('E1', 'work')) && ZD.taskActions(ZD.state.tasks.find(x => ZD.bucketOf(x, 'E1') === 'mine'), 'E1').btns.length > 0;
   ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
   const adminWorks = ZD.menuItems().some(x => x.view === 'settings') && /ZD\.askRule\(/.test(ZD.renderSettings() + ZD.renderRulePanel(ZD.state.rules[0].id));
-  const sg = ZD.state.notifications.find(n => n.kind === 'сигнал' && n.to === 'E1');
+  const sg = ZD.state.notifications.find(n => n.kind === 'cr-payment-due' && n.to === 'E1');
   ZD.state.viewer = 'E1'; ZD.notifGo(sg.id, 0);
   ZD.setDemo(false); const hlOff = ZD.renderNoticeCard(); ZD.setDemo(true); const hlOn = ZD.renderNoticeCard();
   ZD.closeCard(); ZD.state.viewer = 'E4';
@@ -9455,27 +9441,25 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ZD.state.viewer = 'E4';
   ok(508, DEMO0 === false && offFirst && kept && survived && shell && sw && cardWorks && queueWorks && adminWorks && hl && cardOn,
     `ВЗЕ-217 — «Демонстрация» по умолчанию выключена, выбор помнится в браузере, сбой хранилища страницу не ломает; выключена — полосы стенда нет (скрыта и пуста), ` +
-    `в карточке ${t.id} нет «Работы в деле», у сигнала нет демо-карточки кредита, а очередь, кнопки, подробности и настройка у администратора на месте; включена — демо-карточка снова есть`);
+    `в карточке ${t.id} нет «Работы в деле», у сообщения кредита о платеже нет демо-карточки кредита, а очередь, кнопки, подробности и настройка у администратора на месте; включена — демо-карточка снова есть`);
 })();
 
-/* ВЗЕ-218 — сигнал без получателей не уходит: подпись под получателями и окно сигнала не обещают руководителя подразделения-владельца */
+/* ВЗЕ-218, СГН-1 — сообщение о платеже без получателей не уходит: нет куратора — только должности настройки; экран не обещает руководителя подразделения-владельца */
 (() => {
   ZD.seed(); ZD.goToDate('2026-10-01');
   ZD.state.viewer = 'E18';
-  const h = plain(ZD.renderNtSettings()), k = ZD.state.povodKinds.find(x => x.genus === 'сигнал' && x.signalRole) || ZD.state.povodKinds.find(x => x.genus === 'сигнал');
-  ZD.askSignal(k.id); const note = ZD.dialog.note; ZD.dialogCancel();
-  const said = /нет куратора — получают только указанные должности; нет и их — сигнал не уходит/.test(h) && /^Нет куратора — получают только указанные должности; нет и их — сигнал не уходит\./.test(note) &&
-    !/подразделения-владельца/.test(h + note);
-  const c = ZD.state.signals[k.id], keep = c.recipients, d = '2026-10-01', role = k.signalRole || 'куратор';
+  const h = plain(ZD.renderNtSettings()), S = 'cr-payment-due';
+  ZD.askNotif(S); const note = ZD.dialog.note; ZD.dialogCancel();
+  const said = /Минимум один получатель/.test(note) && !/подразделения-владельца/.test(h + note);
+  const c = ZD.state.notifSettings[S], keep = c.recipients, d = '2026-10-01', r = { kind: S, parties: { 'куратор кредита': [] }, by: null };
   let none, posts;
   try {
-    c.recipients = [{ by: 'кураторство', role }];
-    none = ZD.signalRecipients(k, { curObj: null }, d).length === 0;
-    c.recipients = [{ by: 'кураторство', role }, { by: 'должность', post: 'post-admin' }];
-    posts = ZD.signalRecipients(k, { curObj: null }, d).join() === ZD.actingFor(ZD.postHolderOn('post-admin', d), d);
+    none = ZD.eventRecipients(r).length === 0;
+    c.recipients = [{ by: 'объект', role: 'куратор кредита' }, { by: 'должность', post: 'post-admin' }];
+    posts = ZD.eventRecipients(r).join() === ZD.actingFor(ZD.postHolderOn('post-admin', d), d);
   } finally { c.recipients = keep; }
   ok(509, said && none && posts,
-    `ВЗЕ-218 — «${k.title}»: без куратора сигнал получают только должности настройки, без них не уходит; подпись и окно говорят то же («${note.split('.')[0]}»)`);
+    `ВЗЕ-218, СГН-1 — «Срок платежа по графику близко»: без куратора сообщение получают только должности настройки, без них не уходит; окно правки не обещает руководителя подразделения`);
 })();
 
 /* ВЗЕ-219 — видимые надписи: «повторная эскалация» вместо «второй ступени», «модуль-источник» вместо «соседа» */
@@ -9728,7 +9712,7 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
   const n0 = ZD.state.notifications.length;
   ZD.runPoll();
   const fresh = ZD.state.notifications.slice(n0);
-  const byKey = {}; fresh.filter(n => n.kind !== 'сигнал').forEach(n => { const k = `${n.to}|${n.kind}`; byKey[k] = (byKey[k] || 0) + 1; });
+  const byKey = {}; fresh.forEach(n => { const k = `${n.to}|${n.kind}`; byKey[k] = (byKey[k] || 0) + 1; });
   const once = Object.values(byKey).every(x => x === 1);
   const mixed = fresh.find(n => n.kind === 'поручено' && n.to === 'E1');
   const kinds = new Set(mixed.items.map(i => ZD.taskOf(i.taskId).originKind));
@@ -9832,7 +9816,7 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
   ZD.setNotifFilter('nfFrom', '2026-10-01'); ZD.setNotifFilter('nfTo', '2026-10-31');
   const ranged = ZD.notifsFiltered('E1'), period = ranged.length > 0 && ranged.length < mine && ranged.every(n => n.t >= '2026-10-01' && n.t <= '2026-10-31') && plain(ZD.renderNotifPage()).includes(`Всего ${ranged.length}, непрочитанных ${ranged.filter(n => !n.read).length}`);
   ZD.setNotifFilter('nfFrom', ''); ZD.setNotifFilter('nfTo', '');
-  const single = list.find(n => n.source === 'Задания' && n.kind !== 'сигнал' && n.items.length === 1), tid = single.items[0].taskId;
+  const single = list.find(n => n.source === 'Задания' && n.items.length === 1), tid = single.items[0].taskId;
   ZD.setNotifFilter('nfQ', tid);
   const found = ZD.notifsFiltered('E1'), searched = found.includes(single) && found.length < mine && found.every(n => n.items.some(i => String(i.taskId || '').toLowerCase().includes(tid.toLowerCase())) || ZD.notifText(n).toLowerCase().includes(tid.toLowerCase()));
   ZD.setNotifFilter('nfQ', 'нет такого текста');
@@ -9875,7 +9859,7 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
   const half = dg.read === false;
   ZD.acceptDecision(c.id, true, '', 'E2');
   const whole = dg.read === true && dg.readHow === 'задание закрыто';
-  /* «Прочитать все» и сигнал */
+  /* «Прочитать все» */
   ZD.closeCard();
   ZD.seed(); ZD.goToDate('2026-10-01'); ZD.setViewer('E4');
   const unreadOf = ZD.notifsOf('E4').filter(n => !n.read), wereAuto = ZD.notifsOf('E4').filter(n => n.readHow === 'задание закрыто').length;
@@ -9883,8 +9867,8 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
   const all = unreadOf.every(n => n.readHow === 'все') && ZD.notifsOf('E4').filter(n => n.readHow === 'задание закрыто').length === wereAuto && ZD.unreadOf('E4') === 0;
   ZD.seed(); ZD.goToDate('2026-11-02');
   /* КУВ-4: часть сообщений гасится раньше закрытия — пришло новее по тому же заданию; было 136 «задание закрыто» без этой причины */
-  const task = taskMsgs().filter(n => n.kind !== 'сигнал'), auto = task.filter(n => n.readHow === 'задание закрыто').length, newer = task.filter(n => n.readHow === 'пришло новее').length;
-  const noSignals = ZD.state.notifications.filter(n => n.kind === 'сигнал').every(n => !n.read), noClosed = ZD.state.notifications.filter(n => n.kind === 'закрыто').every(n => !n.read);
+  const task = taskMsgs(), auto = task.filter(n => n.readHow === 'задание закрыто').length, newer = task.filter(n => n.readHow === 'пришло новее').length;
+  const noSignals = ZD.state.notifications.filter(n => n.kind === 'cr-payment-due').every(n => !n.read) /* СГН-1: сообщение о платеже само не читается */, noClosed = ZD.state.notifications.filter(n => n.kind === 'закрыто').every(n => !n.read);
   ok(524, panelNoRead && self && closedStays && rowHas && inBell && clicked && half && whole && all && auto === 83 && newer === 215 && task.length === 473 && noSignals && noClosed,
     `СУ-28 — панель статус не меняет; задание закрыто — сообщение прочитано само, причина в строке и панели; сводка — когда закрыто всё; «закрыто» только кликом; «Прочитать все» причину других не трогает; на 02.11 из ${task.length} само прочитано: задание закрыто ${auto}, пришло новее ${newer}`);
 })();
@@ -9950,7 +9934,8 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
 
 /* СУ-41 — номера заданий и поводы стенда те же, что до волны: снятое сообщение номер занимает */
 (() => {
-  const OLD = { '2026-10-01': '8f90ed46103c/d7aa99b4a86f/654', '2026-11-02': '19278c662807/af8b8ff28a90/936', '2027-01-04': 'a73d8720635c/702b0892f2d7/1673', '2027-03-01': 'a36eb47d85a4/1c9af87bb8c6/1880' };
+  /* СГН-1 (волна 44): поводов платежа больше нет — отпечаток поводов набора до волны пересчитан без них (задания и счётчик — прежние; без них поводы до и после волны совпали) */
+  const OLD = { '2026-10-01': '8f90ed46103c/16097e50dd4f/654', '2026-11-02': '19278c662807/438f41020c63/936', '2027-01-04': 'a73d8720635c/36dafabeb7c4/1673', '2027-03-01': 'a36eb47d85a4/8a5bcbeca87f/1880' };
   const sha = s => createHash('sha1').update(s).digest('hex').slice(0, 12);
   const mism = [];
   ZD.seed();
@@ -9963,6 +9948,7 @@ const giveE1 = (label, due) => ZD.createFreeTask({ label, assignee: 'E1', author
     const povods = s.povods.filter(p => !own.has(p.key)).map(p => ({ k: p.key, st: p.status, j: p.journal }));
     const got = `${sha(JSON.stringify(tasks))}/${sha(JSON.stringify(povods))}/${s.seq}`;
     if (got !== OLD[d]) mism.push(`${d}: ${got}`);
+    if (s.povods.some(p => /^pk-cr-payment-due/.test(p.key))) mism.push(`${d}: поводы платежа`);
   });
   ok(526, mism.length === 0,
     `СУ-41 — на контрольных датах задания, поводы и счётчик номеров совпадают с набором до волны (ТЗ 25, P27) ${mism.join('; ')}`);
@@ -10306,7 +10292,7 @@ const W36_BAD = /\bundefined\b|\bnull\b|\[object|NaN|\bpk-[a-z]|\bim-[a-z]|\bact
   ZD.goToDate('2027-03-01');
   const done = new Set(NEW7().filter(t => ZD.isTerminal(t) && outc(t).outcome === 'исполнено').map(t => t.originKind));
   const n = NEW7().length;
-  ok(537, open.size === 7 && done.size === 7 && n === 19 && nums14 === '427/238/761',
+  ok(537, open.size === 7 && done.size === 7 && n === 19 && nums14 === '427/238/755',
     `Стенд — 14.12 открыт каждый из 7 видов (${nums14}), к 01.03.2027 у каждого есть исполненное, заданий семи видов ${n}`);
 })();
 
@@ -10315,7 +10301,7 @@ const W36_BAD = /\bundefined\b|\bnull\b|\[object|NaN|\bpk-[a-z]|\bim-[a-z]|\bact
   ZD.seed(); ZD.goToDate('2027-03-01');
   const s = ZD.state, mine = s.notifications.filter(n => n.items.some(i => { const t = ZD.taskOf(i.taskId); return t && t.ownSeries; }));
   const closedList = mine.every(n => ZD.NOTIF_KINDS.includes(n.kind));
-  const noSignal = !s.notifications.some(n => n.kind === 'сигнал' && (ZD.OWN_KINDS.includes(n.originKind) || /заседани|второго ключа|второй ключ|не вручен|возвращ[её]н автору/i.test(n.text || '')));
+  const noSignal = !s.notifications.some(n => !ZD.NOTICE_LIST.some(k => k.id === n.kind) && (ZD.OWN_KINDS.includes(n.originKind) || /заседани|второго ключа|второй ключ|не вручен|возвращ[её]н автору/i.test(n.text || '')));
   ok(538, mine.length > 0 && closedList && noSignal,
     `Сообщений о заседании, втором ключе, возврате и невручённой претензии нет; о новых заданиях — обычные сообщения закрытого списка: ${mine.length}`);
 })();
@@ -10365,8 +10351,8 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   const full = L.every(k => k.name && k.module && k.group && k.who && k.text && Array.isArray(k.channels) && k.channels.length && typeof k.on === 'boolean' && k.card && k.tab);
   const set = ZD.state.notifSettings, each = L.every(k => set[k.id] && set[k.id].text === k.text && set[k.id].channels.join() === k.channels.join() && set[k.id].on === k.on && Array.isArray(set[k.id].history));
   const tuneParty = tuned.every(k => Array.isArray(k.party) && k.party.length);
-  ok(544, L.length === 59 && ids.size === 59 && fixed.length === 25 && tuned.length === 34 && g('О заданиях') === 11 && g('Отчётность и дашборд') === 9 && g('Личные') === 4 && g('Служебный') === 1 && g('События модулей') === 33 && g('Система') === 1 && full && each && tuneParty && Object.keys(set).length === 59,
-    'СУ-1 — перечень: 59 видов (25 закреплённых, 34 настраиваемых), у каждого название, модуль, группа, кому, текст, способы, включён, карточка, вкладка, история правок');
+  ok(544, L.length === 60 && ids.size === 60 && fixed.length === 25 && tuned.length === 35 && g('О заданиях') === 11 && g('Отчётность и дашборд') === 9 && g('Личные') === 4 && g('Служебный') === 1 && g('События модулей') === 34 && g('Система') === 1 && full && each && tuneParty && Object.keys(set).length === 60,
+    'СУ-1, СГН-1 — перечень: 60 видов (25 закреплённых, 35 настраиваемых; сообщение о платеже — событие кредита), у каждого название, модуль, группа, кому, текст, способы, включён, карточка, вкладка, история правок');
 })();
 
 /* инвариант 1 — вид вне перечня не отправляется */
@@ -10445,12 +10431,12 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
     'Инвариант 2 — ни одного сообщения сделавшему: кворум AP-101 набрал председатель, перестроение КД-2025/341 сделал сам куратор — записи есть, сообщений нет');
 })();
 
-/* каждый из 34 настраиваемых, 9 отчётности и дашборда, 4 личных приходит на стенде; «не доставлено» — только в перечне */
+/* каждый из 35 настраиваемых (с СГН-1 — и платёж через 30 к.д.), 9 отчётности и дашборда, 4 личных приходит на стенде; «не доставлено» — только в перечне */
 (() => {
   ZD.seed(); ZD.goToDate('2027-03-01');
   const need = ZD.NOTICE_LIST.filter(k => k.tuned || k.group === 'Отчётность и дашборд' || k.group === 'Личные').map(k => k.id);
   const miss = need.filter(k => !evOf(k).length), nd = evOf('not-delivered').length;
-  ok(551, need.length === 47 && miss.length === 0 && nd === 0, 'Стенд — каждый из ' + need.length + ' видов пришёл конкретному человеку, «не доставлено» — только в перечне ' + miss.join());
+  ok(551, need.length === 48 && miss.length === 0 && nd === 0, 'Стенд — каждый из ' + need.length + ' видов пришёл конкретному человеку, «не доставлено» — только в перечне ' + miss.join());
 })();
 
 /* адресат — по §5.2; событие — из факта соседа, где факт есть */
@@ -10458,7 +10444,7 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   ZD.seed(); ZD.goToDate('2027-03-01');
   const T = [['gd-approved', 'GD-901', 'E3'], ['gd-rejected', 'GD-9', 'E1'], ['gd-closed', 'GD-4', 'E6'], ['lp-approved', 'LP-14', 'E6'], ['lp-rejected', 'LP-901', 'E6'], ['lp-expiring', 'LP-8', 'E6'], ['lp-expired', 'LP-5', 'E6'],
     ['ap-rejected', 'AP-901', 'E3'], ['ap-program-stopped', 'AP-103', 'E3'], ['ap-program-stopped', 'AP-105', 'E1'], ['ap-quorum', 'AP-104', 'E12'], ['ap-doc-overdue', 'AP-104', 'E3'],
-    ['zm-status', '12003198500051', 'E1'], ['cr-disb-expired', 'КД-2026/911', 'E1'], ['pl-storno', 'КД-2024/343', 'E1'], ['pl-identified', 'КД-2026/912', 'E1,E3'], ['pl-reserve-advance', 'КД-2026/913', 'E3'],
+    ['zm-status', '12003198500051', 'E1'], ['cr-disb-expired', 'КД-2026/911', 'E1'], ['cr-payment-due', 'КД-2023/187', 'E1'], ['pl-storno', 'КД-2024/343', 'E1'], ['pl-identified', 'КД-2026/912', 'E1,E3'], ['pl-reserve-advance', 'КД-2026/913', 'E3'],
     ['zl-act-worse', 'З-308', 'E3'], ['zl-committee', 'ДЗ-901', 'E33'], ['cl-risk-up', 'КД-2025/393', 'E1'], ['rs-concl-all', 'RS-2026/15', 'E1'], ['rs-vz-paused', 'ТР-2026/052', 'E3'],
     ['vz-limit', 'ТР-2026/911', 'E1'], ['vz-court-act', 'ТР-2026/046', 'E3'], ['vz-transfer-rejected', 'ТР-2026/912', 'E3'], ['vz-bankrupt', 'ОсОО «Жалал-Абад Агро»', 'E1'],
     ['im-decision', 'П-901', 'E22'], ['im-to-fund', 'З-307', 'E1,E33'], ['an-approved', 'ОБ-4', 'E7'], ['doc-res-final', 'D-212', 'E7'], ['doc-letter-back', 'D-901', 'E8'],
@@ -10466,8 +10452,8 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   const bad = T.filter(([k, o, to]) => [...new Set(evOf(k, o).map(n => n.to))].sort().join() !== to).map(x => x.join(' '));
   const kinds = new Set(T.map(x => x[0]));
   const fromFact = evOf('gd-rejected', 'GD-9')[0];
-  ok(552, bad.length === 0 && kinds.size === 34 && fromFact.t === '2026-09-03' && fromFact.items[0].by === 'E8',
-    'Адресаты по §5.2 — все 34 настраиваемых вида; отказ по GD-9 03.09 (E8) дошёл до автора Есеновой А.Т. ' + bad.slice(0, 4).join('; '));
+  ok(552, bad.length === 0 && kinds.size === 35 && fromFact.t === '2026-09-03' && fromFact.items[0].by === 'E8',
+    'Адресаты по §5.2 — все 35 настраиваемых видов (с платежом через 30 к.д., СГН-1); отказ по GD-9 03.09 (E8) дошёл до автора Есеновой А.Т. ' + bad.slice(0, 4).join('; '));
 })();
 
 /* один факт — одна запись; своя серия не сдвигает прежние номера */
@@ -10482,7 +10468,7 @@ const EV = { kind: 'gd-rejected', obj: { src: 'gd', type: 'gd', id: 'GD-T', titl
   const m = evMsgs(), ids = new Set(m.map(n => n.id));
   const series = m.every(n => /^N\d+$/.test(n.id) && +n.id.slice(1) >= 950000) && ids.size === m.length, rest = taskMsgs().every(n => +n.id.slice(1) < 950000);
   const recs = ZD.state.noticeEvents, noDup = new Set(recs.map(r => r.no)).size === recs.length, seq = ZD.state.seq;
-  ok(553, a === 20 && b === a && c === a && seq1 === 654 && seq2 === 654 && series && rest && noDup && seq === 1880 && m.length === 81 && recs.length === 83,
+  ok(553, a === 22 && b === a && c === a && seq1 === 654 && seq2 === 654 && series && rest && noDup && seq === 1880 && m.length === 88 && recs.length === 103, // СГН-1: +2 / +7 сообщений и +20 записей о платеже
     'Один факт — одна запись: повтор дня и пересборка не дублируют; сообщений событий 01.10 — ' + a + ', 01.03.2027 — ' + m.length + ' (записей ' + recs.length + '), серия N950000+; общий счётчик тот же (654, 1880)');
 })();
 
@@ -10694,7 +10680,7 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
   const no = /администратор уведомлений/;
   const denied = [
     () => ZD.editNotif('gd-rejected', { text: 'а' }, { by: 'E4', basis: 'приказ' }),
-    () => ZD.editSignal('pk-cr-payment-due', { text: 'а' }, { by: 'E4', basis: 'приказ' }),
+    () => ZD.editNotif('cr-payment-due', { text: 'а' }, { by: 'E4', basis: 'приказ' }), // СГН-1: сообщение о платеже — вид перечня
     () => ZD.editNoticeWindow({ open: '08:00', close: '18:00' }, { by: 'E4', basis: 'приказ' }),
     () => ZD.editNoticeCal({ date: '2026-10-19', work: false }, { by: 'E4', basis: 'приказ' }),
     () => ZD.editSmsGate({ on: true, note: 'х' }, { by: 'E4', basis: 'приказ' }),
@@ -10707,7 +10693,7 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
   ZD.state.viewer = 'E4';
   const fiveItems = ZD.menuItems().filter(x => x.view).map(x => x.view).join() === 'queue,settings,runs,ntSet,ntLog';
   ZD.NOTICE_ADMIN_ROLE.holders.pop();
-  ok(568, denied && separate && allowed && both && fiveItems, 'СУ-22 — администратор заданий без роли настройку уведомлений, сигнала, окна, календаря и SMS не правит; носитель роли правит, хотя администратором заданий не является; у одного человека с двумя ролями — оба экрана');
+  ok(568, denied && separate && allowed && both && fiveItems, 'СУ-22 — администратор заданий без роли настройку уведомлений (и сообщения о платеже), окна, календаря и SMS не правит; носитель роли правит, хотя администратором заданий не является; у одного человека с двумя ролями — оба экрана');
 })();
 
 /* СУ-26 — кубик: два пункта только у роли, прямой переход и смена зрителя возвращают в очередь; колокольчик и «Все уведомления» — у всех; старых мест нет */
@@ -10734,7 +10720,7 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
 (() => {
   seedAt('2026-10-01');
   const fixed = ZD.NOTICE_LIST.filter(k => !k.tuned), tuned = ZD.NOTICE_LIST.filter(k => k.tuned);
-  const counts = fixed.length === 25 && tuned.length === 34;
+  const counts = fixed.length === 25 && tuned.length === 35;
   const recNo = fixed.every(k => /не меняются/.test(throws(() => ZD.editNotif(k.id, { recipients: [{ by: 'должность', post: 'post-admin' }] }, W38))));
   const offNo = fixed.every(k => /выключить нельзя/.test(throws(() => ZD.editNotif(k.id, { on: false }, W38))));
   const textYes = fixed.every(k => !throws(() => ZD.editNotif(k.id, { text: k.text + '!' }, W38)) && ZD.state.notifSettings[k.id].history.slice(-1)[0].basis === W38.basis);
@@ -10808,14 +10794,14 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
     const many = ZD.outText({ kind: k.id, text: k.text, count: 7, id: 'N2', ev, items });
     return one === k.text && !leak.test(one) && !leak.test(many);
   });
-  const signal = ZD.outText({ kind: 'сигнал', text: 'Срок платежа близко: К-12, К-15', count: 2, id: 'N3', items });
+  const pay = ZD.outText({ kind: 'cr-payment-due', text: ZD.state.notifSettings['cr-payment-due'].text, count: 2, id: 'N3', ev: 1, items }); // СГН-1: сводка о платежах — как у событий
   const digest = ZD.outText({ kind: 'поручено', text: 'Вам поручено задание', count: 16, id: 'N4', items: [] });
   seedAt('2027-03-01');
   const words = new Set();
   ZD.state.notifications.forEach(n => (n.items || []).forEach(i => [i.obj, i.ref, i.title, i.taskId].forEach(v => { if (v && String(v).length > 3) words.add(String(v)); })));
   const stand = ZD.state.outbox.every(r => ![...words].some(w => r.text.includes(w)) && !leak.test(r.text));
   const links = ZD.state.outbox.every(r => /^asubk\.kg\/n\/[0-9a-z]+$/.test(r.link));
-  ok(574, clean && !leak.test(signal) && digest === 'Вам поручено 16 заданий' && stand && links && ZD.state.outbox.length > 400, `СУ-30 — все 59 видов и сигнал: наружу только вид; сводка «${digest}»; на стенде ${ZD.state.outbox.length} отправок без единого объекта, названия и суммы, у каждой короткая ссылка`);
+  ok(574, clean && !leak.test(pay) && pay === '2 новых уведомления' && digest === 'Вам поручено 16 заданий' && stand && links && ZD.state.outbox.length > 400, `СУ-30 — все 60 видов (и сообщение о платеже, СГН-1): наружу только вид; сводка «${digest}»; на стенде ${ZD.state.outbox.length} отправок без единого объекта, названия и суммы, у каждой короткая ссылка`);
 })();
 
 /* СУ-30 — SMS в один сегмент: все виды, сводка на сотни, правка длинного текста отклоняется при SMS */
@@ -10828,7 +10814,7 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
   const long = 'Х'.repeat(60);
   const refused = /один сегмент SMS/.test(throws(() => ZD.editNotif('эскалация', { text: long }, W38)));
   const mailOnly = !throws(() => ZD.editNotif('gd-rejected', { text: long, channels: ['всплывающее', 'e-mail'] }, W38));
-  ok(575, ZD.SMS_SEGMENT === 70 && all && stand && refused && mailOnly, `СУ-30 — один сегмент: все 59 видов одним сообщением и сводкой вместе со ссылкой не длиннее ${ZD.SMS_SEGMENT}; на стенде ${sms.length} SMS; длинный текст при SMS отклоняется, при почте — нет`);
+  ok(575, ZD.SMS_SEGMENT === 70 && all && stand && refused && mailOnly, `СУ-30 — один сегмент: все 60 видов одним сообщением и сводкой вместе со ссылкой не длиннее ${ZD.SMS_SEGMENT}; на стенде ${sms.length} SMS; длинный текст при SMS отклоняется, при почте — нет`);
 })();
 
 /* СУ-32 — окно: вне окна ждёт начала, рабочий день по календарю, колокольчик сразу */
@@ -10970,7 +10956,7 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
   const sec = safe.every(k => of(k) === 'всплывающее,SMS,e-mail'), night = of('sys-night-failed') === 'всплывающее,e-mail';
   const rest = ZD.NOTICE_LIST.filter(k => !safe.includes(k.id) && k.id !== 'sys-night-failed').every(k => of(k.id) === 'всплывающее');
   const on = ZD.NOTICE_LIST.every(k => ZD.state.notifSettings[k.id].on === true && ZD.state.notifSettings[k.id].history.length === 0);
-  ok(585, sec && night && rest && on && ZD.NOTICE_LIST.length === 59, 'СУ-31 — изначально всплывающее у всех 59; SMS и почта у двух видов безопасности; ночной прогон — всплывающее и почта; все включены, история пуста');
+  ok(585, sec && night && rest && on && ZD.NOTICE_LIST.length === 60, 'СУ-31 — изначально всплывающее у всех 60; SMS и почта у двух видов безопасности; ночной прогон — всплывающее и почта; все включены, история пуста');
 })();
 
 /* СУ-23 — личной настройки нет: настройка по видам, не по людям; на колокольчике и странице нет отписки */
@@ -11285,7 +11271,7 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
       const top = prpLabels(prpPart(h, 'data-rule-main', 'data-rule-own')), own = prpLabels(prpPart(h, 'data-rule-own', 'data-history-fold'));
       const order = top.map(x => PRP_TOP.indexOf(x));
       if (order.some((x, i) => x < 0 || (i && x <= order[i - 1]))) bad.push(`${r.id} порядок ${top.join('/')}`);
-      ['Когда появляется', 'Кому', 'Где делается работа', 'Принятие'].concat(k.genus === 'сигнал' ? [] : ['Если нет ответа']).forEach(x => { if (!top.includes(x)) bad.push(`${r.id} нет «${x}»`); });
+      ['Когда появляется', 'Кому', 'Где делается работа', 'Принятие'].concat(['Если нет ответа']).forEach(x => { if (!top.includes(x)) bad.push(`${r.id} нет «${x}»`); });
       if (own.join('/') !== PRP_OWN.join('/')) bad.push(`${r.id} группа ${own.join('/')}`);
       if (!/data-rule-own>Правится здесь/.test(h)) bad.push(`${r.id} заголовок`);
       if ((st !== 'выведен') !== new RegExp(`data-rule-own>Правится здесь <button[^>]*data-edit onclick="ZD\\.askRule\\('${r.id}'\\)">Изменить</button>`).test(h)) bad.push(`${r.id} «Изменить»`);
@@ -11330,7 +11316,7 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
       if (L.includes('Норма') !== !!k.basis.source || (k.basis.source && prpVal(h, 'Норма') !== k.basis.source)) bad.push(`${r.id} норма`);
       if (L.includes('Подтверждение') !== !!a.needsProof) bad.push(`${r.id} подтверждение`);
       if (L.includes('Сумма по заданию') !== !!k.sumAttr) bad.push(`${r.id} сумма`);
-      const take = k.genus === 'сигнал' ? 'уведомление без срока и ответа' : TAKE[k.take] + (k.personal ? ' · лично' : '') + (k.fourEyes ? ' · четыре глаза' : '');
+      const take = TAKE[k.take] + (k.personal ? ' · лично' : '') + (k.fourEyes ? ' · четыре глаза' : '');
       if (prpVal(h, 'Принятие') !== take) bad.push(`${r.id} принятие «${prpVal(h, 'Принятие')}»`);
       if (d === PRP_DATES[1]) { seen.norm += L.includes('Норма'); seen.proof += L.includes('Подтверждение'); seen.sum += L.includes('Сумма по заданию'); seen.personal += k.personal; seen.four += k.fourEyes; }
     });
@@ -11347,7 +11333,7 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
   let edN = 0, relN = 0;
   ZD.state.rules.forEach(r => {
     const h = ZD.renderRulePanel(r.id), k = ZD.kindOf(r.kind), ap = ZD.appearOf(k), na = prpVal(h, 'Если нет ответа'), c = prpVal(h, 'Контролёр');
-    if (k.genus !== 'сигнал') {
+    {
       if (k.id === 'pk-overdue') { if (!/^дальше не передаётся/.test(na)) bad.push(`${r.id} эскалация`); }
       else if (k.escalate && k.escalate.to === 'очередь') { q.push(r.id); if (!/^сразу после срока — очередь «/.test(na)) bad.push(`${r.id} очередь`); }
       else if (k.escalate) { if (!/^сразу после срока — уведомление: .+; задание не передаётся$/.test(na)) bad.push(`${r.id} уведомление`); }
@@ -11380,8 +11366,8 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
   ZD.ruleRows().forEach(x => {
     const h = ZD.renderRulePanel(x.r.id), hd = head(h);
     if (!new RegExp(`data-rule-state="${x.st}">${PILL[x.st]}`).test(hd)) bad.push(`${x.r.id} пилюля`);
-    if (x.st === 'в действии' && (x.k.genus === 'надзор' || x.k.genus === 'сигнал') !== /askKindOff/.test(hd)) bad.push(`${x.r.id} выключить`);
-    if (x.st === 'в действии' && !(x.k.genus === 'надзор' || x.k.genus === 'сигнал') && !/выключается выпуском/.test(hd)) bad.push(`${x.r.id} выпуском`);
+    if (x.st === 'в действии' && (x.k.genus === 'надзор') !== /askKindOff/.test(hd)) bad.push(`${x.r.id} выключить`);
+    if (x.st === 'в действии' && !(x.k.genus === 'надзор') && !/выключается выпуском/.test(hd)) bad.push(`${x.r.id} выпуском`);
     if (x.st === 'не введён' && !/askKindOn/.test(hd)) bad.push(`${x.r.id} ввести`);
     const hm = h.match(/<details class="fold" data-history-fold( open)?><summary>История · (\d+) /), rowsN = (prpPart(h, 'data-history', '</table>').match(/<tr[ >]/g) || []).length - 1;
     if (!hm || +hm[2] !== rowsN || !!hm[1] !== (rowsN > 1)) bad.push(`${x.r.id} история ${hm && hm[2]}/${rowsN}`);
@@ -11411,10 +11397,10 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
   const srcOk = ZD.SOURCES.every(s => !('highlights' in s) && s.all.every(k => !!ZD.kindOf(k)) && s.kinds.every(k => s.all.includes(k)));
   const evOnly = ['lp-expiring', 'lp-expired']; // остаются событиями программ в службе уведомлений
   const cfgOk = neigh.every(k => !src.includes(`'${k}':`) && (evOnly.includes(k) || !src.includes(`'${k}'`))) && evOnly.every(k => ZD.NOTICE_LIST.some(x => x.id === k));
-  ok(607, ZD.GENERA.join() === 'шаг,надзор,самоопрос,сигнал' && neigh.length === 22 && GONE_HL.every(gone) && srcOk && cfgOk &&
+  ok(607, ZD.GENERA.join() === 'шаг,надзор,самоопрос' && neigh.length === 22 && GONE_HL.every(gone) && srcOk && cfgOk &&
        ZD.state.povodKinds.every(k => ZD.GENERA.includes(k.genus)) && !/подсвет|highlight|hlOpen|noHL/i.test(src) &&
        ZD.HIGHLIGHT_KINDS === undefined && ZD.releaseSignal === undefined && ZD.releaseTaskKind === undefined && ZD.renderHighlightDrawer === undefined,
-    `ПДС-1 — родов четыре; ${neigh.length} вида соседей и два своих не заведены ни в реестре, ни в источниках, ни в карточках владельцев; ` +
+    `ПДС-1 — родов три (с СГН-1 сигнала нет); ${neigh.length} вида соседей и два своих не заведены ни в реестре, ни в источниках, ни в карточках владельцев; ` +
     `«срок программы истекает/истёк» остаются событиями программ для уведомлений; слова «подсветка» в макете нет, выпуска вида подсветки в задание или сигнал нет`);
 })();
 
@@ -11460,19 +11446,19 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
     `ушла, к 01.03.2027 (115 к.д.) вернулась; строка под таблицей показывает новое значение и приказ`);
 })();
 
-/* ПДС-4 — клик по сигналу открывает карточку объекта поверх текущего экрана: кредит, вкладка «График»; экран не меняется */
+/* ПДС-4, СГН-1 — клик по сообщению кредита о платеже открывает карточку объекта поверх текущего экрана: кредит, вкладка «График»; экран не меняется */
 (() => {
   ZD.seed(); ZD.goToDate('2026-10-01');
   ZD.state.viewer = 'E1'; ZD.state.view = 'queue';
-  const n = ZD.state.notifications.find(x => x.kind === 'сигнал' && x.to === 'E1');
-  ZD.notifGo(n.id, 0);
-  const nc = ZD.noticeCard, card = ZD.renderNoticeCard(), p = ZD.povodByKey(n.items[0].key);
-  const stay = ZD.state.view === 'queue' && n.read === true && !!nc && nc.id === n.id && nc.i === 0;
+  const n = ZD.state.notifications.find(x => x.kind === 'cr-payment-due' && x.to === 'E1');
+  ZD.notifGo(n.id, ZD.notifOrder(n)[0]);
+  const nc = ZD.noticeCard, card = ZD.renderNoticeCard(), it = n.items[ZD.notifOrder(n)[0]], p = { objectId: it.obj, traits: { заёмщик: it.title } };
+  const stay = ZD.state.view === 'queue' && n.read === true && !!nc && nc.id === n.id && nc.i === ZD.notifOrder(n)[0];
   ZD.closeCard();
   ZD.state.viewer = 'E4';
   ok(610, stay && new RegExp(`Карточка кредита ${p.objectId.replace('/', '\\/')}`).test(card) && /в модуле «Кредит»/.test(card) && !/<div class="k">Модуль/.test(card) &&
        /data-notice-tab>График</.test(card) && card.includes(`Карточка кредита ${p.objectId} · ${p.traits.заёмщик}</h3>`) && !ZD.noticeCard,
-    `ПДС-4 — сигнал о платеже по ${p.objectId} открывает «Карточку кредита ${p.objectId} · ${p.traits.заёмщик}», первой строкой модуль «Кредит» и вкладка «График» (КУВ-6); ` +
+    `ПДС-4, СГН-1 — сообщение кредита о платеже по ${p.objectId} открывает «Карточку кредита ${p.objectId} · ${p.traits.заёмщик}», первой строкой модуль «Кредит» и вкладка «График» (КУВ-6); ` +
     `экран «Моя работа» остаётся под карточкой; закрытие убирает карточку`);
 })();
 
@@ -11552,7 +11538,7 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
 /* ---------- Волна 43: показ уведомлений (КУВ-2…КУВ-7) ---------- */
 const caseW = t => { const c = ZD.caseOf(t); return c ? c.text + (c.more ? ` и ещё ${c.more}` : '') : ''; };
 const lineOf = (t, due) => `${ZD.whatToDo(t)}${caseW(t) ? ' · ' + caseW(t) : ''}${due ? ' · срок ' + ruDate(due) : ''}`;
-const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал' && n.kind !== 'not-delivered';
+const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'not-delivered';
 
 /* КУВ-2 — строка о задании: «<текст вида>: <что сделать> · <дело> · срок <дата>»; текст вида — из настройки, дело и срок добавляет система; наружу — по-прежнему только вид */
 (() => {
@@ -11571,7 +11557,7 @@ const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал
     `текст вида правится («Новое задание: Проверить отчёт · срок 20.10.2026»), наружу уходит только вид — «${ZD.outText(m)}»`);
 })();
 
-/* КУВ-3 — все сводки: первое и «ещё N»; у заданий первое — с ближайшим сроком, у сигнала и события — с ближайшей датой; перечень в том же порядке */
+/* КУВ-3 — все сводки: первое и «ещё N»; у заданий первое — с ближайшим сроком, у события — с ближайшей датой (у платежа — дата платежа, СГН-1); перечень в том же порядке */
 (() => {
   ZD.seed(); ZD.goToDate('2026-11-02');
   const today = ZD.state.today, gap = d => Math.abs(Date.parse(d) - Date.parse(today));
@@ -11581,8 +11567,7 @@ const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал
   dg.forEach(n => {
     const txt = ZD.notifText(n), ord = ZD.notifOrder(n), first = n.items[ord[0]];
     let okFirst;
-    if (n.ev) { ev++; okFirst = n.items.every(x => gap(first.at) <= gap(x.at)) && txt === `${n.text}: ${first.text} и ещё ${n.items.length - 1}`; }
-    else if (n.kind === 'сигнал') { sg++; okFirst = n.items.every(x => gap(ZD.signalDate(first)) <= gap(ZD.signalDate(x))) && txt === `${n.text}: ${first.text} и ещё ${n.items.length - 1}`; }
+    if (n.ev) { ev++; if (n.kind === 'cr-payment-due') sg++; const dt = x => x.date || x.at; okFirst = n.items.every(x => gap(dt(first)) <= gap(dt(x))) && txt === `${n.text}: ${first.text} и ещё ${n.items.length - 1}`; }
     else {
       tk++;
       const due = x => x.due || ZD.dueOf(ZD.taskOf(x.taskId)) || '9999';
@@ -11591,10 +11576,10 @@ const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал
     const panel = ZD.renderDigestPanel(n.id), rows = [...panel.matchAll(/data-i="(\d+)"/g)].map(x => +x[1]);
     if (!okFirst || rows.join() !== ord.join() || /\d+ (заданий|задания)\b/.test(txt)) fails.push(n.id);
   });
-  const sig = dg.find(n => n.kind === 'сигнал');
+  const sig = dg.find(n => n.kind === 'cr-payment-due');
   ok(616, tk > 10 && sg > 0 && ev > 0 && fails.length === 0,
-    `КУВ-3 — на 02.11 сводок ${dg.length}: о заданиях ${tk}, сигналов ${sg}, событий ${ev}; у каждой — первое (ближайший срок / ближайшая дата) и «ещё N», «N заданий» нет, перечень открывается тем же первым; ` +
-    `сигнал: «${sig ? ZD.notifText(sig) : '—'}»${fails.length ? '; расходятся: ' + fails.slice(0, 5).join(', ') : ''}`);
+    `КУВ-3 — на 02.11 сводок ${dg.length}: о заданиях ${tk}, событий ${ev} (из них о платеже ${sg}); у каждой — первое (ближайший срок / ближайшая дата) и «ещё N», «N заданий» нет, перечень открывается тем же первым; ` +
+    `о платеже: «${sig ? ZD.notifText(sig) : '—'}»${fails.length ? '; расходятся: ' + fails.slice(0, 5).join(', ') : ''}`);
 })();
 
 /* КУВ-4 — новое по заданию гасит прежние непрочитанные тому же человеку: причина «пришло новее», запись не меняется; сводка — только когда новее пришло по всем её заданиям */
@@ -11620,7 +11605,7 @@ const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал
   const N = ZD.state.notifications, idx = new Map(N.map((n, i) => [n, i]));
   const newer = N.filter(n => n.readHow === 'пришло новее');
   const covered = newer.every(m => m.items.every(i => N.some(x => idx.get(x) > idx.get(m) && x.to === m.to && x.items.some(y => y.taskId === i.taskId))));
-  const onlyTasks = newer.every(m => isTaskMsg(m)) && N.filter(n => n.ev || n.kind === 'сигнал').every(n => n.readHow !== 'пришло новее');
+  const onlyTasks = newer.every(m => isTaskMsg(m)) && N.filter(n => n.ev).every(n => n.readHow !== 'пришло новее');
   const e1 = N.filter(n => n.to === 'E1'), e1un = e1.filter(n => !n.read).length;
   ok(617, gone && half && whole && newer.length > 100 && covered && onlyTasks,
     `КУВ-4 — «поручено» 05.10 гаснет 07.10 при «срок близко» по тому же заданию (причина «пришло новее», запись без изменений, новое не прочитано); ` +
@@ -11699,6 +11684,56 @@ const isTaskMsg = n => n.source === 'Задания' && n.kind !== 'сигнал
   ok(620, dg.length > 10 && bad.length === 0 && plain(firstLink || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') === ZD.whatToDo(ZD.taskOf(n.items[i].taskId)) && goes,
     `КУВ-7 — на 02.11 у ${dg.length} сводок о заданиях перечень «Что сделать · Дело · Срок · Состояние», номеров T нет, строки от ближайшего срока; ` +
     `ссылка — «что сделать» («${firstLink}»), ведёт в карточку с «← К перечню»`);
+})();
+
+/* ---------- Волна 44: сигнала нет — платёж через 30 к.д. стал событием модуля «Кредит» (СГН-1, ADR-0337; СГН-2…СГН-9) ---------- */
+
+/* СГН-1 — на контрольных датах сообщения о платеже те же, что давал сигнал: дата, получатель, перечень «кредит · дата платежа» (сверено и на всех 31 дате волной 44) */
+(() => {
+  const OLD = { '2026-10-01': [2, 'e42f929ac4e5'], '2026-11-02': [5, '6282c06648dc'], '2027-01-04': [6, '2de48f8ff1f9'], '2027-03-01': [7, 'ce1eb26423b1'] };
+  const sha = s => createHash('sha1').update(s).digest('hex').slice(0, 12);
+  const mism = [];
+  CTL_DATES.forEach(d => {
+    ZD.seed(); ZD.goToDate(d);
+    const pay = crPay().map(n => `${n.t}|${n.to}|${n.items.map(i => `${i.obj}|${i.date}`).sort().join(',')}`).sort();
+    if (pay.length !== OLD[d][0] || sha(JSON.stringify(pay)) !== OLD[d][1]) mism.push(`${d}: ${pay.length} ${sha(JSON.stringify(pay))}`);
+    if (ZD.state.notifications.some(n => n.kind === 'сигнал')) mism.push(`${d}: сигнал`);
+  });
+  ok(621, mism.length === 0,
+    `СГН-1 — на 01.10, 02.11, 04.01.2027 и 01.03.2027 сообщений о платеже 2 / 5 / 6 / 7 — те же даты, получатели и платежи, что давал сигнал; сигналов нет` +
+    (mism.length ? ' — расходятся: ' + mism.join('; ') : ''));
+})();
+
+/* СГН-2 — отсечка повтора у кредита: пометка у строки графика; сторно после пометки повторного сообщения не даёт */
+(() => {
+  ZD.seed();
+  dayOn('2026-10-01');
+  const mark = ZD.state.crDueSent['КД-2026/022|2026-10-28'];
+  const o = ZD.state.owner.cr.find(x => x.id === 'КД-2026/022');
+  const again = ZD.crDueFacts('2026-10-02').filter(f => f.obj.id === 'КД-2026/022' && f.date === '2026-10-28').length;
+  dayOn('2026-10-05');
+  ok(622, mark === '2026-10-01' && again === 0 && crPayItems(null, 'КД-2026/022', '2026-10-28').length === 1 && !!o &&
+       Object.keys(ZD.state.crDueSent).length === ZD.state.noticeEvents.filter(r => r.kind === 'cr-payment-due').length,
+    `СГН-2 — пометка «куратору сообщено 01.10.2026» у строки КД-2026/022 · 28.10; та же строка в окне на следующую ночь события не даёт; ` +
+    `пометок столько же, сколько записей о событии`);
+})();
+
+/* СГН-4 — номера стенда: счётчик заданий идёт как шёл (номер, который занимало сообщение о платеже, занят в том же месте опроса) */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-10-01');
+  const seq1 = ZD.state.seq, pay = crPay();
+  ZD.seed(); ZD.goToDate('2026-10-06');
+  ok(623, seq1 === 654 && pay.every(n => /^N95\d{4}$/.test(n.id)) && ZD.state.seq === 711 && Object.keys(ZD.state.crDueLive).length > 0,
+    `СГН-4 — сообщения о платеже — в серии событий (${pay.map(n => n.id).join(', ')}); общий счётчик 01.10 — 654, 06.10 — 711, как до волны`);
+})();
+
+/* СГН-1, СГН-9 — в макете нет рода, блоков и функций сигнала; «сигнал отчёта» и «сигнал плитки» — другие виды и остаются */
+(() => {
+  const code = src.replace(/Сигнал (отчёта|плитки)|rp-signal|db-tile-signal/g, '');
+  const left = (code.match(/сигнал|Сигнал|signal|Signal/g) || []).length;
+  ok(624, left === 0 && ZD.GENERA.length === 3 && ZD.askSignal === undefined && ZD.editSignal === undefined && ZD.SIGNAL_KINDS === undefined &&
+       ZD.NOTICE_LIST.some(k => k.id === 'rp-signal') && ZD.NOTICE_LIST.some(k => k.id === 'db-tile-signal'),
+    `СГН-1 — слова «сигнал» в макете нет (кроме видов отчётности «Сигнал отчёта» и «Сигнал плитки»); рода, настройки, функций сигнала нет`);
 })();
 
 const pass = results.filter(r => r.pass).length;
