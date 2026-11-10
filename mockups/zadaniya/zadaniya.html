@@ -108,7 +108,7 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
 .pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
 .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
-  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md); text-decoration:none;
   font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
 .btn:disabled{ opacity:.45; cursor:not-allowed; }
 .btn-primary{ background:var(--action-primary); color:#fff; }
@@ -5949,6 +5949,13 @@ function addrText(a){
     : `${a.role}${a.unit && a.unit!==a.role ? ` (${a.unit})` : ''}: ${who(a.responsible)}${a.hold ? ` (${a.hold})` : ''}`;
   return a.subst ? `${base}; действует ${who(a.assignee)} (замещение)` : base;
 }
+/* адресат в журнале — только когда выдача пошла не по формуле: запасной адресат, администратор, очередь без кого-то */
+function addrWhy(a){
+  if(!a) return '';
+  if(a.via==='запасной' || a.via==='администратор') return addrText(a);
+  if(a.via==='очередь' && a.exclude && a.exclude.length) return `без ${a.excludeWho || 'автора объекта'} ${a.exclude.map(id=>empName(id)||id).join(', ')}`;
+  return '';
+}
 function priorTasksForKey(key){ return state.tasks.filter(t=>t.povodKey===key && isTerminal(t)); } // закрытые задания по ключу
 function computeImportance(action, rule){ return rule.importance || action.importance; }
 function pastToNext(d){ return d<state.today ? addWorkdays(state.today, 1) : d; } // срок, привязанный к дате объекта, прошедшей к выдаче
@@ -6464,6 +6471,11 @@ function queueGroups(scope){ return groupsOf(queueTasks(scope)); }
 /* что сделать: у задания по правилу — действие, у поручения — формулировка автора */
 function whatToDo(t){ return t.kind==='rule' && t.action ? actionOf(t.action).label : t.label; }
 /* дело задания: у поручения — первое дело и «ещё N», у задания по правилу — объект, у надзора за заданием — то задание */
+/* кнопка «Открыть <дело>» у задания с работой в карточке дела: вид объекта повода в винительном падеже */
+const CASE_OPEN = {gosreshenie:'госрешение', program:'программу', application:'заявку', document:'документ', unit:'подразделение', territory:'территорию', employee:'сотрудника',
+  resolution:'резолюцию', issue:'выдачу оригинала', offer:'предложение', asset:'объект имущества', contract:'договор', template:'шаблон', requirement:'требование', task:'задание',
+  obligation:'отчёт', pledge:'предмет залога', credit:'кредит', surety:'договор поручительства', pledgeContract:'договор залога', payment:'платёж', receipt:'поступление',
+  borrower:'заёмщика', 'rs-application':'заявку на реструктуризацию', 'pl-act':'акт сверки', bankruptcy:'банкротство'};
 const CASE_PAGE = {заёмщик:'borrower/borrower.html', заявка:'loan-application/loan-application.html', кредит:'loan-credit/credit.html', залог:'collateral/zalog.html', взыскание:'collection/collection.html'};
 const SRC_PAGE = {gd:'decision/decisions.html', lp:'loan-program/loan-program.html', ap:CASE_PAGE.заявка, doc:'docflow/docflow.html', imo:'assets/assets.html', ima:'assets/assets.html', imb:'assets/assets.html',
   an:'analysis/analysis.html', ant:'analysis/analysis.html', rp:'reports/reports.html', cr:CASE_PAGE.кредит, vz:CASE_PAGE.взыскание, zl:CASE_PAGE.залог, pl:'payments/payments.html', zm:CASE_PAGE.заёмщик, rs:'restructuring/restructuring.html', cl:'classification/classification.html'};
@@ -6859,12 +6871,18 @@ function qHead(tab, cols){
 }
 const qCols = list=>'<colgroup>'+list.map(w=>w ? `<col style="width:${w}px">` : '<col>').join('')+'</colgroup>';
 const tip = s=>esc(String(s).replace(/\s+/g, ' '));
+/* остаток срока словами — одна запись для карточки и строки очереди */
+const DAYS_WORDS = ['день', 'дня', 'дней'];
+function leftWords(n){
+  if(n<0) return `просрочено на ${-n} ${plural(-n, DAYS_WORDS)}`;
+  return n===0 ? 'сегодня' : n===1 ? 'завтра' : `ещё ${n} ${plural(n, DAYS_WORDS)}`;
+}
 /* срок: дата и остаток в календарных днях; красный только у просрочки; ход не за исполнителем — только дата */
 function dueLeft(due, counts){
   if(!counts) return fmt(due);
   const n = daysBetween(state.today, due);
-  if(n<0) return `<span class="q-late">${fmt(due)} · просрочено ${-n} дн.</span>`;
-  return `${fmt(due)} · ${n===0 ? 'сегодня' : 'ещё '+n+' дн.'}`;
+  if(n<0) return `<span class="q-late">${fmt(due)} · ${leftWords(n)}</span>`;
+  return `${fmt(due)} · ${leftWords(n)}`;
 }
 const dueCell = t=>dueLeft(dueOf(t), moveOnAssignee(t));
 function caseHtml(t){
@@ -7344,7 +7362,7 @@ function caseLinks(t){
 const SYSTEM = 'Система';
 const whoOf = e=>emp(e.by) ? empName(e.by)+(e.for && e.for!==e.by ? ` за ${empName(e.for)}` : '') : SYSTEM;
 const JOURNAL_WORDS = {
-  'поручено':(t, e)=>t.kind==='rule' ? {who:SYSTEM, what:t.queue ? 'Поставлено в очередь роли' : 'Выдано по правилу'} : {who:e.by ? whoOf(e) : empName(t.author), what:'Поручил'},
+  'поручено':(t, e)=>t.kind==='rule' ? {who:SYSTEM, what:t.queue ? 'Поставлено в очередь роли' : 'Выдано по правилу', why:addrWhy(t.addr)} : {who:e.by ? whoOf(e) : empName(t.author), what:'Поручил'},
   'принято':(t, e)=>e.без_принятия ? {who:SYSTEM, what:'Сразу в работе: принятие не нужно'} : {who:whoOf(e), what:e.закреплено ? 'Взял из очереди роли' : 'Взял в работу'},
   'заявлено':(t, e)=>({who:emp(e.by) ? whoOf(e) : empName(t.assignee), what:'Заявил исполнение', why:e.proof ? 'подтверждение: '+e.proof : ''}),
   'ожидает приёмки':(t, e)=>({who:emp(e.by) ? whoOf(e) : empName(t.assignee), what:'Заявил исполнение, ждёт приёмки', why:e.proof ? 'подтверждение: '+e.proof : ''}),
@@ -7367,13 +7385,17 @@ const JOURNAL_WORDS = {
   'отметка о ходе':(t, e)=>({who:whoOf(e), what:'Отметка о ходе', why:[e.fixes!=null ? `исправление к записи от ${fmt(t.journal[e.fixes].t)}` : '', e.text, e.link].filter(Boolean).join(' · ')}),
   'повод отпал':()=>({who:SYSTEM, what:'Работа подтверждена, можно принимать'}),
 };
+/* «принято» без принятия — не отдельная строка, а хвост предыдущей: «Выдано по правилу, сразу в работе»; в журнале событие хранится */
 function journalRows(t){
-  return t.journal.map(e=>{
+  const out = [];
+  t.journal.forEach(e=>{
     const f = JOURNAL_WORDS[e.ev];
     if(!f) throw new Error('событие журнала без подписи: '+e.ev);
+    if(e.ev==='принято' && e.без_принятия && out.length){ out[out.length-1].what += ', сразу в работе'; return; }
     const r = f(t, e);
-    return {date:fmt(e.t), who:r.who, what:r.what, why:r.why||''};
+    out.push({date:fmt(e.t), who:r.who, what:r.what, why:r.why||''});
   });
+  return out;
 }
 /* кнопки карточки: решение и работа; всё с основанием — окно системы, постоянно раскрытых форм нет */
 function taskActions(t, v){
@@ -7389,7 +7411,13 @@ function taskActions(t, v){
     if(!out.btns.length && !out.notes.length) out.notes.push('Задание в очереди роли: взять его может носитель роли.');
     return out;
   }
-  if(owned && mine && st!=='поручено') out.notes.push(`Работа делается в карточке дела${act && act.where ? ' — '+act.where : ''}. Задание закроется само, когда работа там будет сделана.`);
+  if(owned && mine && st!=='поручено'){ // работа в карточке дела: главная кнопка ведёт туда, под кнопками — что там сделать
+    const c = caseOf(t), p = t.povodKey && povodByKey(t.povodKey), label = 'Открыть '+(CASE_OPEN[p && p.objectType] || 'дело');
+    if(c && c.task) out.btns.push({label, call:`ZD.openCard('${c.task}')`, main:true, off:false, openCase:true});
+    else if(c && c.page) out.btns.push({label, href:'../'+c.page, main:true, off:false, openCase:true});
+    else out.btns.push({label, call:'ZD.noCasePage()', main:true, off:false, openCase:true});
+    out.there = (act && act.where ? act.where+' · ' : 'Работа в деле · ')+'задание закроется само';
+  }
   if(st==='поручено' && mine) run('Взять в работу', `ZD.take('${id}', ZD.state.viewer)`, true);
   if((st==='принято' || st==='возвращено') && mine && !owned){
     if(act && act.needsProof) ask('Заявить исполнение', 'proof', true);
@@ -7424,8 +7452,11 @@ function taskActions(t, v){
 }
 function renderTaskActions(t){
   const a = taskActions(t, state.viewer);
+  const btn = b=>b.href ? `<a class="btn btn-primary btn-sm" href="${esc(b.href)}" target="_blank" data-open-case>${esc(b.label)}</a>`
+    : `<button class="btn ${b.main ? 'btn-primary' : 'btn-secondary'} btn-sm"${b.off ? ' disabled' : ''}${b.openCase ? ' data-open-case' : ''} onclick="${esc(b.call)}">${esc(b.label)}</button>`;
   return `${a.notes.map(x=>`<div class="small">${esc(x)}</div>`).join('')}
-    ${a.btns.length ? `<div class="btn-row" data-acts>${a.btns.map(b=>`<button class="btn ${b.main ? 'btn-primary' : 'btn-secondary'} btn-sm"${b.off ? ' disabled' : ''} onclick="${esc(b.call)}">${esc(b.label)}</button>`).join('')}</div>` : ''}`;
+    ${a.btns.length ? `<div class="btn-row" data-acts>${a.btns.map(btn).join('')}</div>` : ''}
+    ${a.there ? `<div class="small" style="margin-top:6px" data-there>${esc(a.there)}</div>` : ''}`;
 }
 /* что сделано — решающему: заявление, подтверждение, запрос продления, последняя отметка */
 function doneForDecision(t, v){
@@ -7439,43 +7470,37 @@ function doneForDecision(t, v){
   if(last) out.push(`<div><b>Последняя отметка</b> ${fmt(last.t)}: ${esc(last.text)}</div>`);
   return `<div class="card-done" data-done>${out.join('')}</div>`;
 }
-/* подробности — по запросу: кто исполняет, откуда срок, важность, род, ключ */
-function cardDetails(t, povod){
+/* подробности — только то, чего нет выше, каждая строка по условию; в конце ссылка на правило. Пусто — блока нет */
+function cardDetails(t){
   const row = (k, x)=>`<div class="k">${esc(k)}</div><div class="v">${x}</div>`;
-  const who = id=>esc(empName(id)||id);
-  const k = t.originKind && kindOf(t.originKind), act = t.action && actionOf(t.action), r = responsibleNow(t);
-  return `<div class="kv">
-    ${row('Исполнитель', t.assignee ? who(t.assignee) : `не назначен — очередь роли «${esc(roleTitle(t.queue.role))}»: ${esc(queueHolders(t).map(empName).join(', '))}`)}
-    ${t.assignee && !isTerminal(t) && actingOn(t, state.today)!==t.assignee ? row('Действует за исполнителя', `${who(actingOn(t, state.today))} (замещение на ${fmt(state.today)})`) : ''}
-    ${t.addr ? row('Адресат на выдачу', esc(addrText(t.addr))) : ''}
-    ${r ? row(`Ответственный на ${fmt(state.today)}`, who(r)) : ''}
-    ${t.kind==='rule' ? '' : row('Автор', who(t.author))}
-    ${row('Контролёр', t.controller ? who(t.controller) : 'нет: исполнение подтверждает сам ход дела')}
-    ${row('Род', t.kind==='rule' ? 'по правилу' : 'свободное поручение')}
-    ${t.kind==='rule' ? '' : row('Основание', t.basis ? `обзор ${esc(t.basis)}${t.object ? ` · объект ${esc(t.object)}` : ''}` : 'решение автора')}
-    ${row('Важность', esc(t.importance))}
-    ${act && act.where ? row('Где делается работа', esc(act.where)) : ''}
-    ${k && k.personal ? row('Исполнение', 'лично: замещающий за исполнителя не действует') : ''}
-    ${t.mark ? row('Пометка', `<span class="pill neutral">${esc(t.mark)}</span> не блокирует`) : ''}
-    ${escalateOf(t) ? row('Просрочка', esc(escText(escalateOf(t)))) : ''}
-    ${row('Установленный срок', `${fmt(dueOf(t))}${extensionsOf(t) ? ` · продлений: ${extensionsOf(t)}` : ''}`)}
-    ${t.repeatOf ? row('Повтор после', `<button class="linky" onclick="ZD.openCard('${t.repeatOf}')">${t.repeatOf}</button> · повторов: ${t.repeatCount}`) : ''}
-    ${t.kind==='rule' ? row('Причина сейчас', povodGoneFor(t) ? 'отпала' : 'остаётся') : ''}
-  </div>
-  ${t.kind==='rule' ? renderOrigin(t, povod) : ''}
-  ${t.povodKey ? `<div class="small" style="margin-top:8px" data-key>Ключ: <span class="mono">${esc(t.povodKey)}</span></div>` : ''}`;
+  const who = id=>esc(empName(id)||id), rule = t.kind==='rule';
+  const k = t.originKind && kindOf(t.originKind), late = escalateOf(t), acting = t.assignee && !isTerminal(t) && actingOn(t, state.today);
+  const r = rule && ruleAsIssued(t), cur = rule && ruleById(t.ruleId), ed = cur && cur.editions.find(x=>x.n===t.ruleEdition);
+  const rows = [
+    late ? row('Если срок истечёт', esc(escText(late))) : '',
+    r ? row('Откуда срок', esc(t.dueOwn ? ownDueText(r, t.dueOwn) : dueText(r))) : '',
+    acting && acting!==t.assignee ? row('Действует за исполнителя', `${who(acting)} (замещение на ${fmt(state.today)})`) : '',
+    k && k.personal ? row('Лично', 'замещающий за исполнителя не действует') : '',
+    t.repeatOf ? row('Повтор после', `<button class="linky" onclick="ZD.openCard('${t.repeatOf}')">${t.repeatOf}</button> · повторов: ${t.repeatCount}`) : '',
+    t.mark ? row('Пометка', `<span class="pill neutral">${esc(t.mark)}</span> не блокирует`) : '',
+    cur && t.ruleEdition!==cur.edN ? row('Редакция правила', `выдано по редакции ${t.ruleEdition}${ed ? ` от ${fmt(ed.from)}` : ''}; сейчас действует редакция ${cur.edN} — на выданное не влияет`) : '',
+  ].filter(Boolean);
+  if(!rows.length && !rule) return '';
+  return `${rows.length ? `<div class="kv">${rows.join('')}</div>` : ''}
+  ${rule ? `<div class="small" style="margin-top:8px"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило</button></div>` : ''}`;
 }
 /* шаг в деле доступен зрителю: задание за ним — демо-карточка раскрыта */
 const stepForViewer = (t, v)=>!isTerminal(t) && (canActFor(t, v) || (inQueue(t) && queueHolders(t).indexOf(v)!==-1));
 const foldHtml = (name, title, open, body)=>`<details class="fold" data-fold="${name}"${foldOpen(name, open) ? ' open' : ''} ontoggle="ZD.cardFold('${name}', this.open)"><summary>${esc(title)}</summary><div class="fold-b">${body}</div></details>`;
-/* панель карточки. Сверху суть: что сделать, дело, почему, срок, состояние, кто поручил; контролёр, другой ответственный и первоначальный срок — только если есть или отличаются. Затем кнопки */
+/* панель карточки: что сделать, к какому сроку, почему — и что можно сделать сейчас. Сверху суть: что сделать, дело, почему (у свободного — только при основании),
+   срок, состояние, кто поручил; контролёр — если не тот, кто поручил; другой ответственный и первоначальный срок — если есть или отличаются. Затем кнопки */
 function renderCard(id){
   const t = taskOf(id), v = state.viewer, povod = t.povodKey ? povodByKey(t.povodKey) : null, term = isTerminal(t);
   const row = (k, key, x)=>`<div class="k" data-top="${key}">${esc(k)}</div><div class="v">${x}</div>`;
   const links = caseLinks(t), r = responsibleNow(t), due = dueOf(t), cal = calNote(t.journal[0].t, due);
   const forWhom = t.assignee && t.assignee!==v && !term && isMine(t, v) ? ` <span class="small">за ${esc(empName(t.assignee))}</span>` : '';
   const demo = demoOn && ownerExecOf(t) && povod ? renderOwnerCard(t, t.esc ? povodByKey(taskOf(povod.objectId).povodKey) : povod) : ''; // только при «Демонстрации»
-  const rows = t.journal.length ? journalRows(t) : [];
+  const rows = t.journal.length ? journalRows(t) : [], more = cardDetails(t);
   return `
   <div class="drawer-mask" onclick="ZD.closeCard()"></div>
   <div class="drawer">
@@ -7484,20 +7509,20 @@ function renderCard(id){
       <div class="card-what" data-top="what">${esc(whatToDo(t))}${forWhom}</div>
       <div class="kv kv-top">
         ${links ? row('Дело', 'case', links) : ''}
-        ${row('Почему', 'why', esc(whyOf(t)))}
+        ${t.kind==='rule' || t.basis ? row('Почему', 'why', esc(whyOf(t))) : ''}
         ${row('Срок', 'due', `${term ? fmt(due) : dueLeft(due, moveOnAssignee(t))}${cal ? `<div class="small" style="color:var(--asubk-red)">${esc(cal)}</div>` : ''}`)}
         ${row('Состояние', 'state', `<b>${esc(stateWords(t, v))}</b>`)}
         ${row('Поручил', 'by', byWhomHtml(t))}
-        ${t.controller ? row('Контролёр', 'ctrl', esc(empName(t.controller))) : ''}
+        ${t.controller && t.controller!==t.author ? row('Контролёр', 'ctrl', esc(empName(t.controller))) : ''}
         ${r && r!==t.assignee ? row('Ответственный', 'resp', esc(empName(r))) : ''}
         ${t.dueDate!==due ? row('Первоначальный срок', 'first', fmt(t.dueDate)) : ''}
       </div>
       ${doneForDecision(t, v)}
       <div class="card-acts" data-top="acts">${renderTaskActions(t)}</div>
       ${demo ? foldHtml('work', 'Работа в деле (демо-карточка модуля)', stepForViewer(t, v), demo) : ''}
-      ${foldHtml('more', 'Откуда задание и подробности', false, cardDetails(t, povod))}
-      ${foldHtml('journal', `Журнал — ${rows.length}`, decisionsOf(t).some(x=>x.by===v), `<table class="cgrid" data-journal><thead><tr><th>Дата</th><th>Кто</th><th>Что сделал</th><th>Основание</th></tr></thead>
-        <tbody>${rows.map(x=>`<tr><td>${x.date}</td><td>${esc(x.who)}</td><td>${esc(x.what)}</td><td>${esc(x.why)}</td></tr>`).join('')}</tbody></table>`)}
+      ${more ? foldHtml('more', 'Подробности', false, more) : ''}
+      ${foldHtml('journal', `Журнал — ${rows.length}`, decisionsOf(t).some(x=>x.by===v), `<table class="cgrid" data-journal><colgroup><col style="width:110px"><col style="width:220px"><col></colgroup><thead><tr><th>Дата</th><th>Кто</th><th>Что сделал</th></tr></thead>
+        <tbody>${rows.map(x=>`<tr><td>${x.date}</td><td>${esc(x.who)}</td><td>${esc(x.what)}${x.why ? `<div class="small" data-why>${esc(x.why)}</div>` : ''}</td></tr>`).join('')}</tbody></table>`)}
     </div>
   </div>`;
 }
@@ -7515,7 +7540,7 @@ function renderCardDrawer(){
   cardShown = cardOpenId;
   host.querySelector('.drawer-b').scrollTop = top; // действие в карточке не сбрасывает её прокрутку
 }
-/* откуда задание: повод, редакция правила, кто поручил, откуда срок — по снимку выдачи */
+/* откуда срок — по снимку выдачи */
 function dueUnitWord(r){ return r.dueUnit==='named' ? (r.dueNWord || 'к.д.') : r.dueUnit==='workday' ? 'р.д.' : r.dueUnit==='beforeDate' ? `к.д. до ${kindOf(r.kind).dueDateName || '«Даты по»'}` : r.dueUnit==='month' ? 'кал. мес.' : 'к.д.'; }
 function dueText(r, short){
   const unit = dueUnitWord(r);
@@ -7527,22 +7552,6 @@ function dueText(r, short){
 function ownDueText(r, o){
   return o.n ? `${o.n} ${dueUnitWord(r)} от даты состояния, `+(o.basis ? `назван приказом к шаблону · ${thrSrcText({order:o.basis})}` : 'назван в шаблоне анализа')
     : `${r.dueN} ${dueUnitWord(r)} от даты состояния, ${AN_DUE_UNNAMED}`+(r.dueSource ? ` · ${r.dueSource}` : '');
-}
-function renderOrigin(t, povod){
-  const rule = ruleAsIssued(t), e = ruleById(t.ruleId).editions.find(x=>x.n===t.ruleEdition), k = kindOf(t.originKind);
-  const traits = traitsText(povod ? povod.traits : null);
-  const pov = povod ? `«${esc(k.title)}» · ${esc(describePovod(povod))}<div class="small">с ${fmt(povod.firstSeen)} · дата состояния ${fmt(povod.stateDate)}${traits ? ' · '+esc(traits) : ''}</div>`
-    : `«${esc(k.title)}»`;
-  const by = byWhomHtml(t);
-  return `<div class="section-h">Откуда задание</div>
-    <div class="kv">
-      <div class="k">Повод</div><div class="v">${pov}<div class="small">род вида: ${esc(k.genus)}</div></div>
-      <div class="k">Правило</div><div class="v">редакция ${t.ruleEdition}${e ? ` с ${fmt(e.from)} · основание: ${esc(e.basis)} · правка: ${esc(emp(e.by)?.name||e.by)}` : ''}
-        ${t.ruleEdition!==ruleById(t.ruleId).edN ? `<div class="small">сейчас действует редакция ${ruleById(t.ruleId).edN} — на выданное не влияет</div>` : ''}</div>
-      <div class="k">Поручил</div><div class="v">${by}</div>
-      <div class="k">Откуда срок</div><div class="v">${esc(t.dueOwn ? ownDueText(rule, t.dueOwn) : dueText(rule))}</div>
-      <div class="k"></div><div class="v"><button class="linky" onclick="ZD.showRule('${t.ruleId}')">Открыть правило</button></div>
-    </div>`;
 }
 /* правило открывается панелью поверх той страницы, где зритель сейчас; в меню у остальных пунктов нет, закрытие возвращает на место */
 function showRule(ruleId){
@@ -8988,7 +8997,7 @@ return {
   resolveAddressee, curatorOn, actingFor, responsibleNow, dueOf, extensionsOf, approverOf, pendingExtension,
   checkRegistry, taskRows, myTile, isMine, isOverdue, assigneeOn, obligationAt, repSoonFromOf, repIssue, retireKinds, dueText, activeOn,
   canActFor, povodGoneFor, povodReleased, silenceOf, controllerOf,
-  editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, renderOrigin,
+  editRule, cancelEdition, releaseRule, editionOn, pendingEdition, ruleById, POSTS, postHolderOn, isTasksAdmin, cardDetails, leftWords, plural, CASE_OPEN, escalateOf, actingOn, dueLeft,
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
   setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifLinks,
   queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,

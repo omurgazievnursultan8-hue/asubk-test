@@ -280,6 +280,11 @@
 //   #294, #296, #297, #303, #317, #321, #368, #369, #372, #386, #391, #450; числа стенда #405; #526 сверяет прежний набор без своей серии.
 // Волна 37 (09.11.2026) — закрытый перечень 59 видов и события модулей (СУ-1…СУ-8, СУ-10…СУ-18, СУ-33, СУ-35, СУ-56…СУ-68): #544…#567, правки по ревью — #562…#567; числа сообщений
 //   #314, #316, #362, #393, #405, #513, #521, #523, #524, #537 считаются по источнику «Задания»: события модулей — своя серия и в счёт стенда не входят.
+// Волна 39 (10.11.2026) — карточка задания (КРЗ-1…КРЗ-9): #595…#601 — верх без повторов, «Подробности» по условию, журнал со склейкой «сразу в работе»,
+//   «Открыть <дело>», остаток срока словами в очереди и карточке, журнал в три колонки, адресат не по формуле в журнале.
+//   Переписаны под новое поведение: #194 (подробности без повода и «Поручил»), #331 (срок словами), #351 (порядок верха и состав подробностей),
+//   #401 (признаки повода в карточке не пересказываются), #432 (запасной адресат — в журнале), #441 (что сделать в деле — строка у исполнителя),
+//   #508 (кнопка «Открыть <дело>» вместо подсказки), #512 (ключа в карточке нет), #539 (основание вида — в панели правила).
 // Правки по ревью волны 30 (06.11.2026): «Кто поручил» у очередей комитета, ОПК, отчётности; пустая должность — администратор;
 //   вакансия — у владельца, срок от «вакантно с»; руководитель по просрочке — одна проверка, продление гасит «исполнено»;
 //   правопреемник без руководителя — выше по дереву; порог статистики — запись; приказ у порога обязателен.
@@ -3100,18 +3105,16 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
     `подложенный в правило порог сверка реестра ловит`);
 })();
 
-/* блок «Откуда задание» в карточке */
+/* «Подробности» в карточке (переписано под КРЗ-3, КРЗ-4: повод, род вида, правка выпуском и «Поручил» из подробностей ушли — «Поручил» и «Почему» наверху) */
 (() => {
   ZD.seed();
   ZD.runPoll();
   const t = ZD.state.tasks.find(x => x.originKind === 'gd-review');
-  const h = ZD.renderOrigin(t, ZD.povodByKey(t.povodKey));
-  ok(194, /Откуда задание/.test(h) && h.indexOf('Заведующий отделом кредитных программ — Мамбетов') !== -1 &&
-       h.indexOf('редакция 1 с 01.09.2026 · основание: подключение модуля «Госрешение» · правка: выпуск 1') !== -1 &&
-       h.indexOf('2 р.д. от выдачи · источник: решение проекта') !== -1 && /род вида: шаг/.test(h) &&
-       h.indexOf("ZD.showRule('rule-gd-review')") !== -1,
-    `в карточке — повод (вид, объект, с какой даты, признаки, род), правило с редакцией, датой и основанием, кто поручил ` +
-    `(должность и человек), откуда срок и ссылка на правило в реестре`);
+  const h = ZD.cardDetails(t), card = ZD.renderCard(t.id), top = card.slice(0, card.indexOf('data-top="acts"'));
+  ok(194, top.indexOf('Заведующий отделом кредитных программ — Мамбетов') !== -1 && /data-top="why"/.test(top) &&
+       h.indexOf('2 р.д. от выдачи · источник: решение проекта') !== -1 && h.indexOf("ZD.showRule('rule-gd-review')") !== -1 &&
+       !/род вида|Повод|правка:|Поручил|Откуда задание/.test(h),
+    `КРЗ-3 — в подробностях откуда срок и ссылка на правило; повод, род вида, «правка: выпуск N» и «Поручил» не повторяются — кто поручил и почему наверху`);
 })();
 
 /* один вид — одно правило; правило называет существующие вид и действие */
@@ -6009,8 +6012,10 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   ZD.goToDate('2026-09-10');
   const hSub = viewAs('E3'), forE1 = ZD.queueTasks('mine').find(t => t.assignee === 'E1' && rowOf(hSub, t.id)), ownE3 = ZD.queueTasks('mine').find(t => t.assignee === 'E3' && rowOf(hSub, t.id));
   const forWhom = plain(cellsOf(rowOf(hSub, forE1.id))[1]).endsWith('за Есенова А.Т.') && !plain(cellsOf(rowOf(hSub, ownE3.id))[1]).includes(' за ');
-  ok(331, headOf(h) === WORK_HEAD && T1[0] === `25.08.2026 · просрочено ${calDays('2026-08-25', d)} дн.` && /q-late/.test(T1raw[0]) && T1[4] === 'T1' && T1.length === 5 &&
-       laterCell === `${ruDate(ZD.dueOf(later))} · ещё ${calDays(d, ZD.dueOf(later))} дн.` && todayCell === `${ruDate(d)} · сегодня` &&
+  /* переписано под КРЗ-7: остаток словами со склонением, та же запись, что в карточке */
+  const nLater = calDays(d, ZD.dueOf(later));
+  ok(331, headOf(h) === WORK_HEAD && T1[0] === `25.08.2026 · просрочено на ${calDays('2026-08-25', d)} дней` && /q-late/.test(T1raw[0]) && T1[4] === 'T1' && T1.length === 5 &&
+       laterCell === `${ruDate(ZD.dueOf(later))} · ${nLater === 1 ? 'завтра' : 'ещё ' + nLater + ' ' + ZD.plural(nLater, ['день', 'дня', 'дней'])}` && todayCell === `${ruDate(d)} · сегодня` &&
        bands.every(x => x > 0) && bands[0] < bands[1] && bands[1] < bands[2] && waitCell === 'Абдразакова С.М. · приёмка' && waitDue === ruDate(ZD.dueOf(ZD.taskOf('T3'))) &&
        lateOnly && noWords && clickRow && emptyCell && askCell === 'запрошено продление' && backCell === 'возвращено' && forWhom,
     `ЭЗ-3, ЭЗ-5, ЭЗ-7, ЭЗ-39, ЭЗ-45 — колонки «${WORK_HEAD}»; T1: «${T1[0]}»; дни календарные, «сегодня»; красный остаток только по isOverdue у пяти зрителей; блоки «мои → очередь ролей → жду ответа», в «Жду ответа» у кого ход; ` +
@@ -6511,11 +6516,12 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
     `ЭЗ-Д3, ЭЗ-52 — ${rows} строк журнала на ${ZD.STAND_DATES.length} датах и после действий: дата, кто, что сделал, основание; нет JSON, claimedAt, сырых дат и id; подписаны все ${Object.keys(ZD.JOURNAL_WORDS).length} видов; вид без подписи — ошибка${bad.length ? '; ' + bad.slice(0, 2).join(' / ') : ''}${missing.length ? '; не встретились: ' + missing.join(', ') : ''}`);
 })();
 
-/* ЭЗ-11 — порядок верха карточки; контролёр, другой ответственный, первоначальный срок — только если есть или отличаются; подробности свёрнуты */
+/* ЭЗ-11 — порядок верха карточки; контролёр, другой ответственный, первоначальный срок — только если есть или отличаются; подробности свёрнуты.
+   Переписано под КРЗ-2, КРЗ-3: «Почему» у свободного — только при основании, контролёр — если не тот, кто поручил; блок «Подробности» без повторов и служебного, у свободного без условных строк его нет */
 (() => {
   ZD.seed();
   ZD.goToDate('2026-11-02');
-  const ORDER = /^what,(case,)?why,due,state,by,(ctrl,)?(resp,)?(first,)?acts$/;
+  const ORDER = /^what,(case,)?(why,)?due,state,by,(ctrl,)?(resp,)?(first,)?acts$/;
   const bad = [];
   let n = 0;
   ['E1', 'E2', 'E3', 'E4', 'E22'].forEach(v => {
@@ -6524,9 +6530,11 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
       const h = ZD.renderCard(t.id), top = topOf(h), order = [...h.matchAll(/data-top="(\w+)"/g)].map(m => m[1]).join(), r = ZD.responsibleNow(t);
       n++;
       const decider = ZD.decisionsOf(t).some(x => x.by === v);
-      const fine = ORDER.test(order) && /,ctrl,|,ctrl$/.test(order) === !!t.controller && order.includes('resp') === !!(r && r !== t.assignee) && order.includes('first') === (t.dueDate !== ZD.dueOf(t)) &&
+      const hasMore = h.includes('data-fold="more"');
+      const fine = ORDER.test(order) && /,ctrl,|,ctrl$/.test(order) === !!(t.controller && t.controller !== t.author) && order.includes('resp') === !!(r && r !== t.assignee) && order.includes('first') === (t.dueDate !== ZD.dueOf(t)) &&
+        order.includes('why') === (t.kind === 'rule' || !!t.basis) && (hasMore || t.kind !== 'rule') &&
         !/>(Важность|Род|Ключ|Исполнитель|Адресат|Правило)</.test(top) && !foldOpen(h, 'more') && foldOpen(h, 'journal') === decider &&
-        h.indexOf('data-top="acts"') < h.indexOf('data-fold="more"') && h.indexOf('data-fold="more"') < h.indexOf('data-fold="journal"');
+        (!hasMore || (h.indexOf('data-top="acts"') < h.indexOf('data-fold="more"') && h.indexOf('data-fold="more"') < h.indexOf('data-fold="journal"')));
       if (!fine) bad.push(`${v} ${t.id}: ${order}`);
     });
   });
@@ -6540,7 +6548,8 @@ ok(345, !/\b(?:prompt|confirm|alert)\s*\(/.test(src), 'ЭЗ-Д2 — в исхо�
   ZD.state.viewer = rule.assignee;
   const more = ZD.renderCard(rule.id), body = more.slice(more.indexOf('data-fold="more"'), more.indexOf('data-fold="journal"'));
   ok(351, n > 100 && bad.length === 0 && !/data-top="first"/.test(was) && /data-top="first"/.test(now) &&
-       ['Исполнитель', 'Адресат на выдачу', 'Важность', 'Род', 'Откуда задание', 'Ключ:', `ZD.showRule('${rule.ruleId}')`].every(x => body.includes(x)),
+       ['Откуда срок', `ZD.showRule('${rule.ruleId}')`].every(x => body.includes(x)) &&
+       !['Исполнитель', 'Адресат на выдачу', 'Важность', '>Род<', 'Откуда задание', 'Ключ:', 'Причина сейчас', 'Установленный срок', 'Где делается работа', 'Контролёр'].some(x => body.includes(x)),
     `ЭЗ-11 — ${n} открытых карточек у пяти зрителей на 02.11: что сделать, дело, почему, срок, состояние, кто поручил, затем условные строки, затем кнопки; подробности свёрнуты, журнал открыт только решающему${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
 })();
 
@@ -7100,7 +7109,7 @@ const rowsIn = (h, attr) => [...h.matchAll(new RegExp(`<tr[^>]* ${attr}="([^"]+)
   const t = ZD.state.tasks.find(x => x.originKind && x.assignee && x.assignee !== 'E4' && ZD.ruleForKind(x.originKind) && !ZD.isTerminal(x)), who = t.assignee, rid = ZD.ruleForKind(t.originKind).id;
   ZD.state.viewer = who; ZD.state.view = 'queue';
   ZD.openCard(t.id);
-  const link = ZD.renderOrigin(t, ZD.povodByKey(t.povodKey)).indexOf(`ZD.showRule('${rid}')`) !== -1;
+  const link = ZD.cardDetails(t).indexOf(`ZD.showRule('${rid}')`) !== -1;
   ZD.showRule(rid);
   const onTop = ZD.ruleCard === rid && ZD.cardId === null && ZD.state.view === 'queue';
   const p = ZD.renderRulePanel(rid), menu = ZD.menuItems().map(x => x.view).join();
@@ -7815,7 +7824,8 @@ const apEvent = (id, t) => ZD.state.owner.ap.find(o => o.id === id).ev.push({ t,
   const traits = !!p && p.traits.категория === 'средний риск' && p.traits.полоса_с === '2026-09-15' && p.traits.сумма === 60000000;
   const h = t ? ZD.renderCard(t.id) : '', own = t ? ZD.renderOwnerCard(t, p) : '';
   const text = x => x.replace(/onclick='[^']*'/g, '').replace(/<[^>]*>/g, ' '); // только то, что видно: в onclick кнопок null законен
-  const shown = /на 31\.12\.2026: средний риск, остаток больше 50 млн/.test(own) && /низкий риск с 15\.01\.2027/.test(own) && /полоса с: 15\.09\.2026/.test(h) && !/\bnull\b|\bundefined\b|NaN|\[object/.test(text(h + own));
+  /* переписано под КРЗ-3: признаки повода в карточке задания не пересказываются — они в демо-карточке модуля и в журнале прогонов */
+  const shown = /на 31\.12\.2026: средний риск, остаток больше 50 млн/.test(own) && /низкий риск с 15\.01\.2027/.test(own) && !/полоса с:/.test(h) && /data-top="why"/.test(h) && h.includes('data-fold="more"') && /Откуда срок/.test(h) && !/\bnull\b|\bundefined\b|NaN|\[object/.test(text(h + own));
   pollOn('2027-02-15');
   const overdue = !!t && !ZD.isTerminal(t) && ZD.isOverdue(t, '2027-02-15');
   ok(401, debtStays && riskStays && traits && shown && overdue,
@@ -8003,7 +8013,7 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   pollOn('2026-10-01');
   const q2 = anLast(AN_P('ШО-04', Q2)), aug = anLast(AN_P('ШО-12', AUG));
   const pq = ZD.povodByKey(AN_P('ШО-04', Q2)), pa = ZD.povodByKey(AN_P('ШО-12', AUG));
-  const oq = plain(ZD.renderOrigin(q2, pq)), oa = plain(ZD.renderOrigin(aug, pa));
+  const oq = plain(ZD.cardDetails(q2)), oa = plain(ZD.cardDetails(aug));
   ok(419, pq.dueN === 15 && pq.dueBasis === 'приказ № 118 от 12.01.2026' && pa.dueN === null && pa.dueBasis === 'приказ № 140 от 15.08.2026' &&
        pq.traits.периодичность === 'квартал — приказ № 118 от 12.01.2026' &&
        pq.traits.срок_по_шаблону === '15 р.д. после закрытия периода · приказ № 118 от 12.01.2026' &&
@@ -8012,7 +8022,7 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
        oq.indexOf('Откуда срок 15 р.д. от даты состояния, назван приказом к шаблону · внутренний акт · приказ № 118 от 12.01.2026') !== -1 &&
        oa.indexOf('Откуда срок 20 р.д. от даты состояния, приказом не назван, значение правила заданий · решение проекта') !== -1 &&
        q2.dueDate === '2026-10-22' && aug.dueDate === '2026-10-02' &&
-       /Откуда срок 15 р\.д\. от даты состояния, назван в шаблоне анализа Открыть/.test(plain(ZD.renderOrigin(Object.assign({}, q2, { dueOwn: { n: 15, basis: null } }), pq))),
+       /Откуда срок 15 р\.д\. от даты состояния, назван в шаблоне анализа Открыть/.test(plain(ZD.cardDetails(Object.assign({}, q2, { dueOwn: { n: 15, basis: null } })))),
     `НЗ-33 — ШО-04 за II квартал: срок 15 р.д. назван приказом № 118 — так в признаке и в карточке («внутренний акт»), срок 22.10 прежний; ` +
     `ШО-12 за август: приказ № 140 срока не назвал — «приказом не назван, значение правила заданий», 20 р.д. от закрытия 04.09, срок 02.10 (к вводу не прошёл — ВЗЕ-213); срок без приказа — «назван в шаблоне анализа»`);
 })();
@@ -8028,9 +8038,9 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   tpl.ev.push({ t: '2026-10-15', cycle: { every: 'квартал', dueWd: 10 }, order: 'приказ № 230 от 15.10.2026',
     by: 'E27', how: 'приказ № 230 от 15.10.2026: обзор ежеквартально, 10 р.д. после закрытия периода' });
   pollOn('2026-10-16');
-  const p3 = ZD.povodByKey(AN_P('ШО-04', Q3)), o3 = plain(ZD.renderOrigin(q3, p3));
+  const p3 = ZD.povodByKey(AN_P('ШО-04', Q3)), o3 = plain(ZD.cardDetails(q3));
   pollOn('2027-01-12');
-  const q4 = anLast(AN_P('ШО-04', '2026-10-01..2026-12-31')), o4 = plain(ZD.renderOrigin(q4, ZD.povodByKey(q4.povodKey)));
+  const q4 = anLast(AN_P('ШО-04', '2026-10-01..2026-12-31')), o4 = plain(ZD.cardDetails(q4));
   ok(420, q2.dueOwn?.n === 15 && q2.dueDate === '2026-10-22' && p3 && p3.dueBasis === fixed && p3.dueN === 12 &&
        q3.dueOwn?.n === 15 && q3.dueOwn?.basis === 'приказ № 118 от 12.01.2026' && q3.dueDate === '2026-10-27' &&
        /Откуда срок 15 р\.д\. от даты состояния, назван приказом к шаблону · внутренний акт · приказ № 118 от 12\.01\.2026/.test(o3) && !/№ 225/.test(o3.slice(o3.indexOf('Откуда срок'))) &&
@@ -8289,7 +8299,8 @@ const mockText = rel => readFileSync(resolve(__dir, '../../mockups', rel), 'utf8
   ZD.seed();
   ZD.runPoll();
   const osh = taskByKey(/rep-osh/);
-  const card = plain(ZD.renderCard(osh.id));
+  /* переписано под КРЗ-3, КРЗ-8: строки «Адресат на выдачу» в карточке нет — запасной адресат назван серой строкой под «Выдано по правилу» в журнале */
+  const jr = ZD.journalRows(osh)[0], card = jr.what + ' ' + jr.why;
   const k = ZD.kindOf('pk-cr-payment-due'), sig = ZD.signalRecipients(k, { curObj: 'нет-такого' }, '2026-10-01');
   const named = ZD.fallbackAddressee(ZD.ruleForKind('pk-rep-obligation-overdue'), ZD.povodByKey(osh.povodKey), '2026-09-02');
   ok(432, osh.addr.via === 'запасной' && osh.addr.post === 'post-escort' && named.responsible === 'E2' && named.via === 'запасной' && /запасной адресат — «Кто поручил»/.test(card) &&
@@ -8550,7 +8561,9 @@ const w31 = (kind, part) => ZD.state.tasks.filter(t => t.originKind === kind && 
   pollOn('2026-12-21');
   const none = !zlLast('pk-zl-restore-lapsed', 'З-308');
   pollOn('2026-12-23');
-  const t = zlLast('pk-zl-restore-lapsed', 'З-308'), p = ZD.povodByKey(t.povodKey), card = plain(ZD.renderCard(t.id));
+  const t = zlLast('pk-zl-restore-lapsed', 'З-308'), p = ZD.povodByKey(t.povodKey);
+  ZD.state.viewer = t.assignee; // переписано под КРЗ-6: что сделать в деле — строка под кнопками у исполнителя, строки «Где делается работа» нет
+  const card = plain(ZD.renderCard(t.id));
   ZD.state.owner.vz.push({ id: 'ТР-2026/099', borrower: 'КФХ «Ала-Тоо»', credit: 'КД-2025/311', overdue: 0,
     ground: 'нарушение условий залога (п. 41)',
     ev: [{ t: '2026-12-24', measure: 'Требование о досрочном исполнении', cover: 'полный остаток', by: 'E3', how: 'требование о досрочном исполнении направлено' }] });
@@ -9654,7 +9667,7 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   ZD.state.viewer = 'E1';
   const t = ZD.state.tasks.find(x => ZD.ownerExecOf(x) && ZD.canActFor(x, 'E1') && !ZD.isTerminal(x) && ZD.lastEv(x) !== 'поручено');
   const cardOff = ZD.renderCard(t.id);
-  const cardWorks = !cardOff.includes('data-fold="work"') && !/демо-карточка/.test(cardOff) && cardOff.includes('data-top="acts"') && /Работа делается в карточке дела/.test(cardOff) && cardOff.includes('data-fold="more"');
+  const cardWorks = !cardOff.includes('data-fold="work"') && !/демо-карточка/.test(cardOff) && cardOff.includes('data-top="acts"') && /data-open-case/.test(cardOff) && /data-there/.test(cardOff) && cardOff.includes('data-fold="more"'); // переписано под КРЗ-6
   const queueWorks = /data-t="/.test(viewAs('E1', 'work')) && ZD.taskActions(ZD.state.tasks.find(x => ZD.bucketOf(x, 'E1') === 'mine'), 'E1').btns.length > 0;
   ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks';
   const adminWorks = ZD.menuItems().some(x => x.view === 'settings') && /ZD\.askRule\(/.test(ZD.renderSettings() + ZD.renderRulePanel(ZD.state.rules[0].id));
@@ -9762,8 +9775,8 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
     const v = ZD.EMP.find(e => ZD.bucketOf(t, e.id));
     if (!v) return;
     ZD.state.viewer = v.id; cards++;
-    const h = ZD.renderCard(t.id), i = h.indexOf('data-fold="more"'), j = h.indexOf('data-fold="journal"'), more = h.slice(i, j);
-    leak(`${t.id}`, h.slice(0, i) + h.slice(j));
+    const h = ZD.renderCard(t.id), i = h.indexOf('data-fold="more"'), j = h.indexOf('data-fold="journal"'), more = i < 0 ? '' : h.slice(i, j);
+    leak(`${t.id}`, h); // переписано под КРЗ-3: ключа в карточке нет совсем, и в «Подробностях» тоже
     if (t.povodKey) { withKey++; if (plain(more).includes(t.povodKey)) inMore++; }
   });
   ZD.EMP.forEach(e => {
@@ -9782,8 +9795,8 @@ const rejOf = id => ZD.state.tasks.find(x => x.originKind === 'pk-rejected' && x
   const opened = ZD.renderRuns(), detail = (opened.match(/data-pov-detail[\s\S]*?<\/div><\/div>/) || [''])[0];
   const inDetail = plain(detail).includes(p.key) && !keys.some(k => plain(opened.replace(detail, '')).includes(k));
   ZD.togglePovod(p.key); ZD.state.qTab = 'work';
-  ok(512, bad.length === 0 && cards > 200 && withKey > 100 && inMore === withKey && inDetail,
-    `ВЗЕ-221 — ${cards} карточек на 02.11: ключ только в «Откуда задание и подробности» (${inMore} из ${withKey}); очередь, уведомления, колокольчик, настройка, панели правил, опрос и строки поводов — без ключа; раскрытый повод — с ключом` +
+  ok(512, bad.length === 0 && cards > 200 && withKey > 100 && inMore === 0 && inDetail,
+    `ВЗЕ-221, КРЗ-3 — ${cards} карточек на 02.11: ключа в карточке нет, и в «Подробностях» тоже (${inMore} из ${withKey}); очередь, уведомления, колокольчик, настройка, панели правил, опрос и строки поводов — без ключа; раскрытый повод — с ключом` +
     `${bad.length ? '; найдено: ' + bad.slice(0, 3).join(' / ') : ''}`);
 })();
 
@@ -10547,7 +10560,7 @@ const W36_BAD = /\bundefined\b|\bnull\b|\[object|NaN|\bpk-[a-z]|\bim-[a-z]|\bact
     const card = vis(ZD.renderCard(t.id)).replace(t.povodKey, ''), seen = vis(ZD.renderOwnerCard(t, ZD.povodByKey(t.povodKey))), panel = ZD.renderRulePanel(ZD.ruleForKind(k).id); // ключ повода — строка подробностей
     if (!ZD.queueTasks('mine').some(x => x.id === t.id)) bad.push(k + ' не в очереди');
     if (!LABEL[k].test(seen)) bad.push(k + ' нет действия');
-    if (!/Откуда задание/.test(card) || !WHY[k].test(card)) bad.push(k + ' основание');
+    if (!/Открыть правило/.test(card) || !WHY[k].test(vis(panel))) bad.push(k + ' основание'); // переписано под КРЗ-3: основание вида — в панели правила по ссылке из карточки
     if (W36_BAD.test(card) || W36_BAD.test(seen) || W36_BAD.test(vis(panel))) bad.push(k + ' сырое');
   });
   ZD.state.viewer = 'E4'; ZD.state.settingsTab = 'tasks'; ZD.state.ruleSt = 'все'; ZD.state.ruleMod = ''; ZD.state.ruleQ = '';
@@ -10561,7 +10574,7 @@ const W36_BAD = /\bundefined\b|\bnull\b|\[object|NaN|\bpk-[a-z]|\bim-[a-z]|\bact
   ZD.state.runOpen = r.id;
   const night = vis(ZD.renderRuns());
   ok(539, bad.length === 0 && inSettings && outcomeBtn && !W36_BAD.test(night) && /Кредит/.test(night) && /Залог/.test(night),
-    `Семь заданий видны в очереди и карточке, основание в «Откуда задание», гасящее действие в демо-карточке, настройка повода в таблице; журнал ночей чистый ${bad.slice(0, 4).join(', ')}`);
+    `Семь заданий видны в очереди и карточке, основание — в панели правила по ссылке «Открыть правило», гасящее действие в демо-карточке, настройка повода в таблице; журнал ночей чистый ${bad.slice(0, 4).join(', ')}`);
 })();
 
 /* ---------- Волна 37: закрытый перечень 59 видов и события модулей ---------- */
@@ -11310,6 +11323,170 @@ const ev38 = (id, kind = 'gd-rejected') => ({ kind, obj: { src: 'gd', type: 'gd'
   ok(594, time && date && same && contract, 'Окно: время ЧЧ:ММ в пределах суток; исключение: настоящая дата и не совпадает с календарём; договор нельзя включить без реквизита');
 })();
 
+
+/* ---------- Волна 39: карточка задания (КРЗ-1…КРЗ-9) ---------- */
+const KRZ_DATES = ['2026-10-01', '2026-11-02', '2026-12-14'];
+const KRZ_MORE = ['Если срок истечёт', 'Откуда срок', 'Действует за исполнителя', 'Лично', 'Повтор после', 'Пометка', 'Редакция правила'];
+const KRZ_GONE = /Причина сейчас|Важность|>Род<|Ключ:|правка: выпуск|род вида|Адресат на выдачу|Установленный срок|Где делается работа|решение автора|Откуда задание|Работа делается в карточке дела|Сразу в работе: принятие не нужно/;
+const moreOf = h => { const i = h.indexOf('data-fold="more"'); return i < 0 ? null : h.slice(i, h.indexOf('data-fold="journal"')); };
+const moreLabels = m => [...m.matchAll(/<div class="k">([^<]*)<\/div>/g)].map(x => x[1]);
+
+/* КРЗ-1, КРЗ-2 — верх: «Почему» у свободного только при основании, контролёр — только если не тот, кто поручил; T1 — четыре строки вместо шести */
+(() => {
+  seedAt('2026-10-01');
+  ZD.state.viewer = 'E1';
+  const t1 = ZD.renderCard('T1'), order1 = [...topOf(t1).matchAll(/data-top="(\w+)"/g)].map(m => m[1]).join();
+  const bad = [];
+  let n = 0, why = 0, ctrl = 0;
+  eachCard(KRZ_DATES, (t, v) => {
+    if (ZD.isTerminal(t)) return;
+    const top = topOf(ZD.renderCard(t.id)); n++;
+    const w = /data-top="why"/.test(top), c = /data-top="ctrl"/.test(top);
+    if (w !== (t.kind === 'rule' || !!t.basis)) bad.push(`${v} ${t.id} почему`);
+    if (c !== !!(t.controller && t.controller !== t.author)) bad.push(`${v} ${t.id} контролёр`);
+    if (t.kind !== 'rule' && w) why++;
+    if (c) ctrl++;
+  });
+  // контролёр не тот, кто поручил — строка есть
+  seedAt('2026-10-01'); ZD.state.viewer = 'E1';
+  const t = ZD.taskOf('T1'), was = t.controller; t.controller = 'E3';
+  const top3 = topOf(ZD.renderCard('T1')), other = /data-top="ctrl"/.test(top3) && top3.includes(ZD.EMP.find(e => e.id === 'E3').name);
+  t.controller = was;
+  // поручение по обзору — «Почему» есть; на стенде таких нет, основание подставляется
+  const rev = ZD.state.owner.an[0].id; t.basis = rev;
+  const topB = topOf(ZD.renderCard('T1')), withBasis = /data-top="why"/.test(topB) && topB.includes('Поручение по обзору ' + rev);
+  t.basis = null;
+  ok(595, order1 === 'what,case,due,state,by' && !/Поручение руководителя/.test(t1) && bad.length === 0 && n > 300 && withBasis && other,
+    `КРЗ-1, КРЗ-2 — T1: ${order1}; ${n} открытых карточек на трёх датах: «Почему» у свободного только при основании (на стенде ${why}, подставленное — видно), контролёр только если не тот, кто поручил (на стенде ${ctrl}, подменённый — виден)${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-3, КРЗ-4 — «Подробности»: свёрнуты, только условные строки, каждая — по своему условию, в конце «Открыть правило»; повторов и служебного нет */
+(() => {
+  ZD.seed();
+  const bad = [], seen = {};
+  let n = 0, none = 0;
+  eachCard(KRZ_DATES, (t, v, d) => {
+    const h = ZD.renderCard(t.id), m = moreOf(h), rule = t.kind === 'rule'; n++;
+    if (KRZ_GONE.test(h)) { bad.push(`${v} ${t.id} лишнее: ${h.match(KRZ_GONE)[0]}`); return; }
+    if (!m) { if (rule) bad.push(`${t.id} нет блока`); else none++; return; }
+    if (!/<summary>Подробности<\/summary>/.test(m) || /data-fold="more" open/.test(h)) bad.push(`${t.id} заголовок`);
+    const ls = moreLabels(m), k = t.originKind && ZD.kindOf(t.originKind), act = t.assignee && !ZD.isTerminal(t) && ZD.actingOn(t, d);
+    const want = {
+      'Если срок истечёт': !!ZD.escalateOf(t), 'Откуда срок': rule, 'Действует за исполнителя': !!act && act !== t.assignee, 'Лично': !!(k && k.personal),
+      'Повтор после': !!t.repeatOf, 'Пометка': !!t.mark, 'Редакция правила': rule && t.ruleEdition !== ZD.ruleById(t.ruleId).edN,
+    };
+    if (ls.some(x => !KRZ_MORE.includes(x))) bad.push(`${t.id} чужая строка ${ls.join('/')}`);
+    KRZ_MORE.forEach(x => { if (ls.includes(x) !== want[x]) bad.push(`${t.id} ${x}`); if (ls.includes(x)) seen[x] = (seen[x] || 0) + 1; });
+    const order = ls.map(x => KRZ_MORE.indexOf(x));
+    if (order.some((x, i) => i && x < order[i - 1])) bad.push(`${t.id} порядок`);
+    if (rule !== m.includes(`ZD.showRule('${t.ruleId}')`) || (rule && m.lastIndexOf('<div class="k">') > m.indexOf('Открыть правило'))) bad.push(`${t.id} ссылка`);
+  });
+  // выдано не по действующей редакции — строка есть и говорит, что на выданное не влияет
+  seedAt('2026-10-01');
+  const t = ZD.taskOf('T57'), r = ZD.ruleById(t.ruleId), was = r.edN; r.edN = was + 1;
+  const ed = plain(moreOf(ZD.renderCard('T57')) || '');
+  r.edN = was;
+  const edOk = new RegExp(`Редакция правила выдано по редакции ${t.ruleEdition}( от \\d\\d\\.\\d\\d\\.\\d{4})?; сейчас действует редакция ${was + 1} — на выданное не влияет`).test(ed);
+  ok(596, bad.length === 0 && n > 1000 && none > 0 && seen['Откуда срок'] > 100 && seen['Если срок истечёт'] > 0 && edOk,
+    `КРЗ-3, КРЗ-4 — ${n} карточек на трёх датах: «Подробности» свёрнуты, строки по условию (${KRZ_MORE.filter(x => seen[x]).map(x => `${x} ${seen[x]}`).join(', ')}), ` +
+    `у свободного без условных строк блока нет (${none}), в конце «Открыть правило»; повторов, рода, ключа, важности, «причины сейчас» нет; не действующая редакция — строкой${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-5 — «принято» без принятия — хвост предыдущей строки; в журнале событие остаётся; заголовок считает строки на экране */
+(() => {
+  seedAt('2026-10-01');
+  const t57 = ZD.taskOf('T57'), rows57 = ZD.journalRows(t57).map(x => x.what);
+  const stored = t57.journal.length;
+  const bad = [];
+  let merged = 0;
+  eachCard(KRZ_DATES, (t, v) => {
+    const silent = t.journal.filter((e, i) => i > 0 && e.ev === 'принято' && e.без_принятия).length, rows = ZD.journalRows(t);
+    merged += silent;
+    if (rows.length !== t.journal.length - silent) bad.push(`${t.id} строк ${rows.length}`);
+    if (!ZD.renderCard(t.id).includes(`Журнал — ${rows.length}<`)) bad.push(`${t.id} заголовок`);
+  });
+  ok(597, stored === 4 && rows57.join(' | ') === 'Выдано по правилу, сразу в работе | Передано: Есенова А.Т. → Нурланова Ж.К., сразу в работе' && merged > 100 && bad.length === 0,
+    `КРЗ-5 — T57: в журнале ${stored} события, на экране ${rows57.length} строки: «${rows57.join('», «')}»; склеено ${merged} событий на трёх датах${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-6 — работа в карточке дела: главная кнопка «Открыть <дело>» ведёт туда же, куда «Дело»; под кнопками одна строка — что там сделать и «задание закроется само» */
+(() => {
+  ZD.seed();
+  const bad = [], labels = new Set();
+  let n = 0, other = 0;
+  eachCard(KRZ_DATES, (t, v) => {
+    const h = ZD.renderCard(t.id);
+    const owned = !ZD.isTerminal(t) && ZD.ownerExecOf(t) && ZD.canActFor(t, v) && ZD.lastEv(t) !== 'поручено';
+    if (!owned) { if (/data-open-case|data-there/.test(h)) bad.push(`${v} ${t.id} лишняя кнопка`); else other++; return; }
+    n++;
+    const first = (h.match(/<div class="btn-row" data-acts>(<(a|button)[^>]*>[^<]*<\/(a|button)>)/) || [])[1] || '', c = ZD.caseOf(t), act = t.action && ZD.actionOf(t.action);
+    const label = plain(first);
+    labels.add(label.split(' ').slice(1).join(' '));
+    const to = c && c.task ? first.includes(`ZD.openCard('${c.task}')`) : c && c.page ? first.includes(`href="../${c.page}"`) && /target="_blank"/.test(first) : first.includes('ZD.noCasePage()');
+    const there = plain((h.match(/<div class="small"[^>]*data-there>([^<]*)<\/div>/) || [])[1] || '');
+    if (!/btn-primary/.test(first) || !/^Открыть /.test(label) || label === 'Открыть дело' || !to) bad.push(`${v} ${t.id} кнопка «${label}»`);
+    if (!there.endsWith('задание закроется само') || (act && act.where && !there.startsWith(plain(act.where))) || (h.match(/data-there/g) || []).length !== 1) bad.push(`${v} ${t.id} строка`);
+  });
+  ok(598, bad.length === 0 && n > 50 && other > 100 && labels.size > 5,
+    `КРЗ-6 — ${n} карточек с работой в деле на трёх датах: главная кнопка «Открыть …» (${[...labels].slice(0, 6).join(', ')}…) ведёт в карточку дела в новой вкладке, под кнопками — что там сделать и «задание закроется само»; у остальных (${other}) кнопки нет${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-7 — остаток срока словами: одна функция для строки очереди и карточки */
+(() => {
+  const W = { 0: 'сегодня', 1: 'завтра', 2: 'ещё 2 дня', 5: 'ещё 5 дней', 11: 'ещё 11 дней', 21: 'ещё 21 день', 22: 'ещё 22 дня', 111: 'ещё 111 дней', '-1': 'просрочено на 1 день', '-3': 'просрочено на 3 дня', '-37': 'просрочено на 37 дней', '-12': 'просрочено на 12 дней' };
+  const words = Object.entries(W).every(([n, w]) => ZD.leftWords(+n) === w);
+  seedAt('2026-10-01');
+  const bad = [];
+  let n = 0;
+  ['E1', 'E3', 'E4', 'E5', 'E16'].forEach(v => {
+    const q = viewAs(v);
+    rowIds(q).forEach(id => {
+      const t = ZD.taskOf(id), cell = plain(cellsOf(rowOf(q, id))[0]); n++;
+      if (/дн\./.test(cell)) bad.push(`${id} «дн.»`);
+      if (ZD.isTerminal(t)) return;
+      ZD.state.viewer = v;
+      const due = plain((ZD.renderCard(id).match(/data-top="due">Срок<\/div><div class="v">([\s\S]*?)(<div class="small"|<\/div>)/) || [])[1] || '');
+      if (due !== cell) bad.push(`${id}: «${cell}» ≠ «${due}»`);
+    });
+  });
+  ok(599, words && bad.length === 0 && n > 20,
+    `КРЗ-7 — «сегодня», «завтра», «ещё 2 дня», «ещё 21 день», «просрочено на 37 дней»; ${n} строк очереди у пяти зрителей — та же запись, что в карточке, «дн.» нет${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-8 — журнал в три колонки, основание — серой второй строкой под действием, только если есть */
+(() => {
+  ZD.seed();
+  const bad = [];
+  let withWhy = 0, rowsN = 0;
+  eachCard(KRZ_DATES, (t, v) => {
+    const h = ZD.renderCard(t.id), tbl = (h.match(/<table class="cgrid" data-journal>[\s\S]*?<\/table>/) || [''])[0];
+    const head = [...tbl.matchAll(/<th>([^<]*)<\/th>/g)].map(x => x[1]).join(' · '), rows = ZD.journalRows(t), trs = [...tbl.matchAll(/<tr><td>[\s\S]*?<\/tr>/g)].map(x => x[0]);
+    if (head !== 'Дата · Кто · Что сделал') bad.push(`${t.id} шапка ${head}`);
+    rows.forEach((r, i) => {
+      rowsN++;
+      const tr = trs[i] || '', cells = cellsOf(tr);
+      if (cells.length !== 3) bad.push(`${t.id} колонок ${cells.length}`);
+      if (!!r.why !== /data-why/.test(tr)) bad.push(`${t.id} основание`);
+      if (r.why) { withWhy++; if (!/<div class="small" data-why>/.test(cells[2] || '')) bad.push(`${t.id} не под действием`); }
+    });
+  });
+  ok(600, bad.length === 0 && rowsN > 1000 && withWhy > 50,
+    `КРЗ-8 — ${rowsN} строк журнала на трёх датах: «Дата · Кто · Что сделал», основание серой строкой под действием у ${withWhy}, у остальных строки нет; старое сверху${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
+
+/* КРЗ-9 — адресат не по формуле назван в журнале под «Выдано по правилу»: запасной, администратор, очередь без кого-то; по формуле — без строки */
+(() => {
+  seedAt('2026-11-02');
+  const bad = [];
+  let named = 0, plainN = 0;
+  ZD.state.tasks.filter(t => t.kind === 'rule' && t.addr).forEach(t => {
+    const r = ZD.journalRows(t)[0], a = t.addr, odd = a.via === 'запасной' || a.via === 'администратор' || (a.via === 'очередь' && a.exclude && a.exclude.length);
+    if (odd) { named++; if (!r.why) bad.push(`${t.id} нет`); } else { plainN++; if (r.why) bad.push(`${t.id} лишнее`); }
+  });
+  const osh = taskByKey(/rep-osh/), t39 = ZD.journalRows(ZD.taskOf('T39'))[0];
+  ok(601, bad.length === 0 && named > 5 && plainN > 100 && /^запасной адресат — «Кто поручил»/.test(ZD.journalRows(osh)[0].why) && t39.why === 'без автора объекта Нурланова Ж.К.',
+    `КРЗ-9 — ${named} заданий с адресатом не по формуле: причина серой строкой под первой записью журнала («${t39.why}»); ${plainN} по формуле — без строки${bad.length ? '; ' + bad.slice(0, 3).join(', ') : ''}`);
+})();
 
 
 const pass = results.filter(r => r.pass).length;
