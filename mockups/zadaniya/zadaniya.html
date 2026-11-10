@@ -237,6 +237,9 @@ table.qgrid table.qgrid thead th{ cursor:default; background:var(--asubk-gray-50
 .q-late{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
 .q-attn{ color:var(--asubk-amber); font-weight:var(--weight-medium); }
 a.q-case, button.q-case{ color:var(--text-link); text-decoration:none; }
+.q-case-row{ display:flex; align-items:baseline; gap:4px; min-width:0; }
+.q-case-row > :first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+.q-case-row > .q-more{ flex:none; }
 a.q-case:hover, button.q-case:hover{ text-decoration:underline; }
 .btn-xs{ height:22px; margin:-2px 0; padding:0 8px; font-size:12.5px; font-weight:var(--weight-medium); }
 .card-what{ font:var(--weight-semibold) 17px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
@@ -6299,17 +6302,29 @@ const CASE_PAGE = {заёмщик:'borrower/borrower.html', заявка:'loan-a
 const SRC_PAGE = {gd:'decision/decisions.html', lp:'loan-program/loan-program.html', ap:CASE_PAGE.заявка, doc:'docflow/docflow.html', imo:'assets/assets.html', ima:'assets/assets.html', imb:'assets/assets.html',
   an:'analysis/analysis.html', ant:'analysis/analysis.html', rp:'reports/reports.html', cr:CASE_PAGE.кредит, vz:CASE_PAGE.взыскание, zl:CASE_PAGE.залог, pl:'payments/payments.html', zm:CASE_PAGE.заёмщик, rs:'restructuring/restructuring.html', cl:'classification/classification.html'};
 const TYPE_PAGE = {unit:'org-structure/org-structure.html', territory:'org-structure/org-structure.html', employee:'employee/employee.html', obligation:SRC_PAGE.rp};
-function caseOf(t){
-  if(t.kind!=='rule'){
-    const c = t.cases||[];
-    return c.length ? {text:`${c[0].type} ${c[0].id}`, more:c.length-1, page:CASE_PAGE[c[0].type], all:c.map(x=>`${x.type} ${x.id}`).join(', ')} : null;
-  }
+/* подпись дела задания — одна для строки очереди, свёрнутой группы и строки уведомления.
+   Задания идут от ближайшего срока: первое дело и «ещё N» (N — остальные разные дела: у задания о задании — разные задания; все — в подсказке).
+   У задания о другом задании дело — «<что сделать того задания> — <его исполнитель>», ссылка на его карточку */
+function caseItems(t){
+  if(t.kind!=='rule') return (t.cases||[]).map(c=>({text:`${c.type} ${c.id}`, page:CASE_PAGE[c.type]}));
   const p = t.povodKey && povodByKey(t.povodKey);
-  if(!p) return null;
-  if(p.objectType==='task'){ const x = taskOf(p.objectId); return {text:`${p.objectId} · ${x ? whatToDo(x) : ''}`, more:0, task:p.objectId}; }
+  if(!p) return [];
+  if(p.objectType==='task'){ const x = taskOf(p.objectId); return [{text:x ? taskCaseWords(x) : p.objectId, task:p.objectId}]; }
   const cfg = OWNER_CFG[p.kind];
-  return {text:describePovod(p), more:0, page:(cfg && SRC_PAGE[p.src||cfg.src]) || TYPE_PAGE[p.objectType] || null};
+  return [{text:describePovod(p), page:(cfg && SRC_PAGE[p.src||cfg.src]) || TYPE_PAGE[p.objectType] || null}];
 }
+function taskCaseWords(x){
+  const who = workerOf(x) ? empName(workerOf(x)) : x.queue ? `очередь «${roleTitle(x.queue.role)}»` : '';
+  return whatToDo(x)+(who ? ' — '+who : '');
+}
+function caseLabel(tasks){
+  const list = [].concat(tasks).filter(Boolean).sort((a, b)=>cmpVal(dueOf(a), dueOf(b)) || taskNo(a.id)-taskNo(b.id));
+  const items = [], seen = {};
+  list.forEach(t=>caseItems(t).forEach(c=>{ const k = c.task || c.text; if(!seen[k]){ seen[k] = true; items.push(c); } }));
+  if(!items.length) return null;
+  return Object.assign({}, items[0], {more:items.length-1, all:items.map(c=>c.text).join(', ')});
+}
+const caseOf = t=>caseLabel([t]);
 const caseText = t=>{ const c = caseOf(t); return c ? c.all||c.text : ''; };
 /* кнопка «Взять»: только там, где принятие что-то значит */
 function canTake(t, v){
@@ -6494,7 +6509,7 @@ function renderDemoSwitch(){
   return `<label class="demo-sw" title="Показ стенда: дата среза, зритель, имитация недоступности, демо-карточки модулей"><input type="checkbox" role="switch" id="demoToggle"${demoOn ? ' checked' : ''} onchange="ZD.setDemo(this.checked)"><span class="trk"></span>Демонстрация</label>`;
 }
 function setAsOf(v){ state.today=v; applyEditions(v); render(); }
-function setViewer(v){ state.viewer=v; Object.assign(state, {nfPage:1, nfOnly:false, nfSrc:'', nfFrom:'', nfTo:'', nfQ:''}); groupOpen = {}; groupPick = {}; groupOff = {}; bellOpen = false; popReset(); if(ruleCard){ ruleCard=null; renderCardDrawer(); } if(digestCard || digestFrom || noticeCard) closeCard(); render(); } // другой зритель вошёл в систему: окошек нет, только счётчик
+function setViewer(v){ state.viewer=v; Object.assign(state, {nfPage:1, nfOnly:false, nfSrc:'', nfFrom:'', nfTo:'', nfQ:''}); groupOpen = {}; groupPick = {}; groupOn = {}; bellOpen = false; popReset(); if(ruleCard){ ruleCard=null; renderCardDrawer(); } if(digestCard || digestFrom || noticeCard) closeCard(); render(); } // другой зритель вошёл в систему: окошек нет, только счётчик
 /* стенд: ночи подряд от старта до выбранной даты включительно. Срез зависит только от даты и настроек полосы, клики зрителя
    не переживают смену даты. Настройки полосы — имитация недоступности, круг опроса, зритель — сохраняются; недоступность и
    «сосед перестал молчать» действуют на последнюю ночь, иначе срез пуст */
@@ -6573,7 +6588,7 @@ function goToDate(d){
   applyEditions(d);
   state.statCleared = keep.statCleared;
   state.standMark = standMark();
-  groupPick = {}; groupOff = {}; bellOpen = false;
+  groupPick = {}; groupOn = {}; bellOpen = false;
   dlg = null; paintDialog();
   closeCard();
   render();
@@ -6631,7 +6646,7 @@ function render(){
   document.getElementById('bell').innerHTML = renderBell();
 
   const panel = document.getElementById('panel');
-  if(state.view==='queue') panel.innerHTML = renderQueue();
+  if(state.view==='queue'){ panel.innerHTML = renderQueue(); Object.keys(groupIds).forEach(paintGroupPick); } // «все» при неполном выборе — промежуточная
   else if(state.view==='settings') panel.innerHTML = renderSettings();
   else if(state.view==='runs') panel.innerHTML = renderRuns();
   else if(state.view==='notifs') panel.innerHTML = renderNotifPage();
@@ -6704,47 +6719,69 @@ function dueLeft(due, counts){
   return `${fmt(due)} · ${leftWords(n)}`;
 }
 const dueCell = t=>dueLeft(dueOf(t), moveOnAssignee(t));
-function caseHtml(t){
-  const c = caseOf(t);
+function caseCell(c){ // ячейка «Дело» по подписи caseLabel
   if(!c) return '';
-  const more = c.more ? ` <span class="small">ещё ${c.more}</span>` : '', title = tip(c.all||c.text);
-  if(c.task) return `<button class="linky q-case" title="${title}" onclick="event.stopPropagation();ZD.openCard('${c.task}')">${esc(c.text)}</button>`;
-  if(c.page) return `<a class="q-case" href="../${c.page}" target="_blank" title="${title}" onclick="event.stopPropagation()">${esc(c.text)}</a>${more}`;
-  return `<span title="${title}">${esc(c.text)}</span>${more}`;
+  const more = c.more ? ` <span class="small q-more">ещё ${c.more}</span>` : '', title = tip(c.all||c.text);
+  const row = x=>`<span class="q-case-row">${x}${more}</span>`; // длинное дело обрезается многоточием, «ещё N» видно всегда
+  if(c.task) return row(`<button class="linky q-case" title="${title}" onclick="event.stopPropagation();ZD.openCard('${c.task}')">${esc(c.text)}</button>`);
+  if(c.page) return row(`<a class="q-case" href="../${c.page}" target="_blank" title="${title}" onclick="event.stopPropagation()">${esc(c.text)}</a>`);
+  return row(`<span title="${title}">${esc(c.text)}</span>`);
 }
+const caseHtml = t=>caseCell(caseOf(t));
 function whatCell(t, v){ // замещающему видно, за кого он работает
   const forWhom = t.assignee && t.assignee!==v && isMine(t, v) ? ` <span class="small">за ${esc(empName(t.assignee))}</span>` : '';
   return `<span title="${tip(whatToDo(t))}">${esc(whatToDo(t))}</span>${forWhom}`;
 }
 const words = list=>list.map(x=>`<span class="q-attn">${esc(x)}</span>`).join(' · ');
-function attnCell(t, v){
-  return attentionOf(t, v).map(x=>x==='Взять'
+function attnCell(t, v, inGroup){ // в группе «Взять» — пакетом по отмеченным, строчной кнопки нет
+  return attentionOf(t, v).filter(x=>!(inGroup && x==='Взять')).map(x=>x==='Взять'
     ? `<button class="btn btn-primary btn-xs" onclick="event.stopPropagation();ZD.ui(()=>ZD.take('${t.id}', ZD.state.viewer))">Взять</button>`
     : `<span class="q-attn">${esc(x)}</span>`).join(' ');
 }
 function waitCell(t){ const h = moveHolder(t); return h ? `<span title="${tip(h.what)}">${h.who ? esc(empName(h.who))+' · ' : ''}${esc(h.what)}</span>` : ''; }
 const rowTag = (t, cls)=>`<tr class="${cls||''}" data-t="${t.id}" onclick="ZD.openCard('${t.id}')">`;
-/* строка в колонках «Моей работы»: срок · что сделать · дело · внимание · № */
+/* строка в колонках «Моей работы»: срок · что сделать · дело · внимание · №.
+   В раскрытой группе «Что сделать» пусто — оно в строке группы; gid — группа с пакетными кнопками (галочка у строки) */
 function workRow(t, v, attn, gid){
-  const box = gid ? `<input type="checkbox" class="gt" data-g="${esc(gid)}" value="${t.id}"${groupOff[t.id] ? '' : ' checked'} onclick="event.stopPropagation()" onchange="ZD.groupTick('${t.id}', this.checked)"> ` : '';
-  return `${rowTag(t, (gid!==undefined ? 'grp-item ' : '')+(isOverdue(t, state.today) ? 'over' : ''))}
-    <td>${box}${dueCell(t)}</td><td>${whatCell(t, v)}</td><td>${caseHtml(t)}</td><td>${attn(t, v)}</td><td>${t.id}</td></tr>`;
+  const inGroup = gid!==undefined;
+  const box = gid ? `<input type="checkbox" class="gt" data-g="${esc(gid)}" value="${t.id}"${groupOn[t.id] ? ' checked' : ''} onclick="event.stopPropagation()" onchange="ZD.groupTick('${esc(gid)}', '${t.id}', this.checked)"> ` : '';
+  return `${rowTag(t, (inGroup ? 'grp-item ' : '')+(isOverdue(t, state.today) ? 'over' : ''))}
+    <td>${box}${dueCell(t)}</td><td>${inGroup ? '' : whatCell(t, v)}</td><td>${caseHtml(t)}</td><td>${attn(t, v, inGroup)}</td><td>${t.id}</td></tr>`;
 }
-let groupOpen = {}, groupPick = {}, groupOff = {};
+/* выбор в пачке: галочки по умолчанию сняты, «все» в строке группы, число отмеченных на кнопках */
+let groupOpen = {}, groupPick = {}, groupOn = {}, groupIds = {};
 function toggleGroup(id){ groupOpen[id] = !groupOpen[id]; render(); }
-function groupTick(id, on){ groupOff[id] = !on; }
+const groupChecked = id=>(groupIds[id]||[]).filter(x=>groupOn[x]);
+function groupTick(gid, id, on){ groupOn[id] = !!on; paintGroupPick(gid); }
+function groupAll(gid, on){
+  (groupIds[gid]||[]).forEach(x=>{ groupOn[x] = !!on; });
+  if(on && !groupOpen[gid]){ groupOpen[gid] = true; render(); return; } // отметил все у свёрнутой — раскрыть, кнопки видны
+  paintGroupPick(gid);
+}
+/* число на кнопках и галочки без перерисовки: введённое в поле пачки не теряется */
+function paintGroupPick(gid){
+  if(typeof document==='undefined') return;
+  const ids = groupIds[gid]||[], n = groupChecked(gid).length;
+  document.querySelectorAll('input.ga').forEach(x=>{ if(x.dataset.g!==gid) return; x.checked = ids.length>0 && n===ids.length; x.indeterminate = n>0 && n<ids.length; });
+  document.querySelectorAll('input.gt').forEach(x=>{ if(x.dataset.g===gid) x.checked = !!groupOn[x.value]; });
+  document.querySelectorAll('[data-gop]').forEach(x=>{ if(x.dataset.g!==gid) return; x.textContent = `${x.dataset.label} (${n})`; x.disabled = n===0; });
+}
 function groupChoose(id, op){ groupPick[id] = groupPick[id]===op ? null : op; render(); }
 function groupRowHtml(g, scope, v, q){
   const id = scope+'|'+g.key, open = !!groupOpen[id] || !!q, boxes = groupOps(g, v).length>0;
+  groupIds[id] = g.tasks.map(t=>t.id);
+  const n = groupChecked(id).length, t0 = g.tasks[0];
+  const all = boxes ? `<input type="checkbox" class="ga" data-g="${esc(id)}" title="Отметить все"${n===g.count ? ' checked' : ''} onclick="event.stopPropagation()" onchange="ZD.groupAll('${esc(id)}', this.checked)"> ` : '';
+  const forWhom = t0.assignee && t0.assignee!==v && isMine(t0, v) ? ` <span class="small">за ${esc(empName(t0.assignee))}</span>` : '';
   return `<tr class="grp${g.overdue ? ' over' : ''}" data-g="${esc(id)}" onclick="ZD.toggleGroup('${esc(id)}')">
-      <td>${dueLeft(g.nearest, true)}</td>
-      <td><b>${open ? '▾' : '▸'} ${esc(g.title)} — ${g.count}</b></td>
-      <td></td>
+      <td>${all}${dueLeft(g.nearest, true)}</td>
+      <td><b>${open ? '▾' : '▸'} ${esc(g.title)} — ${g.count}</b>${forWhom}</td>
+      <td>${caseCell(caseLabel(g.tasks))}</td>
       <td>${g.overdue ? `<span class="q-late">просрочено ${g.overdue} из ${g.count}</span>` : ''}</td>
       <td></td>
     </tr>${open ? g.tasks.map(t=>workRow(t, v, attnCell, boxes ? id : '')).join('')+groupBarHtml(g, id) : ''}`;
 }
-const GROUP_OP = {'взять':'Взять отмеченные', 'подписать':'Подписать отмеченные', 'заявить':'Заявить исполнение', 'продление':'Запросить продление', 'отметка':'Отметка о ходе'};
+const GROUP_OP = {'взять':'Взять отмеченные', 'подписать':'Подписать отмеченные', 'заявить':'Заявить исполнение по отмеченным', 'продление':'Запросить продление по отмеченным', 'отметка':'Отметка о ходе по отмеченным'};
 /* поле на всю пачку: одно на отмеченные, не по форме на задание */
 function groupFields(op, g){
   if(op==='заявить') return g.tasks.some(t=>t.action && actionOf(t.action).needsProof) ? [{f:'proof', label:'Ссылка на подтверждение'}] : [];
@@ -6756,22 +6793,24 @@ function groupBarHtml(g, id){
   const ops = groupOps(g, state.viewer);
   if(!ops.length) return '';
   const d = esc(id), pick = ops.indexOf(groupPick[id])!==-1 ? groupPick[id] : null, fields = pick ? groupFields(pick, g) : [];
+  const n = groupChecked(id).length, off = n===0 ? ' disabled' : '';
+  const counted = label=>`data-gop data-g="${d}" data-label="${esc(label)}"${off}>${esc(label)} (${n})`;
   const btn = (op, i)=>{
     const call = groupFields(op, g).length ? `ZD.groupChoose('${d}','${op}')` : `ZD.batchUI('${d}','${op}')`;
-    return `<button class="btn ${i===0 ? 'btn-primary' : 'btn-secondary'} btn-sm${pick===op ? ' on' : ''}" onclick="event.stopPropagation();${call}">${GROUP_OP[op]}</button>`;
+    return `<button class="btn ${i===0 ? 'btn-primary' : 'btn-secondary'} btn-sm${pick===op ? ' on' : ''}" onclick="event.stopPropagation();${call}" ${counted(GROUP_OP[op])}</button>`;
   };
   const form = fields.length ? `<div class="form-row" style="margin:8px 0 0">${fields.map(x=>`<div class="fld"><label>${x.label}</label><input id="gb-${d}-${x.f}"${x.type ? ` type="${x.type}"` : ''} onclick="event.stopPropagation()"></div>`).join('')}
-      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();ZD.batchUI('${d}','${pick}')">Применить к отмеченным</button></div>` : '';
+      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();ZD.batchUI('${d}','${pick}')" ${counted('Применить к отмеченным')}</button></div>` : '';
   return `<tr class="grp-bar"><td colspan="5" class="wrap"><div class="btn-row" style="margin-top:0">${ops.map(btn).join('')}</div>${form}</td></tr>`;
 }
-function groupChecked(id){ return Array.from(document.querySelectorAll('.gt')).filter(x=>x.dataset.g===id && x.checked).map(x=>x.value); }
 function batchUI(id, op){
-  if(op==='подписать'){ ui(()=>{ signGroup(id, state.viewer); toast('Подпись внесена','ok'); }); return; }
+  if(op==='подписать'){ ui(()=>{ signGroup(id, state.viewer); groupChecked(id).forEach(x=>{ groupOn[x] = false; }); toast('Подпись внесена','ok'); }); return; }
   const val = f=>{ const x = document.getElementById(`gb-${id}-${f}`); return x ? x.value.trim() : ''; };
   const arg = op==='отметка' ? {text:val('text')} : op==='продление' ? {newDue:val('due'), reason:val('ext')} : op==='заявить' ? {proof:val('proof')} : {};
   ui(()=>{
     const r = batchTasks(groupChecked(id), op, state.viewer, arg);
     groupPick[id] = null;
+    r.done.forEach(x=>{ groupOn[x] = false; }); // сделанное снимается с выбора, отказ остаётся отмеченным
     toast(`Сделано ${r.done.length}, отказов ${r.refused.length}`+(r.refused.length ? ': '+r.refused.map(x=>`${x.id} — ${x.why}`).join('; ') : ''), r.refused.length ? 'err' : 'ok');
   });
 }
@@ -6781,7 +6820,7 @@ function signGroup(id, by){ // подпись пишется в журнал к�
   return savedDocSignBatch(docs, by);
 }
 const WORK_COLS = [['due','Срок'], ['what','Что сделать'], ['case','Дело'], ['attn','Внимание'], ['id','№']];
-const WORK_W = [284, 600, 0, 190, 72];
+const WORK_W = [310, 500, 0, 190, 72];
 function renderWork(b, q, v){
   const band = text=>`<tr class="band"><td colspan="5">${esc(text)}</td></tr>`;
   const mine = b.mine.filter(t=>matches(t, q)), role = b.role.filter(t=>matches(t, q)), wait = b.wait.filter(t=>matches(t, q));
@@ -6856,6 +6895,7 @@ function renderMore(q, shown, v){
 function renderQueue(){
   const v = state.viewer, q = (state.qSearch||'').trim().toLowerCase(), b = bucketsOf(v), tabs = tabsOf(v), tab = currentTab(v);
   state.qTab = tab;
+  groupIds = {}; // группы заполняет отрисовка: пачка берёт только показанные задания
   const filters = closedFilters(v), filter = closedPick(v);
   const shown = {work:b.mine.concat(b.role, b.wait), decide:b.decide, sub:b.sub.concat(b.unassigned), gave:b.gave, closed:filter.tasks}[tab];
   const body = tab==='decide' ? renderDecide(b, q, v) : tab==='sub' ? renderSub(b, q, v) : tab==='gave' ? renderGave(b, q, v) : tab==='closed' ? renderClosed(filter, q, v) : renderWork(b, q, v);
@@ -8818,7 +8858,7 @@ return {
   POP_MS, POP_MAX, renderPops, popFlush, popClose, popOpen, popMore, get pops(){ return pops; },
   renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES, setDemo, get demo(){ return demoOn; }, renderDemoSwitch, ADMIN_VIEWS,
   bucketOf, bucketsOf, tabsOf, currentTab, setQueueTab, setClosedFilter, setSearch, setSort, closedFilters, closedMine, closedResult, subSummary,
-  whatToDo, caseOf, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupChoose,
+  whatToDo, caseOf, caseLabel, workerOf, roleTitle, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupAll, groupChecked, groupChoose,
   openFreeForm, setSettingsTab, deactivateKind, activateKind,
   toggleDown, toggleStatCleared, setPollScope, ui,
   ROLES, roleOf, queueHolders, inQueue, queueTasks, queueGroups, batchTasks, groupOps, toggleGroup, batchUI, signGroup,

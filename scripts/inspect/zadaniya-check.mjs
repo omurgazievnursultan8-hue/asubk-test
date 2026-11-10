@@ -295,6 +295,9 @@
 //   клик по сигналу — карточка объекта поверх экрана (кредит, вкладка «График»).
 //   Сняты 14 проверок — их предмет снят решением: #36, #95, #100, #102, #105, #159, #160, #246, #257 (строки подсветки соседей), #167, #172
 //   (НЗ-34), #173, #374 (вкладка «Подсветка»), #297 (выпуск вида подсветки в задание или сигнал).
+// Волна 42 (10.11.2026) — группа в очереди (ГРС-1…ГРС-5): #611…#614 — дело свёрнутой группы «первое и ещё N» и задание о задании
+//   «что сделать — исполнитель» одной функцией caseLabel (строка, группа, карточка); строки группы без «Что сделать», без строчной «Взять»;
+//   галочки сняты, «все» в строке группы, кнопки «… (N)» недоступны при 0. Переписана #339 (галочки по умолчанию сняты, подписи кнопок).
 //   Переписаны под пометки и отметки владельцев: #11, #25, #26, #33, #35, #37, #67, #75, #88, #90, #96, #97, #101, #103, #106, #108, #112,
 //   #113, #117, #118, #145, #146, #148, #161, #164-#166, #168, #170, #179, #181, #190, #193, #197, #213, #226, #236-#245, #247-#256, #259, #268,
 //   #273, #294-#296, #308, #317, #361, #368, #373, #383, #386, #387, #427, #479, #490, #508, #530, #531, #543, #602; числа реестра 132 → 108.
@@ -5985,10 +5988,10 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   ZD.EMP.forEach(e => { ZD.state.viewer = e.id; ['mine', 'role'].forEach(sc => ZD.queueGroups(sc).filter(x => !x.task).forEach(g => { const ty = ZD.groupType(g); if (!found[ty]) found[ty] = { v: e.id, sc, g, id: `${sc}|${g.key}` }; })); });
   const opened = f => { ZD.toggleGroup(f.id); const h = viewAs(f.v); ZD.toggleGroup(f.id); return h; };
   const bar = h => { const i = h.indexOf('class="grp-bar"'); return i < 0 ? '' : h.slice(i, h.indexOf('</tr>', i)); };
-  const btns = h => [...bar(h).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(m => m[1]);
+  const btns = h => [...bar(h).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(m => m[1].replace(/ \(\d+\)$/, ''));
   const q = opened(found['очередь']), s = opened(found['подпись']), t = opened(found['в задании']), c = opened(found['в деле']);
   const count = (h, f) => (h.match(/class="gt"/g) || []).length === f.g.count;
-  const panels = btns(q).join() === 'Взять отмеченные' && count(q, found['очередь']) && btns(s).join() === 'Подписать отмеченные' && count(s, found['подпись']) && ['Взять отмеченные', 'Запросить продление', 'Отметка о ходе'].every(x => btns(t).includes(x)) && count(t, found['в задании']) &&
+  const panels = btns(q).join() === 'Взять отмеченные' && count(q, found['очередь']) && btns(s).join() === 'Подписать отмеченные' && count(s, found['подпись']) && ['Взять отмеченные', 'Запросить продление по отмеченным', 'Отметка о ходе по отмеченным'].every(x => btns(t).includes(x)) && count(t, found['в задании']) &&
     bar(c) === '' && !/class="gt"/.test(c) && found['в деле'].g.tasks.every(x => /q-case/.test(cellsOf(rowOf(c, x.id))[2]) && !/ZD\.take\(/.test(rowOf(c, x.id)));
   const f = found['в задании'], g = f.g, row = plain(viewAs(f.v).match(new RegExp(`<tr class="grp[^"]*" data-g="${f.id.replace(/[|]/g, '\\|')}"[^>]*>(.*?)</tr>`, 's'))[1]);
   const shape = row.includes(`${g.title} — ${g.count}`) && row.includes(`просрочено ${g.overdue} из ${g.count}`) && row.startsWith(ruDate(g.nearest)) && g.title === ZD.whatToDo(g.tasks[0]);
@@ -6001,17 +6004,18 @@ const inOrder = (list, cmp) => list.every((x, i) => i === 0 || cmp(list[i - 1], 
   ZD.groupChoose(f.id, 'отметка');
   const off = !bar(viewAs(f.v)).includes('Применить к отмеченным');
   const tick = g.tasks[1].id, boxOf = h => (h.match(new RegExp(`<input type="checkbox" class="gt"[^>]*value="${tick}"[^>]*>`)) || [''])[0];
-  ZD.groupTick(tick, false);
   const unticked = !/ checked/.test(boxOf(viewAs(f.v)));
+  ZD.groupTick(f.id, tick, true);
+  const ticked = / checked/.test(boxOf(viewAs(f.v)));
   ZD.setViewer('E1');
   ZD.setViewer(f.v);
   const shut = !/class="gt"/.test(viewAs(f.v));
   ZD.toggleGroup(f.id);
-  const ticked = / checked/.test(boxOf(viewAs(f.v)));
+  const reset = !/ checked/.test(boxOf(viewAs(f.v)));
   ZD.toggleGroup(f.id);
-  const once = (ext.match(/<input/g) || []).length === 2 && /Новый срок/.test(ext) && /Основание продления/.test(ext) && (ext.match(/Применить к отмеченным/g) || []).length === 1 && (note.match(/<input/g) || []).length === 1 && /Что сделано/.test(note);
-  ok(339, Object.keys(found).length === 4 && panels && shape && once && off && unticked && shut && ticked && g.count > 2,
-    `ЭЗ-10, ЭЗ-37 — очередь: «Взять отмеченные»; подпись: «Подписать отмеченные»; в задании: ${btns(t).join(', ')}; в деле: панели и отметок нет, в строках ссылки на дела; строка группы — «${row.slice(0, 80)}»; продление у ${g.count} заданий — одно поле срока и одно основание на всю пачку; снятая отметка не переходит к другому зрителю`);
+  const once = (ext.match(/<input/g) || []).length === 2 && /Новый срок/.test(ext) && /Основание продления/.test(ext) && (ext.match(/>Применить к отмеченным \(\d+\)</g) || []).length === 1 && (note.match(/<input/g) || []).length === 1 && /Что сделано/.test(note);
+  ok(339, Object.keys(found).length === 4 && panels && shape && once && off && unticked && ticked && shut && reset && g.count > 2,
+    `ЭЗ-10, ЭЗ-37 — очередь: «Взять отмеченные»; подпись: «Подписать отмеченные»; в задании: ${btns(t).join(', ')}; в деле: панели и отметок нет, в строках ссылки на дела; строка группы — «${row.slice(0, 80)}»; продление у ${g.count} заданий — одно поле срока и одно основание на всю пачку; галочки сняты по умолчанию, поставленная не переходит к другому зрителю (ГРС-4)`);
 })();
 
 /* ЭЗ-23 — «Закрытые»: по умолчанию свои, отборы только если в них что-то есть; итог словами; сверху новые */
@@ -11460,6 +11464,78 @@ const prpVal = (h, label) => { const m = h.match(new RegExp(`<div class="k">${la
     `экран «Моя работа» остаётся под карточкой; закрытие убирает карточку`);
 })();
 
+
+/* ГРС-2, ГРС-5 — одна подпись дела (caseLabel): у свёрнутой группы — дело задания с ближайшим сроком и «ещё N»;
+   у задания о задании — «что сделать того задания — его исполнитель», без номера, ссылка на его карточку; так во всей очереди и в карточке */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  const grpRow = (h, id) => { const i = h.indexOf(`data-g="${id}"`); return i < 0 ? '' : h.slice(h.lastIndexOf('<tr', i), h.indexOf('</tr>', i)); };
+  const nearest = list => list.slice().sort((a, b) => (ZD.dueOf(a) < ZD.dueOf(b) ? -1 : ZD.dueOf(a) > ZD.dueOf(b) ? 1 : 0) || +a.id.replace(/\D/g, '') - +b.id.replace(/\D/g, ''))[0];
+  const keyOf = t => { const c = ZD.caseOf(t); return c ? c.task || c.text : null; };
+  let groups = 0, bad = [];
+  ZD.EMP.forEach(e => ['mine', 'role'].forEach(sc => { ZD.state.viewer = e.id; ZD.queueGroups(sc).filter(x => !x.task).forEach(g => {
+    groups++;
+    const h = viewAs(e.id), row = grpRow(h, `${sc}|${g.key}`), cell = cellsOf(row)[2] || '', first = ZD.caseOf(nearest(g.tasks));
+    const n = new Set(g.tasks.map(keyOf).filter(Boolean)).size - 1, lbl = ZD.caseLabel(g.tasks);
+    const okRow = lbl.text === first.text && lbl.more === n && plain(cell) === first.text + (n ? ` ещё ${n}` : '') && (!/<a |<button/.test(cell) || /stopPropagation/.test(cell)) && /просрочено \d+ из \d+|^$/.test(plain(cellsOf(row)[3]));
+    if (!okRow) bad.push(`${e.id} ${g.title}`);
+  }); }));
+  ZD.state.viewer = 'E4';
+  const g26 = ZD.queueGroups('mine').find(x => !x.task && x.title === 'Разобраться с просроченным заданием'), c26 = ZD.caseLabel(g26.tasks);
+  ZD.state.viewer = 'E8';
+  const g8 = ZD.queueGroups('role').find(x => !x.task), c8 = plain(cellsOf(grpRow(viewAs('E8'), `role|${g8.key}`))[2]);
+  // ГРС-5: все задания о задании на трёх датах
+  let sup = 0, supBad = [];
+  ['2026-09-01', '2026-10-01', '2026-11-02'].forEach(d => { ZD.goToDate(d); ZD.state.tasks.forEach(t => {
+    const c = ZD.caseOf(t); if (!c || !c.task) return; sup++;
+    const x = ZD.taskOf(c.task), who = ZD.workerOf(x) ? ZD.EMP.find(y => y.id === ZD.workerOf(x)).name : `очередь «${ZD.roleTitle(x.queue.role)}»`;
+    if (c.text !== `${ZD.whatToDo(x)} — ${who}` || /\bT\d+\b/.test(c.text)) supBad.push(t.id);
+  }); });
+  ZD.goToDate('2026-11-02'); ZD.state.viewer = 'E4';
+  const one = g26.tasks[0], par = ZD.caseOf(one).task;
+  const card = ZD.renderCard(one.id), inCard = card.includes(`ZD.openCard('${par}')`) && card.includes(ZD.caseOf(one).text);
+  ok(611, groups >= 5 && !bad.length && g26.count === 26 && c26.more === 25 && /^GD-12 .* ещё 2$/.test(c8),
+    `ГРС-2 — 02.11 у ${groups} групп всех зрителей «Дело» свёрнутой строки = дело задания с ближайшим сроком и «ещё N» (N — остальные разные дела), ссылка не раскрывает группу${bad.length ? '; расходятся: ' + bad.join(', ') : ''}; ` +
+    `Абдразакова: «${g26.title} — 26» → «${c26.text}» ещё ${c26.more}; очередь роли Е8: «${c8}»; строка задания, группа и карточка — одна функция caseLabel`);
+  ok(612, sup > 100 && !supBad.length && inCard && par !== one.id,
+    `ГРС-5 — у ${sup} заданий о задании на 01.09, 01.10, 02.11 дело «<что сделать того задания> — <его исполнитель>» (у не взятого — очередь роли), номера нет${supBad.length ? '; не так: ' + supBad.slice(0, 5).join(', ') : ''}; ` +
+    `в карточке ${one.id} то же и ссылка на карточку ${par}`);
+})();
+
+/* ГРС-3, ГРС-4 — строки раскрытой группы без «Что сделать»; галочки сняты, «все» в строке группы, кнопки с числом отмеченных, при 0 недоступны; строчной «Взять» в группе нет */
+(() => {
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  const v = 'E8'; ZD.setViewer(v);
+  const g = ZD.queueGroups('role').find(x => !x.task), id = `role|${g.key}`;
+  const grpRow = h => { const i = h.indexOf(`data-g="${id}"`); return h.slice(h.lastIndexOf('<tr', i), h.indexOf('</tr>', i)); };
+  const bar = h => { const i = h.indexOf('class="grp-bar"'); return i < 0 ? '' : h.slice(i, h.indexOf('</tr>', i)); };
+  const shut = viewAs(v), allBox = (grpRow(shut).match(/<input type="checkbox" class="ga"[^>]*>/) || [''])[0];
+  ZD.toggleGroup(id);
+  const h0 = viewAs(v), rows0 = g.tasks.map(t => cellsOf(rowOf(h0, t.id)));
+  const inner = rows0.every((c, i) => c[1] === '' && plain(c[0]).length > 0 && plain(c[2]).length > 0 && c[4] === g.tasks[i].id) &&
+    g.tasks.every(t => rowOf(h0, t.id).includes(`onclick="ZD.openCard('${t.id}')"`) && !/ZD\.take\(/.test(rowOf(h0, t.id)) && ZD.canTake(t, v));
+  const zero = /\(0\)<\/button>/.test(bar(h0)) && /disabled/.test(bar(h0)) && !/class="gt"[^>]* checked/.test(h0);
+  ZD.groupAll(id, true);
+  const h1 = viewAs(v), all = (bar(h1).match(/>([^<]*)<\/button>/) || [])[1], allOn = /class="ga"[^>]* checked/.test(grpRow(h1)) && !/disabled/.test(bar(h1));
+  ZD.groupTick(id, g.tasks[0].id, false);
+  const h2 = viewAs(v), part = (bar(h2).match(/>([^<]*)<\/button>/) || [])[1], partOff = !/class="ga"[^>]* checked/.test(grpRow(h2));
+  const r = ZD.batchTasks(ZD.groupChecked(id), 'взять', v);
+  const took = r.done.length === g.count - 1 && ZD.lastEv(g.tasks[0]) !== 'принято' && g.tasks.slice(1).every(t => t.assignee === v);
+  // одиночная «Взять» вне групп остаётся
+  ZD.seed(); ZD.goToDate('2026-11-02');
+  let single = null;
+  ZD.EMP.some(e => { ZD.state.viewer = e.id; const t = ['mine', 'role'].flatMap(sc => ZD.queueGroups(sc)).map(x => x.task).find(t => t && ZD.canTake(t, e.id)); if (t) single = { v: e.id, t }; return !!t; });
+  const singleOk = single && /ZD\.take\(/.test(rowOf(viewAs(single.v), single.t.id)) && cellsOf(rowOf(viewAs(single.v), single.t.id))[1] !== '';
+  // «все» у свёрнутой группы раскрывает её
+  ZD.setViewer(v); viewAs(v);
+  ZD.groupAll(id, true);
+  const opened = (viewAs(v).match(/class="gt"[^>]* checked/g) || []).length === g.count;
+  ok(613, inner && !!singleOk,
+    `ГРС-3 — очередь роли Е8 «${g.title} — ${g.count}»: в строках «Что сделать» пусто, срок, дело и № на месте, клик открывает карточку; строчной «Взять» нет, хотя взять можно; ` +
+    `вне групп «Взять» в строке остаётся (${single ? single.t.id + ' у ' + single.v : '—'})`);
+  ok(614, allBox && !/ checked/.test(allBox.replace('this.checked', '')) && zero && all === `Взять отмеченные (${g.count})` && allOn && part === `Взять отмеченные (${g.count - 1})` && partOff && took && opened,
+    `ГРС-4 — галочки сняты, кнопка «Взять отмеченные (0)» недоступна; «все» → «${all}»; одну сняли → «${part}», «все» снята; пачка взяла ${r.done.length} отмеченных, неотмеченное осталось в очереди; «все» у свёрнутой группы раскрывает её`);
+})();
 
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
