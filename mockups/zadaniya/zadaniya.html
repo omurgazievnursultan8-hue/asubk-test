@@ -710,15 +710,11 @@ const vzActId = kind=>'act-'+(kind.indexOf('pk-')===0 ? kind.slice(3) : kind);
 /* виды залога: триггер мониторинга, за которым есть работа. По предмету — куратору залога; по кредиту (обеспеченность, аренда
    против срока кредита) и по договору поручительства — куратору кредита; договор, ждущий решения, — очереди комитета.
    Срок — дата, которую держит залог (запрет, комитет), иначе — значение правила. Триггеры без работы (идёт срок
-   восполнения, историческая запись) — подсветка у залога, не виды */
+   восполнения, историческая запись) — отметка у залога, не виды */
 const ZL_STEPS = [
   {id:'pk-zl-survey',          title:'Подходит срок обследования предмета',         objectType:'pledge', traits:['предмет','плановая_дата','интервал'],
    act:'Провести обследование предмета залога', where:'карточка предмета: акт обследования с исходом',
    named:'плановая дата обследования у залога: от последнего акта по матрице Положения о залоге'},
-  {id:'pk-zl-reval-overdue',   title:'Переоценка предмета просрочена',              objectType:'pledge', traits:['предмет','плановая_дата','интервал'],
-   act:'Провести переоценку предмета', where:'карточка предмета: переоценка с отчётом оценщика', dueN:15},
-  {id:'pk-zl-appraisal-stale', title:'Отчёт об оценке устарел',                     objectType:'pledge', traits:['предмет','отчёт','годен_до'],
-   act:'Получить новый отчёт об оценке', where:'карточка предмета: переоценка с новым отчётом оценщика', dueN:15},
   {id:'pk-zl-insurance',       title:'Полис предмета истекает или отсутствует',     objectType:'pledge', traits:['предмет','полис'],
    act:'Истребовать страховой полис у залогодателя', where:'карточка предмета, «Страхование»: полис с датой «до» позже прежней',
    named:'«полис до»; полиса нет — N р.д. от регистрации договора залога (значение правила)', dueN:10,
@@ -726,12 +722,6 @@ const ZL_STEPS = [
   {id:'pk-zl-ban-missing',     title:'Запрет на отчуждение не наложен',             objectType:'pledge', traits:['предмет','орган','срок'],
    act:'Наложить запрет на отчуждение', where:'карточка предмета: запрет с регистрационным номером',
    named:'срок запрета у залога: нотариальная дата договора + 5 р.д.'},
-  {id:'pk-zl-ban-release',     title:'Требуется снятие запрета',                    objectType:'pledge', traits:['предмет','запрет','освобождён'],
-   act:'Снять запрет на отчуждение', where:'карточка предмета: снятие запрета', dueN:5},
-  {id:'pk-zl-docs',            title:'Неполный комплект документов предмета',       objectType:'pledge', traits:['предмет','нет_документов'],
-   act:'Догрузить документы предмета', where:'карточка предмета, «Документы»', dueN:10},
-  {id:'pk-zl-ccy',             title:'Валюта оценки не совпадает с валютой кредита', objectType:'pledge', traits:['предмет','валюта_оценки','валюта_кредита'],
-   act:'Переоценить предмет в валюте кредита или заменить обеспечение', where:'карточка предмета: переоценка в валюте кредита', dueN:15},
   {id:'pk-zl-restore',         title:'Требуется извещение о восполнении предмета',  objectType:'pledge', traits:['предмет','исход_обследования'],
    act:'Оформить извещение о восполнении предмета', where:'карточка предмета: извещение о восполнении со сроком восполнения', dueN:5},
   {id:'pk-zl-restore-lapsed',  title:'Срок восполнения предмета истёк',             objectType:'pledge', traits:['предмет','кредит','извещение','срок_восполнения'],
@@ -742,15 +732,11 @@ const ZL_STEPS = [
   {id:'pk-zl-coverage',        title:'Обеспеченность ниже порога',                  objectType:'credit', traits:['заёмщик','обеспеченность','порог','ниже_с'],
    sum:'остаток основного долга', addr:'cr', act:'Догрузить или заменить залог либо внести обоснование',
    where:'залог: догрузка или замена предмета доп. соглашением; обоснование недообеспеченности на кредите', dueN:10},
-  {id:'pk-zl-lease',           title:'Срок аренды короче срока кредита',            objectType:'credit', traits:['заёмщик','предмет','аренда_до','кредит_до'],
-   addr:'cr', act:'Продлить аренду или заменить предмет', where:'залог: продление аренды в карточке предмета или замена предмета доп. соглашением', dueN:15},
   {id:'pk-zl-surety-expiring', title:'Срок поручительства истекает',                objectType:'surety', traits:['поручитель','кредит','до'],
    sum:'остаток основного долга', addr:'cr', act:'Продлить поручительство или подготовить замену', where:'договор поручительства: продление срока или новое обеспечение', dueN:10},
   {id:'pk-zl-surety-expired',  title:'Срок поручительства истёк',                   objectType:'surety', traits:['поручитель','кредит','до'],
    sum:'остаток основного долга', addr:'cr', act:'Снять поручительство или оформить новое обеспечение', where:'договор поручительства: снятие по основанию «истечение срока»', dueN:5},
-  {id:'pk-zl-surety-repaid',   title:'Кредит погашен, поручительство не снято',     objectType:'surety', traits:['поручитель','кредит','погашен'],
-   sum:null, addr:'cr', act:'Снять поручительство', where:'договор поручительства: снятие по основанию «исполнение обязательства»', dueN:5, retired:REL_NOTICE},
-  // после полного погашения: работа со сроком и ответственным; снятие запрета по другим причинам — подсветка
+  // после полного погашения: работа со сроком и ответственным; снятие запрета по другим причинам — отметка у залога, не вид
   {id:'pk-zl-surety-release',  title:'Поручительство не снято после полного погашения', objectType:'surety', traits:['поручитель','кредит','погашен'],
    sum:null, addr:'cr', act:'Снять поручительство', where:'договор поручительства: снятие по основанию «исполнение обязательства»', dueN:10, base:'состояние', rel:REL_NOTICE},
   {id:'pk-zl-ban-repaid',      title:'Запрет на отчуждение не снят после полного погашения', objectType:'pledge', traits:['предмет','запрет','кредит','погашен'],
@@ -769,12 +755,6 @@ const PL_STEPS = [
   {id:'pk-pl-await',        title:'Платёж ожидает подтверждения казначейства', objectType:'payment', traits:['кредит','заёмщик','дата_операции','поступление'],
    sum:'сумма платежа', addr:'cr', dueN:5, act:'Выяснить у казначейства судьбу платежа',
    where:'платежи: строка реестра ЦК по платежу вносит куратор или бухгалтер; денег не было — сторно поступления бухгалтером'},
-  {id:'pk-pl-advance',      title:'Безадресный аванс после перестроения графика', objectType:'credit', traits:['заёмщик','основание','аванс_с'],
-   sum:'остаток аванса', addr:'cr', dueN:5, act:'Решить судьбу аванса после перестроения графика',
-   where:'платежи, разбор поступления: директива — резерв под строки нового графика, аванс или возврат по заявлению заёмщика'},
-  {id:'pk-pl-disputed',     title:'Спорная пеня без решения комиссии',          objectType:'credit', traits:['заёмщик','платежи','период'],
-   sum:'сумма спорной пени', addr:'cr', dueN:15, act:'Вынести спорную пеню на комиссию и внести решение',
-   where:'платежи: решение Комиссии по спорным начислениям — реквизит сторнированного платежа (исход, сумма, протокол)'},
   {id:'pk-pl-restore',      title:'Требуется восстановление платежа',           objectType:'payment', traits:['кредит','заёмщик','сторно','подтверждено_ЦК'],
    sum:'сумма платежа', addr:'pl-accountant', dueN:2, act:'Восстановить платёж',
    where:'платежи: восстановление сторнированного платежа исходной датой поступления'},
@@ -850,17 +830,10 @@ function seedPovodKinds(){ return [
   {id:'pk-rejected',      title:'Задание отклонено',                     objectType:'task',      traits:[],                    sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-await-long',    title:'Ожидает приёмки дольше срока',          objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-neighbor-silent',title:'Источник не отвечает',                    objectType:'source',    traits:['ночей_подряд','молчит_с'], sensitive:true,  addrForm:'очередь', ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
-  {id:'pk-kind-inactive', title:'Вид повода не введён в действие',       objectType:'povodKind', traits:['дней_с_заведения'],  sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-addr-missing',  title:'Адресат не найден',                     objectType:'task',      traits:['вид_объекта','роль'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-ext-pending',   title:'Запрос продления без ответа',           objectType:'task',      traits:['давность_раб_дней'], sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
-  {id:'pk-returning',     title:'Повод возвращается',                    objectType:'povod',     traits:['повторов'],          sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   // Оргструктура
   {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02', ownerExec:true},
-  {id:'pk-org-acting-expiring', title:'Заканчивается и.о. руководителя',          objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-invariant',       title:'Нарушен инвариант основного назначения',   objectType:'employee', traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Статистика
   {id:'pk-stat-neighbor-silent', title:'Модуль не отвечает Статистике',                     objectType:'module',   traits:['прогонов_подряд'], sensitive:false, addrForm:'очередь', ownerDept:'Аналитика', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Отчётность
@@ -873,17 +846,11 @@ function seedPovodKinds(){ return [
    addrForm:'очередь', ownerExec:true, fourEyes:true},
   {id:'gd-revise',               title:'Госрешение на доработке',                    objectType:'gosreshenie', traits:['статус','автор'],        sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
    addrForm:'названный',      ownerExec:true},
-  {id:'gd-closed-live-programs', title:'Госрешение закрыто, а программа действует',  objectType:'program',     traits:['основание','закрыто'],   sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
-   addrForm:'очередь', ownerExec:true, owner:'Госрешение'},
   // Кредитные программы
   {id:'lp-review',   title:'Программа на рассмотрении', objectType:'program', traits:['статус','автор'],            sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
    addrForm:'очередь', ownerExec:true, fourEyes:true},
   {id:'lp-revise',   title:'Программа на доработке',    objectType:'program', traits:['статус','автор'],            sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
    addrForm:'названный',      ownerExec:true},
-  {id:'lp-expiring', title:'Срок программы истекает',   objectType:'program', traits:['дата_по','дней_до'],         sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
-   addrForm:'очередь', ownerExec:true},
-  {id:'lp-expired',  title:'Срок программы истёк',      objectType:'program', traits:['дата_по','дней_после'],      sensitive:false, ownerDept:'Кредитные программы', createdAt:'2026-09-01', activatedAt:'2026-09-01',
-   addrForm:'очередь', ownerExec:true},
   // Заявки: шаги на передачах работы и состояния по данным; работа — в карточке заявки
   ...[
     ['ap-confirm',        'Комплект заявки ждёт подтверждения',          ['статус','программа'],        {addrForm:'очередь'}],
@@ -897,9 +864,7 @@ function seedPovodKinds(){ return [
     ['ap-form-credit',    'Заявка одобрена, кредит не сформирован',         ['статус','поток'],            {}],
     ['ap-bind',           'Заявка ждёт привязки решения и программы',       ['статус'],                    {}],
     ['ap-register',       'Договоры по заявке не зарегистрированы',         ['статус'],                    {}],
-    ['ap-program-closed', 'Программа не принимает заявки, а заявка в работе', ['программа','причина'],     {}],
     ['ap-stuck-new',      'Заявка застряла в «Новый»',                      ['без_событий_раб_дней'],      {}],
-    ['ap-doc-expired',    'Обязательный документ заявки просрочен',         ['документы'],                 {}],
   ].map(([id, title, traits, x])=>Object.assign({id, title, objectType:'application', traits, sensitive:false,
     ownerDept:'Сопровождение', createdAt:'2026-09-01', activatedAt:'2026-09-01', ownerExec:true}, x)),
   // Документооборот: шаги документа — адресат назван поводом или очередь роли; работа — в карточке документа
@@ -928,8 +893,6 @@ function seedPovodKinds(){ return [
     ['pk-im-not-listed',           'Долго нет объявления о продаже',       'asset',    ['на_учёте_с','порог'],              'учётная стоимость объекта'],
     ['pk-im-unsold',               'Много объявлений без заявок',          'asset',    ['объявлений_без_заявок','последнее','рассрочка'], 'учётная стоимость объекта'],
     ['pk-im-instalment-overdue',   'Просрочка платежа по рассрочке',       'contract', ['платёж','просрочено','дней'],      'просроченная сумма по договору'],
-    ['pk-im-encumbrance-ending',   'Обременение скоро кончается',          'asset',    ['обременение','до'],                'учётная стоимость объекта'],
-    ['pk-im-claim-open',           'Требование к отчуждателю не погашено', 'asset',    ['отчуждатель','остаток','дней'],    'остаток требования к отчуждателю'],
   ].map(([id, title, objectType, traits, sumAttr, x])=>Object.assign({id, title, objectType, traits, sumAttr, sensitive:false,
     ownerDept:IM_SECTOR, createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true}, x||{})),
   // Имущество по срокам Инструкции о принятии имущества — вводятся выпуском; записку по предложению судебного исполнителя
@@ -951,11 +914,7 @@ function seedPovodKinds(){ return [
   {id:'im-committee-decide', title:'Вопрос имущества не рассмотрен Комитетом', objectType:'offer', traits:['вопрос','записка','срок','источник'],
    sumAttr:'стоимость принятия позиций', sensitive:false, ownerDept:'Комитет по вопросам правового обеспечения и управления активами',
    createdAt:'2026-12-01', activatedAt:'2026-12-01', ownerExec:true, addrForm:'очередь'},
-  // Анализ: обзор с выводом «требует решения» без поручений — подсветка на обзоре в «Анализе»: модуль по ней отвечает отказом,
-  // число объектов задания не считают (hlAt — где она видна); закрытый период без обзора по всему портфелю
-  {id:'pk-an-decision',  title:'Обзор требует решения, поручений нет', objectType:'review',   traits:['вывод','утверждён','кому_направлен'],
-   sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true,
-   hlAt:{text:'видна на обзоре в модуле «Анализ»', page:'analysis/analysis.html'}},
+  // Анализ: закрытый период без обзора по всему портфелю
   {id:'pk-an-no-review', title:'Обзора за период нет',                 objectType:'template', traits:['период','периодичность','закрыт'],
    sensitive:false, ownerDept:'Отдел анализа', createdAt:'2026-10-01', activatedAt:'2026-10-01', ownerExec:true, periodic:true, periodAbsorb:'нет'},
   // Кредит: платёж по графику через 30 к.д. или ближе — сигнал куратору: одно уведомление, срока и ответа нет
@@ -1118,9 +1077,9 @@ function seedActions(){ return [
   {id:'act-im-fact-rework', label:'Исправить факт и подать снова или отозвать', importance:'средняя', needsProof:false,
    where:'имущество: новый черновик на второй ключ или отзыв факта автором'},
   // Залог
-  ...ZL_STEPS.filter(noHL).map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
+  ...ZL_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Платежи
-  ...PL_STEPS.filter(noHL).map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:x.id==='pk-pl-restore' ? 'высокая' : 'средняя', needsProof:false, where:x.where})),
+  ...PL_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:x.id==='pk-pl-restore' ? 'высокая' : 'средняя', needsProof:false, where:x.where})),
   ...PL_HANDOFF.map(x=>({id:'act-'+x.id, label:x.act, importance:'средняя', needsProof:false, where:x.where})),
   // Заёмщик
   ...ZM_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
@@ -1266,12 +1225,12 @@ function seedRules(){ return [
    dueBase:'состояние', dueSource:PROJECT_SRC, editions:[ed(REL_NOTICE,'выпуск: шаг процесса, без исправления факт стоит')]},
   // Залог: порог появления (интервал обследования, срок годности отчёта, горизонт поручительства) — настройка залога;
   // где дату держит залог (запрет, комитет), срок называет он и продления нет; иначе — значение правила, продление — общим порядком
-  ...ZL_STEPS.filter(noHL).map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='zl' ? A_CUR_ZL : x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr},
+  ...ZL_STEPS.map(x=>Object.assign({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='zl' ? A_CUR_ZL : x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr},
     editions:[x.rel ? ed(x.rel,'выпуск: Порядок №41, п. 64, после полного погашения') : ed('2026-11-02','подключение модуля «Залог»')]},
     x.named ? Object.assign({dueN:x.dueN||null, dueUnit:'named', dueSource:x.dueN ? PROJECT_SRC : null, dueFrom:x.named}, x.dueN ? {dueNWord:'р.д.'} : {}, x.extendBy ? {extendBy:x.extendBy} : {})
       : Object.assign({dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC}, x.base ? {dueBase:x.base} : {}))),
   // Платежи: порог появления (3 р.д. ожидания) — настройка платежей; срок — значение правила, продление — общим порядком
-  ...PL_STEPS.filter(noHL).map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC,
+  ...PL_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:x.addr==='cr' ? A_CUR_CR : {by:'очередь', role:x.addr}, dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC,
     editions:[ed('2026-11-10','подключение модуля «Платежи»')]})),
   // Платежи, шаги: очередь «Бухгалтер», срок — от основания возврата или от «Сформирован», значение правила
   ...PL_HANDOFF.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id, addressee:{by:'очередь', role:'pl-accountant'}, dueN:x.dueN, dueUnit:'workday', dueBase:'состояние', dueSource:PROJECT_SRC,
@@ -1374,45 +1333,28 @@ function controllerOf(rule, author){
   return postHolderOn(c, state.today) || ADMIN;
 }
 function controllerText(c){ return !c ? '—' : c==='автор' ? 'автор правила' : postOf(c).title; }
-/* род вида: шаг и самоопрос — выключаются только выпуском; надзор и сигнал — рубильник в проде; подсветка заданий не рождает */
+/* род вида: шаг и самоопрос — выключаются только выпуском; надзор и сигнал — рубильник в проде */
 const STEP_KINDS = ['gd-review','gd-revise','lp-review','lp-revise',
   'ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
   'doc-revise','doc-approve','doc-sign','doc-register','doc-dispatch','doc-review','doc-execute','doc-control','doc-acquaint','doc-file','doc-return',
   'pl-refund-exec','pl-act-sign','vz-package-rework','vz-handover-accept',
   'rs-conclusion','rs-committee-decide','im-committee-decide','im-publish-or-return','im-fact-rework'];
-const GENERA =['шаг','надзор','самоопрос','сигнал','подсветка'];
-/* подсветка: обязанности в документах нет — сосед показывает на объекте, заданий, просрочек и строк статистики нет */
-const HIGHLIGHT_KINDS = ['pk-kind-inactive','pk-returning',
-  'pk-org-acting-expiring','pk-org-invariant','pk-org-no-staff','pk-org-liq-blocked','pk-org-orphan-terr',
-  'gd-closed-live-programs','lp-expiring','lp-expired','ap-program-closed','ap-doc-expired',
-  'pk-im-encumbrance-ending','pk-im-claim-open','pk-an-decision',
-  'pk-zl-reval-overdue','pk-zl-appraisal-stale','pk-zl-ban-release','pk-zl-docs','pk-zl-ccy','pk-zl-lease','pk-zl-surety-repaid',
-  'pk-pl-advance','pk-pl-disputed'];
+const GENERA =['шаг','надзор','самоопрос','сигнал'];
 /* сигнал: тот же опрос, вместо задания одно уведомление за прогон; срока и ответа нет */
 const SIGNAL_KINDS = ['pk-cr-payment-due'];
-const noHL = x=>HIGHLIGHT_KINDS.indexOf(x.id)===-1;
 /* основание вида: группа и документ; у шагов и видов про сам модуль основание — сам процесс */
 const KIND_BASIS = {
   'pk-zl-survey':['косвенно в нормах','Порядок №41 п. 6 пп. 4'],
-  'pk-zl-reval-overdue':['только ТЗ','ТЗ, стр. 537'],
-  'pk-zl-appraisal-stale':['не найдено','Порядок №41 п. 47'],
   'pk-zl-insurance':['косвенно в нормах','Порядок №41 п. 11 пп. 1'],
-  'pk-zl-ban-release':['только ТЗ','ТЗ, стр. 524'],
-  'pk-zl-docs':['только ТЗ','ТЗ, стр. 352'],
-  'pk-zl-ccy':['не найдено',''],
   'pk-zl-restore':['угроза без документа','Порядок №41 п. 41'],
   'pk-zl-coverage':['косвенно в нормах','Порядок №41 п. 11 пп. 1'],
-  'pk-zl-lease':['не найдено',''],
   'pk-zl-surety-expiring':['угроза без документа','ТЗ, стр. 870'],
   'pk-zl-surety-expired':['угроза без документа','ТЗ, стр. 870'],
-  'pk-zl-surety-repaid':['не найдено','Порядок №41 п. 64'],
   'pk-zl-restore-lapsed':['угроза без документа','Порядок №41 п. 41 пп. 2, п. 42'],
   'pk-zl-sale-appraisal':['прямо в Порядке','Порядок №41 п. 32 абз. 2'],
   'pk-zl-guarantee-expiring':['угроза без документа',''],
   'pk-zl-guarantee-expired':['угроза без документа',''],
   'pk-pl-await':['угроза без документа','ТЗ, стр. 552'],
-  'pk-pl-advance':['не найдено',''],
-  'pk-pl-disputed':['не найдено',''],
   'pk-pl-restore':['угроза без документа','ТЗ, стр. 555'],
   'pk-pl-unidentified':['угроза без документа','ТЗ, стр. 554'],
   'pk-im-offer-overdue':['проект Инструкции','Инструкция (проект 11.05.2026) п. 9'],
@@ -1422,24 +1364,11 @@ const KIND_BASIS = {
   'pk-im-not-listed':['проект Инструкции','Инструкция (проект 11.05.2026) п. 35'],
   'pk-im-unsold':['проект Инструкции','Инструкция (проект 11.05.2026) п. 37'],
   'pk-im-instalment-overdue':['проект Инструкции','Инструкция (проект 11.05.2026) п. 65'],
-  'pk-im-encumbrance-ending':['не найдено','Инструкция (проект 11.05.2026) п. 14'],
-  'pk-im-claim-open':['не найдено','Инструкция (проект 11.05.2026) п. 46'],
   'pk-cl-no-decision':['косвенно в нормах','Порядок №41 п. 11 пп. 2'],
   'pk-cl-factor-due':['косвенно в нормах','Порядок №41 п. 11 пп. 2–3'],
-  'ap-program-closed':['не найдено',''],
   'ap-stuck-new':['косвенно в нормах','ПКМ 554 прил.1 п. 75'],
-  'ap-doc-expired':['только ТЗ','ТЗ, стр. 352'],
-  'gd-closed-live-programs':['не найдено',''],
-  'lp-expiring':['не найдено',''],
-  'lp-expired':['не найдено',''],
-  'pk-an-decision':['только ТЗ','ТЗ, стр. 777'],
   'pk-an-no-review':['косвенно в нормах','Порядок №41 п. 6 пп. 7'],
   'pk-org-head-vacant':['косвенно в нормах','Порядок №41 п. 68'],
-  'pk-org-acting-expiring':['не найдено',''],
-  'pk-org-invariant':['не найдено',''],
-  'pk-org-no-staff':['не найдено','ТЗ, стр. 280'],
-  'pk-org-liq-blocked':['не найдено',''],
-  'pk-org-orphan-terr':['только ТЗ','ТЗ, стр. 285'],
   'pk-vz-claim-first':['прямо в Порядке','Порядок №41 п. 16 пп. 2'],
   'pk-vz-claim-second':['прямо в Порядке','Порядок №41 п. 16 пп. 3'],
   'pk-vz-bank-demand':['прямо в Порядке','Порядок №41 п. 16 пп. 5'],
@@ -1485,13 +1414,12 @@ function kindBasis(k){
   if(KIND_BASIS[k.id]) return {group:KIND_BASIS[k.id][0], source:KIND_BASIS[k.id][1]};
   if(k.genus==='шаг') return {group:'шаг процесса', source:''};
   if(k.genus==='сигнал') return {group:'прямо в Порядке', source:'Порядок №41 п. 15 пп. 1'};
-  if(k.genus==='подсветка') return {group:'про реестр', source:''};
   if(k.retiredAt) return {group:'выведен выпуском', source:''};
   return {group:'про модуль и систему', source:''};
 }
 function initRegistry(){ // запись вида объявляет род; начальные деловые значения правила — редакция «выпуск 1»
   state.povodKinds.forEach(k=>{
-    k.genus = HIGHLIGHT_KINDS.indexOf(k.id)!==-1 ? 'подсветка' : SIGNAL_KINDS.indexOf(k.id)!==-1 ? 'сигнал'
+    k.genus = SIGNAL_KINDS.indexOf(k.id)!==-1 ? 'сигнал'
       : SELF_KINDS.indexOf(k.id)!==-1 ? 'самоопрос' : STEP_KINDS.indexOf(k.id)!==-1 ? 'шаг' : 'надзор';
     // сохранение объекта запускает опрос источника; шаг соседа с ночным опросом (платежи) и остальные роды — ночной прогон
     k.pollOnSave = k.genus==='шаг' && !!(sourceOfKind(k.id)||{}).onSave;
@@ -1521,10 +1449,10 @@ function initRegistry(){ // запись вида объявляет род; н�
   });
   applyEditions(state.today);
 }
-/* категория реестра: задание, подсветка, сигнал или выведенный выпуском */
-function kindCategory(k){ return k.retiredAt ? 'выведен' : k.genus==='подсветка' ? 'подсветка' : k.genus==='сигнал' ? 'сигнал' : 'задание'; }
+/* категория реестра: задание, сигнал или выведенный выпуском */
+function kindCategory(k){ return k.retiredAt ? 'выведен' : k.genus==='сигнал' ? 'сигнал' : 'задание'; }
 function registryCounts(){
-  const c = {задание:0, подсветка:0, сигнал:0, выведен:0, шаг:0, надзор:0, самоопрос:0};
+  const c = {задание:0, сигнал:0, выведен:0, шаг:0, надзор:0, самоопрос:0};
   state.povodKinds.forEach(k=>{ const x = kindCategory(k); c[x]++; if(x==='задание') c[k.genus]++; });
   return c;
 }
@@ -1542,22 +1470,20 @@ function workTable(){
 
 /* собственные виды повода (самоопрос) */
 const SELF_KINDS = ['pk-overdue','pk-rejected','pk-await-long','pk-neighbor-silent','pk-addr-missing','pk-ext-pending'];
-const SELF_HL = ['pk-kind-inactive','pk-returning']; // про реестр: за них не спросят — подсветка реестра
 
 /* источники опроса и их виды повода */
-const ORGSTRUCT_KINDS = ['pk-org-head-vacant','pk-org-acting-expiring','pk-org-invariant','pk-org-no-staff','pk-org-liq-blocked','pk-org-orphan-terr'];
+const ORGSTRUCT_KINDS = ['pk-org-head-vacant'];
 const STAT_KINDS = ['pk-stat-neighbor-silent'];
 const REPORTS_KINDS = ['pk-rep-obligation-overdue','pk-rep-obligation-due'];
 const GD_KINDS = ['gd-review','gd-revise'];
-/* «закрыто, а программа действует» — вид Госрешения, но ответ о программах и их основании даёт сосед-владелец программ */
-const LP_KINDS = ['gd-closed-live-programs','lp-review','lp-revise','lp-expiring','lp-expired'];
+const LP_KINDS = ['lp-review','lp-revise'];
 const DOC_KINDS = ['doc-revise','doc-approve','doc-sign','doc-register','doc-dispatch','doc-review','doc-execute','doc-control',
   'doc-acquaint','doc-file','doc-return'];
 const IM_KINDS = ['pk-im-offer-overdue','pk-im-act-pending','pk-im-registration-pending','pk-im-topup-pending','pk-im-no-inspection',
-  'pk-im-not-listed','pk-im-unsold','pk-im-instalment-overdue','pk-im-encumbrance-ending','pk-im-claim-open',
+  'pk-im-not-listed','pk-im-unsold','pk-im-instalment-overdue',
   'pk-im-ssi-memo','pk-im-guard','pk-im-buyback-notice','pk-im-relist','pk-im-application-pending','pk-im-topup-due','pk-im-bankruptcy','pk-im-pledge-term',
   'im-committee-decide','im-publish-or-return','im-fact-rework'];
-const AN_KINDS = ['pk-an-decision','pk-an-no-review'];
+const AN_KINDS = ['pk-an-no-review'];
 const CR_KINDS = ['pk-cr-payment-due','pk-cr-field-visit','pk-cr-close']; // выездной мониторинг заведён, не введён — записи «выезд» у кредита нет
 const VZ_KINDS = VZ_STEPS.map(x=>x[0]).concat(['pk-vz-death-start','pk-vz-hearing','pk-vz-claim-undelivered']);
 const ZL_KINDS = ZL_STEPS.map(x=>x.id);
@@ -1566,14 +1492,13 @@ const ZM_KINDS = ZM_STEPS.map(x=>x.id);
 const RS_KINDS = RS_STEPS.map(x=>x.id);
 const CL_KINDS = CL_STEPS.map(x=>x.id);
 const AP_KINDS = ['ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
-  'ap-program-closed','ap-stuck-new','ap-doc-expired'];
-/* источник объявляет свои виды; род держит запись вида, поэтому у опроса и показа списки разные. У источника с шагами
-   сохранение объекта запускает опрос сразу после сохранения; у всех остальных — ночной прогон. Выпуск — порядок подключения */
+  'ap-stuck-new'];
+/* источник объявляет свои виды. У источника с шагами сохранение объекта запускает опрос сразу после сохранения;
+   у всех остальных — ночной прогон. Выпуск — порядок подключения */
 const mkSource = (id, name, all, x)=>Object.assign({id, name, all, onSave:false, release:null,
-  get kinds(){ return this.all.filter(k=>{ const r = kindOf(k); return r && r.genus!=='подсветка'; }); },
-  get highlights(){ return this.all.filter(k=>{ const r = kindOf(k); return r && r.genus==='подсветка'; }); }}, x||{});
+  get kinds(){ return this.all.filter(k=>!!kindOf(k)); }}, x||{});
 const SOURCES = [
-  {id:'self',       name:'Задания (самоопрос)', all:SELF_KINDS.concat(SELF_HL), release:1},
+  {id:'self',       name:'Задания (самоопрос)', all:SELF_KINDS, release:1},
   {id:'orgstruct',  name:'Оргструктура',        all:ORGSTRUCT_KINDS},
   {id:'statistics', name:'Статистика',          all:STAT_KINDS},
   {id:'reports',    name:'Отчётность',          all:REPORTS_KINDS},
@@ -1609,27 +1534,11 @@ function orgstructMirrorAt(d){
   return {
     headVacant: ORG_HEAD_VACANT.filter(r=>!(r.filled && r.filled.at<=d) && !(r.liquidated && r.liquidated<=d))
       .map(r=>Object.assign({}, r, {days:daysBetween(r.since, d)})),
-    actingExpiring: [
-      {unit:'Баткенская область', pos:'Руководитель филиала', emp:'Асанов Т.К.', to:'2026-09-10', days:8, reason:'приказ о временном исполнении'},
-    ],
-    invariant: [],
-    noStaff: d>='2026-09-10' ? [] : [ // 10.09 подразделение укомплектовано
-      {unitId:'unit-narynskaya-obl'},
-    ],
-    liqBlocked: [],
-    orphanTerr: [
-      {unitId:'unit-talas-obl', territory:'Кара-Бууринский район', note:'правопреемник не назначен'},
-    ],
   };
 }
 const ORGSTRUCT_CFG = { // cur — подразделение повода; up — кому передано наверх; when — отбор строк ответа
   'pk-org-head-vacant':     {list:'headVacant',     objectType:'unit',      id:r=>r.unit,            cur:r=>r.unit,   date:r=>r.since, when:r=>!r.acting && !!r.up, // верхний узел — баннер оргструктуры, не задание; и.о. снимает угрозу — повода нет
     up:r=>r.up || null, traits:r=>({дней_вакансии:r.days, передано_наверх:r.up ? r.up.unit : '—'})},
-  'pk-org-acting-expiring': {list:'actingExpiring', objectType:'unit',      id:r=>r.unit+'·'+r.pos,  cur:r=>r.unit,   date:r=>state.today, traits:r=>({до:r.to, дней:r.days, сотрудник:r.emp, причина:r.reason})},
-  'pk-org-invariant':       {list:'invariant',      objectType:'employee',  id:r=>r.empId,           cur:r=>r.unitId, date:r=>state.today, traits:r=>({позиции:(r.posIds||[]).join(', ')})},
-  'pk-org-no-staff':        {list:'noStaff',        objectType:'unit',      id:r=>r.unitId,          cur:r=>r.unitId, date:r=>state.today, traits:r=>({})},
-  'pk-org-liq-blocked':     {list:'liqBlocked',     objectType:'unit',      id:r=>r.unitId,          cur:r=>r.unitId, date:r=>state.today, traits:r=>({причины:(r.reasons||[]).join(', ')})},
-  'pk-org-orphan-terr':     {list:'orphanTerr',     objectType:'territory', id:r=>r.unitId,          cur:r=>r.unitId, date:r=>state.today, traits:r=>({территория:r.territory, примечание:r.note})},
 };
 
 /* ответ Статистики (демо-данные) */
@@ -3323,7 +3232,6 @@ function thrNew(path, x, release){
 }
 function thrSrcText(x){ return x.act ? 'норма · '+x.act : x.order ? 'внутренний акт · '+x.order : PROJECT_SRC; }
 function expiringDays(d){ return thrOn('lp.expiringDays', d); }
-const expiringFrom = to=>thrFirst('lp.expiringDays', v=>addDays(to, -v));
 const NO_APPS = 'не принимаются';
 /* программа принимает заявки: «Действует», основание «Действует», «Дата по» не прошла; иначе — почему и с какого дня */
 function programBlock(lpId, d){
@@ -3441,26 +3349,11 @@ const zlPct = x=>x==null ? '—' : Math.round(x*100)+'%';
 function zlOrgan(kind){ return kind==='техника' ? 'ГАИ' : kind==='скот' ? 'айыл окмоту' : 'Госрегистр'; }
 function zlItemPledge(id){ const o = ownerObj('zl', id); return o ? o.pledge : null; }
 const PLC = x=>Object.assign({src:'pl', cur:true}, x); // вид объекта — из записи вида
-function zlLeases(s, d){ // аренда короче кредита — пока предмет ещё обеспечение
-  return s.leases.filter(l=>{ const i = zlAt(ownerObj('zl', l.item), d); return l.till<s.till && (!i || i.encumbered); });
-}
 const OWNER_CFG = { // одна ветка шва на виды с исполнением у владельца, различие — здесь
   'gd-review':        {src:'gd', objectType:'gosreshenie', when:s=>s.status==='На рассмотрении'},
   'gd-revise':        {src:'gd', objectType:'gosreshenie', when:s=>s.status==='На доработке'},
-  'gd-closed-live-programs': {src:'lp', objectType:'program',
-    when:(s,d)=>{ const g = s.base && ownerAt('gd', s.base, d); return s.status==='Действует' && !!g && g.status==='Закрыт'; },
-    since:(s,d)=>ownerAt('gd', s.base, d).statusSince,
-    traits:(s,d)=>({основание:s.base, закрыто:ownerAt('gd', s.base, d).statusSince, заявки:NO_APPS+' — основание закрыто'})},
   'lp-review':        {src:'lp', objectType:'program', when:s=>s.status==='На рассмотрении'},
   'lp-revise':        {src:'lp', objectType:'program', when:s=>s.status==='На доработке'},
-  'lp-expiring':      {src:'lp', objectType:'program',
-    when:(s,d)=>s.status==='Действует' && !!s.dateTo && d<=s.dateTo && expiringFrom(s.dateTo)<=d,
-    since:s=>expiringFrom(s.dateTo),
-    traits:(s,d)=>({дата_по:s.dateTo, дней_до:daysBetween(d, s.dateTo)})},
-  'lp-expired':       {src:'lp', objectType:'program',
-    when:(s,d)=>s.status==='Действует' && !!s.dateTo && d>s.dateTo,
-    since:s=>addDays(s.dateTo, 1),
-    traits:(s,d)=>({дата_по:s.dateTo, дней_после:daysBetween(s.dateTo, d), заявки:NO_APPS+' — срок истёк'})},
   // Заявки: шаг кончает событие, которое его сделало (done); иначе — снят с причиной владельца
   'ap-confirm':     AP({when:s=>AP_DRAFT.includes(s.status) && s.gf==='handed', since:s=>s.gfSince,
     traits:s=>({программа:s.program}), done:e=>e.gf==='confirmed'}),
@@ -3483,16 +3376,9 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     done:e=>e.status==='На оформлении' || e.status==='Ожидает решения/программы'}),
   'ap-bind':        AP({when:s=>s.status==='Ожидает решения/программы', done:e=>e.status==='На оформлении'}),
   'ap-register':    AP({when:s=>s.status==='На оформлении', done:e=>e.status==='Оформлена'}),
-  'ap-program-closed': AP({when:(s,d)=>AP_PRE_CREDIT.includes(s.status) && !programAccepts(s.program, d),
-    since:(s,d)=>dateMax(s.created, programBlock(s.program, d).since),
-    traits:(s,d)=>({программа:s.program, причина:programBlock(s.program, d).why, заявки:NO_APPS}),
-    done:e=>!!e.program || e.status==='Отозвана', cancel:(s,d)=>programAccepts(s.program, d) ? 'программа снова принимает заявки' : null}),
   'ap-stuck-new':   AP({when:(s,d)=>s.status==='Новый' && !apWaitsOther(s) && apStuckFrom(s)<=d,
     since:s=>apStuckFrom(s),
     traits:(s,d)=>({без_событий_раб_дней:workdaysBetween(s.last.t, d), порог:`${apStuckWd(apStuckFrom(s))} р.д.`, последнее:s.last.how}), done:()=>true}),
-  'ap-doc-expired': AP({when:(s,d)=>!AP_FINAL.includes(s.status) && apExpiredDocs(s, d).length>0,
-    since:(s,d)=>apExpiredDocs(s, d).map(x=>addDays(x.validTo, 1)).sort()[0],
-    traits:(s,d)=>({документы:apExpiredDocs(s, d).map(x=>x.name).join('; '), группа:s.group ? s.group+' чл.' : 'нет'}), done:e=>!!e.renewed}),
   // Документооборот: адресата называет документ (автор, согласующий, подписант, получатель, исполнитель, контролёр) или очередь роли
   'doc-revise':   DOC({when:s=>s.stage==='Черновик' && !!s.refused, since:s=>s.refused.t, named:s=>s.author,
     each:s=>[docSole('автор', s.author, s.origAuthor, {named:s.author})],
@@ -3568,12 +3454,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     since:s=>addDays(s.contract.firstUnpaid, IM_SET.inst+1),
     traits:(s,d)=>({платёж:s.contract.firstUnpaid, просрочено:s.contract.instalment, дней:kd(s.contract.firstUnpaid, d), покупатель:s.contract.buyer}),
     done:(e,p)=>e.paid===p.sub || !!e.terminate}),
-  'pk-im-encumbrance-ending': IMA({when:(s,d)=>!!s.enc && kd(d, s.enc.to)<=IM_SET.enc, since:s=>addDays(s.enc.to, -IM_SET.enc),
-    traits:s=>({обременение:s.enc.kind, до:s.enc.to}), done:e=>!!e.enc || !!e.encOff,
-    cancel:(s,d,p)=>`обременение кончилось ${fmt(p.traits.до)}`}),
-  'pk-im-claim-open': IMA({when:(s,d)=>!!s.claim && s.claim.rest>0 && kd(s.claim.since, d)>IM_SET.claim,
-    since:s=>addDays(s.claim.since, IM_SET.claim+1), traits:(s,d)=>({отчуждатель:s.claim.debtor, остаток:s.claim.rest, дней:kd(s.claim.since, d)}),
-    done:e=>!!e.claimStop || !!e.claimPaid}),
   // Имущество по срокам Инструкции: порог — пункт Инструкции, повод «дольше порога»; записки — у очереди подразделения
   'pk-im-ssi-memo': IMO({cur:false, when:(s,d)=>s.source==='ПССИ' && s.open && !s.memo && !s.decided && d>addWorkdays(s.created, IM_SET.ssiMemo),
     since:s=>addDays(addWorkdays(s.created, IM_SET.ssiMemo), 1),
@@ -3688,10 +3568,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
   'pk-zl-survey':          ZLC({when:(s,d)=>zlItem(s, s=>!s.bankrupt && addDays(s.nextSurvey, -ZL_LEAD)<=d),
     cancel:s=>zlCancelItem(s) || (s.bankrupt ? `заёмщик признан банкротом ${fmt(s.bankrupt.t)}: обследование — по договору со спецадминистратором` : null), since:s=>addDays(s.nextSurvey, -ZL_LEAD), each:s=>[{due:s.nextSurvey}],
     traits:s=>({предмет:s.name, плановая_дата:s.nextSurvey, интервал:`${s.surveyMonths} мес. (${s.group.toLowerCase()}, ${s.movable ? 'движимое' : 'недвижимое'}${s.surveyMonths!==ZL_SURVEY[s.group][s.movable ? 'movable' : 'immovable'] ? `, риск ${s.risk.toLowerCase()}: короче при согласовании зампреда` : ''})`, сумма:s.pledge}), done:e=>!!e.survey}),
-  'pk-zl-reval-overdue':   ZLC({when:(s,d)=>zlItem(s, s=>s.nextReval<d && !zlStale(s, d)), since:s=>addDays(s.nextReval, 1),
-    traits:s=>({предмет:s.name, плановая_дата:s.nextReval, интервал:`${s.revalMonths} мес. (${s.kind})`, сумма:s.pledge}), done:e=>!!e.reval}),
-  'pk-zl-appraisal-stale': ZLC({when:(s,d)=>zlItem(s, s=>zlStale(s, d)), since:s=>addDays(s.apprTill, 1),
-    traits:s=>({предмет:s.name, отчёт:`${s.report} от ${fmt(s.appr)}`, годен_до:s.apprTill, сумма:s.pledge}), done:e=>!!e.reval}),
   'pk-zl-insurance':       ZLC({when:(s,d)=>zlItem(s, s=>s.insurable && (!s.policy || addDays(s.policy.till, -ZL_LEAD)<=d)),
     since:s=>s.policy ? addDays(s.policy.till, -ZL_LEAD) : s.reg,
     each:s=>[{due:s.policy ? s.policy.till : addWorkdays(s.reg, zlNoPolicyWd())}],
@@ -3699,14 +3575,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     done:(e,p)=>!!e.policy && (!p.due || e.policy.till>p.due)}), // срок повода — «до» прежнего полиса
   'pk-zl-ban-missing':     ZLC({when:(s,d)=>zlItem(s, s=>!s.ban), since:s=>s.reg, each:s=>[{due:s.banDue}],
     traits:s=>({предмет:s.name, орган:zlOrgan(s.kind), срок:s.banDue, сумма:s.pledge}), done:e=>!!e.ban}),
-  'pk-zl-ban-release':     ZLC({when:(s,d)=>s.type==='item' && !s.encumbered && !!s.ban && !s.banOff && !(s.creditRepaid && !s.toFund && d>=REL_NOTICE), since:s=>s.released.t, // с выпуска после полного погашения — задание, остальное — подсветка
-    traits:s=>({предмет:s.name, запрет:`${s.ban.regNo} от ${fmt(s.ban.date)} · ${zlOrgan(s.kind)}`, освобождён:s.released.t, сумма:s.pledge}),
-    done:e=>!!e.banOff}),
-  'pk-zl-docs':            ZLC({when:(s,d)=>zlItem(s, s=>s.missing.length>0), since:s=>s.reg,
-    traits:s=>({предмет:s.name, нет_документов:s.missing.join('; '), сумма:s.pledge}), done:e=>!!e.doc}),
-  'pk-zl-ccy':             ZLC({when:(s,d)=>zlItem(s, s=>s.ccy!==s.creditCcy), since:s=>s.reg,
-    traits:s=>({предмет:s.name, валюта_оценки:s.ccy, валюта_кредита:s.creditCcy, сумма:s.pledge}),
-    done:(e,p)=>!!e.reval && e.reval.ccy===p.traits.валюта_кредита}),
   'pk-zl-restore':         ZLC({when:(s,d)=>zlItem(s, s=>!!s.loss && !s.notice), since:s=>s.loss.t,
     traits:s=>({предмет:s.name, исход_обследования:s.loss.how, сумма:s.pledge}), done:e=>!!e.restoreNotice}),
   'pk-zl-restore-lapsed':  ZLC({cur:s=>s.credit, when:(s,d)=>zlItem(s, s=>!!s.notice && !s.creditRepaid && s.notice.restoreNotice.deadline<d && !zlLapseHit(s, d)),
@@ -3722,12 +3590,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
     traits:s=>({заёмщик:s.borrower, обеспеченность:zlPct(s.cover), порог:zlPct(s.req), ниже_с:s.belowSince, сумма:s.od}),
     done:e=>!!e.justify || !!e.topup,
     cancel:s=>s.repaid ? `кредит погашен: ${s.repaid.how}` : `обеспеченность не ниже порога: ${s.last.how}`}),
-  'pk-zl-lease':           ZLC({when:(s,d)=>s.type==='credit' && !s.repaid && zlLeases(s, d).length>0,
-    each:(s,d)=>zlLeases(s, d).map(l=>({key:'предмет:'+l.item, sub:l.item, l})), since:s=>s.issued,
-    traits:(s,d,x)=>({заёмщик:s.borrower, предмет:x.l.item, аренда_до:x.l.till, кредит_до:s.till, сумма:zlItemPledge(x.l.item)}),
-    done:(e,p)=>(!!e.leaseExt && e.leaseExt.item===p.sub) || e.replaced===p.sub,
-    cancel:(s,d,p)=>{ const i = zlAt(ownerObj('zl', p.sub), d);
-      return i && !i.encumbered ? `предмет ${p.sub} освобождён: ${i.released.how}` : s.repaid ? `кредит погашен: ${s.repaid.how}` : null; }}),
   'pk-zl-surety-expiring': ZLC({cur:s=>s.credit, when:(s,d)=>zlSurety(s) && d<=s.till && kd(d, s.till)<=ZL_SURETY_WARN,
     since:s=>addDays(s.till, -ZL_SURETY_WARN), traits:s=>({поручитель:s.guarantor, кредит:s.credit, до:s.till, сумма:s.od}),
     done:e=>!!e.extend || !!e.release,
@@ -3743,8 +3605,6 @@ const OWNER_CFG = { // одна ветка шва на виды с исполн�
   'pk-zl-guarantee-expired':  ZLC({cur:s=>s.credit, when:(s,d)=>zlGuar(s) && d>s.till, since:s=>addDays(s.till, 1), each:s=>[{objectType:'credit', obj:s.credit, key:'гарантия:'+s.id}],
     traits:s=>({гарант:s.bank, кредит:s.credit, до:s.till, сумма:s.od}), done:e=>!!e.replaced || !!e.extend,
     cancel:s=>s.repaid ? `кредит ${s.credit} погашен` : null}),
-  'pk-zl-surety-repaid':   ZLC({cur:s=>s.credit, when:s=>s.type==='surety' && !s.released && !!s.repaid, since:s=>s.repaid.t,
-    traits:s=>({поручитель:s.guarantor, кредит:s.credit, погашен:s.repaid.t}), done:e=>!!e.release}),
   // после полного погашения: ключ «вид · предмет» и «вид · договор», гасит факт снятия; срок — значение правила от даты погашения
   'pk-zl-surety-release':  ZLC({cur:s=>s.credit, when:s=>s.type==='surety' && !s.released && !s.terminated && !!s.repaid, since:s=>s.repaid.t,
     traits:s=>({поручитель:s.guarantor, кредит:s.credit, погашен:s.repaid.t}), done:e=>!!e.release}),
@@ -3761,13 +3621,6 @@ Object.assign(OWNER_CFG, {
   'pk-pl-await':        PLC({cur:s=>s.credit, when:(s,d)=>s.type==='payment' && s.channel==='шлюз' && !s.confirmed && !s.storno && s.awaitFrom<=d,
     since:s=>s.awaitFrom, traits:s=>({кредит:s.credit, заёмщик:s.borrower, дата_операции:s.op, поступление:s.receipt, сумма:s.amount}),
     done:e=>!!e.confirm, cancel:s=>s.storno ? s.storno.how : null}),
-  'pk-pl-advance':      PLC({when:s=>s.type==='credit' && !!s.orphanSince && !s.directive && s.advance>0 && !s.repaid, since:s=>s.orphanSince,
-    traits:s=>({заёмщик:s.borrower, основание:s.rebuild.rebuild, аванс_с:s.orphanSince, сумма:s.advance}),
-    done:e=>!!e.directive, cancel:s=>s.spent ? `аванс израсходован: ${s.spent.how}` : s.repaid ? `кредит ${s.id} погашен` : null}),
-  'pk-pl-disputed':     PLC({when:s=>s.type==='credit' && s.disputed.length>0, since:s=>s.disputedSince,
-    traits:s=>({заёмщик:s.borrower, платежи:s.disputed.map(x=>`${x.id} от ${fmt(x.op)} — ${money(x.amount)}`).join('; '),
-      период:s.disputed.map(x=>`${fmt(x.op)}–${fmt(x.storno.t)}`).join('; '), сумма:s.penalty}),
-    attrib:(s,p,d)=>plDecisionAttrib(s, p, d)}),
   'pk-pl-restore':      PLC({cur:false, when:s=>s.type==='payment' && !!s.storno && !!s.late && !s.restored, since:s=>s.late.t,
     traits:s=>({кредит:s.credit, заёмщик:s.borrower, сторно:s.storno.t, подтверждено_ЦК:s.late.t, сумма:s.amount}), done:e=>!!e.restore}),
   'pk-pl-unidentified': PLC({cur:false, when:s=>s.type==='receipt' && !s.bound && !s.refund && !s.storno, since:s=>s.date,
@@ -3887,7 +3740,6 @@ function ownerAttrib(kindId, p, asOf){
   const cfg = OWNER_CFG[kindId], o = ownerObj(povSrc(p), p.ownerId||p.objectId), s = stateAt(povSrc(p), o, asOf);
   if(!s) return {cancel:goneReason(o, asOf)};
   if((kindId==='gd-review' || kindId==='lp-review') && s.last && s.last.recalled) return {cancel:'отозвано автором'}; // автор снял с рассмотрения
-  if(kindId==='lp-expiring' && OWNER_CFG['lp-expired'].when(s, asOf)) return {cancel:'перешло в истёкший'};
   if(cfg.attrib) return cfg.attrib(s, p, asOf);
   if(cfg.done){
     const e = doneEvent(o, asOf, appearedOn(p), x=>cfg.done(x, p));
@@ -4539,7 +4391,7 @@ function seedState(){
     viewer: 'E4',
     view: 'queue',
     qTab: 'work', qSearch: '', qSort: {}, closedFilter: 'mine', // очередь: вкладка, поиск, сортировка, отбор закрытых
-    settingsTab: 'tasks', ruleQ: '', ruleMod: '', ruleSt: 'в действии', hlOpen: null, // настройка: вкладка, поиск и отборы таблицы заданий, раскрытая подсветка
+    settingsTab: 'tasks', ruleQ: '', ruleMod: '', ruleSt: 'в действии', // настройка: вкладка, поиск и отборы таблицы заданий
     ntQ: '', ntGroup: '', ntKind: '', // настройка уведомлений: поиск, группа, настраиваемые или закреплённые
     dlSt: '', dlCh: '', dlDate: '', dlQ: '', dlPage: 1, dlOpen: null, // журнал доставки: отбор, лист, раскрытая строка
     runsTab: 'poll', runOpen: null, povQ: '', povKind: '', povSt: 'действует', povOpen: null, // журнал прогонов: вкладка, раскрытая ночь, поиск и отборы поводов
@@ -5611,6 +5463,25 @@ function editSelfThr(f, x, o){
   return a;
 }
 
+/* пометки в строке таблицы «Задания»: вид не введён в действие дольше порога; ключ повода вновь появлялся не реже порога за окно.
+   Это не виды и не задания: за них не спросят, опрос их не трогает; пороги — записи самоопроса с датой */
+function rowMarksOn(d){
+  const inactive = new Map(), returning = new Map();
+  const nDays = thrOn('zd.inactiveD', d), nBack = thrOn('zd.returnN', d), from = addDays(d, -thrOn('zd.returnWindowD', d));
+  state.povodKinds.forEach(k=>{
+    if(k.activatedAt && k.activatedAt<=d) return; // введён
+    if(k.off || (k.retiredAt && k.retiredAt<=d)) return; // выключен с основанием или выведен — не «не введён»
+    const days = daysBetween(k.createdAt, d);
+    if(days > nDays) inactive.set(k.id, days); // «дольше порога»
+  });
+  state.povods.forEach(p=>{
+    const back = p.journal.filter(e=>e.ev==='вновь-появился' && e.t>from && e.t<=d);
+    if(back.length < nBack) return;
+    if(!returning.has(p.kind)) returning.set(p.kind, []);
+    returning.get(p.kind).push({key:p.key, objectType:p.objectType, objectId:p.objectId, count:back.length, last:back[back.length-1].t});
+  });
+  return {inactive, returning};
+}
 function computeExpectedForKind(kindId, asOf, asIfActive){
   const out = new Map(); // key -> {kind,objectType,objectId,stateDate,approx,traits}
   const pkGate = kindOf(kindId);
@@ -5672,15 +5543,6 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       out.set(`pk-neighbor-silent|source:${src.id}|`, {kind:kindId, objectType:'source', objectId:src.id,
         stateDate:sil.since, approx:true, traits:{ночей_подряд:sil.nights, молчит_с:sil.since}});
     });
-  } else if(kindId==='pk-kind-inactive'){
-    state.povodKinds.forEach(pk=>{
-      if(pk.activatedAt && pk.activatedAt<=asOf) return; // введён — не наш случай
-      if(pk.off) return; // выключен администратором с основанием — не «не введён»
-      const days = daysBetween(pk.createdAt, asOf);
-      if(days < zdThr('inactiveD', `pk-kind-inactive|povodKind:${pk.id}|`, asOf)) return;
-      out.set(`pk-kind-inactive|povodKind:${pk.id}|`, {kind:kindId, objectType:'povodKind', objectId:pk.id,
-        stateDate:pk.createdAt, approx:false, traits:{дней_с_заведения:days}});
-    });
   } else if(kindId==='pk-addr-missing'){
     // задание выдано администратору по концу цепочки запасных
     state.tasks.forEach(t=>{
@@ -5702,16 +5564,6 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       if(!delayChief(approverOf(t), asOf)) return; // руководителя решающего нет — задания нет, остаётся красная строка
       out.set(`pk-ext-pending|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:req.t, approx:false,
         traits:{давность_раб_дней:wd}});
-    });
-  } else if(kindId==='pk-returning'){
-    // ключ вновь появлялся не реже порога за окно
-    state.povods.forEach(p=>{
-      if(p.kind==='pk-returning') return;
-      const key = `pk-returning|povod:${p.key}|`, from = addDays(asOf, -zdThr('returnWindowD', key, asOf));
-      const back = p.journal.filter(e=>e.ev==='вновь-появился' && e.t>from && e.t<=asOf);
-      if(back.length < zdThr('returnN', key, asOf)) return;
-      out.set(`pk-returning|povod:${p.key}|`, {kind:kindId, objectType:'povod', objectId:p.key, stateDate:back[back.length-1].t, approx:false,
-        traits:{повторов:back.length}});
     });
   } else if(ORGSTRUCT_CFG[kindId]){
     // одна ветка на все виды Оргструктуры, различие — в ORGSTRUCT_CFG
@@ -6196,42 +6048,6 @@ function editSignal(kindId, changes, o){
   c.history.push({t:state.today, by:o.by, basis:o.basis, was});
   return c;
 }
-/* выпуск: вид подсветки становится сигналом или заданием, когда появилось основание; в работающей системе такой кнопки нет.
-   Вид, по которому модуль-владелец отвечает отказом, возвращается только вместе с его ответом */
-function hlReleaseGate(k){
-  if(k.hlAt) throw new Error(`вид вернётся вместе с ответом модуля «${ownerOfKind(k.id)}»: сейчас модуль по нему отвечает отказом`);
-}
-function releaseSignal(kindId, no, cfg){
-  const k = kindOf(kindId);
-  if(k.genus!=='подсветка') throw new Error('сигналом выпуск делает вид подсветки');
-  hlReleaseGate(k);
-  k.genus = 'сигнал'; k.activatedAt = state.today;
-  state.signals[kindId] = Object.assign({recipients:[], text:k.title, channels:['всплывающее'], history:[]}, cfg);
-  k.switches.push({t:state.today, ev:'введён в действие', by:'выпуск '+no, basis:'выпуск '+no});
-  return k;
-}
-function releaseTaskKind(kindId, no, x){
-  const k = kindOf(kindId);
-  if(k.genus!=='подсветка') throw new Error('заданием выпуск делает вид подсветки');
-  hlReleaseGate(k);
-  k.genus = 'надзор'; k.activatedAt = state.today; k.basis = x.basis || k.basis;
-  state.actions.push(Object.assign({id:'act-'+kindId, importance:'средняя', needsProof:false}, x.action));
-  const r = Object.assign({id:'rule-'+kindId, kind:kindId, action:'act-'+kindId, dueUnit:'workday', dueSource:PROJECT_SRC,
-    editions:[{n:1, from:state.today, by:'выпуск '+no, basis:'выпуск '+no, release:no,
-      values:{dueN:x.rule.dueN==null ? null : x.rule.dueN, controller:x.rule.controller||null, importance:x.rule.importance||null, author:x.rule.author||postOfUnit(k.ownerDept).id}}]}, x.rule);
-  state.rules.push(r);
-  k.switches.push({t:state.today, ev:'введён в действие', by:'выпуск '+no, basis:'выпуск '+no});
-  applyEditions(state.today);
-  return k;
-}
-/* подсветка на дату: опрос её не трогает, показ читает ответ соседа; модуль по виду отвечает отказом — числа нет, только где она видна */
-function highlightsOn(d){
-  return state.povodKinds.filter(k=>k.genus==='подсветка' && !(k.retiredAt && k.retiredAt<=d)).map(k=>{
-    if(k.hlAt) return {kind:k.id, title:k.title, owner:ownerOfKind(k.id), count:null, rows:[], at:k.hlAt};
-    const rows = Array.from(computeExpectedForKind(k.id, d).entries()).map(([key, e])=>Object.assign({key}, e));
-    return {kind:k.id, title:k.title, owner:ownerOfKind(k.id), count:rows.length, rows};
-  });
-}
 
 /* ---------- 8. эскалация / срок-близко — периодические проверки ---------- */
 function checkDeadlines(asOf){
@@ -6574,8 +6390,8 @@ function checkRegistry(){
     if(k.escalate && ['уведомление','очередь'].indexOf(k.escalate.to)===-1) errs.push(`«${k.title}»: адресат эскалации не той формы`);
     if(k.periodic && k.periodAbsorb!=='да' && k.periodAbsorb!=='нет') errs.push(`«${k.title}»: периодический вид не объявил поглощение периодом`);
     if(!k.periodic && k.periodAbsorb!=null) errs.push(`«${k.title}»: поглощение периодом у событийного вида`);
-    if(GENERA.indexOf(k.genus)===-1) errs.push(`«${k.title}»: не объявлен род — шаг, надзор, самоопрос, сигнал или подсветка`);
-    const n = state.rules.filter(r=>r.kind===k.id).length, rules = k.genus==='подсветка' || k.genus==='сигнал' ? 0 : 1;
+    if(GENERA.indexOf(k.genus)===-1) errs.push(`«${k.title}»: не объявлен род — шаг, надзор, самоопрос или сигнал`);
+    const n = state.rules.filter(r=>r.kind===k.id).length, rules = k.genus==='сигнал' ? 0 : 1;
     if(n!==rules) errs.push(rules ? `«${k.title}»: правил ${n} — у вида ровно одно правило` : `«${k.title}»: правил ${n} — у рода «${k.genus}» правила нет`);
     if(k.genus==='сигнал' && !state.signals[k.id]) errs.push(`«${k.title}»: у сигнала нет настройки`);
     if(k.pollOnSave && !(sourceOfKind(k.id)||{}).onSave) errs.push(`«${k.title}»: опрос по сохранению у вида, источник которого так не опрашивается`);
@@ -6735,7 +6551,7 @@ function goToDate(d){
   if(!state) seedState();
   const touched = !!state.standMark && standMark()!==state.standMark;
   const dayWas = state.standMark ? state.today : null; // первое открытие и пересборка той же даты окошек не дают
-  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, ruleQ:state.ruleQ, ruleMod:state.ruleMod, ruleSt:state.ruleSt, hlOpen:state.hlOpen,
+  const keep = {viewer:state.viewer, view:state.view, settingsTab:state.settingsTab, ruleQ:state.ruleQ, ruleMod:state.ruleMod, ruleSt:state.ruleSt,
     runsTab:state.runsTab, povQ:state.povQ, povKind:state.povKind, povSt:state.povSt,
     qTab:state.qTab, qSearch:state.qSearch, qSort:state.qSort, closedFilter:state.closedFilter,
     nfOnly:state.nfOnly, nfSrc:state.nfSrc, nfFrom:state.nfFrom, nfTo:state.nfTo, nfQ:state.nfQ,
@@ -7254,7 +7070,7 @@ function openFreeForm(){
 }
 
 /* ---------- карточка: панель поверх очереди со своим адресом ---------- */
-let cardOpenId=null, hlCard=null, ruleCard=null, fold={}, cardShown=null, noticeCard=null;
+let cardOpenId=null, ruleCard=null, fold={}, cardShown=null, noticeCard=null;
 const hasUrl = ()=>typeof history!=='undefined' && typeof location!=='undefined';
 function taskInUrl(){ const m = hasUrl() && /[?&]task=([^&]+)/.exec(location.search||''); return m ? decodeURIComponent(m[1]) : null; }
 function moveUrl(how, id){
@@ -7272,15 +7088,14 @@ function cardVisible(id){
 function openCard(id){
   if(!cardVisible(id)) return;
   moveUrl(taskInUrl() ? 'replaceState' : 'pushState', id); // панель одна: ссылка внутри неё меняет адрес, а не копит шаги «назад»
-  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; noticeCard=null; fold={};
+  cardOpenId=id; ruleCard=null; digestCard=null; noticeCard=null; fold={};
   renderCardDrawer();
 }
 function closeCard(){
   if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
-  cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null;
+  cardOpenId=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null;
   renderCardDrawer();
 }
-function openHighlight(kindId, key){ cardOpenId=null; ruleCard=null; digestCard=null; noticeCard=null; hlCard={kindId, key}; renderCardDrawer(); }
 function cardFold(name, open){ fold[name] = open; }
 const foldOpen = (name, dflt)=>name in fold ? fold[name] : dflt;
 const noCasePage = ()=>toast('В макете у этого дела своей страницы нет', '');
@@ -7288,10 +7103,10 @@ const noCasePage = ()=>toast('В макете у этого дела своей 
 function syncFromUrl(){
   const id = taskInUrl();
   dlg = null; paintDialog(); // окно принадлежит экрану, с которого ушли
-  if(!id){ cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
+  if(!id){ cardOpenId=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
   if(id===cardOpenId) return;
-  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
-  cardOpenId=id; hlCard=null; ruleCard=null; digestCard=null; noticeCard=null; fold={};
+  if(!cardVisible(id)){ moveUrl('replaceState', null); cardOpenId=null; ruleCard=null; digestCard=null; digestFrom=null; noticeCard=null; renderCardDrawer(); return; }
+  cardOpenId=id; ruleCard=null; digestCard=null; noticeCard=null; fold={};
   renderCardDrawer();
 }
 /* открыто прямым адресом: панель поверх «Моей работы», «назад» закрывает её, а не уводит со страницы */
@@ -7304,26 +7119,6 @@ function openFromUrl(){
   openCard(id);
 }
 const traitsText = traits=>Object.entries(traits||{}).map(([a, b])=>`${a.replace(/_/g, ' ')}: ${/^\d{4}-\d{2}-\d{2}$/.test(String(b)) ? fmt(b) : b}`).join(', ');
-/* подсветка открывается карточкой соседа: работа там, задания нет */
-function renderHighlightDrawer(){
-  const k = kindOf(hlCard.kindId), e = computeExpectedForKind(k.id, state.today).get(hlCard.key);
-  const traits = e ? traitsText(e.traits) : '';
-  return `
-  <div class="drawer-mask" onclick="ZD.closeCard()"></div>
-  <div class="drawer">
-    <div class="drawer-h">${digestBack()}<h3>${esc(k.title)}</h3><button class="drawer-x" onclick="ZD.closeCard()">×</button></div>
-    <div class="drawer-b">
-      ${e ? `<div class="kv">
-        <div class="k">Объект</div><div class="v">${esc(describePovod(e))}</div>
-        <div class="k">Дата состояния</div><div class="v">${fmt(e.stateDate)}</div>
-        <div class="k">Признаки</div><div class="v">${esc(traits)||'—'}</div>
-        <div class="k">Владелец</div><div class="v">${esc(ownerOfKind(k.id)||'—')}</div>
-        <div class="k">Основание вида</div><div class="v">${esc(k.basis.group)}${k.basis.source ? ' · '+esc(k.basis.source) : ''}</div>
-        <div class="k">Задание</div><div class="v">нет: ${k.genus==='сигнал' ? 'сигнал — только уведомление' : 'подсветка видна на объекте'}, срока и ответа нет</div>
-      </div>${demoOn && OWNER_CFG[k.id] ? renderOwnerCard(null, e) : ''}` : `<div class="muted small">На ${fmt(state.today)} ${k.genus==='сигнал' ? 'случая больше нет' : 'состояния больше нет: подсветка снята'}.</div>`}
-    </div>
-  </div>`;
-}
 /* почему задание есть — обычными словами */
 function whyOf(t){
   if(t.kind!=='rule'){
@@ -7533,7 +7328,6 @@ function renderCardDrawer(){
   if(typeof document==='undefined') return;
   let host = document.getElementById('cardHost');
   if(!host){ host=document.createElement('div'); host.id='cardHost'; document.body.appendChild(host); }
-  if(hlCard){ host.innerHTML = renderHighlightDrawer(); cardShown=null; return; }
   if(ruleCard){ host.innerHTML = renderRulePanel(ruleCard); cardShown=null; return; }
   if(digestCard){ host.innerHTML = renderDigestPanel(digestCard); cardShown=null; return; }
   if(noticeCard){ host.innerHTML = renderNoticeCard(); cardShown=null; return; }
@@ -7842,7 +7636,7 @@ function renderCrCard(id){ // кредит у владельца: график, 
       <tbody>${s.schedule.map(line).join('')}</tbody></table>` : ''}
     <div class="small">Уведомляет куратор, его замещающий или руководитель; платёж отмечает бухгалтер в Платежах. Сигнал куратору приходит за 30 к.д. до платежа; уведомление заёмщику — действие куратора, сигнал его не заменяет.</div></div>`;
 }
-function renderVzCard(id){ // требование у владельца: сроки шаблонов — подсветка без исполнителя, меры и журнал
+function renderVzCard(id){ // требование у владельца: сроки шаблонов — отметка без исполнителя, меры и журнал
   const o = ownerObj('vz', id), d = state.today, s = vzAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const head = `<h3>Карточка требования ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">требования на ${fmt(d)} нет</div></div>`;
@@ -7875,24 +7669,17 @@ function renderVzCard(id){ // требование у владельца: сро
       <tbody>${backs.map(b=>`<tr><td>${esc(b.of)}</td><td>${fmt(b.t)}</td><td>${fact('вручена', b.of, 'Вручена другим способом')} ${fact('отметка заёмщика', b.of, 'Отметка заёмщика')}</td></tr>`).join('')}</tbody></table>` : ''}
     <div class="section-h">Журнал мер</div>
     <table class="cgrid"><tbody>${s.ev.slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}${e.verdict ? ` — ${esc(e.verdict)}` : ''}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Срок здесь — подсветка без исполнителя; поручение — в заданиях. Меру шага куратора регистрирует куратор требования, его замещающий или руководитель, шага подразделения — сотрудник подразделения. Задания увидят меру на следующем опросе.</div></div>`;
+    <div class="small">Срок здесь — отметка без исполнителя; поручение — в заданиях. Меру шага куратора регистрирует куратор требования, его замещающий или руководитель, шага подразделения — сотрудник подразделения. Задания увидят меру на следующем опросе.</div></div>`;
 }
 /* что гасит вид у залога: шаг карточки и его значение по умолчанию (демо) */
 const ZL_FIX = {
   'pk-zl-survey':          ['обследование', ()=>'в норме'],
-  'pk-zl-reval-overdue':   ['переоценка', (s,d)=>({report:`отчёт от ${fmt(d)}`})],
-  'pk-zl-appraisal-stale': ['переоценка', (s,d)=>({report:`отчёт от ${fmt(d)}`})],
   'pk-zl-insurance':       ['полис', (s,d)=>({no:'СП-'+s.id.slice(2), till:addMonths(d, 12)})],
   'pk-zl-ban-missing':     ['запрет', s=>'ЗП-'+s.id.slice(2)],
-  'pk-zl-ban-release':     ['снять запрет', ()=>null],
-  'pk-zl-docs':            ['документ', s=>s.missing[0]],
-  'pk-zl-ccy':             ['переоценка', (s,d)=>({report:`отчёт от ${fmt(d)}`, ccy:s.creditCcy})],
   'pk-zl-restore':         ['извещение', (s,d)=>addDays(d, 30)],
   'pk-zl-coverage':        ['обоснование', ()=>'ликвидность залога подтверждена отделом'],
-  'pk-zl-lease':           ['продлить аренду', (s,d,x)=>({item:x.sub, till:s.till})],
   'pk-zl-surety-expiring': ['продлить поручительство', (s,d)=>addMonths(s.till, 12)],
   'pk-zl-surety-expired':  ['снять поручительство', ()=>'истечение срока'],
-  'pk-zl-surety-repaid':   ['снять поручительство', ()=>'исполнение обеспеченного обязательства'],
   'pk-zl-surety-release':  ['снять поручительство', ()=>'исполнение обеспеченного обязательства'],
   'pk-zl-ban-repaid':      ['снять запрет', ()=>null],
   'pk-zl-committee':       ['решение комитета', ()=>'допущено с обоснованием'],
@@ -7901,7 +7688,7 @@ const ZL_FIX = {
   'pk-zl-guarantee-expiring': ['продлить гарантию', (s,d)=>addMonths(s.till, 12)],
   'pk-zl-guarantee-expired':  ['заменить гарантию', ()=>'догрузка залогом по доп. соглашению'],
 };
-function renderZlCard(id){ // залог у владельца: подсветка триггеров без исполнителя, факт, который гасит, журнал
+function renderZlCard(id){ // залог у владельца: отметки триггеров без исполнителя, факт, который гасит, журнал
   const o = ownerObj('zl', id), d = state.today, s = zlAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const title = {item:'предмета залога', credit:'обеспечения кредита', surety:'договора поручительства', guarantee:'банковской гарантии', contract:'договора залога'}[o.type];
   const head = `<h3>Карточка ${title} ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
@@ -7931,26 +7718,22 @@ function renderZlCard(id){ // залог у владельца: подсветк
        <div class="k">Недообеспечение</div><div class="v">${esc(s.under)}${s.since ? ` · на комитете с ${fmt(s.since)}` : ''}</div>`;
   return `<div class="card">${head}<div class="kv">${kv}
       <div class="k">Последний факт</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div></div>
-    <div class="section-h">Мониторинг: подсветка</div>
+    <div class="section-h">Мониторинг: отметки</div>
     ${live.length ? `<table class="cgrid"><thead><tr><th>Триггер</th><th>Срок</th><th>Гасит факт</th></tr></thead>
       <tbody>${live.map(row).join('')}</tbody></table>` : '<div class="small">триггеров нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${s.last ? byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('') : ''}</tbody></table>
-    <div class="small">Триггер здесь — подсветка без исполнителя и без «принять в работу»; поручение — в заданиях. Факт по предмету вносит куратор залога, по кредиту и поручительству — куратор кредита или отдел залогового обеспечения, решение по договору — комитет. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Триггер здесь — отметка без исполнителя и без «принять в работу»; поручение — в заданиях. Факт по предмету вносит куратор залога, по кредиту и поручительству — куратор кредита или отдел залогового обеспечения, решение по договору — комитет. Задания увидят факт на следующем опросе.</div></div>`;
 }
 /* что гасит вид у платежей: шаг карточки, значение по умолчанию и подпись кнопки (демо) */
 const PL_FIX = {
   'pl-refund-exec':     [['исполнить возврат', ()=>null, 'Исполнить возврат']],
   'pl-act-sign':        [['согласовать акт', ()=>null, 'Согласовать'], ['подписать акт', ()=>null, 'Подписать акт']],
   'pk-pl-await':        [['строка ЦК', s=>'ЦК-'+s.id.slice(3), 'Строка ЦК'], ['сторно', ()=>'денег в реестре ЦК нет', 'Сторно']],
-  'pk-pl-advance':      [['директива', ()=>({mode:'резерв', text:'резерв под строки нового графика'}), 'Резерв под новый график'],
-                         ['директива', ()=>({mode:'аванс', text:'оставить авансом'}), 'Оставить авансом'],
-                         ['директива', ()=>({mode:'возврат', text:'возврат по заявлению заёмщика'}), 'Возврат заёмщику']],
-  'pk-pl-disputed':     [['решение комиссии', ()=>({outcome:'не начислять', protocol:'№ 1'}), 'Решение комиссии']],
   'pk-pl-restore':      [['восстановить', ()=>null, 'Восстановить']],
   'pk-pl-unidentified': [['опознать', s=>s.hint ? {credit:s.hint} : null, 'Привязать к кредиту'], ['вернуть', ()=>'чужие деньги, по заявлению банка', 'Основание возврата']],
 };
-function renderPlCard(id){ // платежи у владельца: подсветка случая без исполнителя, факт, который его гасит, журнал и известия кредита
+function renderPlCard(id){ // платежи у владельца: отметка случая без исполнителя, факт, который его гасит, журнал и известия кредита
   const o = ownerObj('pl', id), d = state.today, s = plAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const title = {payment:'платежа', receipt:'поступления', credit:'кредита', 'pl-act':'акта сверки'}[o.type];
   const head = `<h3>Карточка ${title} ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
@@ -7980,7 +7763,7 @@ function renderPlCard(id){ // платежи у владельца: подсве
   const notes = credit ? plNotices(credit, d) : [];
   return `<div class="card">${head}<div class="kv">${kv}
       <div class="k">Последний факт</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div></div>
-    <div class="section-h">Требует решения: подсветка</div>
+    <div class="section-h">Требует решения: отметки</div>
     ${live.length ? `<table class="cgrid"><thead><tr><th>Случай</th><th>Срок</th><th>Гасит факт</th></tr></thead>
       <tbody>${live.map(row).join('')}</tbody></table>` : '<div class="small">случаев нет</div>'}
     <div class="section-h">Журнал</div>
@@ -7988,9 +7771,9 @@ function renderPlCard(id){ // платежи у владельца: подсве
     ${credit ? `<div class="section-h">Журнал кредита ${esc(credit)} — известия платежей</div>
       ${notes.length ? `<table class="cgrid"><tbody>${notes.slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>`
         : '<div class="small">известий нет</div>'}` : ''}
-    <div class="small">Случай здесь — подсветка без исполнителя; поручение — в заданиях. Факт денег (сторно, восстановление, возврат) вносит бухгалтер, трактовку (директива по авансу, решение комиссии) — куратор кредита, строку реестра ЦК и привязку — оба. Сторно и опознание — строка журнала кредита и уведомление куратору, восстановление — только строка журнала; заданий они не рождают. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Случай здесь — отметка без исполнителя; поручение — в заданиях. Факт денег (сторно, восстановление, возврат) вносит бухгалтер, трактовку (директива по авансу, решение комиссии) — куратор кредита, строку реестра ЦК и привязку — оба. Сторно и опознание — строка журнала кредита и уведомление куратору, восстановление — только строка журнала; заданий они не рождают. Задания увидят факт на следующем опросе.</div></div>`;
 }
-function renderZmCard(id){ // заёмщик у владельца: обязательства — подсветка без исполнителя, факт, который гасит, журнал
+function renderZmCard(id){ // заёмщик у владельца: обязательства — отметка без исполнителя, факт, который гасит, журнал
   const o = ownerObj('zm', id), d = state.today, s = zmAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const head = `<h3>Карточка заёмщика ${esc(o.name)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">заёмщика на ${fmt(d)} нет</div></div>`;
@@ -8015,15 +7798,15 @@ function renderZmCard(id){ // заёмщик у владельца: обязат
       <div class="k">Ведущий куратор на ${fmt(d)}</div><div class="v">${lead ? who(lead)+(actingFor(lead, d)!==lead ? `; действует ${who(actingFor(lead, d))}` : '') : 'нет'} <span class="small">ответ кураторства</span></div>
       <div class="k">Последний факт</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div>
     </div>
-    <div class="section-h">Обязательства: подсветка</div>
+    <div class="section-h">Обязательства: отметки</div>
     ${rows.length ? `<table class="cgrid"><thead><tr><th>Обязательство</th><th>Срок</th><th>Гасит факт</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
       : '<div class="small">открытых обязательств нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Обязательство здесь — подсветка без исполнителя; поручение — в заданиях. Подпись акта вносит сотрудник отраслевого департамента; пакет финансовых документов приходит ответом анализа, только при полном получении по запросу, вручную не вносится; пакет прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Обязательство здесь — отметка без исполнителя; поручение — в заданиях. Подпись акта вносит сотрудник отраслевого департамента; пакет финансовых документов приходит ответом анализа, только при полном получении по запросу, вручную не вносится; пакет прежней полосы риска не в счёт. Задание по анализу появляется на следующий день после конца полугодия, условие читается на конец периода; за идущий период задания нет. Анализ закрывает утверждённое плановое заключение за названный период, заключение за другой период или по заявке его не закрывает. Разногласия и уклонение акт не закрывают. Задания увидят факт на следующем опросе.</div></div>`;
 }
 const RS_OUTCOME = {возврат:'возвращена без рассмотрения', отпала:'отпала: кредит погашен', отказ:'отказ', отозвана:'отозвана заёмщиком'};
-function renderRsCard(id){ // заявка на реструктуризацию у владельца: сроки п. 18 — подсветка без исполнителя и без флага просрочки
+function renderRsCard(id){ // заявка на реструктуризацию у владельца: сроки п. 18 — отметка без исполнителя и без флага просрочки
   const o = ownerObj('rs', id), d = state.today, s = rsAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const head = `<h3>Карточка заявки на реструктуризацию ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">заявки на ${fmt(d)} нет</div></div>`;
@@ -8056,15 +7839,15 @@ function renderRsCard(id){ // заявка на реструктуризацию
       <div class="k">Куратор основного кредита на ${fmt(d)}</div><div class="v">${cur ? who(cur)+(actingFor(cur, d)!==cur ? `; действует ${who(actingFor(cur, d))}` : '') : 'нет'} <span class="small">ответ кураторства</span></div>
       <div class="k">Последний факт</div><div class="v">${esc(s.last.how)} · ${who(s.last.by)} · ${fmt(s.last.t)}</div>
     </div>
-    <div class="section-h">Сроки п. 18: подсветка</div>
+    <div class="section-h">Сроки п. 18: отметки</div>
     ${rows.length ? `<table class="cgrid"><thead><tr><th>Срок</th><th>До</th><th>Гасит факт</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
       : '<div class="small">открытых сроков нет</div>'}
     ${s.open ? `<div class="small" style="margin-top:6px">Письменный отзыв обращения заёмщиком — на любой стадии: ${btn('отозвать', 'вх. №Вх-'+(400+o.ev.length), 'Отзыв заёмщика')}</div>` : ''}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Срок здесь — подсветка без исполнителя и без отметки о просрочке; поручение и просрочка — в заданиях. Пакет и вынос на комитет вносит сотрудник отраслевого департамента, визы — заключанты СРМиК и ДПО и подразделения, добавленные куратором заявки, позицию — секретарь комитета, письмо — регистратор документооборота за автора письма. Задания увидят факт на следующем опросе.</div></div>`;
+    <div class="small">Срок здесь — отметка без исполнителя и без флага просрочки; поручение и просрочка — в заданиях. Пакет и вынос на комитет вносит сотрудник отраслевого департамента, визы — заключанты СРМиК и ДПО и подразделения, добавленные куратором заявки, позицию — секретарь комитета, письмо — регистратор документооборота за автора письма. Задания увидят факт на следующем опросе.</div></div>`;
 }
-function renderClCard(id){ // реестр фактов п. 11 кредита у владельца: факт без решения — подсветка без исполнителя, решение или аннулирование — кнопкой
+function renderClCard(id){ // реестр фактов п. 11 кредита у владельца: факт без решения — отметка без исполнителя, решение или аннулирование — кнопкой
   const o = ownerObj('cl', id), d = state.today, s = clAt(o, d), who = x=>x ? esc(emp(x)?.name) : 'система';
   const head = `<h3>Факты п. 11 по кредиту ${esc(o.id)} <span class="small">у владельца, демо</span></h3>`;
   if(!s) return `<div class="card">${head}<div class="small">кредита на ${fmt(d)} нет</div></div>`;
@@ -8095,10 +7878,10 @@ function renderClCard(id){ // реестр фактов п. 11 кредита у
       : '<div class="small">фактов нет</div>'}
     <div class="section-h">Журнал</div>
     <table class="cgrid"><tbody>${byDate(o.ev).filter(e=>e.t<=d).slice(-6).reverse().map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.how)}</td><td class="small">${who(e.by)}</td></tr>`).join('')}</tbody></table>
-    <div class="small">Факт без решения комитета здесь — подсветка без исполнителя: в категорию риска он не идёт; поручение — в заданиях, очереди кредитных инспекторов. Факт, решение комитета и аннулирование с причиной вносит кредитный инспектор. Задания увидят запись на следующем опросе.</div></div>`;
+    <div class="small">Факт без решения комитета здесь — отметка без исполнителя: в категорию риска он не идёт; поручение — в заданиях, очереди кредитных инспекторов. Факт, решение комитета и аннулирование с причиной вносит кредитный инспектор. Задания увидят запись на следующем опросе.</div></div>`;
 }
 /* ---------- настройка заданий: одна таблица и панель; вид и действие приходят выпуском, правило правится редакциями ---------- */
-const SETTINGS_TABS = [['tasks','Задания'],['highlight','Подсветка']];
+const SETTINGS_TABS = [['tasks','Задания']];
 /* кураторство и календарь — у владельцев; задания их только читают. Экрана календаря в макетах нет, на чтение он показан в настройках документооборота */
 const OWNER_SCREENS = [
   {label:'Кураторство', page:'kuratorstvo/kuratorstvo.html', hint:'Экран модуля «Кураторство» в новой вкладке: закрепления ведёт он, задания только читают'},
@@ -8125,10 +7908,7 @@ const KIND_THRESHOLD = Object.assign({
   'pk-await-long':()=>thrZ('awaitWd'),
   'pk-ext-pending':()=>thrZ('extWd'),
   'pk-neighbor-silent':()=>thrZ('silentNights'),
-  'pk-kind-inactive':()=>thrZ('inactiveD'),
-  'pk-returning':()=>Object.assign(thrZ('returnN'), {more:{text:ZD_THR.returnWindowD.text(thrOn('zd.returnWindowD')), src:thrSrcText(thrRecOn('zd.returnWindowD', state.today))}}),
   'ap-stuck-new':()=>thrR('ap.stuckWd', v=>`${v} р.д. без событий`),
-  'lp-expiring':()=>thrR('lp.expiringDays', v=>`за ${v} к.д. до «Даты по»`),
   'pk-rep-obligation-due':()=>thrO('за N к.д. до срока сдачи'),
   'pk-pl-await':()=>thrR('pl.awaitWd', v=>`с ${v}-го р.д. от даты операции`),
   'pk-stat-neighbor-silent':()=>thrR('stat.silentRuns', v=>`модуль молчит ${v} прогона подряд`),
@@ -8137,8 +7917,6 @@ const KIND_THRESHOLD = Object.assign({
   'pk-zl-survey':()=>Object.assign(thrT(`за ${ZL_LEAD} к.д. до плановой даты; при согласовании зампреда короче по категории риска кредита: ${Object.values(ZL_TIGHT.k).map(v=>'×'+String(v).replace('.', ',')).join(' / ')}, не меньше ${ZL_TIGHT.min} мес.`),
     {more:{text:`интервал ${Object.values(ZL_SURVEY).flatMap(x=>[x.immovable, x.movable]).join('/')} мес.: группа платёжеспособности и движимость`, src:`норма · ${ZL_NORM}, Прил. 2 §2.3`}}), // 30 к.д. и ужесточение — решение проекта, матрица — норма
   'pk-zl-coverage':()=>thrT('120 %, движимое неликвидное 150 %', `${ZL_NORM}, Прил. 1 §2.3–2.4`),
-  'pk-zl-reval-overdue':()=>thrT('интервал переоценки предмета'),
-  'pk-zl-appraisal-stale':()=>thrT(`${ZL_APPR_MONTHS} мес. от даты отчёта`),
   'pk-zl-surety-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
   'pk-zl-guarantee-expiring':()=>thrT(`за ${ZL_SURETY_WARN} к.д. до конца срока`),
   'pk-zl-insurance':()=>thrT(`за ${ZL_LEAD} к.д. до «полис до»; полиса нет — с регистрации договора`),
@@ -8154,8 +7932,6 @@ const KIND_THRESHOLD = Object.assign({
   'pk-im-not-listed':()=>thrI(state.today<IM_INSTR ? 'listedOld' : 'listed'),
   'pk-im-unsold':()=>thrT(`${IM_SET.unsold} объявления без заявок`),
   'pk-im-instalment-overdue':()=>thrT(`от ${IM_SET.inst} к.д. просрочки`),
-  'pk-im-encumbrance-ending':()=>thrT(`за ${IM_SET.enc} к.д. до конца`),
-  'pk-im-claim-open':()=>thrT(`от ${IM_SET.claim} к.д.`),
   'pk-im-ssi-memo':()=>thrI('ssiMemo'),
   'pk-im-guard':()=>thrI('guard'),
   'pk-im-buyback-notice':()=>thrI('notice'),
@@ -8211,10 +7987,23 @@ function ruleSince(k, st){
   if(st==='не введён') return k.activatedAt ? `<span class="pill warn">с ${fmt(k.activatedAt)}</span>` : '<span class="pill warn">не введён</span>';
   return fmt(k.activatedAt);
 }
-function ruleRow(x){
-  const {r, k, a, st} = x, ap = appearOf(k), pend = pendingEdition(r);
+/* пометки строки: вид не введён дольше порога, повод возвращается — не задания, за них не спросят */
+function rowMarks(k, m){
+  m = m || rowMarksOn(state.today);
+  const out = [], days = m.inactive.get(k.id), back = m.returning.get(k.id);
+  if(days!=null) out.push(`<span class="pill warn" data-mark="inactive" title="Вид не введён в действие дольше ${thrOn('zd.inactiveD')} к.д.">не введено ${days} к.д.</span>`);
+  if(back) out.push(`<span class="pill warn" data-mark="returning" title="${tip(back.map(x=>`${describePovod(povodByKey(x.key))} — ${x.count} ${plural(x.count, ['раз','раза','раз'])}`).join('; '))}">повод возвращается: ${back.length}</span>`);
+  return out.join(' ');
+}
+function marksText(k){
+  const m = rowMarksOn(state.today), days = m.inactive.get(k.id), back = m.returning.get(k.id) || [];
+  return (days!=null ? [`не введено в действие ${days} к.д. — дольше порога ${thrOn('zd.inactiveD')} к.д.`] : [])
+    .concat(back.map(x=>`повод возвращается: ${esc(describePovod(povodByKey(x.key)))} — ${x.count} ${plural(x.count, ['раз','раза','раз'])} за ${thrOn('zd.returnWindowD')} к.д., последний раз ${fmt(x.last)}`));
+}
+function ruleRow(x, m){
+  const {r, k, a, st} = x, ap = appearOf(k), pend = pendingEdition(r), mk = rowMarks(k, m);
   return `<tr class="${st==='в действии' ? '' : 'hole'}" data-r="${r.id}" onclick="ZD.showRule('${r.id}')">
-    <td title="${tip(a.label)}">${esc(a.label)}</td>
+    <td title="${tip(a.label)}">${mk ? mk+' ' : ''}${esc(a.label)}</td>
     <td>${esc(x.mod)}</td>
     <td title="${tip(ruleAddr(r))}">${esc(ruleAddr(r))}${abolishedOn(r, state.today).map(p=>` <span class="pill warn">единица «Кто поручил» упразднена ${fmt(p.abolished.at)}</span>`).join('')}</td>
     <td title="${tip(dueText(r, true))}">${esc(dueShort(r))}</td>
@@ -8224,7 +8013,7 @@ function ruleRow(x){
   </tr>`;
 }
 function renderRulesTab(){
-  const errs = checkRegistry(), rows = ruleRows(), q = state.ruleQ.trim().toLowerCase(), shown = rulesShown(rows);
+  const errs = checkRegistry(), rows = ruleRows(), q = state.ruleQ.trim().toLowerCase(), shown = rulesShown(rows), marks = rowMarksOn(state.today);
   const opt = (v, l, cur)=>`<option value="${esc(v)}"${v===cur ? ' selected' : ''}>${esc(l)}</option>`;
   const inMod = x=>(!state.ruleMod || x.mod===state.ruleMod) && ruleHit(x, q), inSt = x=>(state.ruleSt==='все' || x.st===state.ruleSt) && ruleHit(x, q);
   const mods = [...new Set(rows.map(x=>x.mod))];
@@ -8239,7 +8028,8 @@ function renderRulesTab(){
     </div>
     <table class="cgrid qgrid" data-rules>${qCols([400, 150, 210, 140, 0, 140, 90])}
       <thead><tr><th>Что сделать</th><th>Модуль</th><th>Кому</th><th>Срок</th><th>Когда появляется</th><th>С какой даты</th><th>Редакция</th></tr></thead>
-      <tbody>${shown.map(ruleRow).join('') || '<tr><td colspan="7" class="muted">Ничего не найдено</td></tr>'}</tbody></table>`;
+      <tbody>${shown.map(x=>ruleRow(x, marks)).join('') || '<tr><td colspan="7" class="muted">Ничего не найдено</td></tr>'}</tbody></table>
+    ${renderMarksThr()}`;
 }
 const RELEASE_WORD = {addressee:'адресат', dueUnit:'единица срока', dueFrom:'кто называет срок', extendBy:'кто утверждает продление', dueBase:'от чего считается срок', ownDue:'собственный срок', dueSource:'откуда срок'};
 function valText(f, x){
@@ -8310,6 +8100,7 @@ function renderRulePanel(id){
     <div class="drawer-b">
       <div class="kv kv-top" data-rule-main>
         ${line('Когда появляется', when)}
+        ${(mk=>mk.length ? line('Пометка', mk.join('<br>')) : '')(marksText(k))}
         ${editable ? line('Как меняется', `${thrHow(ap)}<div class="small">Новое значение действует только на новые поводы</div>${admin && ap.zd ? ` <button class="btn btn-secondary btn-xs" data-zd-thr onclick="ZD.askSelfThr('${ap.zd}')">Изменить порог</button>` : ''}`) : ''}
         ${ap.vals.length>1 ? line('Значения порога', ap.vals.map(esc).join('<br>')) : ''}
         ${line('Кому', esc(ruleAddr(r)))}
@@ -8359,10 +8150,11 @@ function askRule(id){
     }});
 }
 /* порог самоопроса: новое значение с датой начала и основанием (приказ) — администратор заданий */
+const MARK_THR = ['inactiveD', 'returnN', 'returnWindowD']; // пороги пометок строки: пометка считается на дату показа, поводов у неё нет
 function askSelfThr(f, title){
   const cur = thrRecOn('zd.'+f, state.today);
   return openDialog({title:title||'Изменить порог', submit:'Сохранить', done:'Порог сохранён',
-    note:`Сейчас: ${ZD_THR[f].text(cur.v)} · ${thrSrcText(cur)}. Новое значение действует только на новые поводы.`,
+    note:`Сейчас: ${ZD_THR[f].text(cur.v)} · ${thrSrcText(cur)}. ${MARK_THR.includes(f) ? 'С даты начала пометки всех строк считаются по новому значению.' : 'Новое значение действует только на новые поводы.'}`,
     values:{v:String(cur.v), from:state.today, order:'', why:''},
     fields:[{f:'v', label:'Значение', type:'number', required:true}, {f:'from', label:'Действует с', type:'date', required:true},
       {f:'order', label:'Приказ', required:true}, WHY('Основание')],
@@ -8383,33 +8175,21 @@ function askKindOn(id){
   return openDialog({title:`${back ? 'Включить' : 'Ввести в действие'}: ${k.title}`, submit:back ? 'Включить' : 'Ввести в действие', done:back ? 'Включено' : 'Введено в действие', values:{why:''}, fields:[WHY('Основание')],
     run:x=>activateKind(id, state.viewer, x.why.trim())});
 }
-/* подсветка — только чтение: заданием или сигналом становится выпуском */
-function renderHighlightTab(){
-  const hl = highlightsOn(state.today), total = hl.reduce((a, x)=>a+(x.count||0), 0), lit = hl.filter(x=>x.count).length;
-  const counted = hl.filter(x=>x.count!==null).length, away = hl.length-counted, admin = isTasksAdmin(state.viewer);
-  const HL_THR = {'pk-kind-inactive':[['inactiveD','Изменить порог']], 'pk-returning':[['returnN','Изменить порог'], ['returnWindowD','Изменить окно']]};
-  const rows = hl.map(x=>{
-    const k = kindOf(x.kind), open = state.hlOpen===x.kind, ap = appearOf(k);
-    const items = open ? x.rows.map(r=>`<tr class="grp-item" data-hl-obj="${esc(r.key)}"><td colspan="2">${esc(describePovod(r))}</td><td class="small">с ${fmt(r.stateDate)}${Object.keys(r.traits||{}).length ? ' · '+esc(traitsText(r.traits)) : ''}</td>
-        <td><button class="linky" onclick="ZD.openHighlight('${k.id}', this.closest('tr').dataset.hlObj)">Открыть</button></td></tr>`).join('') : '';
-    return `<tr data-hl="${k.id}"${x.count ? ` onclick="ZD.toggleHl('${k.id}')"` : ''}>
-      <td>${x.count ? (open ? '▾ ' : '▸ ') : ''}${esc(k.title)}${ap.thr ? ' · '+thrHtml(ap) : ''}${admin && HL_THR[k.id] ? HL_THR[k.id].map(([f, l])=>` <button class="btn btn-secondary btn-xs" data-hl-thr="${f}" onclick="event.stopPropagation();ZD.askSelfThr('${f}', '${l}')">${l}</button>`).join('') : ''}</td><td>${esc(x.owner)}<div class="small">${esc(k.ownerDept)}</div></td>
-      <td>${esc(k.basis.group)}${k.basis.source ? `<div class="small">${esc(k.basis.source)}</div>` : ''}</td>
-      <td>${x.count===null ? `<a class="q-case small" href="../${x.at.page}" target="_blank" title="Откроется в новой вкладке">${esc(x.at.text)}</a>`
-        : x.count ? x.count : '<span class="small">нет</span>'}</td></tr>${items}`;
-  }).join('');
-  return `<div class="small" style="margin-bottom:8px">Подсветка видна на объекте в его модуле. Заданий, просрочек и строк статистики не даёт; опрос её не трогает. Вид становится заданием или сигналом только выпуском. На ${fmt(state.today)} подсвечено объектов: ${total}, видов с объектами: ${lit} из ${counted}${away ? `; видов без числа: ${away} — подсветка видна только в своём модуле` : ''}.</div>
-    <table class="cgrid" data-highlight><thead><tr><th>Вид</th><th>Владелец</th><th>Основание</th><th>Объектов на дату</th></tr></thead><tbody>${rows}</tbody></table>`;
+/* пороги пометок — записи самоопроса с датой: правит администратор заданий по приказу */
+function renderMarksThr(){
+  const admin = isTasksAdmin(state.viewer), t = f=>ZD_THR[f].text(thrOn('zd.'+f)), src = f=>` · ${esc(thrSrcText(thrRecOn('zd.'+f, state.today)))}`;
+  const btn = (f, l)=>admin ? ` <button class="btn btn-secondary btn-xs" data-marks-thr="${f}" onclick="ZD.askSelfThr('${f}', '${l}')">${l}</button>` : '';
+  return `<div class="small" data-marks style="margin-top:8px">Пометки в строке: «не введено» — вид не введён в действие ${esc(t('inactiveD'))}${src('inactiveD')}${btn('inactiveD', 'Изменить порог')};
+    «повод возвращается» — ${esc(t('returnN'))}${src('returnN')}${btn('returnN', 'Изменить порог')} ${esc(t('returnWindowD'))}${src('returnWindowD')}${btn('returnWindowD', 'Изменить окно')}. Заданий они не дают.</div>`;
 }
 function renderSettings(){
   const tabs = SETTINGS_TABS.map(([k, l])=>`<button class="${state.settingsTab===k ? 'on' : ''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
   const links = OWNER_SCREENS.map(s=>`<a class="q-case" href="../${s.page}" target="_blank" title="${esc(s.hint)}">${esc(s.label)}</a>`).join('');
-  const body = state.settingsTab==='highlight' ? renderHighlightTab() : `${renderRulesTab()}${renderSignalSwitches()}`;
+  const body = `${renderRulesTab()}${renderSignalSwitches()}`;
   return `<div class="tabs">${tabs}<span class="tab-links" data-owner-links>${links}</span></div>${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
 function goSettings(tab){ state.settingsTab=tab; state.view='settings'; render(); }
-function toggleHl(id){ state.hlOpen = state.hlOpen===id ? null : id; render(); }
 /* включение сигнала — настройка повода, остаётся у администратора заданий: выключение отпускает поводы. Кому и как — в кубике «Уведомления» */
 function renderSignalSwitches(){
   const admin = isTasksAdmin(state.viewer), sigKinds = state.povodKinds.filter(k=>k.genus==='сигнал');
@@ -8417,7 +8197,8 @@ function renderSignalSwitches(){
   const rows = sigKinds.map(k=>{
     const on = activeOn(k, state.today), last = k.switches.slice(-1)[0], ap = appearOf(k);
     const acts = admin ? `<td><button class="btn btn-secondary btn-xs" onclick="ZD.${on ? 'askKindOff' : 'askKindOn'}('${k.id}')">${on ? 'Выключить' : 'Включить'}</button></td>` : '';
-    return `<tr data-sig-switch="${k.id}"><td>${esc(k.title)}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td>
+    const mk = rowMarks(k);
+    return `<tr data-sig-switch="${k.id}"><td>${esc(k.title)}${mk ? ' '+mk : ''}${ap.thr ? `<div>${thrHtml(ap)} <span class="small">· ${thrHow(ap)}</span></div>` : `<div class="small">${esc(k.basis.source)}</div>`}</td>
       <td>${on ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>'}${last ? `<div class="small">${esc(last.ev)} ${fmt(last.t)} · ${esc(last.basis)}</div>` : ''}</td>${acts}</tr>`;
   }).join('');
   return `<div class="section-h">Сигналы</div>
@@ -8595,7 +8376,6 @@ function activeOn(k, d){ return !!k.activatedAt && k.activatedAt<=d && !(k.retir
 function activateKind(kindId, by, basis){
   const k = kindOf(kindId);
   if(!isTasksAdmin(by)) throw new Error('вводит в действие администратор заданий');
-  if(k.genus==='подсветка') throw new Error('подсветка становится заданием или сигналом только выпуском');
   if(!basis) throw new Error('нужно основание ввода в действие');
   if(activeOn(k, state.today)) throw new Error('вид уже в действии');
   if(k.retiredAt && k.retiredAt<=state.today) throw new Error('вид выведен выпуском — вернуть его может только выпуск');
@@ -8831,17 +8611,12 @@ function openNotifItem(n, i){
     closeCard(); Object.assign(state, {view:'ntLog', dlSt:'не доставлено', dlCh:'', dlQ:'', dlDate:n.t, dlPage:1, dlOpen:null});
     return true;
   }
-  if(n.ev){
-    if(!noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
+  if(n.ev || n.kind==='сигнал'){ // событие модуля и сигнал — карточка объекта в модуле-владельце
+    if(n.ev && !noticeAccess(item)){ toast(`У вас нет доступа к ${(NOTICE_OBJ[item.type]||NOTICE_OBJ.any).to} ${item.obj}`, 'err'); return false; }
     if(cardOpenId && taskInUrl()) moveUrl('pushState', null);
-    cardOpenId=null; hlCard=null; ruleCard=null; digestCard=null;
+    cardOpenId=null; ruleCard=null; digestCard=null;
     noticeCard = {id:n.id, i};
     renderCardDrawer();
-    return true;
-  }
-  if(n.kind==='сигнал'){
-    if(state.view!=='notifs'){ state.view = 'queue'; state.qTab = 'work'; }
-    openHighlight(n.originKind, item.key);
     return true;
   }
   const t = taskOf(item.taskId);
@@ -8866,10 +8641,18 @@ function noticeDemo(x){
     gd:()=>renderOwnerCard(null, {kind:'gd-review', objectId:id}), lp:()=>renderOwnerCard(null, {kind:'lp-review', objectId:id})};
   return R[x.src] ? R[x.src]() : '';
 }
+/* сигнал называет объект своего повода: карточка, вкладка и демо — как у события модуля */
+const SIGNAL_CARD = {'pk-cr-payment-due':{type:'cr', src:'cr', tab:'График', title:p=>p.traits.заёмщик}};
+function signalItem(n, item){
+  const p = povodByKey(item.key), c = SIGNAL_CARD[n.originKind] || {type:'any', src:null, tab:'—', title:()=>null};
+  const id = p ? p.ownerId || p.objectId : null;
+  return {obj:id || '—', type:c.type, src:c.src, ref:id, tab:c.tab, title:p ? c.title(p) : null, text:item.text, at:n.t, by:null};
+}
 function renderNoticeCard(){
-  const n = noteById(noticeCard.id), x = n && n.items[noticeCard.i];
-  if(!x) return '';
-  const k = noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any;
+  const n = noteById(noticeCard.id), raw = n && n.items[noticeCard.i];
+  if(!raw) return '';
+  const x = n.kind==='сигнал' ? signalItem(n, raw) : raw;
+  const k = n.kind==='сигнал' ? {module:ownerOfKind(n.originKind)} : noticeKind(n.kind), w = NOTICE_OBJ[x.type] || NOTICE_OBJ.any;
   return `<div class="drawer-mask" onclick="ZD.closeCard()"></div>
     <div class="drawer" data-notice="${n.id}">
       <div class="drawer-h">${digestBack()}<h3>Карточка ${esc(w.of)} ${esc(x.obj)}</h3><button class="drawer-x" title="Закрыть" onclick="ZD.closeCard()">×</button></div>
@@ -8997,7 +8780,7 @@ function popClose(id){ pops = pops.filter(p=>p.id!==id); paintPops(); }
 /* «Открыть» — то же, что клик по сообщению. Открытая форма важнее: окошко не уводит с неё */
 function popBusy(){ if(!dlg) return false; toast('Сначала завершите или закройте форму'); return true; }
 function popOpen(id){ if(popBusy()) return; popClose(id); notifGo(id); }
-function popMore(){ if(popBusy()) return; if(cardOpenId || hlCard || ruleCard || digestCard || noticeCard) closeCard(); bellToggle(true); }
+function popMore(){ if(popBusy()) return; if(cardOpenId || ruleCard || digestCard || noticeCard) closeCard(); bellToggle(true); }
 
 function init(){
   if(typeof document==='undefined') return;
@@ -9024,9 +8807,9 @@ return {
   showRule, renderRulePanel, get ruleCard(){ return ruleCard; }, ruleRows, rulesShown, ruleStateOf, appearOf, ruleAddr, askRule, askSelfThr, askEditionCancel, askKindOff, askKindOn, askSignal, setFilter, RULE_STATES, OWNER_SET, OWNER_SCREENS,
   setRunsTab, toggleRun, togglePovod, povodRows, povodStats, povodStateOf, deliveryRows, goSettings, empName, notifLinks,
   queueStep2Open, tplDue, tplLocked, assignerMay, returnToQueue, docRejectTo, resDueFor, issueRuleTask, addWorkdays, workdaysBetween, isWork, calNote, SOURCES, get SILENT_NIGHTS(){ return thrOn('zd.silentNights'); }, POLL_SCOPES, ZD_THR, editSelfThr, zdThr, postHolderAt, authorPostOf, authorTitle, ORG_HEAD_VACANT, isOverdueChief, overdueTaskOf, queueAssigners, orgAttrib, queueStepOf, abolishedOn, extendByChief, overdueChiefOf, chiefMayExtend, fallbackAddressee, authorOn, CURATION,
-  SELF_KINDS, NOTIF_KINDS, HIGHLIGHT_KINDS, SIGNAL_KINDS, GENERA,
-  go, setAsOf, setViewer, openCard, closeCard, openHighlight, renderCardDrawer, renderHighlightDrawer, render, renderQueue, renderSettings, renderRuns,
-  renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; }, get highlightCard(){ return hlCard; },
+  SELF_KINDS, NOTIF_KINDS, SIGNAL_KINDS, GENERA, rowMarksOn,
+  go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render, renderQueue, renderSettings, renderRuns,
+  renderCard, cardFold, noCasePage, syncFromUrl, openFromUrl, taskActions, journalRows, whyOf, stateWords, JOURNAL_WORDS, closerOf, ownerExecOf, principalsOn, get cardId(){ return cardOpenId; },
   get dialog(){ return dlg; }, renderDialog, ask, dialogSet, dialogCheck, dialogSubmit, dialogCancel, dialogCaseQ, dialogCaseAdd, dialogCaseDel, caseCatalog, caseSearch,
   NOTICE_LIST, noticeKind, declareEvent, factTx, serviceRun, serviceConsume, noticeDay, noticeFactsOn, eventRecipients, noticeAccess, renderNoticeCard, get noticeCard(){ return noticeCard; }, seedNoticeFacts,
   openNotifItem, renderNtSettings, renderNtDelivery, setDlFilter, setDlPage, toggleOut, deliveryFiltered, NOTICE_VIEWS, askNoticeWindow, askNoticeCal, askSmsGate, editNoticeWindow, editNoticeCal, editSmsGate, isNoticeAdmin, noticeAdminOn, NOTICE_ADMIN_ROLE, deliveryDay, outText, nextWindow, sendDay, windowOn, smsOn, contactOf, DLV_STATES, SMS_SEGMENT, OUT_LINK, URGENT_KINDS, SAFE_KINDS, STAND_NOTICE, firstDelivery, renderSignalSwitches,
@@ -9036,11 +8819,11 @@ return {
   renderNav, menuItems, renderStand, standToggle, STAND_SCENES, STAND_DATES, setDemo, get demo(){ return demoOn; }, renderDemoSwitch, ADMIN_VIEWS,
   bucketOf, bucketsOf, tabsOf, currentTab, setQueueTab, setClosedFilter, setSearch, setSort, closedFilters, closedMine, closedResult, subSummary,
   whatToDo, caseOf, canTake, canAssignQueue, attentionOf, watchOf, decisionText, decisionSince, groupType, groupTick, groupChoose,
-  openFreeForm, setSettingsTab, toggleHl, deactivateKind, activateKind,
+  openFreeForm, setSettingsTab, deactivateKind, activateKind,
   toggleDown, toggleStatCleared, setPollScope, ui,
   ROLES, roleOf, queueHolders, inQueue, queueTasks, queueGroups, batchTasks, groupOps, toggleGroup, batchUI, signGroup,
-  checkStateField, kindCategory, registryCounts, highlightsOn,
-  editSignal, releaseSignal, releaseTaskKind, signalRecipients, SIGNAL_CHANNELS,
+  checkStateField, kindCategory, registryCounts,
+  editSignal, signalRecipients, signalItem, SIGNAL_CHANNELS,
   ownerStep:savedAt(src=>src==='gd' ? 'gosresh' : 'programs', ownerStep), lpExtend:savedAt('programs', lpExtend), lpChangeBase:savedAt('programs', lpChangeBase),
   ownerAt,
   ownerOfKind, sourceOfKind, expiringDays, renderOwnerCard, thrOn, thrNew, thrFirst, thrVals, setStandThr, KIND_THRESHOLD,
