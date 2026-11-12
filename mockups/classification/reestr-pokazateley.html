@@ -1,0 +1,1080 @@
+<title>Реестр показателей классификации</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Раскладка: справочник для разработчика — липкое оглавление слева, справа сквозной текст с карточками показателей. */
+:root{
+  --bg:#FFFFFF; --panel:#F5F7FA; --card:#FFFFFF; --fg:#192434; --body:rgba(24,39,57,.92); --muted:rgba(24,39,57,.64);
+  --line:rgba(28,55,90,.16); --line-strong:rgba(28,55,90,.30);
+  --accent:#006AF5; --accent-ink:#005FDB; --accent-tint:rgba(0,106,245,.08);
+  --ok:#158443; --ok-tint:rgba(21,132,67,.10); --warn:#9A6F00; --warn-tint:rgba(184,134,11,.13);
+  --bad:#D23434; --bad-tint:rgba(224,58,58,.10); --gray-tint:rgba(25,59,103,.06);
+  --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F1620; --panel:#16202C; --card:#141D28; --fg:#E8EEF6; --body:rgba(232,238,246,.90); --muted:rgba(232,238,246,.62);
+  --line:rgba(160,190,230,.16); --line-strong:rgba(160,190,230,.32);
+  --accent:#4C95FF; --accent-ink:#7DB2FF; --accent-tint:rgba(76,149,255,.14);
+  --ok:#43B97A; --ok-tint:rgba(67,185,122,.15); --warn:#E0B44A; --warn-tint:rgba(224,180,74,.16);
+  --bad:#F07070; --bad-tint:rgba(240,112,112,.15); --gray-tint:rgba(160,190,230,.08);
+  color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#0F1620; --panel:#16202C; --card:#141D28; --fg:#E8EEF6; --body:rgba(232,238,246,.90); --muted:rgba(232,238,246,.62);
+  --line:rgba(160,190,230,.16); --line-strong:rgba(160,190,230,.32);
+  --accent:#4C95FF; --accent-ink:#7DB2FF; --accent-tint:rgba(76,149,255,.14);
+  --ok:#43B97A; --ok-tint:rgba(67,185,122,.15); --warn:#E0B44A; --warn-tint:rgba(224,180,74,.16);
+  --bad:#F07070; --bad-tint:rgba(240,112,112,.15); --gray-tint:rgba(160,190,230,.08);
+  color-scheme:dark; }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--body);font:400 15px/1.55 var(--font);margin:0}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:40px;max-width:1240px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;max-height:calc(100vh - 32px);overflow:auto;
+  font-size:13.5px;border-right:1px solid var(--line);padding-right:16px}
+nav.toc .h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+nav.toc a{display:block;color:var(--body);text-decoration:none;padding:4px 8px;border-radius:4px;line-height:1.3}
+nav.toc a:hover{background:var(--accent-tint);color:var(--accent-ink)}
+nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+nav.toc .n{display:inline-block;width:22px;color:var(--muted);font-variant-numeric:tabular-nums}
+main{min-width:0;max-width:900px}
+h1{color:var(--fg);font-size:28px;line-height:1.2;margin:0 0 8px;text-wrap:balance}
+h2{color:var(--fg);font-size:21px;line-height:1.25;margin:56px 0 14px;padding-top:12px;border-top:1px solid var(--line);text-wrap:balance}
+h3{color:var(--fg);font-size:16px;margin:26px 0 8px}
+h4{color:var(--muted);font-size:12px;letter-spacing:.07em;text-transform:uppercase;margin:22px 0 8px;font-weight:600}
+p{margin:0 0 12px;max-width:72ch}
+ul,ol{margin:0 0 12px;padding-left:22px;max-width:72ch} li{margin:3px 0}
+.lead{font-size:16.5px;color:var(--body);max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.9em}
+code{background:var(--gray-tint);padding:1px 5px;border-radius:3px}
+b,strong{color:var(--fg);font-weight:600}
+
+.tbl{overflow-x:auto;margin:6px 0 16px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;vertical-align:top;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:12.5px;background:var(--panel);border-bottom:1px solid var(--line-strong)}
+td.num{text-align:right;white-space:nowrap}
+
+pre.code{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:14px 16px;overflow-x:auto;margin:6px 0 16px;color:var(--fg)}
+pre.code .c{color:var(--muted)}
+pre.code .k{color:var(--accent-ink);font-weight:600}
+
+.chip{display:inline-block;font-size:12px;line-height:1;padding:5px 8px;border-radius:999px;border:1px solid var(--line-strong);
+  color:var(--body);background:var(--card);white-space:nowrap}
+.chip.obj{background:var(--accent-tint);border-color:transparent;color:var(--accent-ink)}
+.chip.t-num,.chip.t-enum,.chip.t-bool{font-family:var(--mono);font-size:11.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+.await{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--warn);background:var(--warn-tint);
+  padding:3px 9px;border-radius:4px;margin:2px 0 10px}
+.await::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--warn)}
+
+.ind{border:1px solid var(--line);border-radius:8px;padding:22px 24px 10px;margin:22px 0 28px;background:var(--card)}
+.ind > h3{margin-top:0;font-size:19px;display:flex;gap:12px;align-items:baseline}
+.ind > h3 .no{font-variant-numeric:tabular-nums;color:var(--accent);font-size:15px;min-width:24px}
+.ind .what{font-size:15.5px;color:var(--fg);max-width:70ch}
+
+.callout{border-left:3px solid var(--accent);background:var(--accent-tint);padding:10px 14px;border-radius:0 6px 6px 0;margin:8px 0 16px;max-width:76ch}
+.callout.warn{border-color:var(--warn);background:var(--warn-tint)}
+.callout p:last-child{margin-bottom:0}
+
+/* Схемы из блоков */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0 18px}
+.box{border:1px solid var(--line-strong);border-radius:6px;padding:8px 12px;background:var(--card);font-size:13.5px;line-height:1.35}
+.box.acc{border-color:var(--accent);background:var(--accent-tint)}
+.box.ok{border-color:var(--ok);background:var(--ok-tint)}
+.box.warn{border-color:var(--warn);background:var(--warn-tint)}
+.box.bad{border-color:var(--bad);background:var(--bad-tint)}
+.box .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.arr{color:var(--muted);font-size:18px;line-height:1}
+.stack{display:flex;flex-direction:column;gap:8px}
+
+.figure{margin:10px 0 18px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 14px 8px}
+.figure .cap{font-size:12.5px;color:var(--muted);margin:6px 2px 4px}
+.scroll{overflow-x:auto}
+svg{display:block}
+svg .ax{stroke:var(--line-strong);stroke-width:1;fill:none}
+svg .grid{stroke:var(--line);stroke-width:1;fill:none}
+svg .t{fill:var(--body);font:12px var(--font)}
+svg .tm{fill:var(--muted);font:11.5px var(--font)}
+svg .tb{fill:var(--fg);font:600 12.5px var(--font)}
+svg .ln{stroke:var(--accent);stroke-width:2.5;fill:none}
+svg .ln2{stroke:var(--accent);stroke-width:1.5;fill:none;stroke-dasharray:4 4}
+svg .thr{stroke:var(--bad);stroke-width:1.5;stroke-dasharray:6 4;fill:none}
+svg .dot{fill:var(--accent)} svg .dotb{fill:var(--bad)} svg .doto{fill:var(--ok)}
+svg .r-bad{fill:var(--bad-tint);stroke:var(--bad);stroke-width:1}
+svg .r-warn{fill:var(--warn-tint);stroke:var(--warn);stroke-width:1}
+svg .r-acc{fill:var(--accent-tint);stroke:var(--accent);stroke-width:1}
+svg .r-lim{fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3}
+svg .tick{stroke:var(--muted);stroke-width:1}
+
+/* Обзорная схема */
+.over{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,220px);gap:12px 14px;align-items:center;margin:12px 0 22px}
+.over .lst{display:flex;flex-wrap:wrap;gap:6px}
+.over .lst .box{padding:6px 10px;font-size:13px}
+.over .row-h{grid-column:1/-1;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.owner{display:block;font-size:11.5px;color:var(--muted)}
+
+/* Лестница */
+.ladder{display:flex;flex-direction:column;gap:0;margin:10px 0 18px;max-width:760px}
+.step{display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,260px);gap:12px;align-items:center;padding:10px 12px;
+  border:1px solid var(--line);border-top:none;background:var(--card)}
+.step:first-child{border-top:1px solid var(--line);border-radius:6px 6px 0 0}
+.step:last-child{border-radius:0 0 6px 6px}
+.step .sn{font-size:12px;color:var(--muted)}
+.step .cond{font-size:14px}
+.step .res{display:flex;flex-wrap:wrap;gap:6px}
+.code-pill{font-family:var(--mono);font-size:12.5px;padding:3px 8px;border-radius:4px;background:var(--accent-tint);color:var(--accent-ink);white-space:nowrap}
+.code-pill.grey{background:var(--gray-tint);color:var(--body)}
+
+.yes{color:var(--ok);font-weight:600} .no-{color:var(--bad);font-weight:600} .unk{color:var(--warn);font-weight:600}
+.tag-ok,.tag-bad,.tag-warn,.tag-mut{display:inline-block;font-size:12px;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.tag-ok{background:var(--ok-tint);color:var(--ok)} .tag-bad{background:var(--bad-tint);color:var(--bad)}
+.tag-warn{background:var(--warn-tint);color:var(--warn)} .tag-mut{background:var(--gray-tint);color:var(--muted)}
+
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:8px 0 16px}
+.cols2 > div{min-width:0}
+
+@media (max-width: 900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:8px}
+  nav.toc{position:static;max-height:none;border-right:none;border-bottom:1px solid var(--line);padding:0 0 12px;columns:2;column-gap:16px}
+  nav.toc .h{break-after:avoid}
+  .over{grid-template-columns:minmax(0,1fr)}
+  .over .arr{transform:rotate(90deg);justify-self:start}
+  .step{grid-template-columns:52px minmax(0,1fr)}
+  .step .res{grid-column:2}
+  .ind{padding:18px 16px 6px}
+}
+@media (max-width: 480px){ nav.toc{columns:1} h1{font-size:24px} }
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+html{scroll-behavior:smooth}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Оглавление">
+  <div class="h">Основа</div>
+  <a href="#chto-takoe">Что такое показатель</a>
+  <a href="#zapis">Запись реестра</a>
+  <a href="#zapros">Запрос и ответ</a>
+  <a href="#pereschet">Когда пересчитывать</a>
+  <a href="#pravila">Правила реестра</a>
+  <div class="h">Типы</div>
+  <a href="#tipy">Три типа</a>
+  <a href="#tip-chislo">Число</a>
+  <a href="#tip-perech">Перечисление</a>
+  <a href="#tip-bul">Булево</a>
+  <a href="#ne-otdan">Ответ «не отдан»</a>
+  <a href="#vybor-tipa">Как выбрать тип</a>
+  <div class="h">Где используются</div>
+  <a href="#risk">Категория кредитного риска</a>
+  <a href="#podgruppa">Подгруппа заёмщика</a>
+  <div class="h">Показатели кредита</div>
+  <a href="#p1"><span class="n">1</span>Дней просрочки</a>
+  <a href="#p2"><span class="n">2</span>Слой-источник</a>
+  <a href="#p3"><span class="n">3</span>Кредит действующий</a>
+  <a href="#p4"><span class="n">4</span>Уровень фактора п. 11</a>
+  <a href="#p5"><span class="n">5</span>Перевод на 181-й день отложен</a>
+  <div class="h">Показатели заёмщика</div>
+  <a href="#p6"><span class="n">6</span>Худшая стадия взыскания</a>
+  <a href="#p7"><span class="n">7</span>Банкротное состояние</a>
+  <a href="#p8"><span class="n">8</span>Терминальный исход</a>
+  <a href="#p9"><span class="n">9</span>Кредиты выдавались</a>
+  <a href="#p10"><span class="n">10</span>Есть действующие кредиты</a>
+  <a href="#p11"><span class="n">11</span>Есть просрочка</a>
+  <div class="h">Пример</div>
+  <a href="#primer">Все значения на 14.08.2026</a>
+</nav>
+
+<main>
+<h1>Реестр показателей классификации</h1>
+<p class="lead">Классификация относит кредит к категории кредитного риска, а заёмщика — к подгруппе. Решает она по правилам, а правила читают <b>показатели</b>: дни просрочки, уровень фактора риска, стадию взыскания. Этот документ описывает каждый показатель: что он значит, кто его считает, как считается, где используется и когда меняется.</p>
+<p>Во всех примерах одни и те же демонстрационные данные: четыре заёмщика и восемь кредитов, текущая дата — <b>14.08.2026</b>.</p>
+
+<!-- ============================ ОСНОВА ============================ -->
+<h2 id="chto-takoe">Что такое показатель</h2>
+<p><b>Показатель</b> — именованная входная величина правил классификации. Он принадлежит одному объекту (кредиту или заёмщику) и на каждую дату имеет одно значение.</p>
+<p>Классификация показатели <b>не считает</b>. Каждый показатель считает его <b>владелец</b>: модуль, у которого есть исходные данные и который отвечает за смысл числа. Классификация только спрашивает значение и применяет к нему правила.</p>
+
+<div class="over" role="img" aria-label="Показатели кредита питают категорию риска, показатели заёмщика питают подгруппу">
+  <div class="row-h">Кредит</div>
+  <div class="lst">
+    <div class="box">1 · Дней просрочки<span class="owner">Платежи</span></div>
+    <div class="box">2 · Слой-источник<span class="owner">Платежи</span></div>
+    <div class="box">3 · Кредит действующий<span class="owner">Кредиты</span></div>
+    <div class="box">4 · Уровень фактора п. 11<span class="owner">Классификация</span></div>
+    <div class="box">5 · Перевод отложен<span class="owner">Реструктуризация</span></div>
+  </div>
+  <div class="arr">→</div>
+  <div class="box acc"><b>Категория кредитного риска</b><span class="s">низкий · средний · высокий</span></div>
+  <div class="row-h">Заёмщик</div>
+  <div class="lst">
+    <div class="box">6 · Худшая стадия<span class="owner">Взыскание</span></div>
+    <div class="box">7 · Банкротство<span class="owner">Взыскание</span></div>
+    <div class="box">8 · Терминальный исход<span class="owner">Взыскание</span></div>
+    <div class="box">9 · Кредиты выдавались<span class="owner">Кредиты</span></div>
+    <div class="box">10 · Есть действующие<span class="owner">Кредиты</span></div>
+    <div class="box">11 · Есть просрочка<span class="owner">Платежи</span></div>
+  </div>
+  <div class="arr">→</div>
+  <div class="box acc"><b>Подгруппа заёмщика</b><span class="s">коды 1.1 … 5.2</span></div>
+</div>
+
+<h2 id="zapis">Запись реестра</h2>
+<p>Реестр — список записей, по одной на показатель. Запись говорит, <b>что</b> это за величина и <b>кто</b> её считает. Формулы в записи нет: способ вычисления живёт в коде владельца, и второго места, где считается та же величина, быть не должно.</p>
+<div class="tbl"><table>
+<thead><tr><th>Поле</th><th>Что хранит</th><th>Пример</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>постоянный код, на него ссылаются правила</td><td><code>daysOverdue</code></td></tr>
+<tr><td><code>name</code></td><td>название, которое видит пользователь в правилах и объяснениях</td><td>Дней просрочки (худший слой)</td></tr>
+<tr><td><code>object</code></td><td>кредит или заёмщик</td><td>кредит</td></tr>
+<tr><td><code>type</code></td><td>число · перечисление · булево</td><td>число</td></tr>
+<tr><td><code>domain</code></td><td>только у перечисления: упорядоченный список значений</td><td>—</td></tr>
+<tr><td><code>owner</code></td><td>модуль, который считает значение; обязателен</td><td>Платежи</td></tr>
+<tr><td><code>pair</code></td><td>показатель, без которого этот не показывается</td><td><code>overdueLayer</code></td></tr>
+<tr><td><code>events</code></td><td>события владельца, после которых значение надо пересчитать</td><td>проведение платежа, сторно платежа…</td></tr>
+<tr><td><code>changesByDate</code></td><td>как значение меняется без события; пусто, если не меняется</td><td>растёт на 1 каждый день просрочки</td></tr>
+<tr><td><code>retired</code></td><td>показатель снят: виден, но новых ссылок не принимает</td><td><code>false</code></td></tr>
+</tbody></table></div>
+
+<h2 id="zapros">Запрос и ответ</h2>
+<p>Классификация спрашивает у владельца тройку <b>«показатель · объект · дата»</b>. Возможны три исхода.</p>
+<div class="flow">
+  <div class="box acc"><b>Классификация</b><span class="s">daysOverdue · КД-2024/117 · 14.08.2026</span></div>
+  <div class="arr">→</div>
+  <div class="box"><b>Владелец</b><span class="s">Платежи</span></div>
+  <div class="arr">→</div>
+  <div class="stack">
+    <div class="box ok"><b>Значение</b> — <span class="mono">214</span><span class="s">применяем правила</span></div>
+    <div class="box warn"><b>Не отдан</b><span class="s">владелец не может посчитать; объект получает «нет данных»</span></div>
+    <div class="box bad"><b>Сбой</b><span class="s">владелец недоступен; пересчёт объекта прерывается и повторяется</span></div>
+  </div>
+</div>
+<ul>
+<li><b>«Не отдан» — нормальный ответ</b>, а не ошибка: например, по новому кредиту ещё не заведён расчёт. Значение классификатора на эту дату становится «нет данных» с названием показателя и владельца.</li>
+<li><b>Сбой</b> — когда владелец не ответил вовсе. Ничего не записывается, объект остаётся в очереди на пересчёт.</li>
+<li>«Не отдан» нельзя заменять нулём или «нет». Ноль дней означает «просрочки нет», а здесь неизвестно, есть ли она.</li>
+</ul>
+
+<h2 id="pereschet">Когда пересчитывать</h2>
+<p>Значение показателя меняется двумя путями, и оба должны доводить объект до пересчёта.</p>
+<div class="cols2">
+  <div class="box"><b>По событию</b><span class="s" style="font-size:13px;color:var(--body)">Владелец провёл событие из списка <code>events</code> (платёж, выдача, решение комитета). В той же транзакции он ставит объекту отметку «пересчитать с даты события». Классификация пересчитывает значения объекта с этой даты по сегодня.</span></div>
+  <div class="box"><b>По дате</b><span class="s" style="font-size:13px;color:var(--body)">Значение меняется без события: дни просрочки растут, истёк срок фактора, прошли 70 дней рассмотрения. Такие показатели помечены полем <code>changesByDate</code>, и их объекты каждую ночь пересчитывает ночной прогон.</span></div>
+</div>
+
+<h2 id="pravila">Правила реестра</h2>
+<ol>
+<li><b>Без владельца показатель не заводится.</b> Владелец считает значение и отвечает за его смысл.</li>
+<li><b>Формулы нет.</b> Нужна величина, которой нет ни у одного владельца, — её сначала начинает считать владелец, потом она появляется в реестре.</li>
+<li><b>Перечисление заводится только с доменом</b> из двух и более различных значений. У числа и булева домена нет.</li>
+<li><b>Направление чтения.</b> Правило кредита может читать показатели кредита и показатели его заёмщика. Правило заёмщика читает только показатели заёмщика. Если заёмщику нужно что-то о его кредитах, владелец сам сворачивает кредиты в показатель заёмщика (как показатели 10 и 11).</li>
+<li><b>Парные показатели показываются вместе.</b> Число дней просрочки без названия слоя не выводится нигде.</li>
+<li><b>Снятие.</b> Показатель, на который ссылается действующая редакция классификатора (в правиле или в области), снять нельзя. Снятый показатель остаётся в реестре видимым и новых ссылок не принимает.</li>
+</ol>
+
+<!-- ============================ ТИПЫ ============================ -->
+<h2 id="tipy">Три типа показателей</h2>
+<p>Тип определяет, какие значения бывают, какими операторами их сравнивают и что можно написать справа в правиле. Правило всегда имеет вид:</p>
+<div class="flow">
+  <div class="box acc"><b>показатель</b><span class="s">из реестра</span></div>
+  <div class="arr">·</div>
+  <div class="box"><b>оператор</b><span class="s">по типу показателя</span></div>
+  <div class="arr">·</div>
+  <div class="box"><b>константа</b><span class="s">число / значение домена / да-нет</span></div>
+</div>
+<div class="tbl"><table>
+<thead><tr><th>Тип</th><th>Значения</th><th>Операторы</th><th>Константа справа</th><th>Пример</th></tr></thead>
+<tbody>
+<tr><td><b>Число</b></td><td>любое число</td><td class="mono">&gt; ≥ &lt; ≤ = ≠</td><td>число</td><td>дней просрочки <span class="mono">&gt;</span> 180</td></tr>
+<tr><td><b>Перечисление</b></td><td>одно значение из домена</td><td class="mono">= ≠ ∈ ∉</td><td>значение или список значений домена</td><td>уровень фактора <span class="mono">=</span> высокий</td></tr>
+<tr><td><b>Булево</b></td><td>да / нет</td><td class="mono">= ≠</td><td>да или нет</td><td>кредит действующий <span class="mono">=</span> да</td></tr>
+</tbody></table></div>
+<p>Редактор правил предлагает только операторы, допустимые для типа. Публикация редакции проверяет каждое правило и отказывает списком ошибок.</p>
+
+<h3 id="tip-chislo">Число</h3>
+<p><b>Когда:</b> у величины есть порядок и порог: дни, суммы, количества. В реестре сейчас один такой показатель — «Дней просрочки».</p>
+<p>Есть и строгие, и нестрогие операторы, потому что правило пишется словами нормы, без пересчёта в уме:</p>
+<div class="tbl"><table>
+<thead><tr><th>В норме</th><th>В правиле</th></tr></thead>
+<tbody>
+<tr><td>«свыше 180 календарных дней»</td><td class="mono">дней &gt; 180</td></tr>
+<tr><td>«от 181 календарного дня»</td><td class="mono">дней ≥ 181</td></tr>
+<tr><td>«от 1 дня»</td><td class="mono">дней ≥ 1</td></tr>
+</tbody></table></div>
+<p>На целых днях <span class="mono">&gt; 180</span> и <span class="mono">≥ 181</span> совпадают, на суммах с тыйынами — нет. Публикация отказывает, если справа не число.</p>
+
+<h3 id="tip-perech">Перечисление</h3>
+<p><b>Когда:</b> у величины конечный набор названных состояний: уровень, вид, стадия, исход. Список значений (домен) задаётся при заведении показателя.</p>
+<div class="tbl"><table>
+<thead><tr><th>Оператор</th><th>Значит</th><th>Пример</th></tr></thead>
+<tbody>
+<tr><td class="mono">=</td><td>равно значению</td><td>исход <span class="mono">=</span> полное погашение</td></tr>
+<tr><td class="mono">≠</td><td>не равно значению</td><td>уровень фактора <span class="mono">≠</span> нет</td></tr>
+<tr><td class="mono">∈</td><td>одно из списка</td><td>слой-источник <span class="mono">∈</span> {мировое соглашение, решение суда}</td></tr>
+<tr><td class="mono">∉</td><td>ни одно из списка</td><td>исход <span class="mono">∉</span> {признана безнадёжной, списана}</td></tr>
+</tbody></table></div>
+<ul>
+<li><span class="mono">∈</span> — сокращение для «= a или = b». Им пишут, только когда все значения списка ведут к одному результату. Если у каждого значения свой результат (стадия «судебный порядок» → 2.1, «исполнительное производство» → 2.2), пишут отдельные правила с <span class="mono">=</span>.</li>
+<li><b>Порядок домена значим</b>, когда показатель означает «худшее из нескольких»: <span class="mono">нет &lt; средний &lt; высокий</span>. Порядок задаёт владелец, и по нему он выбирает максимум.</li>
+</ul>
+<p>Публикация отказывает, если:</p>
+<ul>
+<li>значение не входит в домен;</li>
+<li>у <span class="mono">∈</span> или <span class="mono">∉</span> пустой список;</li>
+<li>в списке перечислен весь домен: такое правило всегда истинно или всегда ложно.</li>
+</ul>
+
+<h3 id="tip-bul">Булево</h3>
+<p><b>Когда:</b> ответ «да / нет» на один вопрос. Чаще всего в булево упакован вопрос о множестве: «есть ли хоть один действующий кредит», «есть ли просрочка хоть по одному кредиту». Владелец сам проходит по множеству и отдаёт одно значение.</p>
+
+<div class="callout">
+<p><b>В правилах нет «любой», «все» и сравнения двух показателей.</b> Справа всегда константа, слева всегда одно значение одного объекта. Вопрос о множестве или о соотношении двух величин владелец превращает в отдельный показатель:</p>
+<div class="tbl" style="margin-bottom:4px"><table>
+<thead><tr><th>Нужный вопрос</th><th>Как решён в реестре</th><th>Тип</th></tr></thead>
+<tbody>
+<tr><td>есть ли засчитанный фактор высокого уровня?</td><td>«Уровень фактора п. 11» — максимум по фактам</td><td>перечисление</td></tr>
+<tr><td>в каком слое просрочка хуже всего?</td><td>«Дней просрочки» + «Слой-источник» — одной парой</td><td>число + перечисление</td></tr>
+<tr><td>есть ли у заёмщика хоть один действующий кредит?</td><td>«Есть действующие кредиты»</td><td>булево</td></tr>
+<tr><td>остаток долга больше стоимости залога?</td><td>в реестре нет; при необходимости владелец залога заводит «Залог покрывает долг»</td><td>булево</td></tr>
+</tbody></table></div>
+</div>
+
+<h3 id="ne-otdan">Ответ «не отдан» у любого типа</h3>
+<div class="tbl"><table>
+<thead><tr><th>Тип</th><th>Значения</th><th>Третье состояние</th></tr></thead>
+<tbody>
+<tr><td>Число</td><td class="mono">214 · 0</td><td><span class="tag-warn">не отдан</span></td></tr>
+<tr><td>Перечисление</td><td>высокий · нет</td><td><span class="tag-warn">не отдан</span></td></tr>
+<tr><td>Булево</td><td>да · нет</td><td><span class="tag-warn">не отдан</span></td></tr>
+</tbody></table></div>
+<p>Если правилу нужен показатель, который не отдан, правило не считается ни истинным, ни ложным: значение классификатора на эту дату — «нет данных». Иначе кредит без расчёта просрочки молча получил бы «низкий риск».</p>
+
+<h3 id="vybor-tipa">Как выбрать тип для нового показателя</h3>
+<div class="stack" style="max-width:640px;margin:8px 0 14px">
+  <div class="box"><b>Сравниваем с порогом: больше, меньше?</b><span class="s">→ число</span></div>
+  <div class="box"><b>Одно из нескольких названных состояний?</b><span class="s">→ перечисление; если показатель означает «худшее из», задать порядок домена</span></div>
+  <div class="box"><b>Простой ответ да/нет, «есть ли хоть один»?</b><span class="s">→ булево</span></div>
+</div>
+<div class="callout warn"><p><b>Не заводите состояние набором булевых флагов.</b> «Суд: да/нет», «исполнительные листы: да/нет», «банкротство: да/нет» могут оказаться одновременно истинными и противоречить друг другу. Одно перечисление со значениями по порядку противоречить себе не может.</p></div>
+
+<!-- ============================ КЛАССИФИКАТОРЫ ============================ -->
+<h2 id="risk">Где используются: категория кредитного риска</h2>
+<p>Объект — кредит. Значения проверяются сверху вниз; кредит получает первое значение, у которого сработало хотя бы одно правило. Внутри правила должны выполниться все условия.</p>
+<h4>Область</h4>
+<p>Значение получает только действующий кредит: <span class="mono">кредит действующий = да</span>. Остальные получают «вне области». Это не «низкий риск», а отсутствие категории.</p>
+<h4>Правила</h4>
+<div class="tbl"><table>
+<thead><tr><th>Значение</th><th>Основание</th><th>Правило (любого достаточно)</th></tr></thead>
+<tbody>
+<tr><td><span class="tag-bad">Высокий</span></td><td>п. 19.1</td><td><span class="mono">дней просрочки &gt; 180</span> <b>И</b> <span class="mono">перевод отложен = нет</span></td></tr>
+<tr><td></td><td>п. 11.3</td><td><span class="mono">уровень фактора = высокий</span></td></tr>
+<tr><td><span class="tag-warn">Средний</span></td><td>п. 11.2</td><td><span class="mono">дней просрочки ≥ 1</span></td></tr>
+<tr><td></td><td>п. 11.2</td><td><span class="mono">уровень фактора = средний</span></td></tr>
+<tr><td><span class="tag-ok">Низкий</span></td><td>п. 11.1</td><td>по умолчанию, если не сработало ничего выше</td></tr>
+</tbody></table></div>
+<p>У среднего риска нет верхней границы «до 180 дней». Кредит с 200 днями и отложенным переводом не проходит правило высокого риска и должен остаться средним. Граница уже стоит в правиле высокого риска, а проверка сверху вниз делает её здесь лишней.</p>
+
+<h2 id="podgruppa">Где используются: подгруппа заёмщика</h2>
+<p>Объект — заёмщик. Области нет: подгруппу получает каждый заёмщик. Ступени проверяются сверху вниз, срабатывает первая.</p>
+<div class="ladder">
+  <div class="step"><span class="sn">ступень 0</span><span class="cond">кредиты выдавались = <b>нет</b></span><span class="res"><span class="code-pill grey">Кредиты не выдавались</span></span></div>
+  <div class="step"><span class="sn">ступень 1</span><span class="cond">терминальный исход =<br>завершена процедура банкротства / признана безнадёжной / списана / полное погашение</span><span class="res"><span class="code-pill">3.2</span><span class="code-pill">4</span><span class="code-pill">5.2</span><span class="code-pill">5.1</span></span></div>
+  <div class="step"><span class="sn">ступень 2</span><span class="cond">банкротное состояние =<br>признан банкротом / инициирование банкротства</span><span class="res"><span class="code-pill">3.1</span><span class="code-pill">2.3</span></span></div>
+  <div class="step"><span class="sn">ступень 3</span><span class="cond">худшая стадия =<br>исполнительное производство / судебный порядок</span><span class="res"><span class="code-pill">2.2</span><span class="code-pill">2.1</span></span></div>
+  <div class="step"><span class="sn">ступень 4</span><span class="cond">есть действующие кредиты = <b>нет</b></span><span class="res"><span class="code-pill grey">Кредиты закрыты</span></span></div>
+  <div class="step"><span class="sn">ступень 5</span><span class="cond">есть просрочка по действующим = <b>да</b></span><span class="res"><span class="code-pill">1.2</span></span></div>
+  <div class="step"><span class="sn">иначе</span><span class="cond">по умолчанию</span><span class="res"><span class="code-pill">1.1</span></span></div>
+</div>
+<p>Почему такой порядок:</p>
+<ul>
+<li><b>Ступень 0 первая.</b> Иначе заёмщик, которому ещё ничего не выдали, упал бы в 1.1 «Погашают по графику».</li>
+<li><b>Исход выше текущей работы.</b> Завершённое банкротство или признание долга безнадёжным — итог, а не ход работы.</li>
+<li><b>Банкротство выше стадии.</b> Банкротство — состояние лица, и оно важнее того, на какой стадии отдельные требования.</li>
+<li><b>«Кредиты закрыты» после исходов.</b> У погашенных и списанных кредиты тоже закрыты. Если проверить закрытие раньше, они потеряли бы свой код.</li>
+</ul>
+<div class="await">Ждёт ответа заказчика: кода для ступени 4 (все кредиты расторгнуты) и кода 1.2 в норме нет; Инструкции о группах платёжеспособности у нас нет</div>
+
+<!-- ============================ ПОКАЗАТЕЛИ КРЕДИТА ============================ -->
+<h2>Показатели кредита</h2>
+
+<!-- 1 -->
+<section class="ind" id="p1">
+<h3><span class="no">1</span>Дней просрочки (худший слой)</h3>
+<div class="chips"><span class="chip obj">кредит</span><span class="chip t-num">число</span><span class="chip">владелец: Платежи</span><span class="chip mono">daysOverdue</span><span class="chip">пара: слой-источник</span></div>
+<p class="what">Сколько календарных дней кредит находится в просрочке на конец даты. Если долг разделён на слои, берётся слой, где дней больше всего.</p>
+
+<h4>Что такое слой</h4>
+<p>Слой — часть долга по кредиту, которая подчиняется своему решению и потому имеет свои сроки. Пока суда не было, весь долг — один свободный слой.</p>
+<div class="tbl"><table>
+<thead><tr><th>Слой</th><th>Что это</th><th>Откуда сроки взносов</th></tr></thead>
+<tbody>
+<tr><td><b>свободный слой</b></td><td>долг по договору, не затронутый решениями суда</td><td>график погашения</td></tr>
+<tr><td><b>мировое соглашение</b></td><td>часть долга по утверждённому судом мировому соглашению</td><td>график мирового соглашения</td></tr>
+<tr><td><b>решение суда</b></td><td>часть долга, присуждённая решением суда</td><td>вся сумма к уплате на дату решения</td></tr>
+</tbody></table></div>
+<p>Новый слой появляется с решением суда, исчезает с датой акта об отмене. Реструктуризация слоя не создаёт: она меняет график свободного слоя.</p>
+
+<h4>Как считается</h4>
+<ol>
+<li>Для каждого слоя, живого на дату D, найти <b>самый ранний</b> взнос со сроком раньше D, не оплаченный к концу дня D.</li>
+<li>Дней по слою = D − срок этого взноса. Взнос со сроком 12.01 просрочен с 13.01: на 13.01 — 1 день.</li>
+<li>Неоплаченных взносов нет — 0 дней.</li>
+<li>Показатель = максимум по слоям. Слой с этим максимумом — показатель 2.</li>
+</ol>
+<pre class="code"><span class="k">daysOverdue</span>(credit, D):
+  <span class="k">если</span> расчёт просрочки по кредиту не заведён → <span class="k">НЕ_ОТДАН</span> <span class="c">// вместе с показателем 2</span>
+  <span class="k">для</span> каждого слоя L, живого на D:
+    oldest = самый ранний взнос L, у которого срок &lt; D и (не оплачен или оплачен после D)
+    days[L] = oldest ? (D − oldest.срок) : 0
+  worst = слой с наибольшим days; при равенстве — слой, возникший раньше
+  <span class="k">вернуть</span> days[worst]</pre>
+
+<p>Платёж по самому старому взносу сдвигает отсчёт на следующий неоплаченный взнос, поэтому число дней может <b>уменьшиться</b>.</p>
+
+<div class="figure">
+<div class="scroll">
+<svg viewBox="0 0 780 290" width="100%" style="min-width:620px" role="img" aria-label="График дней просрочки кредита КД-2024/117 с декабря 2025 по август 2026">
+  <!-- сетка: y = 230 − дни × 0,8333; x = 60 + день_от_01.12.2025 × 2,4908 -->
+  <line class="grid" x1="60" y1="146.7" x2="740" y2="146.7"/>
+  <line class="grid" x1="60" y1="63.3" x2="740" y2="63.3"/>
+  <line class="ax" x1="60" y1="230" x2="740" y2="230"/>
+  <line class="ax" x1="60" y1="30" x2="60" y2="230"/>
+  <text class="tm" x="52" y="234" text-anchor="end">0</text>
+  <text class="tm" x="52" y="150.7" text-anchor="end">100</text>
+  <text class="tm" x="52" y="67.3" text-anchor="end">200</text>
+  <!-- месяцы -->
+  <g class="tm" text-anchor="middle">
+    <line class="tick" x1="60" y1="230" x2="60" y2="235"/><text class="tm" x="60" y="249">дек</text>
+    <line class="tick" x1="137.2" y1="230" x2="137.2" y2="235"/><text class="tm" x="137.2" y="249">янв</text>
+    <line class="tick" x1="214.4" y1="230" x2="214.4" y2="235"/><text class="tm" x="214.4" y="249">фев</text>
+    <line class="tick" x1="284.2" y1="230" x2="284.2" y2="235"/><text class="tm" x="284.2" y="249">мар</text>
+    <line class="tick" x1="361.4" y1="230" x2="361.4" y2="235"/><text class="tm" x="361.4" y="249">апр</text>
+    <line class="tick" x1="436.1" y1="230" x2="436.1" y2="235"/><text class="tm" x="436.1" y="249">май</text>
+    <line class="tick" x1="513.3" y1="230" x2="513.3" y2="235"/><text class="tm" x="513.3" y="249">июн</text>
+    <line class="tick" x1="588.0" y1="230" x2="588.0" y2="235"/><text class="tm" x="588.0" y="249">июл</text>
+    <line class="tick" x1="665.3" y1="230" x2="665.3" y2="235"/><text class="tm" x="665.3" y="249">авг</text>
+  </g>
+  <!-- порог 180 -->
+  <line class="thr" x1="60" y1="80" x2="740" y2="80"/>
+  <text class="t" x="66" y="74" style="fill:var(--bad)">порог высокого риска: свыше 180</text>
+  <!-- отсчёт от 12.01, который начинает действовать после платежа -->
+  <line class="ln2" x1="164.6" y1="230" x2="635.4" y2="72.5"/>
+  <!-- фактическое значение -->
+  <polyline class="ln" points="87.4,230 635.4,46.7 635.4,72.5 697.6,51.7"/>
+  <circle class="dotb" cx="538.2" cy="79.2" r="4"/>
+  <text class="t" x="530" y="100" text-anchor="end">11.06 · 181-й день</text>
+  <circle class="dot" cx="635.4" cy="46.7" r="4"/>
+  <text class="t" x="628" y="40" text-anchor="end">20.07 · 220 дней → платёж</text>
+  <circle class="dot" cx="635.4" cy="72.5" r="4"/>
+  <text class="t" x="628" y="118" text-anchor="end">после платежа 189 (−31)</text>
+  <line class="grid" x1="628" y1="114" x2="634" y2="76"/>
+  <circle class="dot" cx="697.6" cy="51.7" r="5"/>
+  <text class="tb" x="704" y="46">214</text>
+  <text class="tm" x="704" y="62">14.08</text>
+  <!-- взносы -->
+  <circle class="doto" cx="87.4" cy="230" r="4"/>
+  <text class="tm" x="92" y="222">взнос 12.12.2025</text>
+  <circle class="doto" cx="164.6" cy="230" r="4"/>
+  <text class="tm" x="170" y="222">взнос 12.01.2026</text>
+  <text class="tm" x="390" y="272" text-anchor="middle">сплошная линия — значение показателя; пунктир — отсчёт от взноса 12.01, который становится главным после платежа</text>
+</svg>
+</div>
+<div class="cap">КД-2024/117. Взнос 12.12.2025 оплачен только 20.07.2026, взнос 12.01.2026 не оплачен. До платежа отсчёт идёт от 12.12.2025, после — от 12.01.2026.</div>
+</div>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Кредит</th><th class="num">Дней</th><th>Слой</th><th>Почему</th></tr></thead>
+<tbody>
+<tr><td>КД-2024/117</td><td class="num"><b>214</b></td><td>свободный слой</td><td>старейший неоплаченный взнос — 12.01.2026</td></tr>
+<tr><td>КД-2023/210</td><td class="num"><b>200</b></td><td>свободный слой</td><td>платёж 22.07 закрыл взнос 26.12.2025, следующий неоплаченный — 26.01.2026</td></tr>
+<tr><td>КД-2025/101</td><td class="num"><b>45</b></td><td>мировое соглашение</td><td>взнос по мировому соглашению 30.06.2026 не оплачен; в свободном слое 0</td></tr>
+<tr><td>КД-2025/088</td><td class="num"><b>12</b></td><td>свободный слой</td><td>платёж 05.08 закрыл июльский взнос, августовский (02.08) просрочен</td></tr>
+<tr><td>КД-2025/043</td><td class="num"><b>0</b></td><td>нет просрочки</td><td>взнос 14.08 ещё в сроке; не оплатят — 15.08 будет 1 день</td></tr>
+<tr><td>КД-2026/012</td><td class="num"><span class="tag-warn">не отдан</span></td><td><span class="tag-warn">не отдан</span></td><td>кредит выдан 12.08.2026, расчёт просрочки ещё не заведён</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<ul>
+<li>Категория риска, высокий: <span class="mono">дней &gt; 180 И перевод отложен = нет</span>.</li>
+<li>Категория риска, средний: <span class="mono">дней ≥ 1</span>.</li>
+<li>Через показатель 11 — подгруппа заёмщика 1.2.</li>
+</ul>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>проведение платежа · сторно платежа · заведение или отзыв расчёта · решение суда или его отмена (меняются слои) · вступление допсоглашения (новый график)</td></tr>
+<tr><th>По дате</th><td>растёт на 1 каждый день, пока есть неоплаченный просроченный взнос; ночной прогон пересчитывает каждую ночь</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 2 -->
+<section class="ind" id="p2">
+<h3><span class="no">2</span>Слой-источник просрочки</h3>
+<div class="chips"><span class="chip obj">кредит</span><span class="chip t-enum">перечисление</span><span class="chip">владелец: Платежи</span><span class="chip mono">overdueLayer</span><span class="chip">пара: дней просрочки</span></div>
+<p class="what">Название слоя, из которого взято число дней показателя 1. Без него число нельзя показать: 45 дней по мировому соглашению и 45 дней по договору требуют разных действий.</p>
+
+<h4>Значения</h4>
+<div class="tbl"><table>
+<thead><tr><th>Значение</th><th>Когда</th></tr></thead>
+<tbody>
+<tr><td>нет просрочки</td><td>во всех слоях 0 дней</td></tr>
+<tr><td>свободный слой</td><td>худший — долг по договору</td></tr>
+<tr><td>мировое соглашение</td><td>худший — слой мирового соглашения</td></tr>
+<tr><td>решение суда</td><td>худший — слой, присуждённый решением суда</td></tr>
+</tbody></table></div>
+
+<h4>Как считается</h4>
+<p>Одним расчётом с показателем 1 и одним ответом. Если оба слоя дают одинаковое число дней, побеждает слой, возникший раньше; свободный слой возникает вместе с кредитом.</p>
+<div class="flow">
+  <div class="stack">
+    <div class="box">свободный слой<span class="s">0 дней</span></div>
+    <div class="box warn">мировое соглашение<span class="s">45 дней — максимум</span></div>
+  </div>
+  <div class="arr">→</div>
+  <div class="stack">
+    <div class="box acc">показатель 1 = <b>45</b></div>
+    <div class="box acc">показатель 2 = <b>мировое соглашение</b></div>
+  </div>
+</div>
+<div class="cap" style="font-size:12.5px;color:var(--muted);margin:-8px 0 14px">КД-2025/101 на 14.08.2026.</div>
+<pre class="code"><span class="k">overdueLayer</span>(credit, D):
+  <span class="k">если</span> daysOverdue = НЕ_ОТДАН → <span class="k">НЕ_ОТДАН</span>
+  <span class="k">если</span> daysOverdue = 0 → «нет просрочки»
+  <span class="k">вернуть</span> вид слоя worst  <span class="c">// тот же worst, что в daysOverdue</span></pre>
+
+<h4>Где используется</h4>
+<p>Действующие правила его не читают. Он подписывает число дней везде, где оно показано: в объяснении категории, в карточке кредита. Правилом его использовать можно, например <span class="mono">слой-источник ∈ {мировое соглашение, решение суда}</span>.</p>
+
+<h4>Когда меняется</h4>
+<p>Вместе с показателем 1, по тем же событиям и каждую ночь.</p>
+</section>
+
+<!-- 3 -->
+<section class="ind" id="p3">
+<h3><span class="no">3</span>Кредит действующий</h3>
+<div class="chips"><span class="chip obj">кредит</span><span class="chip t-bool">булево</span><span class="chip">владелец: Кредиты</span><span class="chip mono">creditActive</span></div>
+<p class="what">Находится ли кредит на дату в состоянии «Действует».</p>
+
+<h4>Как считается</h4>
+<p>Читается из жизненного цикла кредита. «Действует» начинается с даты <b>первого освоения</b>, а не с подписания договора, и заканчивается в день закрытия.</p>
+<div class="flow">
+  <div class="box">Проект<span class="s">нет</span></div><div class="arr">→</div>
+  <div class="box">Зарегистрирован<span class="s">нет</span></div><div class="arr">→</div>
+  <div class="box ok"><b>Действует</b><span class="s">да · с первого освоения</span></div><div class="arr">→</div>
+  <div class="box">Закрыт<span class="s">нет · с дня закрытия<br>погашен / списан / расторгнут</span></div>
+</div>
+<pre class="code"><span class="k">creditActive</span>(credit, D) =
+  credit.датаПервогоОсвоения ≤ D
+  <span class="k">и</span> (credit.датаЗакрытия пусто <span class="k">или</span> D &lt; credit.датаЗакрытия)</pre>
+<p>Обратного хода нет: закрытый кредит снова действующим не становится.</p>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Кредит</th><th>Первое освоение</th><th>Закрыт</th><th>Значение</th></tr></thead>
+<tbody>
+<tr><td>КД-2024/117</td><td>12.03.2024</td><td>—</td><td class="yes">да</td></tr>
+<tr><td>КД-2026/012</td><td>12.08.2026</td><td>—</td><td class="yes">да</td></tr>
+<tr><td>КД-2019/004</td><td>08.04.2019</td><td>28.11.2025</td><td class="no-">нет</td></tr>
+<tr><td>КД-2018/052</td><td>01.10.2018</td><td>30.09.2024</td><td class="no-">нет</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<p>Это <b>область</b> категории кредитного риска: <span class="mono">кредит действующий = да</span>. Кредит с «нет» категории не получает, его значение — «вне области».</p>
+<div class="flow">
+  <div class="box">кредит</div><div class="arr">→</div>
+  <div class="box acc">действующий?</div><div class="arr">→</div>
+  <div class="stack"><div class="box ok">да → правила: высокий · средний · низкий</div><div class="box">нет → «вне области», категории нет</div></div>
+</div>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>первое освоение · закрытие кредита</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 4 -->
+<section class="ind" id="p4">
+<h3><span class="no">4</span>Максимальный уровень действующего фактора п. 11</h3>
+<div class="chips"><span class="chip obj">кредит</span><span class="chip t-enum">перечисление</span><span class="chip">владелец: Классификация</span><span class="chip mono">factorLevel</span></div>
+<p class="what">Самый тяжёлый из засчитанных на дату факторов риска по кредиту: нет, средний или высокий. Факторы — обстоятельства из п. 11 Порядка, которые поднимают категорию независимо от просрочки.</p>
+
+<h4>Значения</h4>
+<p class="mono">нет &lt; средний &lt; высокий</p>
+
+<h4>Откуда берутся факторы</h4>
+<p>Пользователь вводит <b>факт</b>: что произошло. Уровень он не выбирает — уровень приходит из справочника вместе с видом фактора.</p>
+<div class="tbl"><table>
+<thead><tr><th>Реквизит факта</th><th>Зачем</th></tr></thead>
+<tbody>
+<tr><td>кредит</td><td>к какому кредиту относится</td></tr>
+<tr><td>вид фактора</td><td>из справочника ниже; задаёт уровень</td></tr>
+<tr><td>дата наступления</td><td>когда обстоятельство возникло</td></tr>
+<tr><td>действует до</td><td>до какой даты фактор жив; пусто — бессрочно</td></tr>
+<tr><td>решение комитета</td><td>номер и дата протокола; без него фактор не засчитывается</td></tr>
+<tr><td>автор</td><td>кто ввёл</td></tr>
+</tbody></table></div>
+
+<h4>Справочник видов факторов</h4>
+<div class="tbl"><table>
+<thead><tr><th>Вид фактора</th><th>Уровень</th><th>Пункт</th></tr></thead>
+<tbody>
+<tr><td>Задержка или уклонение от предоставления документов, уклонение от подписания акта сверки свыше 60 календарных дней</td><td><span class="tag-warn">средний</span></td><td>11.2</td></tr>
+<tr><td>Частичное нарушение условий договора о залоге</td><td><span class="tag-warn">средний</span></td><td>11.2</td></tr>
+<tr><td>Трудности при сохранении контакта: мотивированные обращения и гарантийные письма заёмщика</td><td><span class="tag-warn">средний</span></td><td>11.2</td></tr>
+<tr><td>Непредоставление надлежаще оформленного обеспечения</td><td><span class="tag-bad">высокий</span></td><td>11.3</td></tr>
+<tr><td>Нарушение условий договора залога: порча, утрата предмета залога, нарушение правил распоряжения</td><td><span class="tag-bad">высокий</span></td><td>11.3</td></tr>
+<tr><td>Воспрепятствование мониторингу: нет ответа свыше 90 календарных дней</td><td><span class="tag-bad">высокий</span></td><td>11.3</td></tr>
+<tr><td>Нецелевое использование средств</td><td><span class="tag-bad">высокий</span></td><td>11.3</td></tr>
+<tr><td>Иные обстоятельства, прямо указывающие на риск невозврата</td><td><span class="tag-bad">высокий</span></td><td>11.3</td></tr>
+</tbody></table></div>
+<p>Дней просрочки в справочнике нет: это единственный фактор п. 11, который система считает сама (показатель 1).</p>
+
+<h4>Как считается</h4>
+<div class="flow">
+  <div class="box">все факты кредита</div><div class="arr">→</div>
+  <div class="box acc">фильтр «засчитан на D»<span class="s">есть решение комитета · не аннулирован<br>учтён с ≤ D ≤ действует до</span></div><div class="arr">→</div>
+  <div class="box">уровни из справочника</div><div class="arr">→</div>
+  <div class="box ok"><b>максимум</b><span class="s">нет фактов → «нет»</span></div>
+</div>
+<pre class="code"><span class="k">counted</span>(f, D) = f.решениеКомитета есть
+             <span class="k">и</span> f не аннулирован
+             <span class="k">и</span> f.учтёнС ≤ D
+             <span class="k">и</span> (f.действуетДо пусто <span class="k">или</span> D ≤ f.действуетДо)
+
+<span class="k">factorLevel</span>(credit, D) = max( уровень(вид(f)) для f из фактов credit, где counted(f, D) )
+                       <span class="c">// порядок: нет &lt; средний &lt; высокий; фактов нет → «нет»</span></pre>
+<p><b>«Учтён с»</b> обычно равен дате наступления. Если факт наступил в уже закрытом месяце, он засчитывается с первого дня первого открытого месяца: закрытый месяц не пересчитывается.</p>
+
+<h4>Судьба факта</h4>
+<p>Реестр фактов кредита показывает у каждого факта ровно одну судьбу. По ней можно фильтровать и считать.</p>
+<div class="tbl"><table>
+<thead><tr><th>Судьба</th><th>Когда</th></tr></thead>
+<tbody>
+<tr><td><span class="tag-ok">засчитан</span></td><td>вошёл в показатель</td></tr>
+<tr><td><span class="tag-bad">не засчитан: нет решения комитета</span></td><td>реквизитов решения нет</td></tr>
+<tr><td><span class="tag-bad">не засчитан: срок истёк</span></td><td>дата «действует до» прошла</td></tr>
+<tr><td><span class="tag-mut">не засчитан: ведёт к более лёгкому значению</span></td><td>средний фактор у кредита, который уже высокого риска</td></tr>
+<tr><td><span class="tag-mut">аннулирован</span></td><td>ошибка ввода, закрыта аннулированием с причиной; факт не удаляется</td></tr>
+</tbody></table></div>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Факт</th><th>Кредит</th><th>Вид → уровень</th><th>Решение</th><th>Судьба</th><th>Показатель кредита</th></tr></thead>
+<tbody>
+<tr><td>F-001</td><td>КД-2024/117</td><td>нецелевое использование → высокий</td><td>№ 14 от 22.05</td><td><span class="tag-ok">засчитан</span></td><td rowspan="2"><b>высокий</b></td></tr>
+<tr><td>F-005</td><td>КД-2024/117</td><td>уклонение от акта сверки → средний</td><td>№ 21 от 18.07</td><td><span class="tag-mut">более лёгкое значение</span></td></tr>
+<tr><td>F-003</td><td>КД-2025/088</td><td>частичное нарушение договора залога → средний</td><td>№ 19 от 30.06</td><td><span class="tag-ok">засчитан с 01.07</span> (наступил 12.06, июнь закрыт)</td><td><b>средний</b></td></tr>
+<tr><td>F-002</td><td>КД-2025/043</td><td>уклонение от акта сверки → средний</td><td>—</td><td><span class="tag-bad">нет решения комитета</span></td><td>нет</td></tr>
+<tr><td>F-004</td><td>КД-2025/101</td><td>непредоставление документов → средний</td><td>№ 11 от 05.05</td><td><span class="tag-bad">срок истёк 31.07</span></td><td>нет (до 31.07 — средний)</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<ul>
+<li>Категория риска, высокий: <span class="mono">уровень фактора = высокий</span>.</li>
+<li>Категория риска, средний: <span class="mono">уровень фактора = средний</span>.</li>
+</ul>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>факт заведён · факт получил решение комитета · факт аннулирован</td></tr>
+<tr><th>По дате</th><td>прошла дата «действует до»; ночной прогон</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 5 -->
+<section class="ind" id="p5">
+<h3><span class="no">5</span>Перевод на 181-й день отложен</h3>
+<div class="chips"><span class="chip obj">кредит</span><span class="chip t-bool">булево</span><span class="chip">владелец: Реструктуризация</span><span class="chip mono">defer181</span></div>
+<p class="what">Отложен ли на дату автоматический перевод кредита в высокий риск на 181-й день просрочки, потому что идёт рассмотрение реструктуризации.</p>
+<div class="callout"><p><b>П. 19.1 Порядка:</b> на 181-й день просрочки система сама переводит кредит в высокий риск, кроме случая, когда куратор зарегистрировал рассмотрение реструктуризации в пределах 70 календарных дней. Если в реструктуризации отказали, перевод происходит на следующий календарный день после фиксации отказа.</p></div>
+
+<h4>Как считается</h4>
+<p>Признак не хранится, а выводится из заявки на реструктуризацию. «Да», пока выполнены все три условия:</p>
+<ol>
+<li>по кредиту зарегистрировано рассмотрение реструктуризации;</li>
+<li>не прошли 70 календарных дней: день регистрации — первый, последний день отложения — 70-й;</li>
+<li>отказ не зафиксирован, либо зафиксирован в день D: в день отказа перевод ещё отложен, со следующего дня — нет.</li>
+</ol>
+<pre class="code"><span class="k">defer181</span>(credit, D):
+  r = рассмотрение реструктуризации по кредиту с датой регистрации ≤ D
+  <span class="k">если</span> r нет                              → нет
+  <span class="k">если</span> D &gt; r.датаРегистрации + 69 дней    → нет   <span class="c">// прошли 70 дней</span>
+  <span class="k">если</span> r.отказ есть <span class="k">и</span> D &gt; r.датаОтказа    → нет   <span class="c">// высокий — со следующего дня</span>
+  <span class="k">если</span> r.допсоглашение вступило <span class="k">и</span> D ≥ r.датаВступления → нет
+  <span class="k">иначе</span>                                  → да</pre>
+
+<h4>Чем заканчивается отложение</h4>
+<div class="tbl"><table>
+<thead><tr><th>Событие</th><th>Что дальше</th></tr></thead>
+<tbody>
+<tr><td>Отказ в реструктуризации</td><td>со следующего дня кредит с просрочкой свыше 180 дней — высокий риск</td></tr>
+<tr><td>Вступило допсоглашение</td><td>просрочка считается по новому графику; переводить становится нечего</td></tr>
+<tr><td>Прошли 70 дней</td><td>отложение снимается само по календарю, без записи</td></tr>
+</tbody></table></div>
+
+<div class="figure">
+<div class="scroll">
+<svg viewBox="0 0 780 250" width="100%" style="min-width:620px" role="img" aria-label="Шкала времени кредита КД-2023/210 с 20 июня по 15 сентября 2026">
+  <!-- x = 40 + день_от_20.06.2026 × 8,046 -->
+  <text class="tm" x="40" y="22">дата</text>
+  <g>
+    <line class="tick" x1="128.5" y1="30" x2="128.5" y2="214"/><text class="tm" x="128.5" y="230" text-anchor="middle">01.07</text>
+    <line class="tick" x1="377.9" y1="30" x2="377.9" y2="214"/><text class="tm" x="377.9" y="230" text-anchor="middle">01.08</text>
+    <line class="tick" x1="627.4" y1="30" x2="627.4" y2="214"/><text class="tm" x="627.4" y="230" text-anchor="middle">01.09</text>
+  </g>
+  <!-- строка 1: рассмотрение -->
+  <text class="tb" x="40" y="52">Рассмотрение реструктуризации</text>
+  <rect class="r-acc" x="128.5" y="60" width="434.5" height="22" rx="3"/>
+  <rect class="r-lim" x="563" y="60" width="120.7" height="22" rx="3"/>
+  <text class="t" x="136" y="75">зарегистрировано 01.07</text>
+  <text class="t" x="556" y="75" text-anchor="end">отказ 24.08</text>
+  <text class="tm" x="570" y="75">предел до 08.09</text>
+  <!-- строка 2: отложено -->
+  <text class="tb" x="40" y="110">Перевод отложен</text>
+  <rect class="r-acc" x="128.5" y="118" width="442.5" height="22" rx="3"/>
+  <text class="t" x="136" y="133">да: 01.07 — 24.08</text>
+  <text class="t" x="44" y="133">нет</text>
+  <text class="t" x="578" y="133">нет</text>
+  <!-- строка 3: категория -->
+  <text class="tb" x="40" y="168">Категория кредитного риска</text>
+  <rect class="r-warn" x="40" y="176" width="40.2" height="22" rx="3"/>
+  <rect class="r-bad" x="80.2" y="176" width="48.3" height="22" rx="3"/>
+  <rect class="r-warn" x="128.5" y="176" width="442.5" height="22" rx="3"/>
+  <rect class="r-bad" x="571" y="176" width="169" height="22" rx="3"/>
+  <text class="t" x="84" y="191">высокий</text>
+  <text class="t" x="136" y="191">средний: дней больше 180, но перевод отложен</text>
+  <text class="t" x="578" y="191">высокий с 25.08</text>
+  <!-- отметки -->
+  <line x1="80.2" y1="170" x2="80.2" y2="214" style="stroke:var(--bad);stroke-width:1.5"/>
+  <text class="tm" x="80.2" y="244" text-anchor="middle">25.06 · 181-й день</text>
+  <line x1="482.5" y1="30" x2="482.5" y2="214" style="stroke:var(--accent);stroke-width:2"/>
+  <text class="tb" x="482.5" y="244" text-anchor="middle" style="fill:var(--accent-ink)">14.08 · 200 дней</text>
+</svg>
+</div>
+<div class="cap">КД-2023/210. Просрочка свыше 180 дней с 25.06. С 01.07 идёт рассмотрение реструктуризации, и кредит остаётся средним риском. 24.08 зафиксирован отказ, с 25.08 — высокий риск. Без отказа отложение закончилось бы после 08.09.</div>
+</div>
+
+<h4>Как правила дают «средний» на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Значение</th><th>Правило</th><th>КД-2023/210</th></tr></thead>
+<tbody>
+<tr><td><span class="tag-bad">Высокий</span></td><td>дней &gt; 180 И перевод отложен = нет</td><td>200 &gt; 180 — да; отложен = да — <span class="no-">не сработало</span></td></tr>
+<tr><td><span class="tag-bad">Высокий</span></td><td>уровень фактора = высокий</td><td>фактора нет — <span class="no-">не сработало</span></td></tr>
+<tr><td><span class="tag-warn">Средний</span></td><td>дней ≥ 1</td><td>200 ≥ 1 — <span class="yes">сработало</span> → <b>средний</b></td></tr>
+</tbody></table></div>
+
+<h4>Чего отложение не касается</h4>
+<ul>
+<li><b>Дни просрочки</b> продолжают расти: 200 дней остаются 200 днями.</li>
+<li><b>Высокий риск от фактора п. 11</b> отложением не снимается. Поэтому у правила по фактору нет условия про отложение.</li>
+<li><b>Пеня</b> продолжает начисляться.</li>
+</ul>
+
+<h4>Где используется</h4>
+<p>Категория риска, высокий: <span class="mono">дней &gt; 180 И перевод отложен = нет</span>.</p>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>рассмотрение зарегистрировано · отказ зафиксирован · допсоглашение вступило</td></tr>
+<tr><th>По дате</th><td>прошли 70 дней рассмотрения; наступил день после отказа; ночной прогон</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================ ПОКАЗАТЕЛИ ЗАЁМЩИКА ============================ -->
+<h2>Показатели заёмщика</h2>
+<p>Правило заёмщика не читает показатели его кредитов. Всё, что заёмщику нужно знать о кредитах, владелец сворачивает сам и отдаёт показателем заёмщика.</p>
+
+<!-- 6 -->
+<section class="ind" id="p6">
+<h3><span class="no">6</span>Худшая стадия взыскания</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-enum">перечисление</span><span class="chip">владелец: Взыскание</span><span class="chip mono">worstStage</span></div>
+<p class="what">Самая продвинутая стадия взыскания среди открытых на дату требований к заёмщику.</p>
+
+<h4>Требование и стадия</h4>
+<p><b>Требование</b> — работа взыскания по одному кредиту с одним обязанным лицом. У заёмщика с тремя кредитами в просрочке может быть три открытых требования. <b>Стадия</b> требования — участок пути взыскания; её выводит взыскание из зарегистрированных документов (претензия, иск, решение суда, исполнительный лист).</p>
+
+<h4>Значения</h4>
+<div class="flow">
+  <div class="box">нет открытых требований</div><div class="arr">&lt;</div>
+  <div class="box">наблюдение</div><div class="arr">&lt;</div>
+  <div class="box">досудебный порядок</div><div class="arr">&lt;</div>
+  <div class="box warn">судебный порядок</div><div class="arr">&lt;</div>
+  <div class="box bad">исполнительное производство</div>
+</div>
+
+<h4>Как считается</h4>
+<pre class="code"><span class="k">worstStage</span>(borrower, D):
+  T = требования к заёмщику (в роли заёмщика), открытые на D, по всем его кредитам
+  <span class="k">если</span> T пусто → «нет открытых требований»
+  <span class="k">вернуть</span> max( стадия(t, D) для t из T )   <span class="c">// по порядку домена</span></pre>
+<p>Берётся максимум, а не стадия последнего требования: новый иск по свежей просрочке не возвращает заёмщика из исполнительного производства в суд.</p>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Заёмщик</th><th>Значение</th><th>Подгруппа</th></tr></thead>
+<tbody>
+<tr><td>ОсОО «Ак-Жол»</td><td><b>исполнительное производство</b> (с 10.02.2026)</td><td>2.2</td></tr>
+<tr><td>ИП Сыдыков А. Т.</td><td>нет открытых требований</td><td>ниже по ступеням</td></tr>
+<tr><td>ОсОО «Тянь-Шань Строй»</td><td>нет открытых требований</td><td>ниже по ступеням</td></tr>
+<tr><td>ЧП «Нарын-Агро»</td><td>нет открытых требований</td><td>сработала ступень 1</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<div class="tbl"><table>
+<thead><tr><th>Подгруппа</th><th>Правило</th></tr></thead>
+<tbody>
+<tr><td><span class="code-pill">2.2</span> Проводится работа по исполнительным листам</td><td><span class="mono">худшая стадия = исполнительное производство</span></td></tr>
+<tr><td><span class="code-pill">2.1</span> Работа с судебными органами</td><td><span class="mono">худшая стадия = судебный порядок</span></td></tr>
+</tbody></table></div>
+<p>Наблюдение и досудебный порядок своего кода не дают: заёмщик проходит дальше по ступеням и получает 1.2 или 1.1.</p>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>требование открыто · требование закрыто · зарегистрирован или сторнирован документ, меняющий стадию</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 7 -->
+<section class="ind" id="p7">
+<h3><span class="no">7</span>Банкротное состояние заёмщика</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-enum">перечисление</span><span class="chip">владелец: Взыскание</span><span class="chip mono">bankruptcyState</span></div>
+<p class="what">Идёт ли в отношении заёмщика банкротство и на каком этапе.</p>
+
+<h4>Значения</h4>
+<div class="flow">
+  <div class="box">нет</div><div class="arr">&lt;</div>
+  <div class="box warn">инициирование банкротства</div><div class="arr">&lt;</div>
+  <div class="box bad">признан банкротом</div>
+</div>
+<div class="tbl"><table>
+<thead><tr><th>Значение</th><th>Когда</th></tr></thead>
+<tbody>
+<tr><td>инициирование банкротства</td><td>зарегистрировано обращение о признании заёмщика банкротом</td></tr>
+<tr><td>признан банкротом</td><td>зарегистрировано решение о признании банкротом; процедура банкротства идёт</td></tr>
+</tbody></table></div>
+<p>Завершение процедуры банкротства — уже не состояние, а терминальный исход (показатель 8).</p>
+
+<h4>Как считается</h4>
+<pre class="code"><span class="k">bankruptcyState</span>(borrower, D):
+  <span class="k">вернуть</span> max( банкротное состояние по каждому требованию к заёмщику на D )
+         <span class="c">// нет &lt; инициирование банкротства &lt; признан банкротом</span></pre>
+
+<h4>Пример на 14.08.2026</h4>
+<p>У всех четырёх заёмщиков — «нет».</p>
+
+<h4>Где используется</h4>
+<div class="tbl"><table>
+<thead><tr><th>Подгруппа</th><th>Правило</th></tr></thead>
+<tbody>
+<tr><td><span class="code-pill">3.1</span> Проводится процедура банкротства</td><td><span class="mono">банкротное состояние = признан банкротом</span></td></tr>
+<tr><td><span class="code-pill">2.3</span> Работа по инициированию банкротства</td><td><span class="mono">банкротное состояние = инициирование банкротства</span></td></tr>
+</tbody></table></div>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>зарегистрирован или сторнирован документ об инициировании, о признании банкротом</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 8 -->
+<section class="ind" id="p8">
+<h3><span class="no">8</span>Терминальный исход заёмщика</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-enum">перечисление</span><span class="chip">владелец: Взыскание</span><span class="chip mono">terminalOutcome</span></div>
+<p class="what">Чем закончились отношения с заёмщиком, если закончились по всем его кредитам. Пока хотя бы один кредит не закрыт — «нет».</p>
+
+<h4>Значения</h4>
+<div class="tbl"><table>
+<thead><tr><th>Значение</th><th>Откуда берётся по одному кредиту</th><th>Тяжесть</th></tr></thead>
+<tbody>
+<tr><td>нет</td><td>—</td><td>—</td></tr>
+<tr><td>полное погашение</td><td>кредит закрыт как погашенный: долг нулевой, производства закрыты. Выводится, документа не требует</td><td>1</td></tr>
+<tr><td>списана</td><td>кредит закрыт списанием по решению</td><td>2</td></tr>
+<tr><td>признана безнадёжной</td><td>требование по кредиту закрыто признанием задолженности безнадёжной</td><td>3</td></tr>
+<tr><td>завершена процедура банкротства</td><td>требование по кредиту закрыто завершением банкротства</td><td>4</td></tr>
+</tbody></table></div>
+
+<h4>Как считается</h4>
+<div class="flow">
+  <div class="box">кредиты заёмщика на D</div><div class="arr">→</div>
+  <div class="box acc">все закрыты?<span class="s">нет → «нет»</span></div><div class="arr">→</div>
+  <div class="box">исход каждого кредита<span class="s">расторгнутые исхода не дают</span></div><div class="arr">→</div>
+  <div class="box ok"><b>самый тяжёлый</b></div>
+</div>
+<pre class="code"><span class="k">terminalOutcome</span>(borrower, D):
+  K = кредиты заёмщика, существующие на D        <span class="c">// включая ещё не освоенные</span>
+  <span class="k">если</span> K пусто                         → «нет»
+  <span class="k">если</span> хоть один кредит из K не закрыт на D → «нет»
+  исходы = []
+  <span class="k">для</span> каждого k из K:
+    <span class="k">если</span> есть исход требования к заёмщику по k  → исходы += этот исход
+    <span class="k">иначе если</span> k закрыт как «Погашен»          → исходы += «полное погашение»
+    <span class="k">иначе если</span> k закрыт как «Списан»           → исходы += «списана»
+    <span class="c">// «Расторгнут» исхода не даёт</span>
+  <span class="k">если</span> исходы пусто → «нет»
+  <span class="k">вернуть</span> самый тяжёлый из исходов</pre>
+
+<p>Новый кредит возвращает показатель в «нет»: у заёмщика снова есть незакрытый кредит, и он снова в работе.</p>
+<div class="flow">
+  <div class="box">30.09.2024<span class="s">единственный кредит погашен</span></div><div class="arr">→</div>
+  <div class="box ok">исход: полное погашение<span class="s">подгруппа 5.1</span></div><div class="arr">→</div>
+  <div class="box">выдан новый кредит</div><div class="arr">→</div>
+  <div class="box">исход: нет<span class="s">подгруппа по текущему положению</span></div>
+</div>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Заёмщик</th><th>Кредиты</th><th>Значение</th><th>Подгруппа</th></tr></thead>
+<tbody>
+<tr><td>ЧП «Нарын-Агро»</td><td>КД-2018/052 погашен 30.09.2024</td><td><b>полное погашение</b></td><td>5.1</td></tr>
+<tr><td>ИП Сыдыков А. Т.</td><td>один закрыт, два действуют</td><td>нет</td><td>ниже по ступеням</td></tr>
+<tr><td>ОсОО «Ак-Жол», ОсОО «Тянь-Шань Строй»</td><td>все действуют</td><td>нет</td><td>ниже по ступеням</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<div class="tbl"><table>
+<thead><tr><th>Подгруппа</th><th>Правило</th></tr></thead>
+<tbody>
+<tr><td><span class="code-pill">3.2</span> Процедура банкротства завершена</td><td><span class="mono">исход = завершена процедура банкротства</span></td></tr>
+<tr><td><span class="code-pill">4</span> Безнадёжные долги</td><td><span class="mono">исход = признана безнадёжной</span></td></tr>
+<tr><td><span class="code-pill">5.2</span> Списанные</td><td><span class="mono">исход = списана</span></td></tr>
+<tr><td><span class="code-pill">5.1</span> Погашенные</td><td><span class="mono">исход = полное погашение</span></td></tr>
+</tbody></table></div>
+<div class="await">Ждёт ответа заказчика: кода для заёмщика, у которого все кредиты расторгнуты, в норме нет</div>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>кредит закрыт · новый кредит заведён · требование закрыто с исходом · исход сторнирован</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 9 -->
+<section class="ind" id="p9">
+<h3><span class="no">9</span>Кредиты выдавались когда-либо</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-bool">булево</span><span class="chip">владелец: Кредиты</span><span class="chip mono">everIssued</span></div>
+<p class="what">Был ли у заёмщика к дате хотя бы один освоенный кредит, действующий или закрытый.</p>
+
+<h4>Как считается</h4>
+<pre class="code"><span class="k">everIssued</span>(borrower, D) = существует кредит заёмщика с датаПервогоОсвоения ≤ D</pre>
+<p>Однажды став «да», показатель не возвращается в «нет»: закрытие кредита историю не стирает. Договор, зарегистрированный, но ещё не освоенный, не считается.</p>
+
+<h4>Пример на 14.08.2026</h4>
+<p>У всех четырёх заёмщиков — «да». «Нет» было бы у заёмщика, заведённого по заявке, по которой ещё ничего не выдано.</p>
+
+<h4>Где используется</h4>
+<p>Ступень 0 подгруппы: <span class="mono">кредиты выдавались = нет</span> → «Кредиты не выдавались». Без неё такой заёмщик получил бы 1.1 «Погашают по графику», хотя погашать ему нечего.</p>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>первое освоение по кредиту заёмщика</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 10 -->
+<section class="ind" id="p10">
+<h3><span class="no">10</span>Есть действующие кредиты</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-bool">булево</span><span class="chip">владелец: Кредиты</span><span class="chip mono">hasActive</span></div>
+<p class="what">Есть ли у заёмщика на дату хотя бы один действующий кредит. Это показатель 3, свёрнутый по кредитам заёмщика.</p>
+
+<h4>Как считается</h4>
+<pre class="code"><span class="k">hasActive</span>(borrower, D) = хоть один кредит заёмщика, у которого creditActive(k, D) = да</pre>
+<p>Заёмщик с «да» — <b>действующий заёмщик</b>. Это же понятие используют отчёты, когда считают число заёмщиков.</p>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Заёмщик</th><th>Действующие кредиты</th><th>Значение</th></tr></thead>
+<tbody>
+<tr><td>ОсОО «Ак-Жол»</td><td>КД-2024/117, КД-2025/043</td><td class="yes">да</td></tr>
+<tr><td>ИП Сыдыков А. Т.</td><td>КД-2025/088, КД-2023/210 (КД-2019/004 закрыт)</td><td class="yes">да</td></tr>
+<tr><td>ОсОО «Тянь-Шань Строй»</td><td>КД-2025/101, КД-2026/012</td><td class="yes">да</td></tr>
+<tr><td>ЧП «Нарын-Агро»</td><td>— (КД-2018/052 закрыт)</td><td class="no-">нет</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<p>Ступень 4 подгруппы: <span class="mono">есть действующие кредиты = нет</span> → «Кредиты закрыты». Стоит после исходов: у погашенных и списанных кредиты тоже закрыты, но они получают 5.1 и 5.2 на ступени 1. До ступени 4 доходит только заёмщик, все кредиты которого расторгнуты.</p>
+<div class="await">Ждёт ответа заказчика: какой код у такого заёмщика</div>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>первое освоение · закрытие кредита заёмщика</td></tr>
+<tr><th>По дате</th><td>не меняется</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 11 -->
+<section class="ind" id="p11">
+<h3><span class="no">11</span>Есть просрочка по действующим кредитам</h3>
+<div class="chips"><span class="chip obj">заёмщик</span><span class="chip t-bool">булево</span><span class="chip">владелец: Платежи</span><span class="chip mono">anyOverdue</span></div>
+<p class="what">Есть ли на дату просрочка хотя бы по одному действующему кредиту заёмщика. Это показатель 1, свёрнутый по кредитам заёмщика.</p>
+
+<h4>Как считается</h4>
+<p>Смотрятся только действующие кредиты и все их слои: исправные платежи по мировому соглашению не скрывают просрочку по договору.</p>
+<pre class="code"><span class="k">anyOverdue</span>(borrower, D):
+  K = кредиты заёмщика, действующие на D
+  <span class="k">если</span> хоть у одного k из K daysOverdue(k, D) &gt; 0   → да
+  <span class="k">если</span> хоть у одного k из K daysOverdue(k, D) = НЕ_ОТДАН → <span class="k">НЕ_ОТДАН</span>
+  <span class="k">иначе</span>                                        → нет</pre>
+<p>Порядок проверок важен. Одного кредита с просрочкой достаточно для «да», даже если по другому кредиту расчёт не отдан. «Не отдан» возвращается только тогда, когда ответ «нет» нельзя подтвердить.</p>
+<div class="tbl"><table>
+<thead><tr><th>Кредиты заёмщика</th><th>Значение</th></tr></thead>
+<tbody>
+<tr><td>хоть один с просрочкой (остальные любые, в том числе «не отдан»)</td><td class="yes">да</td></tr>
+<tr><td>просрочки нет нигде, но хоть по одному «не отдан»</td><td class="unk">не отдан</td></tr>
+<tr><td>просрочки нет ни по одному, все расчёты отданы</td><td class="no-">нет</td></tr>
+<tr><td>действующих кредитов нет</td><td class="no-">нет</td></tr>
+</tbody></table></div>
+
+<h4>Пример на 14.08.2026</h4>
+<div class="tbl"><table>
+<thead><tr><th>Заёмщик</th><th>Кредиты, дней</th><th>Значение</th><th>Подгруппа</th></tr></thead>
+<tbody>
+<tr><td>ИП Сыдыков А. Т.</td><td>КД-2025/088 — 12, КД-2023/210 — 200</td><td class="yes">да</td><td>1.2</td></tr>
+<tr><td>ОсОО «Тянь-Шань Строй»</td><td>КД-2025/101 — 45, КД-2026/012 — не отдан</td><td class="yes">да</td><td>1.2</td></tr>
+<tr><td>ОсОО «Ак-Жол»</td><td>КД-2024/117 — 214, КД-2025/043 — 0</td><td class="yes">да</td><td>2.2 (сработала ступень 3)</td></tr>
+<tr><td>ЧП «Нарын-Агро»</td><td>действующих нет</td><td class="no-">нет</td><td>5.1 (сработала ступень 1)</td></tr>
+</tbody></table></div>
+
+<h4>Где используется</h4>
+<p>Ступень 5 подгруппы: <span class="mono">есть просрочка = да</span> → 1.2. Если показатель «не отдан», подгруппа заёмщика на эту дату — «нет данных».</p>
+<div class="await">Ждёт ответа заказчика: кода 1.2 в норме нет; по норме до иска все заёмщики — 1.1</div>
+
+<h4>Когда меняется</h4>
+<div class="tbl"><table><tbody>
+<tr><th style="width:150px">По событию</th><td>платёж и сторно по кредиту заёмщика · первое освоение · закрытие кредита</td></tr>
+<tr><th>По дате</th><td>первый день просрочки по любому кредиту заёмщика; ночной прогон</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================ СВОДНЫЙ ПРИМЕР ============================ -->
+<h2 id="primer">Все значения на 14.08.2026</h2>
+<h3>Кредиты</h3>
+<div class="tbl"><table>
+<thead><tr><th>Кредит</th><th>Заёмщик</th><th class="num">1 · дней</th><th>2 · слой</th><th>3 · действ.</th><th>4 · фактор</th><th>5 · отложен</th><th>Категория риска</th></tr></thead>
+<tbody>
+<tr><td>КД-2024/117</td><td>Ак-Жол</td><td class="num">214</td><td>свободный</td><td>да</td><td>высокий</td><td>нет</td><td><span class="tag-bad">высокий</span></td></tr>
+<tr><td>КД-2025/043</td><td>Ак-Жол</td><td class="num">0</td><td>нет просрочки</td><td>да</td><td>нет</td><td>нет</td><td><span class="tag-ok">низкий</span></td></tr>
+<tr><td>КД-2025/088</td><td>Сыдыков</td><td class="num">12</td><td>свободный</td><td>да</td><td>средний</td><td>нет</td><td><span class="tag-warn">средний</span></td></tr>
+<tr><td>КД-2023/210</td><td>Сыдыков</td><td class="num">200</td><td>свободный</td><td>да</td><td>нет</td><td>да</td><td><span class="tag-warn">средний</span></td></tr>
+<tr><td>КД-2019/004</td><td>Сыдыков</td><td class="num">—</td><td>—</td><td>нет</td><td>—</td><td>—</td><td><span class="tag-mut">вне области</span></td></tr>
+<tr><td>КД-2025/101</td><td>Тянь-Шань Строй</td><td class="num">45</td><td>мировое соглашение</td><td>да</td><td>нет</td><td>нет</td><td><span class="tag-warn">средний</span></td></tr>
+<tr><td>КД-2026/012</td><td>Тянь-Шань Строй</td><td class="num"><span class="tag-warn">не отдан</span></td><td><span class="tag-warn">не отдан</span></td><td>да</td><td>нет</td><td>нет</td><td><span class="tag-warn">нет данных</span></td></tr>
+<tr><td>КД-2018/052</td><td>Нарын-Агро</td><td class="num">—</td><td>—</td><td>нет</td><td>—</td><td>—</td><td><span class="tag-mut">вне области</span></td></tr>
+</tbody></table></div>
+
+<h3>Заёмщики</h3>
+<div class="tbl"><table>
+<thead><tr><th>Заёмщик</th><th>6 · стадия</th><th>7 · банкротство</th><th>8 · исход</th><th>9 · выдавались</th><th>10 · действующие</th><th>11 · просрочка</th><th>Подгруппа</th></tr></thead>
+<tbody>
+<tr><td>ОсОО «Ак-Жол»</td><td>исполнительное производство</td><td>нет</td><td>нет</td><td>да</td><td>да</td><td>да</td><td><span class="code-pill">2.2</span></td></tr>
+<tr><td>ИП Сыдыков А. Т.</td><td>нет открытых</td><td>нет</td><td>нет</td><td>да</td><td>да</td><td>да</td><td><span class="code-pill">1.2</span></td></tr>
+<tr><td>ОсОО «Тянь-Шань Строй»</td><td>нет открытых</td><td>нет</td><td>нет</td><td>да</td><td>да</td><td>да</td><td><span class="code-pill">1.2</span></td></tr>
+<tr><td>ЧП «Нарын-Агро»</td><td>нет открытых</td><td>нет</td><td>полное погашение</td><td>да</td><td>нет</td><td>нет</td><td><span class="code-pill">5.1</span></td></tr>
+</tbody></table></div>
+<p>Почему КД-2026/012 — «нет данных»: правило высокого риска читает число дней, а оно не отдано. Ни одно правило выше «низкого» нельзя ни подтвердить, ни отвергнуть, а «низкий» без проверки был бы выдумкой.</p>
+</main>
+</div>
