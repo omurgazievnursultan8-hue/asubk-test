@@ -217,6 +217,7 @@ table.cgrid.stick thead th{ position:sticky; top:50px; z-index:5; box-shadow:ins
 .cp-body{ flex:1; overflow:auto; padding:6px 24px 40px; }
 .cp-no{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); font-variant-numeric:tabular-nums; }
 .cp-title{ margin:2px 0 0; font:var(--weight-semibold) var(--text-title)/1.3 var(--asubk-font); color:var(--text-heading); }
+.cp-title:focus{ outline:none; } .cp-title:focus-visible{ outline:2px solid var(--asubk-blue); outline-offset:3px; border-radius:4px; }
 .cp-kind{ font:var(--text-cap)/1.4 var(--asubk-font); color:var(--text-muted); margin-top:2px; }
 .where{ margin:14px 0 4px; padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--border-default); background:var(--surface-panel); }
 .where .w1{ font:var(--weight-bold) 18px/1.35 var(--asubk-font); color:var(--text-heading); letter-spacing:.01em; }
@@ -264,6 +265,17 @@ details.hrow[open] .caret{ transform:rotate(90deg); }
 .hint{ display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:var(--radius-md); font:var(--weight-semibold) var(--text-sm)/1.5 var(--asubk-font); }
 .hint.shelf{ background:var(--status-success-bg); color:var(--asubk-green); }
 .hint.hold{ background:var(--status-info-bg); color:var(--asubk-blue); }
+/* «Мои папки»: строка «Найти папку» (как «Возврат»), справа — папки подразделения; три блока — одна сетка колонок. */
+.minefind{ display:flex; gap:12px; align-items:center; margin-bottom:4px; }
+.minefind .find-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin-right:4px; }
+.minefind .find-in{ width:520px; height:40px; border-radius:var(--radius-md); border:1px solid var(--border-strong); padding:0 12px; font:var(--font-body); color:var(--text-body); }
+.minefind > .btn{ height:40px; }
+.minefind .links{ margin-left:24px; display:flex; gap:24px; align-items:center; font:var(--font-label); color:var(--text-muted); }
+.mine-none{ margin:16px 0 0; font:var(--font-label); color:var(--text-muted); }
+table.cgrid.mine{ table-layout:fixed; }
+.due-s{ display:block; font:var(--weight-regular) var(--text-cap)/1.45 var(--asubk-font); color:var(--text-muted); }
+.due-s.soon{ color:#8a6508; font-weight:var(--weight-semibold); }
+.due-s.over{ color:var(--asubk-red); }
 /* ---- окно формы ---- */
 .overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; z-index:60; padding:24px; overflow:auto; }
 .overlay.open{ display:flex; }
@@ -493,8 +505,8 @@ const GONE_REASONS = ['утрачена', 'уничтожена', 'переда�
 /* ------------------------------ состояние --------------------------- */
 const S = { today: TODAY, user: 'arch1', view: 'queue', card: null, n: 0, ids: 0, lastNo: 200,
   q: '', chip: '', f: { kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '', borrower: '' }, sel: new Set(),
-  tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false }, ret: { text: '', notes: {}, open: {}, done: null },
-  retB: { notes: {}, open: {} }, focusRet: false, focusQ: false, cardFromQ: false, form: null, print: null, pb: 'b2', menu: false };
+  tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false, dept: null }, ret: { text: '', notes: {}, open: {}, done: null },
+  retB: { notes: {}, open: {} }, focusRet: false, focusQ: false, focusMine: false, cardFromQ: false, cardKb: false, form: null, print: null, pb: 'b2', menu: false };
 const FOLDERS = [], ISSUES = [], REQS = [], EXTS = [], EVENTS = [], NOTES = [];
 const DEMO = {};
 
@@ -1159,7 +1171,9 @@ function mine(u) {
   const incoming = ISSUES.filter(i => !i.end && pendingTr(i) && pendingTr(i).to === u).map(i => ({ f: folder(i.folder), i, t: pendingTr(i) }));
   const hands = ISSUES.filter(i => !i.end && i.holder === u).sort((a, b) => a.due < b.due ? -1 : 1)
     .map(i => ({ f: folder(i.folder), i, t: pendingTr(i), x: pendingExt(i), over: S.today > i.due, overDays: overDays(i.folder), waiting: activeReqs(i.folder) }));
-  const requests = REQS.filter(r => r.who === u && (r.st === 'queue' || r.st === 'reserved')).sort((a, b) => a.n - b.n).map(r => ({ r, f: folder(r.folder), pos: posOf(r) }));
+  /* Папка, которую передают вам по вашему же запросу, — одной строкой в «Вам передают», не второй в «Моих запросах». */
+  const requests = REQS.filter(r => r.who === u && (r.st === 'queue' || r.st === 'reserved') && !((pendingTr(openIssue(r.folder)) || {}).to === u))
+    .sort((a, b) => a.n - b.n).map(r => ({ r, f: folder(r.folder), pos: posOf(r) }));
   return { incoming, hands, requests };
 }
 function menuCounts(u) {
@@ -1217,12 +1231,15 @@ function noKzd(o = {}, u = S.user) {
     const kzd = FOLDERS.filter(f => f.kind === 'kzd' && f.borrower === b.id);
     if (kzd.some(f => !f.gone)) return null;
     if (o.mine && b.cur !== u) return null;
+    if (o.dept && emp(b.cur).dept !== o.dept) return null;
     const first = counted.slice().sort((x, y) => x.reg < y.reg ? -1 : 1)[0];
     return { b, cur: b.cur, dept: emp(b.cur).dept, first, days: days(first.reg, S.today), closed: !live.length,
       unlinked: FOLDERS.find(f => !f.gone && f.unlinked && f.unlinked.inn === b.inn) || null, goneKzd: kzd.find(f => f.gone) || null };
   }).filter(Boolean).sort((a, b) => b.days - a.days);
 }
 const curates = u => BORROWERS.some(b => b.cur === u);
+/* Руководитель — у кого в подчинении есть сотрудники (к нему поднимается задание «Вернуть папку»). */
+const isHead = u => EMP.some(e => e.head === u);
 /* Журнал движения: восемь видов событий за период. */
 const JOURNAL = [['accepted', 'принята'], ['issued', 'выдана'], ['transferGot', 'передана'], ['extended', 'продлена'], ['returned', 'возвращена'], ['moved', 'перемещена'], ['writtenOff', 'списана'], ['restored', 'восстановлена']];
 function journal(o = {}) {
@@ -1344,6 +1361,8 @@ function render() {
   if (S.focusRet) { S.focusRet = false; const el = $('#retInput'); if (el && S.view === 'queue' && !S.form && !S.print && !S.card) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
   /* При входе в «Папки» и после карточки, открытой Enter, — курсор в поиске, набранное выделено. */
   if (S.focusQ) { S.focusQ = false; const el = $('#fq'); if (el && S.view === 'folders' && !S.form && !S.print && !S.card) { el.focus({ preventScroll: true }); el.select(); } }
+  /* При входе на «Мои папки» и после закрытой карточки — курсор в «Найти папку». */
+  if (S.focusMine) { S.focusMine = false; const el = $('#mineQ'); if (el && S.view === 'mine' && !S.form && !S.print && !S.card) el.focus({ preventScroll: true }); }
 }
 
 /* --------------------- ЭКРАН: очередь архивариуса -------------------- */
@@ -1464,24 +1483,49 @@ function folderList() {
 }
 
 /* ------------------------- ЭКРАН: мои папки -------------------------- */
+/* Три блока — одна сетка: № · название · дата · две средние колонки · кнопки; колонки одна под другой. */
+const MINE_COLS = '<colgroup><col style="width:120px"><col><col style="width:170px"><col style="width:230px"><col style="width:320px"><col style="width:360px"></colgroup>';
+/* Срок: сколько рабочих дней осталось; с дня напоминания — жёлтым, после срока — красным. */
+function dueCell(i) {
+  const ra = i.remindFor === i.due ? i.remindAt : workBefore(i.due, SETTINGS.remindDays.v), over = S.today > i.due;
+  const s = over ? `<span class="due-s over">просрочена ${workBetween(i.due, S.today)} р.д.</span>` : S.today === i.due ? '<span class="due-s soon">срок сегодня</span>'
+    : `<span class="due-s${S.today >= ra ? ' soon' : ''}">через ${workBetween(S.today, i.due)} р.д.</span>`;
+  return `<td class="nw${over ? ' red' : ''}" data-testid="due-${folder(i.folder).no}">${fmt(i.due)}${s}</td>`;
+}
+/* Кто ждёт папку — кроме вас самих (свой запрос закроется передачей). */
+const waitCell = (f, u) => { const w = activeReqs(f.id).filter(r => r.who !== u); return `<td>${w.length ? w.map(r => `ждёт ${esc(nm(r.who))} с ${fmtS(r.d)}`).join('<br>') : '—'}</td>`; };
+/* Справа в строке поиска: папки своего подразделения; руководителю — папки на руках у его сотрудников. Число — сколько строк покажут «Папки». */
+function mineLinks(u) {
+  const d = emp(u).dept;
+  let h = `<button class="linky" data-testid="mine-dept" onclick="AX.openFolders({ dept: '${esc(d)}' })">Папки подразделения «${esc(d)}»: ${registry({ dept: d }).rows.length}</button>`;
+  if (isHead(u)) { const r = registry({ hdept: d }), o = r.counts.over;
+    h += `<span data-testid="mine-staff">На руках у сотрудников ${esc(d)}: <button class="linky" data-testid="mine-staff-all" onclick="AX.openFolders({ hdept: '${esc(d)}' })">${r.rows.length}</button>${o ? ` · <button class="linky red" data-testid="mine-staff-over" onclick="AX.openFolders({ hdept: '${esc(d)}', chip: 'over' })">${plural(o, 'просрочена', 'просрочены', 'просрочено')} ${o}</button>` : ''}</span>`; }
+  return h;
+}
 function viewMine() {
   const u = S.user, m = mine(u);
-  let h = `<div class="filters"><div class="fld w3"><label for="mineQ">Найти папку — номер, название, ИНН, содержание</label><input id="mineQ" data-testid="mine-search" autocomplete="off" placeholder="Enter — поиск в «Папках»" onkeydown="if(event.key==='Enter')AX.findFolder(this.value)"></div></div>`;
-  if (m.incoming.length) h += sec('Вам передают', m.incoming.length, '', 'blk-incoming') + `<table class="cgrid" data-testid="tbl-incoming"><thead><tr><th>№</th><th>Название</th><th>От кого</th><th>Вернуть до</th><th></th></tr></thead><tbody>${m.incoming.map(({ f, i, t }) =>
-    `<tr class="click" data-testid="in-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${esc(nm(t.from))}</td><td class="nw${S.today > i.due ? ' red' : ''}">${fmt(i.due)}</td>
-    <td class="nw"><div class="btn-row">${btn('Получил', `AX.uiGot('${f.id}')`, { cls: 'btn-primary', tid: 'got-' + f.no })}${btn('Не получал', `AX.uiNotGot('${f.id}')`, { tid: 'notgot-' + f.no })}</div></td></tr>`).join('')}</tbody></table>`;
-  if (m.hands.length) h += sec('На руках у меня', m.hands.length, '', 'blk-hands') + `<table class="cgrid" data-testid="tbl-hands"><thead><tr><th>№</th><th>Название</th><th>Вернуть до</th><th>Кто ждёт</th><th>Отметки</th><th></th></tr></thead><tbody>${m.hands.map(({ f, i, t, x, over, overDays: od, waiting }) => {
+  /* «Найти папку» с клавиатуры: Enter — «Папки» с запросом; номер или одна найденная — сразу её карточка. */
+  let h = `<div class="minefind" data-testid="mine-find"><label class="find-h" for="mineQ">Найти папку</label>
+    <input id="mineQ" class="find-in" data-testid="mine-search" autocomplete="off" placeholder="231, «Протоколы», ИНН, «договор залога»" onkeydown="if(event.key==='Enter'){event.preventDefault();AX.findFolder(this.value);}">
+    <button class="btn btn-secondary" data-testid="mine-find-go" onclick="AX.findFolder(document.getElementById('mineQ').value)">Найти</button>
+    <div class="links">${mineLinks(u)}</div></div>`;
+  if (m.incoming.length) h += sec('Вам передают', m.incoming.length, '', 'blk-incoming') + `<table class="cgrid mine" data-testid="tbl-incoming">${MINE_COLS}<thead><tr><th>№</th><th>Название</th><th>Вернуть до</th><th>Кто ждёт</th><th>Отметки</th><th></th></tr></thead><tbody>${m.incoming.map(({ f, i, t }) => {
+    const myReq = activeReqs(f.id).some(r => r.who === u);
+    return `<tr class="click" data-testid="in-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td>${dueCell(i)}${waitCell(f, u)}
+    <td><span class="pill info">передаёт ${esc(nm(t.from))}</span>${myReq ? '<div class="small" data-testid="in-closes-' + f.no + '">ваш запрос закроется передачей</div>' : ''}</td>
+    <td class="nw"><div class="btn-row">${btn('Получил', `AX.uiGot('${f.id}')`, { cls: 'btn-primary', tid: 'got-' + f.no })}${btn('Не получал', `AX.uiNotGot('${f.id}')`, { tid: 'notgot-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
+  if (m.hands.length) h += sec('На руках у меня', m.hands.length, '', 'blk-hands') + `<table class="cgrid mine" data-testid="tbl-hands">${MINE_COLS}<thead><tr><th>№</th><th>Название</th><th>Вернуть до</th><th>Кто ждёт</th><th>Отметки</th><th></th></tr></thead><tbody>${m.hands.map(({ f, i, t, x, over }) => {
     const marks = [t ? `<span class="pill info">передаётся → ${esc(nm(t.to))}, ждёт «Получил»</span>` : '', x ? `<span class="pill warn">просьба продлить до ${fmt(x.date)} — на решении</span>` : '',
       over ? `<span class="pill err">задание «Вернуть папку»</span>` : ''].filter(Boolean).join(' ');
     const gT = gate('transfer', f.id, u), gX = gate('askExt', f.id, u);
-    return `<tr class="click${over ? ' over' : ''}" data-testid="hand-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw${over ? ' red' : ''}">${fmt(i.due)}${over ? `<div class="small red">просрочена ${od} р.д.</div>` : ''}</td>
-      <td>${waiting.length ? waiting.map(r => `ждёт ${esc(nm(r.who))} с ${fmtS(r.d)}`).join('<br>') : '—'}</td><td>${marks || '—'}</td>
+    return `<tr class="click${over ? ' over' : ''}" data-testid="hand-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td>${dueCell(i)}${waitCell(f, u)}<td>${marks || '—'}</td>
       <td class="nw"><div class="btn-row">${t ? btn('Отменить передачу', `AX.uiCancelTr('${f.id}')`, { tid: 'cancel-' + f.no }) : btn('Передать', `AX.uiTransfer('${f.id}')`, { tid: 'transfer-' + f.no, why: gT.ok ? '' : gT.why })}${btn('Попросить продление', `AX.uiAskExt('${f.id}')`, { tid: 'askext-' + f.no, why: gX.ok ? '' : gX.why })}</div></td></tr>`; }).join('')}</tbody></table>`;
-  if (m.requests.length) h += sec('Мои запросы', m.requests.length, '', 'blk-req') + `<table class="cgrid" data-testid="tbl-req"><thead><tr><th>№</th><th>Название</th><th>Состояние</th><th>Зачем</th><th>Нужна до</th><th></th></tr></thead><tbody>${m.requests.map(({ r, f, pos }) => {
+  /* Бронь — где забрать: помещение; шкаф и полка — архивариусу, в карточке. */
+  if (m.requests.length) h += sec('Мои запросы', m.requests.length, '', 'blk-req') + `<table class="cgrid mine" data-testid="tbl-req">${MINE_COLS}<thead><tr><th>№</th><th>Название</th><th>Нужна до</th><th>Зачем</th><th>Состояние</th><th></th></tr></thead><tbody>${m.requests.map(({ r, f, pos }) => {
     const i = openIssue(f.id);
-    const stx = r.st === 'reserved' ? `<b class="pill info">ждёт вас в архиве до ${fmt(r.until)}</b><div class="small">${esc(placeFull(f.shelf))}</div>` : `№ ${pos} в очереди${i ? `<div class="small">на руках у ${esc(emp(i.holder).gen)} до ${fmt(i.due)}</div>` : ''}`;
-    return `<tr class="click" data-testid="req-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td>${stx}</td><td>${esc(r.why)}</td><td class="nw">${fmt(r.needBy)}</td><td>${btn('Отозвать', `AX.uiWithdraw('${f.id}')`, { tid: 'withdraw-' + f.no })}</td></tr>`; }).join('')}</tbody></table>`;
-  if (!m.incoming.length && !m.hands.length && !m.requests.length) h += `<div class="empty" data-testid="mine-empty">У вас нет папок архива. Найдите папку поиском выше и запросите её.</div>`;
+    const stx = r.st === 'reserved' ? `<span class="pill info">ждёт вас в архиве до ${fmt(r.until)}</span><div class="small">${esc(room(cab(shelf(f.shelf).cab).room).name)}</div>` : `№ ${pos} в очереди${i ? `<div class="small">на руках у ${esc(emp(i.holder).gen)} до ${fmt(i.due)}</div>` : ''}`;
+    return `<tr class="click" data-testid="req-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${fmt(r.needBy)}</td><td>${esc(r.why)}</td><td>${stx}</td><td>${btn('Отозвать', `AX.uiWithdraw('${f.id}')`, { tid: 'withdraw-' + f.no })}</td></tr>`; }).join('')}</tbody></table>`;
+  if (!m.incoming.length && !m.hands.length && !m.requests.length) h += `<div class="mine-none" data-testid="mine-empty">У вас нет папок архива — ни на руках, ни в запросах.</div>`;
   /* Эмуляция соседей: в рабочей системе это модули «Задания» и «Уведомления». */
   const tk = tasksOf(u), nt = NOTES.filter(n => n.to === u).sort((a, b) => b.n - a.n).slice(0, 8);
   if (tk.length || nt.length) h += `<div class="demo-box" style="margin-top:22px" data-testid="emul"><span class="demo-tag">Эмуляция модулей «Задания» и «Уведомления»</span>
@@ -1493,19 +1537,26 @@ function viewMine() {
 }
 
 /* ---------------------- ЭКРАН: заёмщики без КЗД ---------------------- */
+/* Отборы по роли: «мои заёмщики» — тому, кто ведёт заёмщиков (куратору включён); «Департамент» — всем, руководителю свой.
+   Есть непривязанная КЗД с этим ИНН — архивариусу «Привязать», а не «Принять папку»: бумага уже в архиве. */
 function viewNoKzd() {
-  if (S.nk.mine === null) S.nk.mine = curates(S.user);
-  const arch = isArch(S.user), rows = noKzd({ mine: S.nk.mine, closed: S.nk.closed });
-  return `<div class="filters"><label class="chkl"><input type="checkbox" data-testid="nk-mine"${S.nk.mine ? ' checked' : ''} onchange="AX.setNk('mine', this.checked)"> мои заёмщики</label>
+  const u = S.user, arch = isArch(u), cur = curates(u);
+  const depts = [...new Set(BORROWERS.map(b => emp(b.cur).dept))].sort((a, b) => a.localeCompare(b, 'ru'));
+  if (S.nk.mine === null) S.nk.mine = cur;
+  if (S.nk.dept === null) S.nk.dept = isHead(u) && depts.includes(emp(u).dept) ? emp(u).dept : '';
+  const rows = noKzd({ mine: cur && S.nk.mine, closed: S.nk.closed, dept: S.nk.dept });
+  return `<div class="filters">${cur ? `<label class="chkl"><input type="checkbox" data-testid="nk-mine"${S.nk.mine ? ' checked' : ''} onchange="AX.setNk('mine', this.checked)"> мои заёмщики</label>` : ''}
+    <div class="fld wd"><label for="nkDept">Департамент</label><select id="nkDept" data-testid="nk-dept" onchange="AX.setNk('dept', this.value)"><option value="">все</option>${depts.map(d => `<option value="${d}"${d === S.nk.dept ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
     <label class="chkl"><input type="checkbox" data-testid="nk-closed"${S.nk.closed ? ' checked' : ''} onchange="AX.setNk('closed', this.checked)"> и закрытые</label>
-    <span class="small" style="align-self:center">Заёмщики хотя бы с одним действующим кредитом (зарегистрирован, действует, взыскание), у которых в архиве нет кредитно-залогового дела.</span>
-    <div class="grow btn-row">${printXls('Заёмщики без КЗД', rows.length)}</div></div>
-    <table class="cgrid" data-testid="tbl-nokzd"><thead><tr><th>Заёмщик</th><th>ИНН</th><th>Куратор</th><th>Департамент</th><th>Первый кредит</th><th>Дней</th><th></th></tr></thead><tbody>${rows.map(x =>
+    <span class="small" style="align-self:flex-end;padding-bottom:9px">Заёмщики с действующим кредитом (зарегистрирован, действует, взыскание), у которых в архиве нет кредитно-залогового дела.</span>
+    <div class="grow btn-row"><span class="small" style="font-size:var(--text-sm)" data-testid="nk-count">Показано: ${rows.length}</span>${printXls('Заёмщики без КЗД', rows.length)}</div></div>
+    <table class="cgrid" data-testid="tbl-nokzd"><thead><tr><th>Заёмщик</th><th>ИНН</th><th>Куратор</th><th>Департамент</th><th>Первый кредит</th><th>Дней с регистрации</th><th></th></tr></thead><tbody>${rows.map(x =>
       `<tr data-testid="nk-${x.b.id}"><td><button class="linky" onclick="AX.openBorrower('${x.b.id}')">${esc(x.b.name)}</button>${x.closed ? ' <span class="pill neutral">кредиты закрыты</span>' : ''}
-        ${x.unlinked ? `<div class="small" data-testid="nk-unlinked-${x.b.id}">есть непривязанная папка ${noStr(x.unlinked.no)}${arch ? ` → <button class="linky" onclick="AX.uiRebind('${x.unlinked.id}', '${x.b.id}')">Привязать</button>` : ''}</div>` : ''}
-        ${x.goneKzd ? `<div class="small" data-testid="nk-gone-${x.b.id}">КЗД выбыла: ${esc(x.goneKzd.gone.reason)} (${noStr(x.goneKzd.no)})</div>` : ''}</td>
+        ${x.unlinked ? `<div class="small" data-testid="nk-unlinked-${x.b.id}">есть непривязанная папка ${openBtn(x.unlinked)}</div>` : ''}
+        ${x.goneKzd ? `<div class="small" data-testid="nk-gone-${x.b.id}">КЗД выбыла: ${esc(x.goneKzd.gone.reason)} ${fmt(x.goneKzd.gone.d)} (${openBtn(x.goneKzd)})</div>` : ''}</td>
         <td class="mono nw">${x.b.inn}</td><td class="nw">${esc(nm(x.cur))}</td><td class="nw">${esc(x.dept)}</td><td class="nw">${x.first.no} от ${fmt(x.first.reg)}</td><td class="mono">${x.days}</td>
-        <td class="nw">${arch ? btn('Принять папку', `AX.uiAccept({ kind: 'kzd', borrower: '${x.b.id}' })`, { tid: 'nk-accept-' + x.b.id }) : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Нет заёмщиков без кредитно-залогового дела</td></tr>'}</tbody></table>`;
+        <td class="nw">${!arch ? '' : x.unlinked ? btn('Привязать ' + noStr(x.unlinked.no), `AX.uiRebind('${x.unlinked.id}', '${x.b.id}')`, { tid: 'nk-bind-' + x.b.id })
+          : btn('Принять папку', `AX.uiAccept({ kind: 'kzd', borrower: '${x.b.id}' })`, { tid: 'nk-accept-' + x.b.id })}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Нет заёмщиков без кредитно-залогового дела</td></tr>'}</tbody></table>`;
 }
 
 /* ------------------------ ЭКРАН: журнал движения ---------------------- */
@@ -1584,17 +1635,26 @@ function viewDicts() {
 }
 
 /* -------------- образец для модуля «Заёмщик»: врезка «Где бумага» -------------- */
+/* Своя папка — от первого лица и без «Запросить»; том — в названии; при очереди — «ждут N»; КЗД выбыла — так и сказано. */
 function paperBoxHtml(bid) {
   const p = paperBox(bid), u = S.user;
-  const rows = p.rows.map(f => { const st = stateOf(f.id), i = openIssue(f.id), r = reservedReq(f.id), ov = isOver(f.id);
-    const where = st === 'archive' ? esc(placeShort(f.shelf)) : st === 'reserved' ? `забронирована за ${esc(emp(r.who).ins)} до ${fmtS(r.until)}`
-      : st === 'gone' ? `выбыла · ${esc(f.gone.reason)}` : `у ${esc(emp(i.holder).gen)} до <span class="${ov ? 'red' : ''}">${fmt(i.due)}${ov ? ` — просрочена ${overDays(f.id)} р.д.` : ''}</span>`;
+  const rows = p.rows.map(f => { const st = stateOf(f.id), i = openIssue(f.id), t = pendingTr(i), r = reservedReq(f.id), ov = isOver(f.id);
+    const due = i ? `<span class="${ov ? 'red' : ''}">${fmt(i.due)}${ov ? ` — просрочена ${overDays(f.id)} р.д.` : ''}</span>` : '';
+    const own = !!i && (i.holder === u || (t && t.to === u));
+    const where = st === 'archive' ? esc(placeShort(f.shelf))
+      : st === 'reserved' ? (r.who === u ? `за вами до ${fmtS(r.until)} — заберите в архиве` : `за ${esc(emp(r.who).ins)} до ${fmtS(r.until)}`)
+      : st === 'gone' ? `${esc(f.gone.reason)} ${fmt(f.gone.d)}`
+      : st === 'transfer' ? (t.to === u ? `вам от ${esc(emp(t.from).gen)} — подтвердите «Получил»` : t.from === u ? `вы → ${esc(nm(t.to))}, ждёт «Получил»` : `${esc(nm(t.from))} → ${esc(nm(t.to))}, вернуть до ${due}`)
+      : i.holder === u ? `у вас до ${due}` : `у ${esc(emp(i.holder).gen)} до ${due}`;
+    const wait = st === 'gone' ? 0 : activeReqs(f.id).filter(x => x.who !== u).length;
     const my = activeReqs(f.id).find(x => x.who === u), g = gate('request', f.id, u);
-    const act = my ? `<span class="small">${esc(posText(my))}</span> ${btn('Отозвать', `AX.uiWithdraw('${f.id}')`)}` : st === 'gone' ? '' : btn('Запросить', `AX.uiRequest('${f.id}')`, { tid: 'pb-req-' + f.no, why: g.ok ? '' : g.why });
-    return `<tr class="${f.gone ? 'gone' : ''}" data-testid="pb-row-${f.no}"><td>${openBtn(f)} ${esc(titleOf(f))}</td><td class="mono">${f.vol || 1}</td><td>${stPill(f.id)} ${where}</td><td class="nw">${act}</td></tr>`; }).join('');
+    const act = own || st === 'gone' ? '' : my ? `<span class="small">${esc(posText(my))}</span> ${btn('Отозвать', `AX.uiWithdraw('${f.id}')`)}` : btn('Запросить', `AX.uiRequest('${f.id}')`, { tid: 'pb-req-' + f.no, why: g.ok ? '' : g.why });
+    return `<tr class="${f.gone ? 'gone' : ''}" data-testid="pb-row-${f.no}"><td>${openBtn(f)} ${esc(titleOf(f))}</td><td data-testid="pb-where-${f.no}">${stPill(f.id)} ${where}${wait ? ` <span class="flag amber">ждут ${wait}</span>` : ''}</td><td class="nw">${act}</td></tr>`; }).join('');
+  const goneK = p.noKzd ? p.rows.find(f => f.kind === 'kzd' && f.gone) : null;
+  const none = !p.noKzd ? '' : goneK ? `Кредитно-залоговое дело выбыло: ${esc(goneK.gone.reason)} ${fmt(goneK.gone.d)} (${noStr(goneK.no)}) — в архиве его нет` : 'Кредитно-залоговое дело в архив не сдано';
   return `<div class="paperbox" data-testid="paperbox"><h3>Где бумага${p.vols >= 2 ? btn(`Запросить все тома (${p.allVols.length})`, `AX.uiRequestBatch(${JSON.stringify(p.allVols).replace(/"/g, "'")})`, { tid: 'pb-all', why: p.allVols.length ? '' : 'все тома уже у вас или запрошены' }) : ''}</h3>
-    ${p.noKzd ? `<div class="banner warn" data-testid="pb-nokzd">Кредитно-залоговое дело в архив не сдано</div>` : ''}
-    ${p.rows.length ? `<table class="cgrid"><thead><tr><th>Папка</th><th>Том</th><th>Где сейчас</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : ''}</div>`;
+    ${none ? `<div class="banner warn" data-testid="pb-nokzd">${none}</div>` : ''}
+    ${p.rows.length ? `<table class="cgrid"><thead><tr><th>Папка</th><th>Где сейчас</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : ''}</div>`;
 }
 function viewBorrower() {
   const b = borrower(S.pb);
@@ -1655,7 +1715,7 @@ function renderCard() {
   kv.push(['Содержание', esc(f.content || '—')]);
   kv.push(['Принята', `${fmt(f.at)}, ${esc(nm(f.by))}${f.from ? ` · сдал ${esc(nm(f.from))}` : ''}`]);
   let h = `<div class="cp-top"><span class="addr" data-testid="cp-addr">#/folder/${f.no}</span><button class="x" data-testid="cp-close" onclick="AX.closeCard()" title="Закрыть (Esc)">×</button></div><div class="cp-body">
-    <div class="cp-no">${noStr(f.no)}</div><h2 class="cp-title" data-testid="cp-title">${esc(titleOf(f))}</h2><div class="cp-kind">${esc(k.name)}</div>
+    <div class="cp-no">${noStr(f.no)}</div><h2 class="cp-title" data-testid="cp-title" tabindex="-1">${esc(titleOf(f))}</h2><div class="cp-kind">${esc(k.name)}</div>
     <div class="where ${w.over ? 'over' : w.st}" data-testid="where"><div class="w1">${esc(w.line)}</div>${w.sub ? `<div class="w2">${esc(w.sub)}</div>` : ''}${flags ? `<div class="flags">${flags}</div>` : ''}</div>
     <div class="cp-btns" data-testid="cp-btns">${cardButtons(f, u)}</div>
     <div class="cp-sec"><h4>Реквизиты</h4><div class="kv">${kv.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join('')}</div></div>`;
@@ -1860,12 +1920,14 @@ function submitForm(btnId, vals) {
   if (S.form === fm) S.form = null;
   renderModal(); render(); if (!S.form && !S.print) pageFocus(); if (r.msg) toast(r.msg, 'ok', r.act); return r;
 }
-/* После окна курсор — в своём поле страницы: в очереди — «Возврат», в «Папках» — поиск (если карточка закрыта). */
+/* Курсор после действия — в своё поле страницы; карточка, открытая с клавиатуры, держит его у себя. */
 function pageFocus() {
   if (typeof document === 'undefined' || S.form || S.print) return;
-  const el = S.card ? null : S.view === 'queue' ? $('#retInput') : S.view === 'folders' ? $('#fq') : null;
+  if (S.card) { if (S.cardKb) focusCard(); return; }
+  const el = S.view === 'queue' ? $('#retInput') : S.view === 'folders' ? $('#fq') : S.view === 'mine' ? $('#mineQ') : null;
   if (el) el.focus({ preventScroll: true });
 }
+function focusCard() { const t = typeof document !== 'undefined' && $('#cardpanel .cp-title'); if (t) t.focus({ preventScroll: true }); }
 function closeForm() { S.form = null; S.print = null; renderModal(); pageFocus(); return yes(); }
 function toast(msg, kind, act) {
   if (typeof document === 'undefined') return;
@@ -2225,11 +2287,15 @@ function uiSetting(key) {
 /* --------------------- навигация и window.AX --------------------- */
 function openCard(fid) {
   const f = folder(fid); if (!f) return no('папка не найдена');
-  S.card = fid; S.cardFromQ = false; S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
-  setHash('#/folder/' + f.no); render(); return yes();
+  /* Ссылка внутри карточки, нажатая с клавиатуры (другой том), — новая карточка тоже держит курсор. */
+  const inCard = typeof document !== 'undefined' && S.card && $('#cardpanel').contains(document.activeElement);
+  S.card = fid; S.cardFromQ = false; S.cardKb = !!inCard; S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
+  setHash('#/folder/' + f.no); render(); if (inCard) focusCard(); return yes();
 }
+/* Карточка, открытая Enter из поиска, держит курсор: заголовок, Tab по кругу внутри, Esc — снова в поиск. */
+function kbCard(fid) { openCard(fid); S.cardFromQ = true; S.cardKb = true; focusCard(); return yes({ card: fid }); }
 /* Закрыл карточку, открытую Enter из поиска, — курсор снова в поиске, номер выделен: следующий набирается поверх. */
-function closeCard() { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; S.cardFromQ = false; S.card = null; S.menu = false; setHash(''); render(); return yes(); }
+function closeCard() { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; if (S.view === 'mine') S.focusMine = true; S.cardFromQ = false; S.cardKb = false; S.card = null; S.menu = false; setHash(''); render(); return yes(); }
 /* Адрес карточки. Файл, открытый с диска, не даёт менять историю — тогда меняется сам якорь. */
 function setHash(h) {
   if (typeof location === 'undefined' || (location.hash || '') === h) return;
@@ -2254,17 +2320,17 @@ Object.assign(AX, {
   uiIssue, uiIssueBatch, uiRequest, uiRequestBatch, uiWithdraw, uiRefuse, uiUnreserve, uiAskExt, uiExtend, uiDecide, uiTransfer, uiGot, uiNotGot, uiCancelTr,
   uiReturn, uiReturnSel, uiMove, uiMoveBatch, uiRebind, uiWriteoff, uiWriteoffBatch, uiRestore, uiAccept, uiNextVol, uiLabels, uiPrintShelf, uiPrintRound,
   uiAddPlace, uiRenamePlace, uiRetirePlace, uiDeletePlace, uiAddKind, uiRetireKind, uiDeleteKind, uiSetting,
-  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.menu = false; S.focusRet = v === 'queue'; S.focusQ = v === 'folders'; setHash(''); render(); return yes(); },
+  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.cardKb = false; S.menu = false; S.focusRet = v === 'queue'; S.focusQ = v === 'folders'; S.focusMine = v === 'mine'; setHash(''); render(); return yes(); },
   /* Enter в поиске «Папок»: карточка папки с этим номером, иначе — единственной найденной. */
   searchEnter() {
     const n = qNo(S.q), f = n != null ? byNo(n) : null, rows = registry(Object.assign({ q: S.q, chip: S.chip }, S.f)).rows;
     const t = f || (rows.length === 1 ? rows[0] : null);
     if (!t) { const r = no(trim(S.q) ? `найдено ${rows.length} — выберите строку` : 'наберите номер, название, ИНН или содержание'); toast(r.why, 'err'); return r; }
-    openCard(t.id); S.cardFromQ = true; return yes({ card: t.id });
+    return kbCard(t.id);
   },
   resetF() { Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.chip = ''; render(); return yes(); },
   batchIds,
-  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.sel.clear(); S.nk.mine = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; renderModal(); render(); return yes(); },
+  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.cardKb = false; S.sel.clear(); S.nk.mine = null; S.nk.dept = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; renderModal(); render(); return yes(); },
   setF(k, v) {
     /* «Место» — одним списком: r:<помещение>, c:<шкаф>, s:<полка>. */
     if (k === 'place') { const [lv, id] = (v || '').split(':'); S.f.room = lv === 'r' ? id : ''; S.f.cab = lv === 'c' ? id : ''; S.f.shelf = lv === 's' ? id : ''; render(); return; }
@@ -2274,7 +2340,15 @@ Object.assign(AX, {
   toggleSel(id, on) { on ? S.sel.add(id) : S.sel.delete(id); $('#fList').innerHTML = folderList(); },
   selAll(on) { registry(Object.assign({ q: S.q, chip: S.chip }, S.f)).rows.forEach(f => { on ? S.sel.add(f.id) : S.sel.delete(f.id); }); $('#fList').innerHTML = folderList(); },
   clearSel() { S.sel.clear(); render(); },
-  findFolder(q) { S.view = 'folders'; S.q = trim(q); S.chip = ''; Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.card = null; S.focusQ = true; render(); return yes(); },
+  /* «Найти папку»: «Папки» с этим запросом; набран номер или найдена одна папка — сразу её карточка (как Enter в поиске «Папок»). */
+  findFolder(q) {
+    q = trim(q); S.view = 'folders'; S.q = q; S.chip = ''; Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.card = null; S.menu = false;
+    const n = qNo(q), f = n != null ? byNo(n) : null, rows = q ? registry({ q }).rows : [], t = f || (rows.length === 1 ? rows[0] : null);
+    if (t) return kbCard(t.id);
+    S.focusQ = true; setHash(''); render(); return yes({ card: null });
+  },
+  /* Ссылки «Моих папок»: «Папки» с отбором подразделения или подразделения держателя (и плашкой). */
+  openFolders(o = {}) { S.view = 'folders'; S.q = ''; S.chip = o.chip || ''; Object.keys(S.f).forEach(k => { S.f[k] = o[k] || ''; }); S.card = null; S.cardKb = false; S.menu = false; S.focusQ = true; setHash(''); render(); return yes(); },
   setJ(k, v) { if (k === 'from' || k === 'to') { const iso = toIso(v); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ', 'err'); render(); return; } S.jr[k] = iso; } else S.jr[k] = v; render(); },
   setNk(k, v) { S.nk[k] = v; render(); },
   setTab(t) { S.tab = t; render(); },
@@ -2303,11 +2377,19 @@ Object.assign(AX, {
 seed();
 if (typeof window !== 'undefined') window.AX = AX;
 if (typeof document !== 'undefined') {
-  fromHash(true); S.focusRet = S.view === 'queue'; render();
+  fromHash(true); S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; render();
   window.addEventListener('hashchange', () => { if (fromHash(false)) render(); });
   document.addEventListener('click', e => { if (S.menu && !e.target.closest('.menu')) AX.closeMenu(); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { if (S.menu) AX.closeMenu(); else if (S.form || S.print) closeForm(); else if (S.card) closeCard(); return; }
+    /* Карточка держит курсор: Tab ходит по её кнопкам и ссылкам по кругу, под карточку не уходит. */
+    const cp = $('#cardpanel');
+    if (e.key === 'Tab' && S.card && !S.form && !S.print && cp.contains(document.activeElement)) {
+      const all = [...cp.querySelectorAll('button,summary,input,select,textarea,a[href]')].filter(el => !el.disabled && el.offsetParent !== null);
+      const els = all.filter(el => !el.classList.contains('x')).concat(all.filter(el => el.classList.contains('x')));  /* «×» — последним: первый Tab встаёт на главную кнопку */
+      if (!els.length) return; const k = els.indexOf(document.activeElement);
+      e.preventDefault(); els[k < 0 ? (e.shiftKey ? els.length - 1 : 0) : (k + (e.shiftKey ? -1 : 1) + els.length) % els.length].focus(); return;
+    }
     const md = $('#modal'); if (!(S.form || S.print)) return;
     /* Окно держит курсор: Tab ходит по его полям и кнопкам по кругу, под окно не уходит. */
     if (e.key === 'Tab') {

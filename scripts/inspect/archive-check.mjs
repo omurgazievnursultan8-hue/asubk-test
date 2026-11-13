@@ -14,6 +14,11 @@
 // поле, Enter, Esc, Tab в окне), поиск сотрудника и заёмщика с «Предложено», место одним списком, причина кнопками,
 // даты с подсказкой и «+5 / +10 р.д.», запрет у поля до нажатия, строки пачки с исходом, сообщение «что сделано и что
 // дальше», действия без окна, уволенному не продлевают, ввод подряд, причина-шаблон, своя строка очереди без кнопки.
+// Блок МП-1…МП-4 — автогриллинг «Моих папок» и «Заёмщиков без КЗД» (АХ-109…АХ-122): «Найти папку» с клавиатуры (курсор,
+// Enter — номер сразу карточкой), карточка из поиска держит курсор (Tab по кругу, Esc — в поиск), курсор после действия,
+// пустой экран строкой, папки подразделения и «на руках у сотрудников» руководителя, «Вам передают» с «Кто ждёт», срок
+// «через N р.д.», одна сетка колонок, бронь — помещение; «Заёмщики без КЗД» без счётчика, отборы по роли, «Привязать»;
+// врезка «Где бумага» от первого лица, без колонки «Том», с «ждут N», выбывшая КЗД (АХ-Д23).
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -1430,6 +1435,164 @@ await group('ОД-4 · пачкой — строки с исходом до на
     const x = A.EXTS.find(e => e.st === 'pending'); A.uiDecide(x.id, false); o.ext = A.S.form.vals.reason; A.closeForm(); return o; });
   ck('АХ-107 · причина подставлена, только где система знает: «совпал ИНН», «папку ждут: …»; иначе пусто',
     p.inn === 'заёмщик заведён в системе — совпал ИНН' && p.none === '' && p.ext === 'папку ждут: Абдыкеримова Ж.', p);
+});
+
+/* ============ «Мои папки» и «Заёмщики без КЗД» — автогриллинг страницы (АХ-109…АХ-122) ============ */
+const focusId = E => E(() => { const a = document.activeElement; return a.id || a.dataset.testid || a.tagName; });
+const inCard = E => E(() => document.querySelector('#cardpanel').contains(document.activeElement));
+
+await group('МП-1 · «Найти папку» с клавиатуры: курсор при входе, Enter — номер сразу карточкой; карточка держит курсор; курсор после действия (АХ-109, АХ-112, АХ-122)', async (page, E) => {
+  await E(() => window.AX.setUser('sydykova'));
+  const g = await E(() => { const i = document.querySelector('#mineQ').getBoundingClientRect(), b = document.querySelector('[data-testid=mine-find-go]').getBoundingClientRect();
+    return { focus: document.activeElement.id, w: Math.round(i.width), gap: Math.round(b.left - i.right), btn: document.querySelector('[data-testid=mine-find-go]').textContent }; });
+  ck('АХ-109 · стартовый экран: курсор в «Найти папку» (было: нигде); поле 520 px, «Найти» сразу за полем', g.focus === 'mineQ' && g.w === 520 && g.gap <= 16 && g.btn === 'Найти', g);
+  await page.click('[data-testid=nav-folders]'); await page.click('[data-testid=nav-mine]');
+  ck('АХ-109 · вернулся на «Мои папки» из меню — курсор снова в поле', await focusId(E) === 'mineQ');
+  await page.keyboard.type('A-230'); await page.keyboard.press('Enter');
+  const a = await E(() => ({ view: window.AX.S.view, q: window.AX.S.q, card: window.AX.S.card, focus: document.activeElement.dataset.testid }));
+  ck('АХ-109 · «A-230» + Enter — «Папки» с запросом и сразу карточка А-000230 (было: список из одной строки)', a.view === 'folders' && a.q === 'A-230' && a.card === 'f230' && a.focus === 'cp-title', a);
+  await page.keyboard.press('Tab');
+  const t1 = await E(() => document.activeElement.dataset.testid);
+  const tabs = [];
+  for (let k = 0; k < 8; k++) { await page.keyboard.press('Tab'); tabs.push(await inCard(E)); }
+  await page.keyboard.press('Shift+Tab');
+  ck('АХ-122 · Tab из заголовка — на первую кнопку карточки («Запросить»), Tab ×8 не уходит под карточку (было: по отборам «Папок»)', t1 === 'cb-request' && tabs.every(Boolean) && await inCard(E), { t1, tabs });
+  await page.keyboard.press('Escape');
+  const esc = await E(() => { const el = document.activeElement; return { card: window.AX.S.card, focus: el.id, sel: !!el.value && el.selectionStart === 0 && el.selectionEnd === el.value.length }; });
+  ck('АХ-122 · Esc — карточка закрыта, курсор в поиске «Папок», набранное выделено', !esc.card && esc.focus === 'fq' && esc.sel, esc);
+  await E(() => window.AX.go('mine'));
+  await page.keyboard.type('протоколы правления'); await page.click('[data-testid=mine-find-go]');
+  const b = await E(() => ({ view: window.AX.S.view, card: window.AX.S.card, rows: [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].length, focus: document.activeElement.id }));
+  ck('АХ-109 · «протоколы правления» + «Найти» — две папки списком, без карточки, курсор в поиске «Папок»', b.view === 'folders' && !b.card && b.rows === 2 && b.focus === 'fq', b);
+  await E(() => window.AX.go('mine'));
+  await page.keyboard.type('сверки'); await page.keyboard.press('Enter');
+  ck('АХ-109 · найдена одна («сверки» → А-000221) — сразу её карточка', await E(() => window.AX.S.card === 'f221'));
+  /* Карточка из поиска «Папок» держит курсор и после окна действия; открытая мышью — курсор не перехватывает. */
+  await E(() => { window.AX.setUser('asanov'); window.AX.go('folders'); });
+  await page.keyboard.type('225'); await page.keyboard.press('Enter'); await page.keyboard.press('Tab');
+  const t2 = await E(() => document.activeElement.dataset.testid);
+  await page.keyboard.press('Enter'); const formOpen = await E(() => !!window.AX.S.form);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  ck('АХ-122 · «225» Enter → Tab → «Передать» Enter — окно; Esc (список сотрудников, затем окно) — курсор снова в карточке', t2 === 'cb-transfer' && formOpen && await E(() => !window.AX.S.form && document.activeElement.dataset.testid === 'cp-title'), t2);
+  await E(() => { window.AX.closeCard(); window.AX.setQ(''); window.AX.go('folders'); });
+  await page.click('[data-testid=row-214]');
+  ck('АХ-122 · карточка, открытая мышью, курсор не перехватывает (как было)', await E(() => window.AX.S.card === 'f214') && !(await inCard(E)));
+  await E(() => window.AX.closeCard());
+  /* Курсор после действия на «Моих папках». */
+  await E(() => window.AX.setUser('mambetov'));
+  await page.click('[data-testid=got-201]');
+  const c1 = await focusId(E);
+  await E(() => window.AX.setUser('asanov'));
+  await page.click('[data-testid=transfer-225]'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  const c3 = await focusId(E);
+  await page.click('[data-testid=hand-225]'); await page.keyboard.press('Escape');
+  const c4 = await focusId(E);
+  await E(() => { const A = window.AX; A.transfer('f225', { to: 'mambetov' }, 'asanov'); A.render(); });
+  await page.click('[data-testid=cancel-225]');
+  const c2 = await focusId(E);
+  ck('АХ-112 · после «Получил», «Отменить передачу», окна «Передать» и карточки — курсор в «Найти папку» (было: нигде)', [c1, c2, c3, c4].every(x => x === 'mineQ'), [c1, c2, c3, c4]);
+});
+
+await group('МП-2 · пустой экран — строка, а не плашка; папки подразделения; руководителю — на руках у сотрудников (АХ-110, АХ-111)', async (page, E) => {
+  await E(() => window.AX.setUser('sydykova'));
+  const e = await E(() => { const n = document.querySelector('[data-testid=mine-empty]'), r = n.getBoundingClientRect(), cs = getComputedStyle(n);
+    return { text: n.textContent, h: Math.round(r.height), border: cs.borderTopStyle, link: document.querySelector('[data-testid=mine-dept]').textContent, staff: !!document.querySelector('[data-testid=mine-staff]') }; });
+  ck('АХ-110 · пусто всё — одна строка «У вас нет папок архива — ни на руках, ни в запросах.» (было: плашка 1602 × 78 px)',
+    e.text === 'У вас нет папок архива — ни на руках, ни в запросах.' && e.h <= 24 && e.border === 'none', e);
+  ck('АХ-110 · ссылка «Папки подразделения «Бухгалтерия»: 2»; руководителю-ссылки у бухгалтера нет', e.link === 'Папки подразделения «Бухгалтерия»: 2' && !e.staff, e);
+  await page.click('[data-testid=mine-dept]');
+  const d = await E(() => ({ view: window.AX.S.view, dept: window.AX.S.f.dept, rows: [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.dataset.testid), focus: document.activeElement.id }));
+  ck('АХ-110 · С-18 одним кликом: «Папки» с отбором «Бухгалтерия» — А-000213 «Протоколы правления · 2025» и А-000221, число = строкам', d.view === 'folders' && d.dept === 'Бухгалтерия' && d.rows.join() === 'row-213,row-221' && d.focus === 'fq', d);
+  const r = await E(() => { const A = window.AX, o = {}; ['asanov', 'isaeva', 'jeen'].forEach(u => { A.setUser(u); o[u] = [document.querySelector('[data-testid=mine-dept]').textContent, !!document.querySelector('[data-testid=mine-staff]')]; });
+    A.setUser('mambetov'); o.staff = document.querySelector('[data-testid=mine-staff]').textContent; return o; });
+  ck('АХ-110 · у каждого своё подразделение: ДРР 9, ДАК 10, ДПО 1; у кураторов и юриста ссылки «на руках у сотрудников» нет',
+    r.asanov.join() === 'Папки подразделения «ДРР»: 9,false' && r.isaeva.join() === 'Папки подразделения «ДАК»: 10,false' && r.jeen.join() === 'Папки подразделения «ДПО»: 1,false', r);
+  ck('АХ-111 · руководителю (Мамбетов): «На руках у сотрудников ДРР: 4 · просрочена 1»', r.staff === 'На руках у сотрудников ДРР: 4 · просрочена 1', r.staff);
+  await page.click('[data-testid=mine-staff-all]');
+  const s1 = await E(() => ({ hdept: window.AX.S.f.hdept, chip: window.AX.S.chip, rows: [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.dataset.testid).join() }));
+  await E(() => window.AX.go('mine')); await page.click('[data-testid=mine-staff-over]');
+  const s2 = await E(() => ({ hdept: window.AX.S.f.hdept, chip: window.AX.S.chip, rows: [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.dataset.testid).join() }));
+  ck('АХ-111 · С-19 одним кликом (было 5): «4» — отбор «Подразделение держателя» ДРР, четыре папки; «просрочена 1» — с плашкой «просрочены», А-000230',
+    s1.hdept === 'ДРР' && !s1.chip && s1.rows === 'row-201,row-216,row-225,row-230' && s2.hdept === 'ДРР' && s2.chip === 'over' && s2.rows === 'row-230', { s1, s2 });
+});
+
+await group('МП-3 · блоки: «Вам передают» с «Кто ждёт», срок «через N р.д.», одна сетка колонок, бронь — помещение (АХ-113…АХ-116)', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    A.request('f201', { why: 'подготовка иска' }, 'jeen');
+    A.setUser('mambetov');
+    const th = id => [...document.querySelectorAll(`[data-testid=${id}] thead th`)].map(t => t.textContent).join('|');
+    const xs = id => [...document.querySelectorAll(`[data-testid=${id}] thead th`)].map(t => Math.round(t.getBoundingClientRect().left)).join();
+    o.inTh = th('tbl-incoming'); o.handTh = th('tbl-hands'); o.inX = xs('tbl-incoming'); o.handX = xs('tbl-hands');
+    o.inRow = document.querySelector('[data-testid=in-201]').innerText;
+    A.setUser('asanov'); o.reqX = xs('tbl-req'); o.handX2 = xs('tbl-hands'); o.reqTh = th('tbl-req');
+    return o; });
+  ck('АХ-113 · «Вам передают» — те же колонки, что «На руках у меня»: № · Название · Вернуть до · Кто ждёт · Отметки', r.inTh === r.handTh && r.inTh === '№|Название|Вернуть до|Кто ждёт|Отметки|', r);
+  ck('АХ-113 · получатель видит очередь до «Получил»: «ждёт Жээнбекова Н. с 13.11», «передаёт Асанов Б.»', has(r.inRow, 'ждёт Жээнбекова Н. с 13.11') && has(r.inRow, 'передаёт Асанов Б.'), r.inRow);
+  ck('АХ-115 · три таблицы — одна сетка: колонки «Вам передают», «На руках у меня» и «Мои запросы» начинаются на тех же x',
+    r.inX === r.handX && r.reqX === r.handX2 && r.inX === r.handX2 && r.reqTh === '№|Название|Нужна до|Зачем|Состояние|', r);
+  const t = await E(() => { const A = window.AX, o = {};
+    A.request('f225', { why: 'подготовка иска', needBy: '2026-12-01' }, 'jeen'); A.transfer('f225', { to: 'jeen' }, 'asanov');
+    A.setUser('jeen'); o.inRow = (document.querySelector('[data-testid=in-225]') || {}).innerText || ''; o.reqRow = !!document.querySelector('[data-testid=req-225]');
+    o.blocks = [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid).join();
+    return o; });
+  ck('АХ-113 · передают по вашему же запросу: в «Вам передают» — «ваш запрос закроется передачей», в «Моих запросах» второй строки нет',
+    has(t.inRow, 'ваш запрос закроется передачей') && !t.reqRow && t.blocks === 'blk-incoming,blk-hands,blk-req', t);
+  const d = await E(() => { const A = window.AX, o = {}, due = no => { const c = document.querySelector(`[data-testid=due-${no}]`); const s = c.querySelector('.due-s'); return [c.innerText.replace(/\n/g, ' '), s.className]; };
+    A.setUser('isaeva'); o.i223 = due(223); o.req = document.querySelector('[data-testid=req-206]').innerText.replace(/\n/g, ' ');
+    A.setUser('asanov'); o.a230 = due(230);
+    A.setUser('mambetov'); o.m216 = due(216);
+    A.setToday('2026-11-17'); A.setUser('isaeva'); o.today = due(223);
+    return o; });
+  ck('АХ-114 · срок «через N р.д.»: А-000223 у Исаевой — «через 2 р.д.» жёлтым (день напоминания), А-000216 у Мамбетова — «через 7 р.д.» серым',
+    d.i223[0] === '17.11.2026 через 2 р.д.' && d.i223[1] === 'due-s soon' && d.m216[0] === '24.11.2026 через 7 р.д.' && d.m216[1] === 'due-s', d);
+  ck('АХ-114 · после срока — «просрочена 3 р.д.» красным; в день срока — «срок сегодня»', d.a230[0] === '10.11.2026 просрочена 3 р.д.' && d.a230[1] === 'due-s over' && d.today[0] === '17.11.2026 срок сегодня', d);
+  ck('АХ-116 · бронь в «Моих запросах»: «ждёт вас в архиве до 17.11.2026» и помещение «Архив ГО», без шкафа и полки',
+    has(d.req, 'ждёт вас в архиве до 17.11.2026') && has(d.req, 'Архив ГО') && !has(d.req, 'шкаф'), d.req);
+});
+
+await group('МП-4 · «Заёмщики без КЗД»: без счётчика в меню, отборы по роли, «Привязать» вместо «Принять папку»; врезка «Где бумага» (АХ-117…АХ-121, АХ-Д23)', async (page, E) => {
+  const m = await E(() => { const A = window.AX, o = {};
+    A.USERS.forEach(([u]) => { A.setUser(u); A.go('nokzd'); o[u] = { cnt: document.querySelector('[data-testid=cnt-nokzd]').textContent, mine: !!document.querySelector('[data-testid=nk-mine]'), dept: document.querySelector('[data-testid=nk-dept]').value,
+      rows: [...document.querySelectorAll('tr[data-testid^=nk-]')].map(t => t.dataset.testid).join(), shown: document.querySelector('[data-testid=nk-count]').textContent }; });
+    return o; });
+  ck('АХ-117 · у «Заёмщиков без КЗД» счётчика в меню нет ни у кого; число — на странице («Показано: 5» у архивариуса, «2» у куратора)',
+    Object.values(m).every(x => x.cnt === '') && m.arch1.shown === 'Показано: 5' && m.asanov.shown === 'Показано: 2', m.arch1);
+  ck('АХ-118 · «мои заёмщики» — только у кураторов (Асанов, Исаева); у архивариуса, заведующего, юриста, бухгалтера флажка нет',
+    m.asanov.mine && m.isaeva.mine && !m.arch1.mine && !m.mambetov.mine && !m.jeen.mine && !m.sydykova.mine, Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.mine])));
+  ck('АХ-118 · заведующему ДРР по умолчанию свой департамент — 3 строки из 5; остальным — все', m.mambetov.dept === 'ДРР' && m.mambetov.rows === 'nk-n3,nk-n5,nk-n1' && m.arch1.dept === '' && m.arch1.rows === 'nk-b9,nk-n3,nk-n2,nk-n5,nk-n1', m.mambetov);
+  await E(() => { window.AX.setUser('arch1'); window.AX.go('nokzd'); });
+  await page.selectOption('[data-testid=nk-dept]', 'ДАК');
+  ck('АХ-118 · отбор «Департамент» ДАК — Хасанов Р.М. и Турдубаев А.Ж.', await E(() => [...document.querySelectorAll('tr[data-testid^=nk-]')].map(t => t.dataset.testid).join() === 'nk-b9,nk-n2'));
+  await page.selectOption('[data-testid=nk-dept]', '');
+  const b = await E(() => ({ bind: (document.querySelector('[data-testid=nk-bind-n5]') || {}).textContent, acc: !!document.querySelector('[data-testid=nk-accept-n5]'), others: ['b9', 'n3', 'n2', 'n1'].every(id => !!document.querySelector(`[data-testid=nk-accept-${id}]`)),
+    gone: document.querySelector('[data-testid=nk-gone-b9]').textContent, head: [...document.querySelectorAll('[data-testid=tbl-nokzd] thead th')].map(t => t.textContent)[5] }));
+  ck('АХ-119 · строка с непривязанной КЗД того же ИНН — «Привязать А-000217», «Принять папку» нет; у остальных — «Принять папку»', b.bind === 'Привязать А-000217' && !b.acc && b.others, b);
+  ck('АХ-119, АХ-120 · «КЗД выбыла: утрачена 01.10.2026 (А-000209)»; колонка «Дней с регистрации»', b.gone === 'КЗД выбыла: утрачена 01.10.2026 (А-000209)' && b.head === 'Дней с регистрации', b);
+  await page.click('[data-testid=nk-gone-b9] button');
+  ck('АХ-119 · номер выбывшей — ссылка в карточку (там «Восстановить»)', await E(() => window.AX.S.card === 'f209' && !!document.querySelector('[data-testid=cb-restore]')));
+  await E(() => window.AX.closeCard());
+  await page.click('[data-testid=nk-bind-n5]');
+  const f = await E(() => ({ t: document.querySelector('[data-testid=form-title]').textContent, bor: window.AX.S.form.vals.borrower }));
+  await page.keyboard.press('Enter');
+  const after = await E(() => ({ form: !!window.AX.S.form, rows: [...document.querySelectorAll('tr[data-testid^=nk-]')].map(t => t.dataset.testid).join(), dup: window.AX.FOLDERS.filter(x => x.kind === 'kzd' && x.borrower === 'n5').length }));
+  ck('АХ-119 · «Привязать А-000217» — окно с подставленным заёмщиком, Enter — заёмщик ушёл из списка, КЗД одна', f.t === 'Изменить привязку · А-000217' && f.bor === 'n5' && !after.form && after.rows === 'nk-b9,nk-n3,nk-n2,nk-n1' && after.dup === 1, { f, after });
+  const p = await E(() => { const A = window.AX, o = {}, w = no => (document.querySelector(`[data-testid=pb-where-${no}]`) || {}).innerText || '', act = no => document.querySelector(`[data-testid=pb-row-${no}]`).lastElementChild.innerText.trim();
+    A.setUser('isaeva'); A.openBorrower('b2'); o.th = [...document.querySelectorAll('[data-testid=paperbox] thead th')].map(t => t.textContent).join('|');
+    A.openBorrower('b1'); o.other = w(201);
+    A.setUser('asanov'); A.openBorrower('b1'); o.sender = [w(201), act(201)]; A.openBorrower('b3'); o.q = [w(205), act(205)];
+    A.setUser('mambetov'); A.openBorrower('b1'); o.recv = [w(201), act(201)];
+    A.setUser('jeen'); A.openBorrower('b3'); o.hold = [w(205), act(205)];
+    A.openBorrower('b9'); o.gone = [document.querySelector('[data-testid=pb-nokzd]').textContent, w(209)];
+    A.openBorrower('n2'); o.none = document.querySelector('[data-testid=pb-nokzd]').textContent;
+    return o; });
+  ck('АХ-121 · колонки врезки — «Папка · Где сейчас»: том — в названии, отдельной колонки нет', p.th === 'Папка|Где сейчас|', p.th);
+  ck('АХ-121 · своя папка от первого лица и без «Запросить»: держателю «у вас до 16.11.2026», передающему «вы → Мамбетов К.», получателю «вам от Асанова Б. — подтвердите «Получил»»',
+    has(p.hold[0], 'на руках у вас до 16.11.2026') && p.hold[1] === '' && has(p.sender[0], 'вы → Мамбетов К.') && p.sender[1] === '' && has(p.recv[0], 'вам от Асанова Б. — подтвердите «Получил»') && p.recv[1] === '', p);
+  ck('АХ-121 · при очереди — «ждут N» (кроме вас): у юриста-держателя «ждут 2», у Асанова в очереди — «ждут 1» и «№ 1 в очереди»',
+    has(p.hold[0], 'ждут 2') && has(p.q[0], 'ждут 1') && has(p.q[1], '№ 1 в очереди'), p);
+  ck('АХ-Д23 · передача у чужой папки — «Асанов Б. → Мамбетов К., вернуть до 20.11.2026» (было: «передаётся у Асанова Б.»)', has(p.other, 'Асанов Б. → Мамбетов К., вернуть до 20.11.2026'), p.other);
+  ck('АХ-Д23 · КЗД выбыла — «Кредитно-залоговое дело выбыло: утрачена 01.10.2026 (А-000209) — в архиве его нет», «выбыла» один раз; не сдано — как было',
+    p.gone[0] === 'Кредитно-залоговое дело выбыло: утрачена 01.10.2026 (А-000209) — в архиве его нет' && p.gone[1].split('выбыла').length === 2 && p.none === 'Кредитно-залоговое дело в архив не сдано', p);
 });
 
 await browser.close();
