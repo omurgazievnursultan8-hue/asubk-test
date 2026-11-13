@@ -1412,13 +1412,19 @@ await group('ОД-4 · пачкой — строки с исходом до на
   const t = await E(() => { const A = window.AX, last = () => [...document.querySelectorAll('[data-testid=toast]')].pop().textContent, o = {};
     A.setUser('isaeva'); A.openCard('f223'); A.uiAskExt('f223'); A.submitForm('main', { date: '24.11.2026', reason: 'мониторинг перенесён' }); o.ask = last();
     A.setUser('sydykova'); A.uiRequest('f214'); A.submitForm('main', { why: 'сверка' }); o.req = last();
-    A.setUser('asanov'); A.openCard('f205'); o.ownRow = !!document.querySelector('[data-testid=cp-queue] [data-testid=q-withdraw]'); o.cbW = !!document.querySelector('[data-testid=cb-withdraw]');
+    A.setUser('asanov'); A.openCard('f205'); o.cbW = !!document.querySelector('[data-testid=cb-withdraw]');
     o.rows = [...document.querySelectorAll('[data-testid=cp-queue] tbody tr')].map(r => r.children[6].textContent);
     A.uiWithdraw('f205'); o.wOpen = document.querySelector('#overlay').classList.contains('open'); o.w = last(); return o; });
   ck('АХ-103 · занятая: «Вы № 1 в очереди на А-000214 — на руках у Жээнбековой Н. до 25.11.2026; дойдёт очередь — придёт уведомление»',
     t.req === 'Вы № 1 в очереди на А-000214 — на руках у Жээнбековой Н. до 25.11.2026; дойдёт очередь — придёт уведомление', t.req);
   ck('АХ-103 · просьба продлить — что дальше: «решение придёт уведомлением»', t.ask === 'Просьба продлить А-000223 до 24.11.2026 отправлена архивариусу — решение придёт уведомлением', t.ask);
-  ck('АХ-108 · в очереди карточки своя строка без кнопки; «Отозвать запрос» — в кнопках над реквизитами', !t.ownRow && t.cbW && t.rows[0] === '', t);
+  ck('АХ-108 · в очереди карточки своя строка без кнопки; «Отозвать запрос» — в кнопках над реквизитами', t.cbW && t.rows[0] === '', t);
+  const own = await E(() => { const A = window.AX; A.setUser('arch1'); A.request('f225', { why: 'сверка' }, 'arch1'); A.go('folders'); A.openCard('f225');
+    const rows = [...document.querySelectorAll('[data-testid=cp-queue] tbody tr')].map(r => ({ who: r.children[1].innerText, last: r.children[6].innerText.trim() }));
+    const mi = [...document.querySelectorAll('[data-testid=more-pop] .mi')].map(m => m.dataset.testid);
+    const mine = rows.find(r => r.who.startsWith('Токтосунова')), r = { mineLast: mine && mine.last, refuseMine: !!document.querySelector('[data-testid=q-refuse-arch1]'), others: rows.filter(x => x !== mine).length, refuseBtns: document.querySelectorAll('[data-testid^=q-refuse-]').length, mi };
+    A.uiWithdraw('f225'); A.setUser('asanov'); return r; });
+  ck('АХ-108 · архивариус: в своей строке очереди нет «Отказать» (АХ-Д32); «Отозвать запрос» — в кнопках карточки', own.mineLast === '' && !own.refuseMine && own.refuseBtns === own.others, own);
   ck('АХ-104 · «Отозвать запрос» — без окна, одним нажатием, сообщение «Запрос на А-000205 отозван»', !t.wOpen && t.w === 'Запрос на А-000205 отозван', t);
   const f = await E(() => { const A = window.AX, o = {}; A.setUser('arch1'); A.openCard('f208'); const b = document.querySelector('[data-testid=cb-extend]'); o.btn = b && [b.disabled, b.dataset.why];
     o.ext = A.extend('f208', { date: '2026-11-30', reason: 'х' }); o.gate = A.gate('extend', 'f208'); return o; });
@@ -1717,6 +1723,13 @@ await group('ЖС-4 · ярлыки листом A4 с позиции; спис�
   const l2 = await E(() => ({ a4: document.querySelectorAll('[data-testid=a4]').length, used: document.querySelectorAll('[data-testid=labels] .used').length, n: document.querySelectorAll('[data-testid=labels] .label').length, info: document.querySelector('[data-testid=print-info]').textContent }));
   ck('АХ-130 · «Начать с позиции 23» — 22 позиции серые, ярлыки на 23, 24 и на втором листе; «2 листа»', l2.a4 === 2 && l2.used === 22 && l2.n === 3 && l2.info === '3 ярлыка · 2 листа A4 по 24 ярлыка 70 × 37 мм', l2);
   ck('АХ-130 · позиция вне 1–24 не принимается', await E(() => !window.AX.setLabelStart(25).ok && !window.AX.setLabelStart(0).ok));
+  await page.fill('[data-testid=label-start]', '30');
+  const bad = await E(() => ({ err: document.querySelector('[data-testid=label-err]').textContent, dis: document.querySelector('[data-testid=print-go]').disabled, why: document.querySelector('[data-testid=print-go]').dataset.why, start: window.AX.S.print.start }));
+  ck('АХ-101 · «30» в поле позиции — ошибка у поля сразу, «Печать» серая с той же причиной (АХ-Д31)', bad.err === 'позиция от 1 до 24' && bad.dis && bad.why === 'позиция от 1 до 24', bad);
+  await page.keyboard.press('Enter');
+  ck('АХ-101 · Enter при ошибке не печатает', await E(() => !!window.AX.S.print && window.AX.S.labelNext === 1));
+  await page.fill('[data-testid=label-start]', '23');
+  ck('АХ-101 · верное значение — ошибка снята, «Печать» доступна', await E(() => document.querySelector('[data-testid=label-err]').textContent === '' && !document.querySelector('[data-testid=print-go]').disabled));
   await page.keyboard.press('Enter');
   ck('АХ-130 · после печати — «следующий ярлык — с позиции 2»', await E(() => window.AX.S.labelNext === 2) && (await toasts(E)).some(t => t.text === 'Отправлено на печать: 3 ярлыка, 2 листа; следующий ярлык — с позиции 2'), await toasts(E));
   const l3 = await E(() => { window.AX.uiLabels(['f205']); return { title: document.querySelector('[data-testid=print-title]').textContent, start: document.querySelector('[data-testid=label-start]').value, used: document.querySelectorAll('[data-testid=labels] .used').length }; });
@@ -1852,6 +1865,65 @@ await group('ЖС-7 · курсор: № строки с клавиатуры �
   const nk = await E(() => { const b = document.querySelector('#panel [data-open]'); if (!b) return null; b.focus(); return b.dataset.open; });
   if (nk) { await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
   ck('АХ-137 · «Заёмщики без КЗД»: № с клавиатуры — карточка и обратно на тот же №', nk === null || await E(id => !window.AX.S.card && document.activeElement.dataset.open === id, nk), nk);
+});
+
+await group('РП-1 · ревью проходов по страницам: короткий номер, курсор после карточки, печать поверх серии, держатель, позиция ярлыка (АХ-Д27…АХ-Д31)', async (page, E) => {
+  /* АХ-Д27: «215», «211», «212» — номера; в демо они же начало ИНН заёмщиков. */
+  const sr = await E(() => { const A = window.AX, r = {};
+    for (const q of ['215', '211', '212']) {
+      const nos = A.registry({ q }).rows.map(f => f.no), kzd = A.BORROWERS.filter(b => b.inn.startsWith(q)).length;
+      const own = A.FOLDERS.find(f => f.no === +q);
+      r[q] = { nos: nos.join(), kzd, hasOwn: !!own, ok: nos.every(n => n === +q) };
+    }
+    const b = A.BORROWERS.find(x => x.inn.startsWith('215')); r.full = A.registry({ q: b.inn }).rows.map(f => A.innOf(f)).join(); r.fullInn = b.inn;
+    r.journal = A.journal ? null : null; return r; });
+  ck('АХ-48 · «215», «211», «212» в демо — начало ИНН заёмщиков; находят только папку с таким номером, не КЗД по ИНН', ['215', '211', '212'].every(q => sr[q].kzd > 0 && sr[q].ok), sr);
+  ck('АХ-48 · полный ИНН (от 7 цифр) находит свою КЗД', sr.full.split(',').includes(sr.fullInn) && sr.full.split(',').every(i => i.startsWith(sr.fullInn)), sr);
+  await page.click('[data-testid=nav-folders]'); await page.fill('[data-testid=f-q]', '215');
+  ck('АХ-48 · экран «Папки»: «215» — строки только А-000215 (или ничего, если её нет в отборе)', await E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr[data-testid]')].every(t => t.dataset.testid === 'row-215')));
+  const jq = await E(() => { const A = window.AX; A.go('journal'); A.setJ('per', 'all'); A.setJ('q', '215'); return [...document.querySelectorAll('[data-testid=j-row]')].map(r => r.innerText).join(' ').includes('21507') ; });
+  ck('АХ-48 · журнал: «215» не тянет события папок по ИНН 215…', !jq);
+  /* АХ-Д28: Esc после карточки — на № этой папки, если строка есть; иначе в поле страницы. */
+  const lastQ = await E(() => { const A = window.AX; A.setUser('arch1'); A.go('queue'); const bs = document.querySelectorAll('#panel [data-open]'), b = bs[bs.length - 1]; b.focus(); return b.dataset.open; });
+  await page.keyboard.press('Enter');
+  await E(() => { const A = window.AX; A.uiRebind(A.S.card); A.fpick('borrower', 'n3'); A.fset('basis', 'ошибка при приёме'); });
+  await E(() => document.querySelector('[data-primary]').click());
+  await page.keyboard.press('Escape');
+  const e1 = await E(() => ({ card: window.AX.S.card, id: document.activeElement.id, open: document.activeElement.dataset.open || '' }));
+  ck('АХ-137 · «Изменить привязку» убрала строку из «Ждут привязки» — Esc ставит курсор в «Возврат», не на BODY (АХ-Д28)', !e1.card && e1.id === 'retInput', { lastQ, e1 });
+  await E(() => { const A = window.AX; A.setJ('q', ''); A.setJ('per', '30'); });
+  await page.click('[data-testid=nav-journal]');
+  const ji = await E(() => { const bs = [...document.querySelectorAll('#panel [data-open]')], k = bs.findIndex(b => b.dataset.open === 'f225'); bs[k].focus(); return k; });
+  await page.keyboard.press('Enter');
+  for (let k = 0; k < 8 && await E(() => document.activeElement.dataset.testid !== 'cb-extend'); k++) await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter'); await page.click('[data-testid=q-date-5]'); await page.keyboard.type('выезд'); await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  const e2 = await E(() => ({ card: window.AX.S.card, open: document.activeElement.dataset.open || '', idx: [...document.querySelectorAll('#panel [data-open]')].indexOf(document.activeElement), first: [...document.querySelectorAll('#panel [data-open]')].findIndex(b => b.dataset.open === 'f225') }));
+  ck('АХ-137 · журнал: после «Продлить» из карточки новая строка сверху — Esc на № А-000225, а не на чужой строке (АХ-Д28)', !e2.card && e2.open === 'f225', { ji, e2 });
+  /* АХ-Д29: печать ярлыков поверх серии приёма. */
+  await E(() => { const A = window.AX; A.setUser('arch1'); A.go('folders'); A.uiAccept(); });
+  await page.keyboard.type('Иманов'); await page.keyboard.press('Enter');
+  await page.selectOption('[data-testid=ff-shelf]', 'go1-2');
+  await page.click('[data-testid=form-more]');
+  await page.keyboard.type('Иманов'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  const s1 = await E(() => document.querySelector('[data-testid=form-now]').innerText);
+  await page.keyboard.type('Иманов'); await page.keyboard.press('Enter');
+  await page.click('[data-testid=series-labels]');
+  await page.keyboard.press('Escape');
+  const s2 = await E(() => ({ print: !!window.AX.S.print, form: !!window.AX.S.form, now: (document.querySelector('[data-testid=form-now]') || {}).innerText, bor: window.AX.S.form && window.AX.S.form.vals.borrower }));
+  ck('АХ-101 · «Печать ярлыков (N)» поверх серии: Esc — снова окно серии с введённым и прежним счётчиком «подряд» (АХ-Д29)', !s2.print && s2.form && s2.now === s1 && s2.bor === 'b2', { s1, s2 });
+  await page.click('[data-testid=series-labels]'); await page.click('.modal-f .btn-secondary');
+  ck('АХ-101 · «Закрыть» на листе — то же окно серии', await E(() => !window.AX.S.print && !!window.AX.S.form && !!document.querySelector('[data-testid=form-now]')));
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  ck('АХ-101 · Esc в окне серии закрывает его целиком', await E(() => !window.AX.S.print && !window.AX.S.form));
+  /* АХ-Д30: держатель в строке продления карточки — на момент продления, как в журнале. */
+  const h = await E(() => { const A = window.AX; A.setUser('arch1'); A.extend('f214', { date: '2026-12-04', reason: 'сверка' }, 'arch1');
+    const e = A.EVENTS.filter(x => x.kind === 'extended' && x.folder === 'f214').pop(), iss = A.ISSUES.find(i => i.id === e.issue);
+    A.transfer('f214', { to: 'mambetov' }, iss.holder); A.received('f214', 'mambetov');
+    A.go('folders'); A.openCard('f214'); const d = [...document.querySelectorAll('[data-testid=cp-history] details')][0]; if (d) d.open = true;
+    const line = [...document.querySelectorAll('[data-testid=cp-history] tr, [data-testid=cp-history] .hrow-plain')].map(t => t.innerText.replace(/\s+/g, ' ')).filter(t => t.includes('продлена'));
+    return { evHolder: e.holder, nowHolder: (A.ISSUES.find(i => i.id === e.issue) || {}).holder, name: A.emp(e.holder).short || A.emp(e.holder).name, line }; });
+  ck('АХ-127 · история карточки: в строке продления — держатель на момент продления, не нынешний (АХ-Д30)', h.evHolder !== h.nowHolder && h.line.length > 0 && h.line.every(l => l.includes(h.name)) && !h.line.some(l => l.includes('Мамбетов')), h);
 });
 
 await browser.close();

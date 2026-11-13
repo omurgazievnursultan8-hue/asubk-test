@@ -1239,12 +1239,12 @@ function menuCounts(u) {
   return { queue: isArch(u) ? archQueue().total : 0, mine: m.incoming.length + m.requests.filter(x => x.r.st === 'reserved').length + over, mineOver: over };
 }
 /* Поиск: номер — с «А-» кириллицей или латиницей, с дефисом, пробелом или без, без ведущих нулей — только точно;
-   ИНН — с начала (номер не ищется внутри ИНН); название и «Содержание» — по вхождению. */
+   ИНН — с начала, от 7 цифр (короче — только номер); название и «Содержание» — по вхождению. */
 const qNo = q => { const m = /^[аa]?[\s-]*(\d{1,6})$/i.exec(trim(q)); return m ? +m[1] : null; };
 function matchQ(f, q) {
   q = trim(q).toLowerCase(); if (!q) return true;
   const n = qNo(q); if (n != null && f.no === n) return true;
-  if (/^\d+$/.test(q) && innOf(f).startsWith(q)) return true;
+  if (/^\d{7,}$/.test(q) && innOf(f).startsWith(q)) return true; /* до 7 цифр ИНН не ищется: «215» — номер, не начало ИНН 215… (АХ-Д27) */
   const hay = [titleOf(f), f.content || '', f.unlinked ? f.unlinked.name : ''].join(' ').toLowerCase();
   return hay.includes(q);
 }
@@ -1662,7 +1662,7 @@ function evLine(e) {
     case 'transferCancel': return { whom: `${nm(e.from)} → ${nm(e.to)}`, text: 'передача отменена' + (e.why ? ': ' + e.why : '') };
     case 'extClosed': return { whom: nm(e.who), text: `просьба продлить до ${fmt(e.date)} закрыта: ${e.why}` };
     case 'extAsk': return { whom: '—', text: `просит продлить до ${fmt(e.date)}: ${e.reason}` };
-    case 'extended': return { whom: nm((ISSUES.find(i => i.id === e.issue) || {}).holder), text: `до ${fmt(e.to)} (было ${fmt(e.from)}), ${e.via}: ${e.reason}` };
+    case 'extended': return { whom: nm(evHolder(e)), text: `до ${fmt(e.to)} (было ${fmt(e.from)}), ${e.via}: ${e.reason}` };
     case 'extRefused': return { whom: '—', text: `отказ в продлении до ${fmt(e.date)}: ${e.reason}` };
     case 'returned': return { whom: 'от ' + emp(e.from).gen, text: e.note ? 'примечание: ' + e.note : 'на полку ' + placeShort(f.shelf) };
     case 'moved': return { whom: '—', text: `${placeShort(e.from)} → ${placeShort(e.to)}` };
@@ -1848,7 +1848,7 @@ function renderCard() {
   if (x) h += `<div class="cp-sec"><h4>Просьба продлить</h4><div class="extbox" data-testid="ext-box"><span>${esc(nm(x.who))} просит до <b>${fmt(x.date)}</b> (сейчас до ${fmt(i.due)}) — «${esc(x.reason)}»${q.length ? ` · <span class="red">ждут: ${q.map(r => esc(nm(r.who))).join(', ')}</span>` : ''}</span>
     ${arch ? `<div class="btn-row">${btn('Продлить', `AX.uiDecide('${x.id}', true)`, { cls: 'btn-primary', tid: 'cp-ext-grant', why: isFired(i.holder) ? FIRED_EXT : '' })}${btn('Отказать', `AX.uiDecide('${x.id}', false)`, { tid: 'cp-ext-refuse' })}</div>` : '<span class="small">на решении у архивариуса</span>'}</div></div>`;
   if (q.length) h += `<div class="cp-sec"><h4>Очередь <span class="c">${q.length}</span></h4><table class="cgrid" data-testid="cp-queue"><thead><tr><th>№</th><th>Кто</th><th>С какого</th><th>Зачем</th><th>Нужна до</th><th>Бронь до</th><th></th></tr></thead><tbody>${q.map((r, n) => {
-    const a = arch ? btn('Отказать', `AX.uiRefuse('${r.id}')`, { tid: 'q-refuse-' + r.who }) : r.who === u ? '' : i && i.holder === u && !pendingTr(i) ? btn('Передать', `AX.uiTransfer('${f.id}', '${r.who}')`, { tid: 'q-transfer-' + r.who }) : '';
+    const a = r.who === u ? '' : arch ? btn('Отказать', `AX.uiRefuse('${r.id}')`, { tid: 'q-refuse-' + r.who }) : i && i.holder === u && !pendingTr(i) ? btn('Передать', `AX.uiTransfer('${f.id}', '${r.who}')`, { tid: 'q-transfer-' + r.who }) : '';
     return `<tr><td class="mono">${n + 1}</td><td class="nw">${esc(nm(r.who))} <span class="small">${esc(emp(r.who).dept)}</span></td><td class="nw">${fmt(r.d)}</td><td>${esc(r.why)}</td><td class="nw">${fmt(r.needBy)}</td><td class="nw">${r.until ? fmt(r.until) : '—'}</td><td class="nw">${a}</td></tr>`; }).join('')}</tbody></table></div>`;
   const hist = history(f.id);
   h += `<div class="cp-sec"><h4>История <span class="c">${hist.length}</span></h4><div class="hist" data-testid="cp-history"><div class="hh"><span>Когда</span><span>Что</span><span class="res">Итог</span></div>${hist.map(row => {
@@ -1943,7 +1943,7 @@ function ctl(f, v) {
   return `<input id="${id}" data-testid="ff-${f.id}" autocomplete="off" value="${esc(val)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''} oninput="AX.fset('${f.id}', this.value)">`;
 }
 function openForm(o) {
-  S.print = null; S.menu = false;
+  S.print = null; S.formBehind = null; S.menu = false;
   S.form = Object.assign({ vals: {}, err: '', errField: null, submit: 'Сохранить', more: null, primary: 'main', now: o.note || '', pk: {}, first: true }, o);
   S.form.fields.forEach(f => { if (S.form.vals[f.id] === undefined) S.form.vals[f.id] = f.value != null ? f.value : ''; });
   renderModal(); return yes({ form: true });
@@ -1966,9 +1966,9 @@ function renderModal() {
     const P = S.print, lab = P.kind === 'labels';
     md.className = 'modal ' + (P.xwide ? 'xwide' : 'wide');
     md.innerHTML = `<div class="modal-h"><div class="mt" data-testid="print-title">${esc(P.title)}</div><button class="modal-x" onclick="AX.closeForm()" title="Закрыть (Esc)">×</button></div>
-      <div class="modal-b">${lab ? `<div class="pctl" data-testid="label-ctl"><label for="lstart">Начать с позиции</label><input id="lstart" type="number" min="1" max="${LABELS_PER_SHEET}" data-testid="label-start" value="${P.start}" oninput="AX.setLabelStart(this.value)"><span>из ${LABELS_PER_SHEET}</span><span class="small">занятые на листе позиции — серые; после печати следующая подставится сама</span></div>` : ''}
+      <div class="modal-b">${lab ? `<div class="pctl" data-testid="label-ctl"><label for="lstart">Начать с позиции</label><input id="lstart" type="number" min="1" max="${LABELS_PER_SHEET}" data-testid="label-start" value="${P.start}" oninput="AX.setLabelStart(this.value)"><span>из ${LABELS_PER_SHEET}</span><span class="red small" data-testid="label-err" id="lerr">${esc(P.startErr || '')}</span><span class="small">занятые на листе позиции — серые; после печати следующая подставится сама</span></div>` : ''}
         <div class="sheet${lab ? ' bare' : ''}" data-testid="print-sheet" id="psheet">${lab ? labelsHtml(P.L, P.start) : `<h2>${esc(P.heading || P.title)}</h2>${P.sub ? `<div class="sub">${esc(P.sub)}</div>` : ''}${P.html}`}</div></div>
-      <div class="modal-f"><div class="will" data-testid="print-info">${esc(lab ? labelsInfo(P.L.length, P.start) : P.paper || '')}</div><button class="btn btn-secondary" onclick="AX.closeForm()">Закрыть</button>${P.noPrint ? '' : `<button class="btn btn-primary" data-primary="1" data-testid="print-go" onclick="AX.printGo()">${ico('print')} Печать</button>`}</div>`;
+      <div class="modal-f"><div class="will" data-testid="print-info">${esc(lab ? labelsInfo(P.L.length, P.start) : P.paper || '')}</div><button class="btn btn-secondary" onclick="AX.closeForm()">Закрыть</button>${P.noPrint ? '' : `<button class="btn btn-primary" data-primary="1" data-testid="print-go" id="pgo"${P.startErr ? ` disabled title="${esc(P.startErr)}" data-why="${esc(P.startErr)}"` : ''} onclick="AX.printGo()">${ico('print')} Печать</button>`}</div>`;
     ov.classList.add('open');
     const b = md.querySelector('[data-primary]') || md.querySelector('.modal-f .btn'); if (b && !md.contains(document.activeElement)) b.focus({ preventScroll: true });
     return;
@@ -2057,7 +2057,7 @@ function pageFocus() {
   if (el) el.focus({ preventScroll: true });
 }
 function focusCard() { const t = typeof document !== 'undefined' && $('#cardpanel .cp-title'); if (t) t.focus({ preventScroll: true }); }
-function closeForm() { S.form = null; S.print = null; renderModal(); pageFocus(); return yes(); }
+function closeForm() { const back = S.print ? S.formBehind : null; S.formBehind = null; S.form = back || null; S.print = null; renderModal(); pageFocus(); return yes(); }
 function toast(msg, kind, act) {
   if (typeof document === 'undefined') return;
   const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.setAttribute('data-testid', 'toast');
@@ -2366,7 +2366,8 @@ function uiAccept(pre = {}, title = 'Принять папку', series = null) 
 function uiNextVol(fid) { const g = gate('nextVol', fid); if (!g.ok) return say(g); const d = nextVolume(fid); return uiAccept(d, 'Принять следующий том'); }
 
 /* ------------------------------- печать ------------------------------- */
-function openPrint(title, html, sub, o = {}) { S.form = null; S.menu = false; S.print = Object.assign({ title, html, sub, paper: 'Лист A4' }, o); renderModal(); return yes(); }
+/* Печать поверх открытого окна (серия приёма): окно ждёт под листом и возвращается после «Закрыть» или Esc (АХ-Д29). */
+function openPrint(title, html, sub, o = {}) { if (S.form) S.formBehind = S.form; S.form = null; S.menu = false; S.print = Object.assign({ title, html, sub, paper: 'Лист A4' }, o); renderModal(); return yes(); }
 /* Лист ярлыков: позиции до первой — заняты (серые), дальше ярлыки по порядку, остаток листа — пустой. */
 function labelsHtml(L, start) {
   const pages = Math.ceil((start - 1 + L.length) / LABELS_PER_SHEET); let k = 0, h = '';
@@ -2389,7 +2390,11 @@ function uiLabels(ids = selIds()) {
 }
 function setLabelStart(v) {
   const P = S.print; if (!P || P.kind !== 'labels') return no('печать ярлыков не открыта');
-  const n = Math.round(+v); if (!(n >= 1 && n <= LABELS_PER_SHEET)) return no(`позиция от 1 до ${LABELS_PER_SHEET}`);
+  /* Позиция вне листа: ошибка у поля сразу, «Печать» серая с той же причиной (АХ-Д31). */
+  const n = Math.round(+v), bad = String(v).trim() === '' || !(n >= 1 && n <= LABELS_PER_SHEET) ? `позиция от 1 до ${LABELS_PER_SHEET}` : '';
+  P.startErr = bad;
+  if (typeof document !== 'undefined') { const er = $('#lerr'), go = $('#pgo'); if (er) er.textContent = bad; if (go) { go.disabled = !!bad; if (bad) { go.title = bad; go.dataset.why = bad; } else { go.removeAttribute('title'); delete go.dataset.why; } } }
+  if (bad) return no(bad);
   P.start = n;
   if (typeof document !== 'undefined') { const sh = $('#psheet'), inf = $('[data-testid=print-info]'); if (sh) sh.innerHTML = labelsHtml(P.L, n); if (inf) inf.textContent = labelsInfo(P.L.length, n); }
   return yes();
@@ -2503,9 +2508,9 @@ function openCard(fid, kb) {
   const f = folder(fid); if (!f) return no('папка не найдена');
   /* Ссылка внутри карточки, нажатая с клавиатуры (другой том), — новая карточка тоже держит курсор. */
   const inCard = typeof document !== 'undefined' && S.card && $('#cardpanel').contains(document.activeElement);
-  /* № строки списка, нажатый с клавиатуры, — запомнить, какой по счёту: Esc вернёт курсор на него. */
-  const back = kb && !inCard && typeof document !== 'undefined' ? [...document.querySelectorAll('#panel [data-open]')].indexOf(document.activeElement) : -1;
-  S.cardBack = back >= 0 ? back : inCard ? S.cardBack : null;
+  /* № строки списка, нажатый с клавиатуры, — запомнить папку этой строки: Esc вернёт курсор на её № (АХ-Д28). */
+  const back = kb && !inCard && typeof document !== 'undefined' && document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.open : '';
+  S.cardBack = back ? back : inCard ? S.cardBack : null;
   S.card = fid; S.cardFromQ = false; S.cardKb = !!(inCard || kb); S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
   setHash('#/folder/' + f.no); render(); if (S.cardKb) focusCard(); return yes();
 }
@@ -2517,7 +2522,12 @@ function closeCard() {
   const back = S.cardBack;
   if (back == null) { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; if (S.view === 'mine') S.focusMine = true; if (S.view === 'queue') S.focusRet = true; if (S.view === 'journal') S.focusJ = true; }
   S.cardFromQ = false; S.cardKb = false; S.cardBack = null; S.card = null; S.menu = false; setHash(''); render();
-  if (back != null && typeof document !== 'undefined') { const el = document.querySelectorAll('#panel [data-open]')[back]; if (el) el.focus({ preventScroll: true }); }
+  if (back != null && typeof document !== 'undefined') {
+    /* Строка папки ещё есть — курсор на её №; действие из карточки убрало строку — в своё поле страницы. */
+    const el = [...document.querySelectorAll('#panel [data-open]')].find(x => x.dataset.open === back)
+      || $({ queue: '#retInput', journal: '#jq', folders: '#fq', mine: '#mineQ' }[S.view] || '#none');
+    if (el) { el.focus({ preventScroll: true }); if (el.select && !el.dataset.open) el.select(); }
+  }
   return yes();
 }
 /* Адрес карточки. Файл, открытый с диска, не даёт менять историю — тогда меняется сам якорь. */
@@ -2554,7 +2564,7 @@ Object.assign(AX, {
   },
   resetF() { Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.chip = ''; render(); return yes(); },
   batchIds,
-  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.cardKb = false; S.cardBack = null; S.rowMenu = null; S.sel.clear(); S.nk.mine = null; S.nk.dept = null; S.jr.dept = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; renderModal(); render(); return yes(); },
+  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.cardKb = false; S.cardBack = null; S.rowMenu = null; S.sel.clear(); S.nk.mine = null; S.nk.dept = null; S.jr.dept = null; S.ret.done = null; S.form = null; S.formBehind = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; renderModal(); render(); return yes(); },
   setF(k, v) {
     /* «Место» — одним списком: r:<помещение>, c:<шкаф>, s:<полка>. */
     if (k === 'place') { const [lv, id] = (v || '').split(':'); S.f.room = lv === 'r' ? id : ''; S.f.cab = lv === 'c' ? id : ''; S.f.shelf = lv === 's' ? id : ''; render(); return; }
@@ -2614,7 +2624,7 @@ Object.assign(AX, {
   closeMenu() { S.menu = false; const m = $('#moreMenu'); if (m) m.classList.remove('open'); },
   /* Печать: у ярлыков — следующая свободная позиция листа подставится при следующей печати. */
   printGo() {
-    const P = S.print; let msg = 'Отправлено на печать';
+    const P = S.print; if (P && P.startErr) return no(P.startErr); let msg = 'Отправлено на печать';
     if (P && P.kind === 'labels') { const n = P.L.length, last = P.start - 1 + n, sh = Math.ceil(last / LABELS_PER_SHEET); S.labelNext = last % LABELS_PER_SHEET + 1;
       msg = `Отправлено на печать: ${n} ${plural(n, 'ярлык', 'ярлыка', 'ярлыков')}, ${sh} ${plural(sh, 'лист', 'листа', 'листов')}; следующий ярлык — с позиции ${S.labelNext}`; }
     toast(msg, 'ok'); closeForm(); return yes({ msg });
