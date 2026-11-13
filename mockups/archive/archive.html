@@ -445,6 +445,7 @@ const plural = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; return m10 
 
 /* --------------------------- справочники ---------------------------- */
 /* Подразделения и сотрудники — из модуля «Сотрудники» (только чтение): подразделение, руководитель, «уволен».
+   «Уволен с даты» приходит событием (dismiss, в демо-наборе — Орозов 30.10.2026), а не полем справочника.
    gen / dat / ins — падежи для строк интерфейса: «у Асанова Б.», «Выдать Исаевой А.», «за Исаевой А.». */
 const DEPTS = ['ДРР', 'ДАК', 'ДПО', 'Бухгалтерия', 'Общий отдел'];
 const DEPT_NAME = { 'ДРР': 'Департамент регионального развития', 'ДАК': 'Департамент администрирования кредитов', 'ДПО': 'Департамент правового обеспечения', 'Бухгалтерия': 'Бухгалтерия', 'Общий отдел': 'Общий отдел' };
@@ -458,16 +459,17 @@ const EMP = [
   { id: 'sydykova', name: 'Сыдыкова А.',      gen: 'Сыдыковой А.',      dat: 'Сыдыковой А.',      ins: 'Сыдыковой А.',      dept: 'Бухгалтерия', head: 'alieva' },
   { id: 'kadyrov',  name: 'Кадыров Т.',       gen: 'Кадырова Т.',       dat: 'Кадырову Т.',       ins: 'Кадыровым Т.',      dept: 'ДАК', head: 'turdu' },
   { id: 'abdyk',    name: 'Абдыкеримова Ж.',  gen: 'Абдыкеримовой Ж.',  dat: 'Абдыкеримовой Ж.',  ins: 'Абдыкеримовой Ж.',  dept: 'ДРР', head: 'mambetov' },
-  { id: 'orozov',   name: 'Орозов Т.',        gen: 'Орозова Т.',        dat: 'Орозову Т.',        ins: 'Орозовым Т.',       dept: 'ДАК', head: 'turdu', fired: '2026-10-30' },
+  { id: 'orozov',   name: 'Орозов Т.',        gen: 'Орозова Т.',        dat: 'Орозову Т.',        ins: 'Орозовым Т.',       dept: 'ДРР', head: 'mambetov' },
   { id: 'turdu',    name: 'Турдумамбетов Э.', gen: 'Турдумамбетова Э.', dat: 'Турдумамбетову Э.', ins: 'Турдумамбетовым Э.', dept: 'ДАК', head: null },
   { id: 'osmonov',  name: 'Осмонов Р.',       gen: 'Осмонова Р.',       dat: 'Осмонову Р.',       ins: 'Осмоновым Р.',      dept: 'ДПО', head: null },
   { id: 'alieva',   name: 'Алиева Д.',        gen: 'Алиевой Д.',        dat: 'Алиевой Д.',        ins: 'Алиевой Д.',        dept: 'Бухгалтерия', head: null },
   { id: 'beish',    name: 'Бейшеналиева М.',  gen: 'Бейшеналиевой М.',  dat: 'Бейшеналиевой М.',  ins: 'Бейшеналиевой М.',  dept: 'Общий отдел', head: null },
   { id: 'jusup',    name: 'Жусупов А.',       gen: 'Жусупова А.',       dat: 'Жусупову А.',       ins: 'Жусуповым А.',      dept: 'ДРР', head: null },
 ];
-/* Переключатель пользователя (демо-стенд): два архивариуса, кураторы ДРР и ДАК, заведующий отделом ДРР, юрист ДПО, бухгалтер. */
+/* Переключатель пользователя (демо-стенд): два архивариуса, кураторы ДРР и ДАК, заведующий отделом ДРР, сотрудник ДАК (получил
+   просроченную передачей — его задание ещё не поднято), юрист ДПО, бухгалтер. */
 const USERS = [['arch1', 'архивариус'], ['arch2', 'архивариус'], ['asanov', 'куратор ДРР'], ['isaeva', 'куратор ДАК'],
-  ['mambetov', 'заведующий отделом ДРР'], ['jeen', 'юрист ДПО'], ['sydykova', 'бухгалтер']];
+  ['mambetov', 'заведующий отделом ДРР'], ['kadyrov', 'сотрудник ДАК'], ['jeen', 'юрист ДПО'], ['sydykova', 'бухгалтер']];
 
 /* Заёмщики — из модуля «Заёмщик» (только чтение): ИНН, куратор, кредиты (номер, дата регистрации, статус). */
 const LIVE = ['зарегистрирован', 'действует', 'взыскание'];
@@ -516,7 +518,8 @@ const SETTINGS = {
   holdDays:   { v: 2,  label: 'Срок брони', unit: 'р.д.', hist: [] },
   remindDays: { v: 2,  label: 'Напоминание до срока возврата', unit: 'р.д.', hist: [] },
 };
-/* Эмуляция модуля «Задания»: задание «Вернуть папку», не исполненное 2 р.д., поднимается к руководителю держателя. */
+/* Эмуляция модуля «Задания»: задание «Вернуть папку», не исполненное 2 р.д. (от срока, у получившего просроченную — от
+   передачи), поднимается к руководителю держателя; держатель уволен — сразу у руководителя. */
 const ESC_AFTER = 2;
 const GONE_REASONS = ['утрачена', 'уничтожена', 'передана в госархив', 'передана другой организации'];
 
@@ -609,7 +612,7 @@ function seed() {
   at('2026-09-21'); acc('mamyt', { kind: 'kzd', borrower: 'b5', shelf: 'go1-3', from: 'asanov', by: B, content: 'кредитный договор, договор залога, график погашения' });
   at('2026-09-25'); must(rebind(DEMO.nur, { borrower: 'b7', basis: 'Договор о переводе долга № 12 от 01.07.2026' }, A), 'привязка nur');
   at('2026-10-01');
-  must(issue(DEMO.bakai, { to: 'orozov', why: 'мониторинг залога', due: '2026-10-15' }, A), 'выдача bakai');
+  must(issue(DEMO.bakai, { to: 'orozov', why: 'выездной мониторинг залога в регионах', due: '2026-11-20' }, A), 'выдача bakai');
   must(writeOff(DEMO.hasan, { reason: 'утрачена', basis: 'Акт об утрате № 14 от 01.10.2026' }, A), 'списание hasan');
   at('2026-10-05'); must(issue(DEMO.sadyk, { to: 'jeen', why: 'подготовка иска в суд', due: '2026-10-19' }, A), 'выдача sadyk');
   at('2026-10-07'); must(move(DEMO.tursun, 'go1-5', A), 'перемещение tursun');
@@ -628,7 +631,14 @@ function seed() {
   at('2026-10-21'); must(refuse(reqFor('bakirov', 'abdyk'), 'папка нужна для проверки Счётной палаты', B), 'отказ bakirov');
   at('2026-10-23'); must(acceptReturn(DEMO.issyk, {}, A), 'возврат issyk');
   at('2026-10-26'); must(issue(DEMO.mamyt, { to: 'asanov', why: 'выездной мониторинг', due: '2026-11-10' }, A), 'выдача mamyt');
-  at('2026-10-28'); must(issue(DEMO.alaArcha, { to: 'jeen', why: 'подготовка претензии', due: '2026-11-26' }, A), 'выдача alaArcha');
+  at('2026-10-27'); must(issue(DEMO.iman2, { to: 'turdu', why: 'заключение для кредитного комитета', due: '2026-11-10' }, A), 'выдача iman2');
+  at('2026-10-28');
+  must(issue(DEMO.alaArcha, { to: 'jeen', why: 'подготовка претензии', due: '2026-11-26' }, A), 'выдача alaArcha');
+  must(request(DEMO.karasuu, { why: 'сверка графика погашения' }, 'orozov'), 'запрос karasuu/orozov');
+  at('2026-10-29'); must(request(DEMO.karasuu, { why: 'подготовка к мониторингу' }, 'isaeva'), 'запрос karasuu/isaeva');
+  /* 30.10 — увольнение Орозова до срока А-000208 (20.11): задание «Вернуть папку» сразу у его руководителя; его бронь
+     на А-000223 закрыта «сотрудник уволен» и сразу перешла Исаевой — она забирает папку 03.11 */
+  at('2026-10-30'); must(dismiss('orozov', '2026-10-30'), 'увольнение orozov');
   at('2026-11-02');
   must(request(DEMO.bakirov, { why: 'мониторинг залога' }, 'kadyrov'), 'запрос bakirov/kadyrov');
   must(issue(DEMO.sadykVz, { to: 'jeen', why: 'подготовка к судебному заседанию', due: '2026-11-16' }, A), 'выдача sadykVz');
@@ -644,9 +654,12 @@ function seed() {
   must(issue(DEMO.kasym, { to: 'asanov', why: 'мониторинг', due: '2026-11-20' }, A), 'выдача kasym');
   at('2026-11-10');
   must(request(DEMO.sadykVz, { why: 'сверка суммы взыскания' }, 'abdyk'), 'запрос sadykVz/abdyk');
-  must(issue(DEMO.iman2, { to: 'kadyrov', why: 'подготовка заключения', due: '2026-11-20' }, A), 'выдача iman2');
   at('2026-11-11'); must(issue(DEMO.protDpo, { to: 'jeen', why: 'выписка решений правления для иска', due: dueDefault(DEMO.protDpo, 'jeen') }, B), 'выдача protDpo');
-  at('2026-11-12'); must(askExtend(DEMO.sadykVz, { date: '2026-12-04', reason: 'судебное заседание перенесено на 01.12' }, 'jeen'), 'просьба продлить');
+  /* 12.11 — просроченную с 10.11 А-000203 Турдумамбетов передал Кадырову: у Кадырова задание сразу, к руководителю — через
+     2 р.д. от передачи (17.11), а не от срока */
+  at('2026-11-12');
+  must(askExtend(DEMO.sadykVz, { date: '2026-12-04', reason: 'судебное заседание перенесено на 01.12' }, 'jeen'), 'просьба продлить');
+  must(transfer(DEMO.iman2, { to: 'kadyrov' }, 'turdu'), 'передача iman2'); must(received(DEMO.iman2, 'kadyrov'), 'получил iman2');
   at(TODAY);
   must(request(DEMO.tokmok, { why: 'подготовка к комиссии по реструктуризации', needBy: '2026-11-26' }, 'isaeva'), 'запрос tokmok/isaeva');
   must(request(DEMO.tokmok, { why: 'мониторинг' }, 'kadyrov'), 'запрос tokmok/kadyrov');
@@ -672,7 +685,7 @@ const ST = { archive: 'в архиве', reserved: 'забронирована',
 const isOver   = fid => { const i = openIssue(fid); return !!i && S.today > i.due; };
 const overDays = fid => { const i = openIssue(fid); return i && S.today > i.due ? workBetween(i.due, S.today) : 0; };
 const posText  = r => r.st === 'reserved' ? `бронь до ${fmt(r.until)}` : `№ ${posOf(r)} в очереди`;
-const REQ_ST = { queue: 'в очереди', reserved: 'забронирован', issued: 'выдан', refused: 'отказан', withdrawn: 'отозван', notTaken: 'не забран', closedTransfer: 'закрыт передачей', closedGone: 'закрыт: папка выбыла' };
+const REQ_ST = { queue: 'в очереди', reserved: 'забронирован', issued: 'выдан', refused: 'отказан', withdrawn: 'отозван', notTaken: 'не забран', closedTransfer: 'закрыт передачей', closedGone: 'закрыт: папка выбыла', closedFired: 'закрыт: сотрудник уволен' };
 
 /* Событие истории и уведомление (эмуляция модуля «Уведомления»: семь видов). */
 function ev(fid, kind, by, data = {}) { const e = Object.assign({ id: nid('e'), folder: fid, kind, by: by || null, d: S.today, n: ++S.n }, data); EVENTS.push(e); return e; }
@@ -697,8 +710,39 @@ function remind(i) {
   if (i.remindFor !== i.due) { i.remindFor = i.due; i.remindAt = workBefore(i.due, SETTINGS.remindDays.v); }
   if (S.today >= i.remindAt && (isWork(S.today) || S.today === i.due)) { i.reminded = i.due; note(i.holder, 'remind', i.folder, `Вернуть папку ${fnoT(folder(i.folder))} до ${fmt(i.due)}`); }
 }
-/* Ход часов по дням: истёкшие брони → «не забран» и бронь следующему; напоминания. */
+/* Увольнение — событие модуля «Сотрудники» с датой (в макете — шов для демо-набора и смоука, в интерфейсе его нет).
+   В день увольнения запросы уволенного закрываются «закрыт: сотрудник уволен», его бронь сразу переходит следующему
+   с уведомлением; по папкам у него на руках — задание «Вернуть папку» его руководителю, не дожидаясь срока (tasks()). */
+function dismiss(id, date = S.today) {
+  const e = emp(id); if (!e) return no('сотрудник не найден');
+  const d = toIso(date); if (!d) return no('неверная дата');
+  if (d < S.today) return no('дата увольнения — не раньше сегодняшней');
+  if (e.fired) return no(`уже уволен с ${fmt(e.fired)}`);
+  e.fired = d; if (d <= S.today) applyDismiss(e);
+  return yes({ fired: d, closed: (e.firedClosed || []).slice() });
+}
+function applyDismiss(e) {
+  if (e.firedDone) return; e.firedDone = true; e.firedClosed = [];
+  REQS.filter(r => r.who === e.id && (r.st === 'queue' || r.st === 'reserved')).sort((a, b) => a.n - b.n).forEach(r => {
+    const wasRes = r.st === 'reserved'; r.st = 'closedFired'; r.end = S.today; e.firedClosed.push(r.id);
+    const x = ev(r.folder, 'reqClosedFired', null, { req: r.id, who: r.who, held: wasRes, next: null });
+    if (wasRes) { const n = reserveNext(r.folder); x.next = n ? n.who : null; }
+  });
+}
+/* Заёмщик заведён в модуле «Заёмщик» (в макете — шов для смоука, в интерфейсе его нет). Непривязанная КЗД с тем же ИНН
+   сама встаёт в «Ждут привязки»: очередь выводится из заёмщиков, а не хранится. */
+function addBorrower(d = {}) {
+  const name = trim(d.name), inn = String(d.inn || '').replace(/\s/g, ''), cur = d.cur || 'asanov';
+  if (!name) return no('укажите название заёмщика', 'name');
+  if (!/^\d{14}$/.test(inn)) return no('ИНН — 14 цифр', 'inn');
+  if (BORROWERS.some(b => b.inn === inn)) return no('заёмщик с этим ИНН уже есть', 'inn');
+  if (!isActive(cur)) return no('куратор — действующий сотрудник', 'cur');
+  const b = { id: nid('bn'), name, inn, cur, credits: d.credits || [{ no: 'К-' + (130 + BORROWERS.length), reg: S.today, st: 'зарегистрирован' }] };
+  BORROWERS.push(b); return yes({ id: b.id });
+}
+/* Ход часов по дням: увольнения этого дня; истёкшие брони → «не забран» и бронь следующему; напоминания. */
 function tick() {
+  EMP.filter(e => e.fired && e.fired <= S.today && !e.firedDone).forEach(applyDismiss);
   REQS.filter(r => r.st === 'reserved' && r.until < S.today).forEach(r => {
     r.st = 'notTaken'; r.end = S.today; ev(r.folder, 'reqNotTaken', null, { req: r.id, who: r.who, until: r.until });
     note(r.who, 'closed', r.folder, `Запрос закрыт: не забран — бронь до ${fmt(r.until)} истекла · ${fnoT(folder(r.folder))}`);
@@ -714,16 +758,23 @@ function setToday(d) {
 }
 const advance = n => setToday(addWork(S.today, n));
 
+/* С какого дня папка у нынешнего держателя: последнее «Получил» или выдача. */
+const holderSince = i => { const g = i.transfers.filter(t => t.st === 'got'); return g.length ? g[g.length - 1].end : i.at; };
 /* Задание «Вернуть папку» (эмуляция «Заданий»): держателю на следующий день после срока; при незавершённой передаче
-   держатель — передающий; не исполнено ESC_AFTER р.д. или держатель уволен — поднимается к руководителю.
+   держатель — передающий; получивший просроченную папку — сразу после «Получил». Не исполнено ESC_AFTER р.д. — поднимается
+   к руководителю: дни считаются от срока, а у получившего просроченную — от передачи (escAt — день подъёма).
+   Держатель уволен — задание у его руководителя со дня увольнения, не дожидаясь срока.
    Закрывается само: возврат, передача (у нового держателя — своё задание), продление, списание. */
 function tasks() {
-  return ISSUES.filter(i => !i.end && S.today > i.due).map(i => {
-    const fired = isFired(i.holder), d = workBetween(i.due, S.today), up = fired || d > ESC_AFTER;
-    return { issue: i.id, folder: i.folder, holder: i.holder, since: addDays(i.due, 1), days: d, fired, up, head: emp(i.holder).head };
+  return ISSUES.filter(i => !i.end && (S.today > i.due || isFired(i.holder))).map(i => {
+    const e = emp(i.holder), fired = isFired(i.holder), over = S.today > i.due, hs = holderSince(i);
+    const start = hs > i.due ? hs : addDays(i.due, 1), escAt = addWork(hs > i.due ? hs : i.due, ESC_AFTER + 1), late = over && S.today >= escAt;
+    return { issue: i.id, folder: i.folder, holder: i.holder, since: fired && e.fired < start ? e.fired : start, days: over ? workBetween(i.due, S.today) : 0,
+      over, fired, up: fired || late, upAt: fired ? (late && escAt < e.fired ? escAt : e.fired) : late ? escAt : null, escAt, head: e.head };
   });
 }
 const tasksOf = u => tasks().filter(t => t.holder === u || (t.up && t.head === u));
+const hasTask = fid => tasks().some(t => t.folder === fid);
 
 /* --------------------- проверки прав и состояния --------------------- */
 /* Одна проверка на кнопку и на действие: запрет живёт здесь, кнопка лишь показывает его причину. */
@@ -1218,8 +1269,10 @@ const roundList  = () => REQS.filter(r => r.st === 'reserved').map(r => ({ r, f:
 function archQueue() {
   const give = roundList();
   const ext = EXTS.filter(x => x.st === 'pending').sort((a, b) => a.n - b.n);
+  /* «Ждут привязки» — только то, что можно привязать: КЗД без привязки, для которой в системе нашёлся заёмщик с тем же ИНН.
+     Остальные — плашкой «не привязаны» в «Папках»; заёмщик появится — папка встанет сюда сама. */
   const bind = FOLDERS.filter(f => !f.gone && f.unlinked).sort((a, b) => a.no - b.no)
-    .map(f => ({ f, match: BORROWERS.find(b => b.inn === f.unlinked.inn) || null }));
+    .map(f => ({ f, match: BORROWERS.find(b => b.inn === f.unlinked.inn) || null })).filter(x => x.match);
   const fired = ISSUES.filter(i => !i.end && isFired(i.holder)).sort((a, b) => a.due < b.due ? -1 : 1);
   return { give, ext, bind, fired, total: give.length + ext.length + bind.length + fired.length };
 }
@@ -1249,12 +1302,14 @@ function matchQ(f, q) {
   return hay.includes(q);
 }
 /* Плашки: состояния (в сумме все папки) и признаки «из них». */
-const CHIPS = [['archive', 'в архиве'], ['reserved', 'забронированы'], ['out', 'на руках'], ['gone', 'выбыли'], ['over', 'просрочены'], ['transfer', 'передаются'], ['queue', 'с очередью']];
-const CHIP_SIGNS = ['over', 'transfer', 'queue'];
+/* «не привязаны» — признак: все КЗД без привязки, и те, что ждут привязки в очереди архивариуса, и те, чьего заёмщика в системе нет. */
+const CHIPS = [['archive', 'в архиве'], ['reserved', 'забронированы'], ['out', 'на руках'], ['gone', 'выбыли'], ['over', 'просрочены'], ['transfer', 'передаются'], ['queue', 'с очередью'], ['unlinked', 'не привязаны']];
+const CHIP_SIGNS = ['over', 'transfer', 'queue', 'unlinked'];
 function chipMatch(f, c) {
   const st = stateOf(f.id);
   return c === 'archive' ? st === 'archive' : c === 'reserved' ? st === 'reserved' : c === 'out' ? (st === 'out' || st === 'transfer')
-    : c === 'over' ? isOver(f.id) : c === 'queue' ? activeReqs(f.id).length > 0 : c === 'transfer' ? st === 'transfer' : c === 'gone' ? st === 'gone' : true;
+    : c === 'over' ? isOver(f.id) : c === 'queue' ? activeReqs(f.id).length > 0 : c === 'transfer' ? st === 'transfer' : c === 'gone' ? st === 'gone'
+    : c === 'unlinked' ? !!f.unlinked && st !== 'gone' : true;
 }
 /* Реестр: поиск и отборы → плашки-счётчики → строки. Заёмщика даёт поиск (название, ИНН) — отдельного отбора нет.
    hidden — что поиск нашёл, но скрыли отборы, плашка или «выбывшие скрыты»: показывается строкой «Вне отбора». */
@@ -1403,7 +1458,8 @@ function invariants() {
     if (k.bind && !f.borrower && !f.unlinked) bad.push(fn + ': вид с привязкой без заёмщика');
     if (!k.bind && !f.title) bad.push(fn + ': папка без привязки без названия');
   });
-  REQS.forEach(r => { if (r.st === 'reserved' && !r.until) bad.push(r.id + ': бронь без срока'); });
+  REQS.forEach(r => { if (r.st === 'reserved' && !r.until) bad.push(r.id + ': бронь без срока');
+    if ((r.st === 'queue' || r.st === 'reserved') && isFired(r.who)) bad.push(r.id + ': живой запрос уволенного'); });
   EXTS.filter(x => x.st === 'pending').forEach(x => { const i = ISSUES.find(e => e.id === x.issue); if (!i || i.end) bad.push(x.id + ': просьба продлить у закрытой выдачи'); else if (x.who !== i.holder) bad.push(x.id + ': просьба продлить не от держателя'); });
   return bad;
 }
@@ -1455,7 +1511,7 @@ function render() {
 }
 
 /* --------------------- ЭКРАН: очередь архивариуса -------------------- */
-/* Блоки по срочности: к выдаче → продления → у уволенных → ждут привязки (без срока, растёт при запуске).
+/* Блоки по срочности: к выдаче → продления → у уволенных → ждут привязки (без срока; только найденные по ИНН).
    Строка открытой в панели папки подсвечена, как в «Папках». */
 const qRow = (f, tid) => `<tr class="click${S.card === f.id ? ' cur' : ''}" data-testid="${tid}" onclick="AX.openCard('${f.id}')">`;
 function viewQueue() {
@@ -1483,8 +1539,8 @@ function viewQueue() {
   if (q.bind.length) h += sec('Ждут привязки', q.bind.length, '', 'blk-bind') +
     `<table class="cgrid" data-testid="tbl-bind"><thead><tr><th>№</th><th>Название (вручную)</th><th>ИНН</th><th>Место</th><th>Заёмщик в системе</th><th></th></tr></thead><tbody>${q.bind.map(({ f, match }) =>
       `${qRow(f, 'bind-' + f.no)}<td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="mono nw">${f.unlinked.inn}</td><td class="nw mono">${placeShort(f.shelf)}</td>
-      <td>${match ? `<span class="hint shelf" data-testid="bind-hint-${f.no}">найден по ИНН: ${esc(match.name)}</span>` : '<span class="muted">заёмщика с этим ИНН в системе нет</span>'}</td>
-      <td class="nw">${match ? btn('Привязать', `AX.uiRebind('${f.id}', '${match.id}')`, { cls: 'btn-primary', tid: 'bind-go-' + f.no }) : btn('Привязать…', `AX.uiRebind('${f.id}')`, { tid: 'bind-go-' + f.no })}</td></tr>`).join('')}</tbody></table>`;
+      <td><span class="hint shelf" data-testid="bind-hint-${f.no}">найден по ИНН: ${esc(match.name)}</span></td>
+      <td class="nw">${btn('Привязать', `AX.uiRebind('${f.id}', '${match.id}')`, { cls: 'btn-primary', tid: 'bind-go-' + f.no })}</td></tr>`).join('')}</tbody></table>`;
   return h;
 }
 /* Строки возврата — одни для поля «Возврат» и для окна «Принять возврат» пачкой из «Папок» (mode 'b'):
@@ -1618,9 +1674,13 @@ function viewMine() {
   /* Эмуляция соседей: в рабочей системе это модули «Задания» и «Уведомления». */
   const tk = tasksOf(u), nt = NOTES.filter(n => n.to === u).sort((a, b) => b.n - a.n).slice(0, 8);
   if (tk.length || nt.length) h += `<div class="demo-box" style="margin-top:22px" data-testid="emul"><span class="demo-tag">Эмуляция модулей «Задания» и «Уведомления»</span>
-    ${tk.length ? `<div class="section-h" style="margin-top:4px">Задания «Вернуть папку» <span class="c">${tk.length}</span></div><table class="cgrid" data-testid="tbl-tasks"><thead><tr><th>Папка</th><th>Держатель</th><th>Срок был</th><th>Просрочка</th><th>Кому</th></tr></thead><tbody>${tk.map(t => { const f = folder(t.folder), i = ISSUES.find(e => e.id === t.issue);
-      return `<tr class="click" data-testid="task-${f.no}" onclick="AX.openCard('${f.id}')"><td>${openBtn(f)} ${esc(titleOf(f))}</td><td class="nw">${esc(nm(t.holder))}${t.fired ? ' <span class="flag">уволен</span>' : ''}</td><td class="nw">${fmt(i.due)}</td><td class="nw red">${t.days} р.д.</td>
-      <td class="nw">${t.up ? `<span class="pill err" data-testid="task-up-${f.no}">поднято к руководителю: ${esc(nm(t.head))}</span>` : esc(nm(t.holder))}</td></tr>`; }).join('')}</tbody></table>` : ''}
+    ${tk.length ? `<div class="section-h" style="margin-top:4px">Задания «Вернуть папку» <span class="c">${tk.length}</span></div><table class="cgrid" data-testid="tbl-tasks"><thead><tr><th>Папка</th><th>Держатель</th><th>Вернуть до</th><th>Просрочка</th><th>Кому</th></tr></thead><tbody>${tk.map(t => { const f = folder(t.folder), i = ISSUES.find(e => e.id === t.issue);
+      /* Уволенный держатель — задание у руководителя со дня увольнения, и до срока; иначе — держателю, с днём подъёма. */
+      const whom = t.fired ? `<span class="pill err" data-testid="task-up-${f.no}">руководителю: ${esc(nm(t.head))} — держатель уволен ${fmtS(emp(t.holder).fired)}</span>`
+        : t.up ? `<span class="pill err" data-testid="task-up-${f.no}">поднято к руководителю: ${esc(nm(t.head))}</span>`
+        : `${esc(nm(t.holder))}${t.head ? `<div class="small" data-testid="task-esc-${f.no}">не вернёт — к руководителю ${fmtS(t.escAt)}</div>` : ''}`;
+      return `<tr class="click" data-testid="task-${f.no}" onclick="AX.openCard('${f.id}')"><td>${openBtn(f)} ${esc(titleOf(f))}</td><td class="nw">${esc(nm(t.holder))}${t.fired ? ' <span class="flag">уволен</span>' : ''}</td><td class="nw">${fmt(i.due)}</td>
+      <td class="nw${t.days ? ' red' : ''}">${t.days ? t.days + ' р.д.' : '<span class="muted">срок не прошёл</span>'}</td><td class="nw">${whom}</td></tr>`; }).join('')}</tbody></table>` : ''}
     ${nt.length ? `<div class="section-h">Уведомления <span class="c">последние ${nt.length}</span></div><table class="cgrid" data-testid="tbl-notes"><tbody>${nt.map(n => `<tr class="click" onclick="AX.openCard('${n.folder}')"><td class="nw">${fmt(n.d)}</td><td class="nw"><b>${esc(NOTE_KIND[n.kind])}</b></td><td>${esc(n.text)}</td></tr>`).join('')}</tbody></table>` : ''}</div>`;
   return h;
 }
@@ -1674,12 +1734,13 @@ function evLine(e) {
     case 'reqNotTaken': return { whom: nm(e.who), text: `запрос: не забран (бронь до ${fmt(e.until)})` };
     case 'reqClosedGone': return { whom: nm(e.who), text: 'запрос закрыт: папка выбыла' };
     case 'reqClosedTransfer': return { whom: nm(e.who), text: 'запрос закрыт передачей' };
+    case 'reqClosedFired': return { whom: nm(e.who), text: 'запрос закрыт: сотрудник уволен' + (e.held ? e.next ? `; бронь перешла ${emp(e.next).dat}` : '; бронь снята — очереди нет' : '') };
   }
   return { whom: '', text: '' };
 }
 const EV_NAME = { accepted: 'принята', requested: 'запрос', reserved: 'бронь', issued: 'выдана', transfer: 'передача', transferGot: 'передана', transferNotGot: 'передача: не получал', transferCancel: 'передача отменена',
   extAsk: 'просьба продлить', extended: 'продлена', extRefused: 'отказ в продлении', extClosed: 'просьба закрыта', returned: 'возвращена', moved: 'перемещена', rebound: 'смена привязки', writtenOff: 'списана', restored: 'восстановлена',
-  reqRefused: 'запрос: отказ', reqWithdrawn: 'запрос отозван', reqNotTaken: 'запрос: не забран', reqClosedGone: 'запрос закрыт', reqClosedTransfer: 'запрос закрыт' };
+  reqRefused: 'запрос: отказ', reqWithdrawn: 'запрос отозван', reqNotTaken: 'запрос: не забран', reqClosedGone: 'запрос закрыт', reqClosedTransfer: 'запрос закрыт', reqClosedFired: 'запрос закрыт' };
 /* Сотрудник — чьи руки: получил, вернул, «А → Б» при передаче, «сдал …» при приёме, держатель при продлении и списании. */
 function jWho(e) {
   const d = id => `${esc(nm(id))} <span class="small">· ${esc((emp(id) || {}).dept || '')}</span>`;
@@ -2215,10 +2276,12 @@ function uiTransfer(fid, preTo) {
     fields: [{ id: 'to', label: 'Кому', type: 'pick', src: 'emp', req: true, exclude: [u], value: preTo || '',
       suggest: () => [...activeReqs(fid).map(r => [r.who, `ждёт, № ${posOf(r)}`]), emp(u).head ? [emp(u).head, 'ваш руководитель'] : null, prev && prev !== u ? [prev, 'прежний держатель'] : null] }],
     will: v => { const q = activeReqs(fid), m = v.to && q.find(r => r.who === v.to);
-      return (m ? `<span data-testid="tr-closes">${esc(nm(m.who))} ждёт (№ ${posOf(m)}) — передача закроет этот запрос</span>; ` : q.length ? `Ждёт ${esc(nm(q[0].who))} — очередь сохранится, получатель её увидит; ` : '') + 'пока получатель не ответит «Получил», за папку отвечаете вы'; },
+      return (m ? `<span data-testid="tr-closes">${esc(nm(m.who))} ждёт (№ ${posOf(m)}) — передача закроет этот запрос</span>; ` : q.length ? `Ждёт ${esc(nm(q[0].who))} — очередь сохранится, получатель её увидит; ` : '') + 'пока получатель не ответит «Получил», за папку отвечаете вы'
+        + (isOver(fid) ? '; срок прошёл — после «Получил» задание «Вернуть папку» перейдёт получателю' : ''); },
     onSubmit: v => { const r = transfer(fid, v); if (r.ok) r.msg = `Передаётся ${noStr(f.no)} ${emp(v.to).dat} — пока не ответит «Получил», папка за вами`; return r; } });
 }
-function uiGot(fid) { const i = openIssue(fid), r = received(fid); if (r.ok) r.msg = `Папка ${noStr(folder(fid).no)} у вас — вернуть до ${fmt(i.due)}${r.closedReq ? '; ваш запрос закрыт передачей' : ''}`; return say(r); }
+function uiGot(fid) { const i = openIssue(fid), r = received(fid);
+  if (r.ok) r.msg = `Папка ${noStr(folder(fid).no)} у вас — вернуть до ${fmt(i.due)}${isOver(fid) ? ` — просрочена ${overDays(fid)} р.д.: вам задание «Вернуть папку»` : ''}${r.closedReq ? '; ваш запрос закрыт передачей' : ''}`; return say(r); }
 function uiNotGot(fid) { const t = pendingTr(openIssue(fid)), r = notReceived(fid); if (r.ok) r.msg = `Отмечено «не получал»: ${noStr(folder(fid).no)} снова за ${emp(t.from).ins} — передающему уведомление`; return say(r); }
 function uiCancelTr(fid) { const t = pendingTr(openIssue(fid)), r = cancelTransfer(fid); if (r.ok) r.msg = `Передача ${noStr(folder(fid).no)} отменена — папка снова за вами; ${emp(t.to).dat} уведомление`; return say(r); }
 function uiReturn(fid) {
@@ -2228,7 +2291,7 @@ function uiReturn(fid) {
     now: `На руках у ${esc(emp(i.holder).gen)} · ${dueLine(fid, i)}`,
     fields: [{ id: 'hint', type: 'info', html: () => `<span class="hint ${h.kind}" data-testid="return-hint">${esc(h.text)}</span>` },
       { id: 'note', label: 'Примечание — если вернулось не всё', wide: true, ph: 'без оригинала договора залога — остался в суде', hint: 'попадёт в историю и в «Содержание»' }],
-    will: `Выдача закроется${isOver(fid) ? ', задание «Вернуть папку» — тоже' : ''}${t ? `; передача ${esc(emp(t.to).dat)} отменится` : ''}${x ? '; просьба продлить закроется' : ''}`,
+    will: `Выдача закроется${hasTask(fid) ? ', задание «Вернуть папку» — тоже' : ''}${t ? `; передача ${esc(emp(t.to).dat)} отменится` : ''}${x ? '; просьба продлить закроется' : ''}`,
     onSubmit: v => { const r = acceptReturn(fid, v); if (r.ok) r.msg = r.hold ? `Возвращена ${noStr(f.no)} — отложить: бронь ${emp(r.hold).dat} до ${fmt(r.until)}, запросившему уведомление` : `Возвращена ${noStr(f.no)} — на полку: ${placeFull(r.shelf)}`; return r; } });
 }
 /* «Принять возврат» пачкой из «Папок» — окном с теми же строками, что поле «Возврат»: куда, примечание, причина. */
@@ -2549,7 +2612,8 @@ Object.assign(AX, {
   accept, nextVolume, issue, issueBatch, dueDefault, request, requestBatch, requestPreview, withdraw, refuse, askExtend, decideExtend, extend,
   transfer, received, notReceived, cancelTransfer, acceptReturn, acceptReturnBatch, returnHint, returnLookup, move, moveBatch, rebind,
   writeOff, writeOffBatch, writeOffPreview, restore, addPlace, renamePlace, retirePlace, restorePlace, deletePlace, placeRefs, retireWhy, addKind, retireKind, restoreKind, deleteKind, setSetting, settingWill,
-  labelSheet, shelfList, roundList, archQueue, mine, menuCounts, registry, noKzd, journal, jRange, jRows, evParty, history, paperBox, tasks, tasksOf, invariants, LABELS_PER_SHEET,
+  labelSheet, shelfList, roundList, archQueue, mine, menuCounts, registry, noKzd, journal, jRange, jRows, evParty, history, paperBox, tasks, tasksOf, holderSince, invariants, LABELS_PER_SHEET,
+  dismiss, addBorrower,
   setToday, advance, render, openForm, submitForm, closeForm, fset, fseg, fquick, fpick, pkFocus, pkInput, pkBlur, pkKey, pkItems, openCard, closeCard,
   uiIssue, uiIssueBatch, uiRequest, uiRequestBatch, uiWithdraw, uiRefuse, uiUnreserve, uiAskExt, uiExtend, uiDecide, uiTransfer, uiGot, uiNotGot, uiCancelTr,
   uiReturn, uiReturnSel, uiMove, uiMoveBatch, uiRebind, uiWriteoff, uiWriteoffBatch, uiRestore, uiAccept, uiNextVol, uiLabels, uiPrintShelf, uiPrintRound,
