@@ -163,6 +163,7 @@ table.cgrid td.chk input, table.cgrid th.chk input{ width:16px; height:16px; mar
 .filters .grow{ margin-left:auto; }
 .fld{ display:flex; flex-direction:column; gap:4px; }
 .filters .fld{ width:170px; } .filters .fld.w2{ width:230px; } .filters .fld.w3{ width:380px; }
+.filters .fld.wq{ width:360px; } .filters .fld.wk{ width:190px; } .filters .fld.wp{ width:210px; } .filters .fld.wd{ width:150px; } .filters .fld.wh{ width:190px; }
 .filters .fld select,.filters .fld input{ width:100%; min-width:0; }
 .fld > label{ font:var(--text-cap)/1.3 var(--asubk-font); color:var(--text-muted); }
 .fld select,.fld input,.fld textarea{ height:34px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
@@ -181,11 +182,21 @@ table.cgrid td.chk input, table.cgrid th.chk input{ width:16px; height:16px; mar
 .sum .tile .n{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); font-variant-numeric:tabular-nums; }
 .sum .tile .l{ color:var(--text-muted); } .sum .tile.on .l{ color:inherit; }
 .sum .tile.hot .n{ color:var(--asubk-red); }
+.sum-sep{ align-self:center; margin:0 2px 0 6px; padding-left:14px; border-left:1px solid var(--border-strong); font:var(--text-cap)/1.3 var(--asubk-font); color:var(--text-muted); }
+/* строка над реестром: «Показано N · Печать · Excel» или полоса пачки — одной высоты, прилипает при прокрутке вместе с шапкой таблицы */
+.listbar{ position:sticky; top:0; z-index:6; height:52px; box-sizing:border-box; padding:4px 0 8px; background:var(--surface-page); }
+.lb-shown{ height:40px; display:flex; align-items:center; gap:10px; font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.lb-shown .c{ color:var(--text-muted); font-weight:var(--weight-regular); font-size:var(--text-sm); }
+.lb-shown .btn-row{ margin-left:auto; }
+table.cgrid.stick thead th{ position:sticky; top:50px; z-index:5; box-shadow:inset 0 -1px 0 var(--asubk-grid-line); }
+.outside{ margin:-2px 0 10px; padding:8px 12px; border-radius:var(--radius-md); background:var(--status-info-bg); font:var(--font-label); color:var(--text-body); }
 /* полоса действий пачкой */
-.batch{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 12px; margin-bottom:10px; border:1px solid var(--asubk-blue);
+.batch{ height:40px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 12px; border:1px solid var(--asubk-blue);
   background:var(--asubk-blue-tint); border-radius:var(--radius-md); font:var(--font-label); }
 .batch b{ font-weight:var(--weight-semibold); margin-right:6px; }
 .batch .sep{ width:1px; height:22px; background:var(--border-default); margin:0 4px; }
+.batch .bn{ font-weight:var(--weight-regular); color:var(--text-muted); }
+.batch .btn:disabled .bn{ color:inherit; }
 /* выпадающее «Ещё ▾» */
 .menu{ position:relative; display:inline-block; }
 .menu-pop{ display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:30; min-width:280px; background:var(--surface-card);
@@ -293,7 +304,9 @@ details.hrow[open] .caret{ transform:rotate(90deg); }
 .paperbox h3 .btn{ margin-left:auto; }
 .empty{ padding:28px 16px; text-align:center; color:var(--text-muted); font:var(--font-label); border:1px dashed var(--border-default); border-radius:var(--radius-md); }
 #toastWrap{ position:fixed; left:50%; transform:translateX(-50%); bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:80; align-items:center; }
-.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md); font:var(--font-label); max-width:640px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+/* Сообщение: текст и кнопка в одну строку, кнопка не переносится. */
+.toast{ display:flex; align-items:center; gap:12px; background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md); font:var(--font-label); max-width:820px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast .btn{ flex:none; }
 .toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
 </style>
 </head>
@@ -450,7 +463,7 @@ const GONE_REASONS = ['утрачена', 'уничтожена', 'переда�
 const S = { today: TODAY, user: 'arch1', view: 'queue', card: null, n: 0, ids: 0, lastNo: 200,
   q: '', chip: '', f: { kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '', borrower: '' }, sel: new Set(),
   tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false }, ret: { text: '', notes: {}, open: {}, done: null },
-  retB: { notes: {}, open: {} }, focusRet: false, form: null, print: null, pb: 'b2', menu: false };
+  retB: { notes: {}, open: {} }, focusRet: false, focusQ: false, cardFromQ: false, form: null, print: null, pb: 'b2', menu: false };
 const FOLDERS = [], ISSUES = [], REQS = [], EXTS = [], EVENTS = [], NOTES = [];
 const DEMO = {};
 
@@ -745,12 +758,12 @@ function dueDefault(fid, to) {
   if (rr && rr.who === to && rr.needBy && rr.needBy > S.today) return rr.needBy;
   return addWork(S.today, SETTINGS.issueDays.v);
 }
-function issueFields(d) {
+function issueFields(d, dueOptional) {
   if (!d.to) return no('укажите, кому выдаётся', 'to');
   if (!isActive(d.to)) return no('получатель — действующий сотрудник', 'to');
   if (!trim(d.why)) return no('укажите, зачем выдаётся', 'why');
-  if (!d.due) return no('укажите срок возврата', 'due');
-  if (d.due <= S.today) return no('срок возврата — позже сегодняшнего дня', 'due');
+  if (!d.due && !dueOptional) return no('укажите срок возврата', 'due');
+  if (d.due && d.due <= S.today) return no('срок возврата — позже сегодняшнего дня', 'due');
   return yes();
 }
 function issue(fid, d, by = S.user) {
@@ -772,11 +785,12 @@ function batch(ids, fn) {
   ids.forEach(id => { const r = fn(id); r.ok ? done.push(id) : skipped.push({ id, why: r.why }); });
   return yes({ done, skipped });
 }
-/* Пачкой — по каждой папке отдельно: своя выдача; занятые не выдаются. */
+/* Пачкой — по каждой папке отдельно: своя выдача; занятые не выдаются. Срок не указан — у каждой свой:
+   «нужна до» брони получателя, иначе срок по умолчанию (как у выдачи по одной). */
 function issueBatch(ids, d, by = S.user) {
   if (!isArch(by)) return no('выдаёт только архивариус');
-  const c = issueFields(d); if (!c.ok) return c;
-  return batch(ids, id => issue(id, d, by));
+  const c = issueFields(d, true); if (!c.ok) return c;
+  return batch(ids, id => issue(id, Object.assign({}, d, { due: d.due || dueDefault(id, d.to) }), by));
 }
 
 /* Запросить: любой сотрудник; «зачем» обязательно, «нужна до» — по желанию; порядок очереди — по времени. */
@@ -1117,23 +1131,29 @@ function menuCounts(u) {
   const over = m.hands.filter(x => x.over).length;
   return { queue: isArch(u) ? archQueue().total : 0, mine: m.incoming.length + m.requests.filter(x => x.r.st === 'reserved').length + over, mineOver: over };
 }
-/* Поиск: номер (без ведущих нулей), название, ИНН, «Содержание». */
+/* Поиск: номер — с «А-» кириллицей или латиницей, с дефисом, пробелом или без, без ведущих нулей — только точно;
+   ИНН — с начала (номер не ищется внутри ИНН); название и «Содержание» — по вхождению. */
+const qNo = q => { const m = /^[аa]?[\s-]*(\d{1,6})$/i.exec(trim(q)); return m ? +m[1] : null; };
 function matchQ(f, q) {
   q = trim(q).toLowerCase(); if (!q) return true;
-  const m = /^(?:а-?)?\s*(\d{1,6})$/i.exec(q); if (m && f.no === +m[1]) return true;
-  const hay = [noStr(f.no), titleOf(f), innOf(f), f.content || '', f.unlinked ? f.unlinked.name : ''].join(' ').toLowerCase();
+  const n = qNo(q); if (n != null && f.no === n) return true;
+  if (/^\d+$/.test(q) && innOf(f).startsWith(q)) return true;
+  const hay = [titleOf(f), f.content || '', f.unlinked ? f.unlinked.name : ''].join(' ').toLowerCase();
   return hay.includes(q);
 }
-const CHIPS = [['archive', 'в архиве'], ['reserved', 'забронированы'], ['out', 'на руках'], ['over', 'просрочены'], ['queue', 'в очереди'], ['transfer', 'передаются'], ['gone', 'выбыли']];
+/* Плашки: состояния (в сумме все папки) и признаки «из них». */
+const CHIPS = [['archive', 'в архиве'], ['reserved', 'забронированы'], ['out', 'на руках'], ['gone', 'выбыли'], ['over', 'просрочены'], ['transfer', 'передаются'], ['queue', 'с очередью']];
+const CHIP_SIGNS = ['over', 'transfer', 'queue'];
 function chipMatch(f, c) {
   const st = stateOf(f.id);
   return c === 'archive' ? st === 'archive' : c === 'reserved' ? st === 'reserved' : c === 'out' ? (st === 'out' || st === 'transfer')
     : c === 'over' ? isOver(f.id) : c === 'queue' ? activeReqs(f.id).length > 0 : c === 'transfer' ? st === 'transfer' : c === 'gone' ? st === 'gone' : true;
 }
+/* Реестр: поиск и отборы → плашки-счётчики → строки. Заёмщика даёт поиск (название, ИНН) — отдельного отбора нет.
+   hidden — что поиск нашёл, но скрыли отборы, плашка или «выбывшие скрыты»: показывается строкой «Вне отбора». */
 function registry(o = {}) {
-  const fl = Object.assign({ q: '', chip: '', kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '', borrower: '' }, o);
-  const base = FOLDERS.filter(f => {
-    if (!matchQ(f, fl.q)) return false;
+  const fl = Object.assign({ q: '', chip: '', kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '' }, o);
+  const pass = f => {
     if (fl.kind && f.kind !== fl.kind) return false;
     const s = shelf(f.shelf), c = cab(s.cab);
     if (fl.shelf && f.shelf !== fl.shelf) return false;
@@ -1143,12 +1163,14 @@ function registry(o = {}) {
     if (fl.holder && !(i && i.holder === fl.holder)) return false;
     if (fl.dept && deptOf(f) !== fl.dept) return false;
     if (fl.hdept && !(i && emp(i.holder).dept === fl.hdept)) return false;
-    if (fl.borrower && f.borrower !== fl.borrower) return false;
     return true;
-  });
+  };
+  const found = FOLDERS.filter(f => matchQ(f, fl.q)), base = found.filter(pass);
   const counts = {}; CHIPS.forEach(([c]) => { counts[c] = base.filter(f => chipMatch(f, c)).length; });
   const rows = base.filter(f => fl.chip ? chipMatch(f, fl.chip) : !f.gone).sort((a, b) => a.no - b.no);
-  return { rows, counts };
+  const shown = new Set(rows);
+  const hidden = trim(fl.q) ? found.filter(f => !shown.has(f)).sort((a, b) => a.no - b.no) : [];
+  return { rows, counts, hidden };
 }
 /* Заёмщики без КЗД: хотя бы один действующий кредит; непривязанная и выбывшая КЗД не засчитываются. */
 function noKzd(o = {}, u = S.user) {
@@ -1205,15 +1227,18 @@ function paperBox(bid, u = S.user) {
   const kzdLive = fs.filter(f => f.kind === 'kzd' && !f.gone);
   return { rows: fs, noKzd: !kzdLive.length, allVols: kzdLive.length >= 2 ? kzdLive.filter(f => gate('request', f.id, u).ok).map(f => f.id) : [], vols: kzdLive.length };
 }
-/* «Где сейчас» — шапка карточки. */
-function whereNow(fid) {
+/* «Где сейчас» — шапка карточки. Постоянное место — только здесь. Своя папка — от первого лица. */
+function whereNow(fid, u = S.user) {
   const f = folder(fid), st = stateOf(fid), i = openIssue(fid), t = pendingTr(i), r = reservedReq(fid);
-  if (st === 'gone') return { st, line: `ВЫБЫЛА ${fmtS(f.gone.d)} · ${f.gone.reason} · ${f.gone.basis}` };
+  if (st === 'gone') return { st, line: `ВЫБЫЛА ${fmtS(f.gone.d)} · ${f.gone.reason} · ${f.gone.basis}`, sub: `стояла: ${placeFull(f.shelf)}` };
   if (st === 'archive') return { st, line: `В АРХИВЕ · ${placeFull(f.shelf)}` };
-  if (st === 'reserved') return { st, line: `ЗАБРОНИРОВАНА за ${emp(r.who).ins} до ${fmtS(r.until)}`, sub: `место: ${placeFull(f.shelf)}` };
+  if (st === 'reserved') return { st, line: r.who === u ? `ЗАБРОНИРОВАНА за вами до ${fmtS(r.until)} — заберите в архиве` : `ЗАБРОНИРОВАНА за ${emp(r.who).ins} до ${fmtS(r.until)}`, sub: `место: ${placeFull(f.shelf)}` };
   const over = S.today > i.due ? ` — просрочена ${workBetween(i.due, S.today)} р.д.` : '';
-  if (st === 'transfer') return { st, over: !!over, line: `ПЕРЕДАЁТСЯ: ${nm(t.from)} → ${nm(t.to)}, ждёт «Получил»`, sub: `вернуть до ${fmt(i.due)}${over} · постоянное место: ${placeFull(f.shelf)}` };
-  return { st, over: !!over, line: `НА РУКАХ у ${emp(i.holder).gen} (${emp(i.holder).dept}) · вернуть до ${fmtS(i.due)}${over}`, sub: `постоянное место: ${placeFull(f.shelf)}` };
+  if (st === 'transfer') return { st, over: !!over,
+    line: t.to === u ? `ПЕРЕДАЁТСЯ вам от ${emp(t.from).gen} — подтвердите «Получил»` : `ПЕРЕДАЁТСЯ: ${t.from === u ? 'вы' : nm(t.from)} → ${nm(t.to)}, ждёт «Получил»`,
+    sub: `вернуть до ${fmt(i.due)}${over} · вернётся на: ${placeFull(f.shelf)}` };
+  return { st, over: !!over, line: i.holder === u ? `НА РУКАХ у вас · вернуть до ${fmtS(i.due)}${over}` : `НА РУКАХ у ${emp(i.holder).gen} (${emp(i.holder).dept}) · вернуть до ${fmtS(i.due)}${over}`,
+    sub: `вернётся на: ${placeFull(f.shelf)}` };
 }
 
 /* ---------------------------- инварианты ----------------------------- */
@@ -1281,6 +1306,8 @@ function render() {
   renderCard();
   /* При входе в очередь и после возврата курсор — в поле «Возврат». */
   if (S.focusRet) { S.focusRet = false; const el = $('#retInput'); if (el && S.view === 'queue' && !S.form && !S.print && !S.card) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+  /* При входе в «Папки» и после карточки, открытой Enter, — курсор в поиске, набранное выделено. */
+  if (S.focusQ) { S.focusQ = false; const el = $('#fq'); if (el && S.view === 'folders' && !S.form && !S.print && !S.card) { el.focus({ preventScroll: true }); el.select(); } }
 }
 
 /* --------------------- ЭКРАН: очередь архивариуса -------------------- */
@@ -1347,37 +1374,57 @@ function selF(id, label, opts, w) {
   const v = S.f[id];
   return `<div class="fld${w ? ' ' + w : ''}"><label>${label}</label><select data-testid="f-${id}" onchange="AX.setF('${id}', this.value)"><option value="">все</option>${opts.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
 }
+/* Место — один отбор: всё помещение, весь шкаф или полка. */
+const placeVal = () => S.f.shelf ? 's:' + S.f.shelf : S.f.cab ? 'c:' + S.f.cab : S.f.room ? 'r:' + S.f.room : '';
+const placeOpts = () => ROOMS.flatMap(r => [['r:' + r.id, `${r.name} — всё`], ...CABS.filter(c => c.room === r.id).flatMap(c => [['c:' + c.id, `  ${r.short} · ${c.name} — весь`],
+  ...SHELVES.filter(s => s.cab === c.id).map(s => ['s:' + s.id, `    ${placeShort(s.id)}`])])]);
 function viewFolders() {
   const arch = isArch(S.user);
-  const cabs = CABS.filter(c => !S.f.room || c.room === S.f.room).map(c => [c.id, `${room(c.room).short} · ${c.name}`]);
-  const shs = SHELVES.filter(s => (!S.f.cab || s.cab === S.f.cab) && (!S.f.room || cab(s.cab).room === S.f.room)).map(s => [s.id, placeShort(s.id)]);
   const holders = [...new Set(ISSUES.filter(i => !i.end).map(i => i.holder))].sort((a, b) => nm(a).localeCompare(nm(b), 'ru')).map(id => [id, nm(id)]);
-  const bors = BORROWERS.filter(b => FOLDERS.some(f => f.borrower === b.id)).map(b => [b.id, b.name]);
-  return `<div class="filters"><div class="fld w3"><label for="fq">Поиск — номер, название, ИНН, содержание</label><input id="fq" data-testid="f-q" autocomplete="off" value="${esc(S.q)}" placeholder="231, «Протоколы», 0230120…, «договор залога»" oninput="AX.setQ(this.value)"></div>
+  const pv = placeVal();
+  /* Поиск, отборы и «Принять папку» — одна строка. Enter — карточка папки с этим номером (или единственной найденной). */
+  return `<div class="filters"><div class="fld wq"><label for="fq">Поиск — номер, название, ИНН, содержание</label><input id="fq" data-testid="f-q" autocomplete="off" value="${esc(S.q)}" placeholder="231, «Протоколы», ИНН, «договор залога»" oninput="AX.setQ(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();AX.searchEnter();}"></div>
+    ${selF('kind', 'Вид', KINDS.map(k => [k.id, k.name]), 'wk')}<div class="fld wp"><label>Место</label><select data-testid="f-place" onchange="AX.setF('place', this.value)"><option value="">все</option>${placeOpts().map(([k, l]) => `<option value="${k}"${k === pv ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+    ${selF('holder', 'Держатель', holders)}${selF('dept', 'Подразделение', DEPTS.map(d => [d, d]), 'wd')}${selF('hdept', 'Подразделение держателя', DEPTS.map(d => [d, d]), 'wh')}
     <div class="grow btn-row">${arch ? btn('Принять папку', 'AX.uiAccept()', { cls: 'btn-primary', sm: false, tid: 'accept' }) : ''}</div></div>
-    <div class="filters">${selF('kind', 'Вид', KINDS.map(k => [k.id, k.name]))}${selF('room', 'Помещение', ROOMS.map(r => [r.id, r.name]))}${selF('cab', 'Шкаф', cabs)}${selF('shelf', 'Полка', shs)}
-      ${selF('holder', 'Держатель', holders)}${selF('dept', 'Подразделение', DEPTS.map(d => [d, d]))}${selF('hdept', 'Подразделение держателя', DEPTS.map(d => [d, d]), 'w2')}${selF('borrower', 'Заёмщик', bors, 'w2')}</div>
     <div id="fList">${folderList()}</div>`;
 }
+/* Действия пачкой: на кнопке — сколько из отмеченных действие возьмёт (та же проверка, что у кнопки карточки); ноль — серая с причиной. */
+const BATCH = [
+  ['request', 'Запросить', 'AX.uiRequestBatch', 'среди отмеченных нет папок, которые вы можете запросить'],
+  ['issue', 'Выдать', 'AX.uiIssueBatch', 'среди отмеченных нет свободных: все на руках или выбыли'],
+  ['return', 'Принять возврат', 'AX.uiReturnSel', 'среди отмеченных нет папок на руках'],
+  ['move', 'Переместить', 'AX.uiMoveBatch', 'все отмеченные выбыли'],
+  ['label', 'Печать ярлыков', 'AX.uiLabels', 'все отмеченные выбыли — ярлык не нужен'],
+  ['writeoff', 'Списать', 'AX.uiWriteoffBatch', 'все отмеченные уже выбыли'],
+];
+const batchIds = (act, ids = selIds()) => ids.filter(id => gate(act, id).ok);
 function folderList() {
-  const arch = isArch(S.user), { rows, counts } = registry(Object.assign({ q: S.q, chip: S.chip }, S.f));
-  [...S.sel].forEach(id => { if (!folder(id)) S.sel.delete(id); });
+  const arch = isArch(S.user), { rows, counts, hidden } = registry(Object.assign({ q: S.q, chip: S.chip }, S.f));
+  /* Отмечены только показанные: смена поиска, отбора или плашки снимает отметку со скрытых строк. */
+  const shownIds = new Set(rows.map(f => f.id)); [...S.sel].forEach(id => { if (!shownIds.has(id)) S.sel.delete(id); });
   const n = S.sel.size, allOn = rows.length && rows.every(f => S.sel.has(f.id));
-  const chips = `<div class="sum" data-testid="chips">${CHIPS.map(([c, l]) => `<button class="tile${S.chip === c ? ' on' : ''}${c === 'over' && counts[c] ? ' hot' : ''}" data-testid="chip-${c}" onclick="AX.setChip('${c}')"><span class="n">${counts[c]}</span><span class="l">${l}</span></button>`).join('')}</div>`;
-  const bar = n ? `<div class="batch" data-testid="batch">Отмечено <b data-testid="sel-count">${n}</b>${btn('Запросить', 'AX.uiRequestBatch()', { tid: 'b-request' })}${arch ? '<span class="sep"></span>' +
-    btn('Выдать', 'AX.uiIssueBatch()', { tid: 'b-issue' }) + btn('Принять возврат', 'AX.uiReturnSel()', { tid: 'b-return' }) + btn('Переместить', 'AX.uiMoveBatch()', { tid: 'b-move' }) +
-    btn('Печать ярлыков', 'AX.uiLabels()', { tid: 'b-labels' }) + btn('Списать', 'AX.uiWriteoffBatch()', { cls: 'btn-danger', tid: 'b-writeoff' }) : ''}<button class="linky" style="margin-left:auto" onclick="AX.clearSel()">снять отметки</button></div>` : '';
-  const shown = `<div class="section-h" style="margin-top:4px">Показано <span class="c" data-testid="shown">${rows.length}</span>${S.chip === 'gone' ? '' : '<span class="small">выбывшие скрыты — плашка «выбыли»</span>'}<div class="btn-row">${printXls('Папки', rows.length)}</div></div>`;
+  const tile = c => { const l = CHIPS.find(x => x[0] === c)[1]; return `<button class="tile${S.chip === c ? ' on' : ''}${c === 'over' && counts[c] ? ' hot' : ''}" data-testid="chip-${c}" onclick="AX.setChip('${c}')"><span class="n">${counts[c]}</span><span class="l">${l}</span></button>`; };
+  const chips = `<div class="sum" data-testid="chips">${CHIPS.filter(([c]) => !CHIP_SIGNS.includes(c)).map(([c]) => tile(c)).join('')}<span class="sum-sep" data-testid="chips-sep">из них</span>${CHIP_SIGNS.map(tile).join('')}</div>`;
+  /* Полоса пачки встаёт на место строки «Показано» той же высоты — таблица не сдвигается; строка и шапка таблицы прилипают при прокрутке. */
+  /* Действие получает только подходящие папки; «Принять возврат» — все отмеченные: окно показывает причину у не взятых. */
+  const bb = ([act, label, call, why], cls) => { const k = batchIds(act).length;
+    return btn('', act === 'return' ? `${call}()` : `${call}(AX.batchIds('${act}'))`, { tid: 'b-' + (act === 'label' ? 'labels' : act), cls, why: k ? '' : why, html: `${esc(label)} <span class="bn" data-testid="bn-${act}">(${k})</span>` }); };
+  const head = `<div class="listbar" data-testid="listbar">${n ? `<div class="batch" data-testid="batch">Отмечено <b data-testid="sel-count">${n}</b>${bb(BATCH[0])}${arch ? '<span class="sep"></span>' + BATCH.slice(1).map(b => bb(b, b[0] === 'writeoff' ? 'btn-danger' : '')).join('') : ''}<button class="linky" style="margin-left:auto" onclick="AX.clearSel()">снять отметки</button></div>`
+    : `<div class="lb-shown">Показано <span class="c" data-testid="shown">${rows.length}</span>${S.chip === 'gone' ? '' : '<span class="small">выбывшие скрыты — плашка «выбыли»</span>'}<div class="btn-row">${arch && S.f.shelf ? btn('', `AX.uiPrintShelf('${S.f.shelf}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf' }) : ''}${printXls('Папки', rows.length)}</div></div>`}</div>`;
+  /* Поиск нашёл скрытое отбором, плашкой или «выбывшие скрыты» — номера ссылками в карточку. */
+  const outside = hidden.length ? `<div class="outside" data-testid="outside">Вне отбора найдено ещё ${hidden.length}: ${hidden.slice(0, 8).map(f => `<button class="linky mono" data-testid="out-${f.no}" onclick="AX.openCard('${f.id}')">${noStr(f.no)}</button> <span class="small">(${esc(placeShort(f.shelf))}, ${ST[stateOf(f.id)]})</span>`).join(' · ')}${hidden.length > 8 ? ' …' : ''}
+    ${S.chip || Object.values(S.f).some(Boolean) ? ` · <button class="linky" data-testid="reset-f" onclick="AX.resetF()">сбросить отборы</button>` : ''}</div>` : '';
   const body = rows.map(f => { const st = stateOf(f.id), i = openIssue(f.id), r = reservedReq(f.id), t = pendingTr(i), w = activeReqs(f.id).length, ov = isOver(f.id);
     const sub = st === 'reserved' ? `<div class="small">за ${esc(emp(r.who).ins)} до ${fmtS(r.until)}</div>` : st === 'transfer' ? `<div class="small">→ ${esc(nm(t.to))}</div>` : st === 'gone' ? `<div class="small">${esc(f.gone.reason)}</div>` : '';
-    const hold = i ? `${esc(nm(i.holder))}${isFired(i.holder) ? ' <span class="flag">уволен</span>' : ''}<div class="small">${esc(emp(i.holder).dept)}</div>` : '';
+    const hold = i ? `${esc(nm(i.holder))} <span class="small">· ${esc(emp(i.holder).dept)}</span>${isFired(i.holder) ? ' <span class="flag">уволен</span>' : ''}` : '';
     const due = i ? `<span class="${ov ? 'red' : ''}">${fmt(i.due)}</span>${ov ? `<div class="small red">просрочена ${overDays(f.id)} р.д.</div>` : ''}` : '';
     return `<tr class="click${S.card === f.id ? ' cur' : ''}${S.sel.has(f.id) ? ' sel' : ''}${ov ? ' over' : ''}${f.gone ? ' gone' : ''}" data-testid="row-${f.no}" onclick="AX.openCard('${f.id}')">
       <td class="chk" onclick="event.stopPropagation()"><input type="checkbox" data-testid="sel-${f.no}"${S.sel.has(f.id) ? ' checked' : ''} onchange="AX.toggleSel('${f.id}', this.checked)"></td>
       <td class="mono nw">${noStr(f.no)}</td><td>${esc(titleOf(f))}${f.unlinked ? ' <span class="pill warn">не привязана</span>' : ''}</td><td class="nw">${esc(deptOf(f) || '—')}</td>
       <td class="nw mono">${placeShort(f.shelf)}</td><td class="nw">${stPill(f.id)}${sub}</td><td class="nw">${hold}</td><td class="nw">${due}</td><td class="mono">${w || ''}</td></tr>`; }).join('');
-  return chips + bar + shown + `<table class="cgrid" data-testid="tbl-folders"><thead><tr><th class="chk"><input type="checkbox" data-testid="sel-all"${allOn ? ' checked' : ''} onchange="AX.selAll(this.checked)"></th><th>№</th><th>Название</th><th>Подразделение</th><th>Место</th><th>Состояние</th><th>Держатель</th><th>Вернуть до</th><th>Ждут</th></tr></thead>
-    <tbody>${body || '<tr><td colspan="9" class="muted">Ничего не найдено</td></tr>'}</tbody></table>`;
+  return chips + head + outside + `<table class="cgrid stick" data-testid="tbl-folders"><thead><tr><th class="chk"><input type="checkbox" data-testid="sel-all"${allOn ? ' checked' : ''} onchange="AX.selAll(this.checked)"></th><th>№</th><th>Название</th><th>Подразделение</th><th>Место</th><th>Состояние</th><th>Держатель</th><th>Вернуть до</th><th>Ждут</th></tr></thead>
+    <tbody>${body || `<tr><td colspan="9" class="muted">${hidden.length ? 'В отборе ничего не найдено' : 'Ничего не найдено'}</td></tr>`}</tbody></table>`;
 }
 
 /* ------------------------- ЭКРАН: мои папки -------------------------- */
@@ -1534,8 +1581,10 @@ function cardButtons(f, u) {
     else if (st === 'reserved') { h += B('issue', 'Выдать ' + emp(r.who).dat, `AX.uiIssue('${f.id}')`, 'btn-primary') + B('unreserve', 'Снять бронь', `AX.uiUnreserve('${f.id}')`); more.push(MI('move', 'Переместить', `AX.uiMove('${f.id}')`)); }
     else if (st === 'out' || st === 'transfer') { h += B('return', 'Принять возврат', `AX.uiReturn('${f.id}')`, 'btn-primary') + B('extend', 'Продлить', `AX.uiExtend('${f.id}')`); more.push(MI('move', 'Переместить', `AX.uiMove('${f.id}')`)); }
     else h += B('restore', 'Восстановить', `AX.uiRestore('${f.id}')`, 'btn-primary');
+    /* Свой запрос архивариус делает отсюда: нужен редко — свободную папку он выдаёт себе. */
+    const ownReq = st === 'gone' ? '' : activeReqs(f.id).some(x => x.who === u) ? MI('withdraw', 'Отозвать запрос', `AX.uiWithdraw('${f.id}')`) : MI('request', 'Запросить', `AX.uiRequest('${f.id}')`);
     if (st !== 'gone') more.push(MI('nextVol', 'Принять следующий том', `AX.uiNextVol('${f.id}')`), MI('rebind', 'Изменить привязку', `AX.uiRebind('${f.id}')`),
-      MI('label', 'Печать ярлыка', `AX.uiLabels(['${f.id}'])`), MI('writeoff', 'Списать', `AX.uiWriteoff('${f.id}')`, 'danger'));
+      MI('label', 'Печать ярлыка', `AX.uiLabels(['${f.id}'])`), ownReq, MI('writeoff', 'Списать', `AX.uiWriteoff('${f.id}')`, 'danger'));
     if (more.length) h += `<div class="menu${S.menu ? ' open' : ''}" id="moreMenu"><button class="btn btn-secondary" data-testid="cb-more" onclick="event.stopPropagation();AX.toggleMenu()">Ещё ${ico('down')}</button><div class="menu-pop" data-testid="more-pop">${more.join('')}</div></div>`;
   }
   /* Кнопки сотрудника: запрос, держатель, передающий, получатель. Чужие по роли не показываются. */
@@ -1543,27 +1592,32 @@ function cardButtons(f, u) {
   if (t && t.to === u) own.push(B('got', 'Получил', `AX.uiGot('${f.id}')`, 'btn-primary'), B('notGot', 'Не получал', `AX.uiNotGot('${f.id}')`));
   if (i && i.holder === u) { own.push(t ? B('cancelTr', 'Отменить передачу', `AX.uiCancelTr('${f.id}')`) : B('transfer', 'Передать', `AX.uiTransfer('${f.id}')`)); own.push(B('askExt', 'Попросить продление', `AX.uiAskExt('${f.id}')`)); }
   if (!arch && !(i && (i.holder === u || (t && t.to === u)))) own.push(activeReqs(f.id).some(x => x.who === u) ? B('withdraw', 'Отозвать запрос', `AX.uiWithdraw('${f.id}')`) : B('request', 'Запросить', `AX.uiRequest('${f.id}')`, 'btn-primary'));
+  /* Том дела из нескольких томов: «Запросить все тома» — как во врезке «Где бумага», одна форма на все. */
+  const vols = allVols(f, u);
+  if (!arch && vols.length >= 2) own.push(btn(`Запросить все тома (${vols.length})`, `AX.uiRequestBatch(${JSON.stringify(vols).replace(/"/g, "'")})`, { sm: false, tid: 'cb-allvols' }));
   if (own.length) h += (h ? '<span style="width:12px"></span>' : '') + own.join('');
   return h;
 }
+/* Тома того же дела (с этим), которые сотрудник может запросить. */
+const allVols = (f, u = S.user) => [f, ...siblings(f)].filter(x => !x.gone && (kindOf(f.kind).bind || f.vol)).sort((a, b) => (a.vol || 1) - (b.vol || 1)).filter(x => gate('request', x.id, u).ok).map(x => x.id);
 function renderCard() {
   const el = $('#cardpanel');
   if (!S.card || !folder(S.card)) { el.classList.remove('open'); el.innerHTML = ''; setHash(''); return; }
   const f = folder(S.card), k = kindOf(f.kind), w = whereNow(f.id), u = S.user, i = openIssue(f.id), q = activeReqs(f.id), x = pendingExt(i), arch = isArch(u);
-  const flags = [q.length ? `<span class="flag amber" data-testid="flag-wait">ждут ${q.length}</span>` : '', i && isFired(i.holder) ? '<span class="flag" data-testid="flag-fired">держатель уволен</span>' : '',
+  const mine = q.find(r => r.who === u && r.st === 'queue');
+  const flags = [q.length ? `<span class="flag amber" data-testid="flag-wait">ждут ${q.length}</span>` : '', mine ? `<span class="flag blue" data-testid="flag-mypos">вы № ${posOf(mine)} в очереди</span>` : '',
+    i && isFired(i.holder) ? '<span class="flag" data-testid="flag-fired">держатель уволен</span>' : '',
     x ? '<span class="flag amber">просьба продлить</span>' : '', f.unlinked ? '<span class="flag amber">не привязана</span>' : ''].filter(Boolean).join('');
-  /* Реквизиты: заёмщик с ИНН, том N из M со ссылками на другие тома, подразделение, содержание, место, принята, сдал. */
+  /* Реквизиты — без повторов шапки: место только в шапке; «Том» — при двух и больше томах; «сдал» — если известен. */
   const kv = [];
   if (k.bind) kv.push(['Заёмщик', f.borrower ? `<button class="linky" onclick="AX.openBorrower('${f.borrower}')">${esc(borrower(f.borrower).name)}</button> · ИНН <span class="mono">${borrower(f.borrower).inn}</span>`
     : `<span class="pill warn">не привязана</span> ${esc(f.unlinked.name)} · ИНН <span class="mono">${f.unlinked.inn}</span> <span class="small">(вручную)</span>`]);
   const sib = siblings(f).filter(s => !s.gone).sort((a, b) => (a.vol || 1) - (b.vol || 1));
-  if (k.bind || f.vol) { const M = Math.max(f.vol || 1, ...sib.map(s => s.vol || 1));
+  if ((k.bind || f.vol) && (sib.length || (f.vol || 1) > 1)) { const M = Math.max(f.vol || 1, ...sib.map(s => s.vol || 1));
     kv.push(['Том', `${f.vol || 1} из ${M}${sib.length ? '<div class="small">' + sib.map(s => `том ${s.vol || 1} — <button class="linky" onclick="AX.openCard('${s.id}')">${noStr(s.no)}</button> (${ST[stateOf(s.id)]}${openIssue(s.id) ? ' у ' + esc(emp(openIssue(s.id).holder).gen) : ''})`).join('<br>') + '</div>' : ''}`]); }
   kv.push(['Подразделение', esc(deptOf(f) || '—') + (k.bind && f.borrower ? ' <span class="small">— куратора заёмщика</span>' : '')]);
   kv.push(['Содержание', esc(f.content || '—')]);
-  kv.push(['Постоянное место', esc(placeFull(f.shelf))]);
-  kv.push(['Принята', `${fmt(f.at)}, ${esc(nm(f.by))}`]);
-  kv.push(['Сдал', esc(f.from ? nm(f.from) : '—')]);
+  kv.push(['Принята', `${fmt(f.at)}, ${esc(nm(f.by))}${f.from ? ` · сдал ${esc(nm(f.from))}` : ''}`]);
   let h = `<div class="cp-top"><span class="addr" data-testid="cp-addr">#/folder/${f.no}</span><button class="x" data-testid="cp-close" onclick="AX.closeCard()" title="Закрыть (Esc)">×</button></div><div class="cp-body">
     <div class="cp-no">${noStr(f.no)}</div><h2 class="cp-title" data-testid="cp-title">${esc(titleOf(f))}</h2><div class="cp-kind">${esc(k.name)}</div>
     <div class="where ${w.over ? 'over' : w.st}" data-testid="where"><div class="w1">${esc(w.line)}</div>${w.sub ? `<div class="w2">${esc(w.sub)}</div>` : ''}${flags ? `<div class="flags">${flags}</div>` : ''}</div>
@@ -1667,7 +1721,7 @@ function closeForm() { S.form = null; S.print = null; renderModal(); return yes(
 function toast(msg, kind, act) {
   if (typeof document === 'undefined') return;
   const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.setAttribute('data-testid', 'toast');
-  d.innerHTML = esc(msg) + (act ? ` <button class="btn btn-secondary btn-sm" style="margin-left:10px" onclick="${act.call}">${esc(act.label)}</button>` : '');
+  d.innerHTML = `<span>${esc(msg)}</span>` + (act ? `<button class="btn btn-secondary btn-sm" onclick="${act.call}">${esc(act.label)}</button>` : '');
   $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), act ? 12000 : 6000);
 }
 const say = r => { toast(r.ok ? r.msg || 'Готово' : r.why, r.ok ? 'ok' : 'err'); render(); return r; };
@@ -1696,11 +1750,14 @@ function uiIssue(fid) {
     ], onSubmit: v => { const r = issue(fid, v); if (r.ok) r.msg = `Выдана ${noStr(f.no)} — ${nm(v.to)}, вернуть до ${fmt(r.due)}; ему уведомление`; return r; } });
 }
 const selIds = () => [...S.sel].filter(id => folder(id));
+/* Срок у каждой свой (из «нужна до» брони получателя, иначе по умолчанию); общий — по желанию.
+   «Кому» подставлено, если все отмеченные забронированы за одним. */
 function uiIssueBatch(ids = selIds()) {
-  return openForm({ title: `Выдать пачкой · ${ids.length}`, submit: 'Выдать', note: 'Каждая папка получит свою выдачу. Занятые (на руках, забронированы за другим, выбыли) не выдаются — о них будет строка с причиной.',
-    fields: [{ id: 'to', label: 'Кому', type: 'emp', req: true }, { id: 'due', label: 'Вернуть до', type: 'date', req: true, value: addWork(S.today, SETTINGS.issueDays.v) },
-      { id: 'why', label: 'Зачем', type: 'textarea', req: true, wide: true }],
-    onSubmit: v => { const r = issueBatch(ids, v); if (r.ok) { S.sel.clear(); batchResult('Выдать пачкой', r, () => 'выдана ' + nm(v.to)); } return r; } });
+  const res = ids.map(id => reservedReq(id)), who = res.every(Boolean) && new Set(res.map(r => r.who)).size === 1 ? res[0].who : '';
+  return openForm({ title: `Выдать пачкой · ${ids.length}`, submit: 'Выдать', note: 'Каждая папка получит свою выдачу. Забронированная за другим не выдаётся — о ней будет строка с причиной.',
+    fields: [{ id: 'to', label: 'Кому', type: 'emp', req: true, value: who }, { id: 'due', label: 'Вернуть до', type: 'date', value: '', hint: `пусто — у каждой свой: «нужна до» брони, иначе ${SETTINGS.issueDays.v} р.д.` },
+      { id: 'why', label: 'Зачем', type: 'textarea', req: true, wide: true, value: who ? res[0].why : '' }],
+    onSubmit: v => { const r = issueBatch(ids, v); if (r.ok) { S.sel.clear(); batchResult('Выдать пачкой', r, id => `выдана ${nm(v.to)}, вернуть до ${fmt(openIssue(id).due)}`); } return r; } });
 }
 function uiRequest(fid) {
   const g = gate('request', fid); if (!g.ok) return say(g);
@@ -1910,10 +1967,11 @@ function uiSetting(key) {
 /* --------------------- навигация и window.AX --------------------- */
 function openCard(fid) {
   const f = folder(fid); if (!f) return no('папка не найдена');
-  S.card = fid; S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
+  S.card = fid; S.cardFromQ = false; S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
   setHash('#/folder/' + f.no); render(); return yes();
 }
-function closeCard() { S.card = null; S.menu = false; setHash(''); render(); return yes(); }
+/* Закрыл карточку, открытую Enter из поиска, — курсор снова в поиске, номер выделен: следующий набирается поверх. */
+function closeCard() { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; S.cardFromQ = false; S.card = null; S.menu = false; setHash(''); render(); return yes(); }
 /* Адрес карточки. Файл, открытый с диска, не даёт менять историю — тогда меняется сам якорь. */
 function setHash(h) {
   if (typeof location === 'undefined' || (location.hash || '') === h) return;
@@ -1929,7 +1987,7 @@ function fromHash(initial) {
 Object.assign(AX, {
   S, TODAY, DEMO, EMP, USERS, BORROWERS, KINDS, ROOMS, CABS, SHELVES, FOLDERS, ISSUES, REQS, EXTS, EVENTS, NOTES, SETTINGS, GONE_REASONS, CHIPS, JOURNAL, NOTE_KIND, ESC_AFTER,
   fmt, toIso, addWork, workBetween, isWork, addDays, noStr, byNo, folder, emp, titleOf, deptOf, innOf, placeFull, placeShort, shelfActive,
-  stateOf, ST, openIssue, pendingTr, pendingExt, activeReqs, reservedReq, posOf, isOver, overDays, whereNow, gate, isArch, isFired,
+  stateOf, ST, openIssue, pendingTr, pendingExt, activeReqs, reservedReq, posOf, isOver, overDays, whereNow, gate, isArch, isFired, qNo, matchQ, allVols,
   accept, nextVolume, issue, issueBatch, dueDefault, request, requestBatch, requestPreview, withdraw, refuse, askExtend, decideExtend, extend,
   transfer, received, notReceived, cancelTransfer, acceptReturn, acceptReturnBatch, returnHint, returnLookup, move, moveBatch, rebind,
   writeOff, writeOffBatch, writeOffPreview, restore, addPlace, renamePlace, retirePlace, deletePlace, placeRefs, addKind, retireKind, deleteKind, setSetting,
@@ -1938,15 +1996,27 @@ Object.assign(AX, {
   uiIssue, uiIssueBatch, uiRequest, uiRequestBatch, uiWithdraw, uiRefuse, uiUnreserve, uiAskExt, uiExtend, uiDecide, uiTransfer, uiGot, uiNotGot, uiCancelTr,
   uiReturn, uiReturnSel, uiMove, uiMoveBatch, uiRebind, uiWriteoff, uiWriteoffBatch, uiRestore, uiAccept, uiNextVol, uiLabels, uiPrintShelf, uiPrintRound,
   uiAddPlace, uiRenamePlace, uiRetirePlace, uiDeletePlace, uiAddKind, uiRetireKind, uiDeleteKind, uiSetting,
-  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.menu = false; S.focusRet = v === 'queue'; setHash(''); render(); return yes(); },
+  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.menu = false; S.focusRet = v === 'queue'; S.focusQ = v === 'folders'; setHash(''); render(); return yes(); },
+  /* Enter в поиске «Папок»: карточка папки с этим номером, иначе — единственной найденной. */
+  searchEnter() {
+    const n = qNo(S.q), f = n != null ? byNo(n) : null, rows = registry(Object.assign({ q: S.q, chip: S.chip }, S.f)).rows;
+    const t = f || (rows.length === 1 ? rows[0] : null);
+    if (!t) { const r = no(trim(S.q) ? `найдено ${rows.length} — выберите строку` : 'наберите номер, название, ИНН или содержание'); toast(r.why, 'err'); return r; }
+    openCard(t.id); S.cardFromQ = true; return yes({ card: t.id });
+  },
+  resetF() { Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.chip = ''; render(); return yes(); },
+  batchIds,
   setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.sel.clear(); S.nk.mine = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; renderModal(); render(); return yes(); },
-  setF(k, v) { S.f[k] = v; if (k === 'room') { S.f.cab = ''; S.f.shelf = ''; } if (k === 'cab') S.f.shelf = ''; render(); },
+  setF(k, v) {
+    /* «Место» — одним списком: r:<помещение>, c:<шкаф>, s:<полка>. */
+    if (k === 'place') { const [lv, id] = (v || '').split(':'); S.f.room = lv === 'r' ? id : ''; S.f.cab = lv === 'c' ? id : ''; S.f.shelf = lv === 's' ? id : ''; render(); return; }
+    S.f[k] = v; if (k === 'room') { S.f.cab = ''; S.f.shelf = ''; } if (k === 'cab') S.f.shelf = ''; render(); },
   setQ(q) { S.q = q; const el = $('#fList'); if (el) el.innerHTML = folderList(); },
   setChip(c) { S.chip = S.chip === c ? '' : c; const el = $('#fList'); if (el) el.innerHTML = folderList(); },
   toggleSel(id, on) { on ? S.sel.add(id) : S.sel.delete(id); $('#fList').innerHTML = folderList(); },
   selAll(on) { registry(Object.assign({ q: S.q, chip: S.chip }, S.f)).rows.forEach(f => { on ? S.sel.add(f.id) : S.sel.delete(f.id); }); $('#fList').innerHTML = folderList(); },
   clearSel() { S.sel.clear(); render(); },
-  findFolder(q) { S.view = 'folders'; S.q = trim(q); S.chip = ''; Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.card = null; render(); return yes(); },
+  findFolder(q) { S.view = 'folders'; S.q = trim(q); S.chip = ''; Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.card = null; S.focusQ = true; render(); return yes(); },
   setJ(k, v) { if (k === 'from' || k === 'to') { const iso = toIso(v); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ', 'err'); render(); return; } S.jr[k] = iso; } else S.jr[k] = v; render(); },
   setNk(k, v) { S.nk[k] = v; render(); },
   setTab(t) { S.tab = t; render(); },

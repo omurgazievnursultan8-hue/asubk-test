@@ -6,6 +6,10 @@
 // Блок Р-1…Р-3 — автогриллинг страницы «Рамка модуля и Очередь архивариуса» (АХ-71…АХ-81): демо-стенд в шапке,
 // цвет счётчиков, поле «Возврат» с клавиатуры, итог под полем, возврат пачкой из «Папок» окном, печать и Excel
 // у «уволенных», ярлык после привязки, подсветка открытой папки.
+// Блок ПК-1…ПК-4 — автогриллинг страницы «Папки» и карточки папки (АХ-82…АХ-95): поиск номера с клавиатуры и
+// «Вне отбора», плашки состояний и «из них», отборы одной строкой, полоса пачки на месте «Показано» с числом на
+// кнопках, отмечены только показанные, срок «Выдать» пачкой, список полки, карточка от первого лица, все тома,
+// запрос архивариуса из «Ещё ▾», реквизиты без повторов шапки, сообщение с кнопкой одной строкой.
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -117,9 +121,9 @@ await group('И-3 · карточка — панель ~900 px поверх сп
   ck('на руках и передаётся — «Принять возврат»', btns.out.t === 'Принять возврат' && btns.transfer.t === 'Принять возврат');
   ck('утрачена — «Восстановить»; уничтожена — «Восстановить» серая с причиной', btns.lost.t === 'Восстановить' && !btns.lost.dis && btns.destroyed.dis && has(btns.destroyed.why, 'только утраченную'), [btns.lost, btns.destroyed]);
   ck('«Продлить» при просьбе на решении — серая с причиной', has(btns.extendWhy, 'просьба держателя'), btns.extendWhy);
-  ck('«Ещё ▾»: следующий том · привязка · ярлык · списать', btns.more.join('|') === 'Принять следующий том|Изменить привязку|Печать ярлыка|Списать', btns.more);
+  ck('«Ещё ▾»: следующий том · привязка · ярлык · свой запрос (АХ-93) · списать', btns.more.join('|') === 'Принять следующий том|Изменить привязку|Печать ярлыка|Запросить|Списать', btns.more);
   ck('«Изменить привязку» у вида без привязки — серая', btns.rebindNom === true);
-  ck('у забронированной и у папки на руках «Переместить» уходит в «Ещё ▾»', btns.moreRes.join('|') === 'Переместить|Принять следующий том|Изменить привязку|Печать ярлыка|Списать' && btns.moreOut.join('|') === btns.moreRes.join('|'), [btns.moreRes, btns.moreOut]);
+  ck('у забронированной и у папки на руках «Переместить» уходит в «Ещё ▾»', btns.moreRes.join('|') === 'Переместить|Принять следующий том|Изменить привязку|Печать ярлыка|Запросить|Списать' && btns.moreOut.join('|') === btns.moreRes.join('|'), [btns.moreRes, btns.moreOut]);
   const own = await E(() => { const A = window.AX; A.setUser('asanov'); A.openCard('f211'); const a = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
     A.openCard('f230'); const b = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
     A.openCard('f201'); const c = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
@@ -143,7 +147,7 @@ await group('И-5 · реестр: восемь колонок, плашки, п
     chips: Object.fromEntries([...document.querySelectorAll('[data-testid=chips] .tile')].map(t => [t.dataset.testid.slice(5), +t.querySelector('.n').textContent])) }));
   ck('☐ + восемь колонок: № · Название · Подразделение · Место · Состояние · Держатель · Вернуть до · Ждут', r.th.slice(1).join('|') === '№|Название|Подразделение|Место|Состояние|Держатель|Вернуть до|Ждут', r.th);
   ck('выбывшие скрыты до плашки: показано 28 из 30', r.shown === 28, r.shown);
-  ck('плашки: в архиве 17 · забронированы 1 · на руках 10 (вместе с передающейся) · просрочены 2 · в очереди 3 · передаются 1 · выбыли 2',
+  ck('плашки: в архиве 17 · забронированы 1 · на руках 10 (вместе с передающейся) · выбыли 2; из них просрочены 2 · передаются 1 · с очередью 3',
     r.chips.archive === 17 && r.chips.reserved === 1 && r.chips.out === 10 && r.chips.over === 2 && r.chips.queue === 3 && r.chips.transfer === 1 && r.chips.gone === 2, r.chips);
   await page.click('[data-testid=chip-gone]');
   ck('плашка «выбыли» показывает выбывшие', await E(() => +document.querySelector('[data-testid=shown]').textContent === 2));
@@ -156,10 +160,10 @@ await group('И-5 · реестр: восемь колонок, плашки, п
   ck('две «Протоколы правления · 2025» различает подразделение в строке', (await q('Протоколы правления')).length === 2 && await E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.children[3].textContent).sort().join() === 'Бухгалтерия,ДПО'));
   await page.fill('[data-testid=f-q]', '');
   const f = await E(() => { const A = window.AX, n = o => A.registry(o).rows.map(f => f.no);
-    return { hdept: n({ hdept: 'ДРР' }), dept: n({ dept: 'Бухгалтерия' }), shelf: n({ shelf: 'go3-4' }), holder: n({ holder: 'jeen' }), kind: n({ kind: 'vz' }), borrower: n({ borrower: 'b2' }), room: n({ room: 'dpo' }).length }; });
+    return { hdept: n({ hdept: 'ДРР' }), dept: n({ dept: 'Бухгалтерия' }), shelf: n({ shelf: 'go3-4' }), holder: n({ holder: 'jeen' }), kind: n({ kind: 'vz' }), borrower: n({ q: 'Иманов' }), room: n({ room: 'dpo' }).length }; });
   ck('отбор «подразделение держателя» ДРР: у Асанова и Мамбетова', f.hdept.join() === '201,216,225,230', f.hdept);
   ck('отбор «подразделение»: папки бухгалтерии без выбывших', f.dept.join() === '213,221', f.dept);
-  ck('отбор полки, держателя, вида, заёмщика, помещения', f.shelf.join() === '219,220,221' && f.holder.join() === '205,214,227' && f.kind.join() === '205,226' && f.borrower.join() === '202,203' && f.room === 3, f);
+  ck('отбор полки, держателя, вида, помещения; папки заёмщика — поиском (АХ-85)', f.shelf.join() === '219,220,221' && f.holder.join() === '205,214,227' && f.kind.join() === '205,226' && f.borrower.join() === '202,203' && f.room === 3, f);
   await shot(page, '02-folders');
 });
 
@@ -1093,6 +1097,186 @@ await group('Р-3 · очередь: печать и Excel у «уволенны
   ck('АХ-77 · приняты 230 и 205 (бронь первому — Асанову), 211 не тронута', res.st === 'archive,reserved,archive' && res.res === 'asanov' && res.ev211 === 0, res);
   ck('АХ-77 · примечание из окна — в «Содержание»; итог пачкой показан', has(res.content, 'без графика погашения') && res.result, res);
   await shot(page, '09-batch-return');
+});
+
+/* ============ «Папки» и карточка папки — автогриллинг страницы (АХ-82…АХ-95) ============ */
+
+const rowsOf = E => E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr[data-testid]')].map(t => t.dataset.testid.slice(4)).join());
+
+await group('ПК-1 · поиск с клавиатуры: номер любой «А-», только точно; Enter — карточка; курсор в поиске; найдено вне отбора (АХ-82, АХ-83, АХ-Д18)', async (page, E) => {
+  await E(() => window.AX.go('folders'));
+  ck('АХ-82 · при входе в «Папки» курсор в поиске', await E(() => !!document.activeElement && document.activeElement.id === 'fq'));
+  const q = async s => { await page.fill('[data-testid=f-q]', s); return rowsOf(E); };
+  const lat = [await q('A-205'), await q('a205'), await q('A 205'), await q('А-000205'), await q('000205')];
+  ck('АХ-Д18 · «A-205», «a205», «A 205» латиницей, «А-000205», «000205» → А-000205', lat.every(x => x === '205'), lat);
+  ck('АХ-82 · «230» — только А-000230 (не А-000201 по ИНН 0230…)', (await q('230')) === '230');
+  ck('АХ-82 · «120» — ничего: номера 120 нет, цифры внутри ИНН не ищутся', (await q('120')) === '');
+  ck('АХ-82 · ИНН — с начала: «0230120» → А-000201', (await q('0230120')) === '201');
+  ck('АХ-82 · год в названии ищется по вхождению: «2025» → 211, 213, 214', (await q('2025')) === '211,213,214');
+  await page.fill('[data-testid=f-q]', '230'); await page.press('[data-testid=f-q]', 'Enter');
+  ck('АХ-82 · Enter — карточка папки с этим номером (С-3: «Папки» → номер + Enter → «Выдать» → «Выдать» = 3 клика)', await E(() => window.AX.S.card === 'f230' && location.hash === '#/folder/230'));
+  await page.keyboard.press('Escape');
+  const foc = await E(() => { const el = document.activeElement; return { id: el && el.id, sel: el && [el.selectionStart, el.selectionEnd].join(), card: window.AX.S.card }; });
+  ck('АХ-82 · закрыл карточку — курсор снова в поиске, номер выделен: следующий набирается поверх', foc.id === 'fq' && foc.sel === '0,3' && foc.card === null, foc);
+  await page.fill('[data-testid=f-q]', 'Протоколы правления'); await page.press('[data-testid=f-q]', 'Enter');
+  const many = await E(() => ({ card: window.AX.S.card, t: [...document.querySelectorAll('[data-testid=toast]')].map(t => t.textContent).join('|') }));
+  ck('АХ-82 · найдены две — Enter карточку не открывает, подсказывает выбрать строку', many.card === null && has(many.t, 'найдено 2'), many);
+  await page.fill('[data-testid=f-q]', 'Ак-Жол'); await page.press('[data-testid=f-q]', 'Enter');
+  ck('АХ-82 · найдена одна — Enter открывает её', await E(() => window.AX.S.card === 'f201'));
+  await E(() => window.AX.closeCard());
+  await page.selectOption('[data-testid=f-place]', 's:go1-1');
+  const o1 = { rows: await q('230'), out: await E(() => (document.querySelector('[data-testid=outside]') || {}).innerText || '') };
+  ck('АХ-83 · отбор полки ГО · 1 · 1 + номер с другой полки: строки нет, «Вне отбора найдено ещё 1: А-000230 (ГО · 1 · 3, на руках)»',
+    o1.rows === '' && has(o1.out, 'Вне отбора найдено ещё 1') && has(o1.out, 'А-000230') && has(o1.out, 'ГО · 1 · 3'), o1);
+  await page.click('[data-testid=out-230]');
+  ck('АХ-83 · номер — ссылка в карточку; отбор полки остаётся (С-9: «Переместить» чужую без сброса отбора)',
+    await E(() => window.AX.S.card === 'f230' && window.AX.S.f.shelf === 'go1-1' && !!document.querySelector('[data-testid=mi-move]')));
+  await E(() => window.AX.closeCard());
+  const o2 = { rows: await q('209'), out: await E(() => (document.querySelector('[data-testid=outside]') || {}).innerText || '') };
+  ck('АХ-83 · номер выбывшей — в строке «Вне отбора» (выбыла), а не «Ничего не найдено»', o2.rows === '' && has(o2.out, 'А-000209') && has(o2.out, 'выбыла'), o2);
+  await page.click('[data-testid=reset-f]');
+  ck('АХ-83 · «сбросить отборы» снимает отбор места', await E(() => !window.AX.S.f.shelf && !window.AX.S.chip && document.querySelector('[data-testid=f-place]').value === ''));
+  await page.click('[data-testid=chip-gone]');
+  ck('АХ-83 · плашка «выбыли» — А-000209 в таблице, строки «Вне отбора» нет', (await rowsOf(E)) === '209' && await E(() => !document.querySelector('[data-testid=outside]')));
+});
+
+await group('ПК-2 · плашки: состояния и «из них»; поиск и отборы одной строкой, место одним списком; держатель в одну строку (АХ-84, АХ-85, АХ-95)', async (page, E) => {
+  await E(() => window.AX.go('folders'));
+  const c = await E(() => { const ch = document.querySelector('[data-testid=chips]'), n = id => +ch.querySelector(`[data-testid=chip-${id}] .n`).textContent;
+    return { order: [...ch.children].map(k => k.dataset.testid), sep: ch.querySelector('[data-testid=chips-sep]').textContent, sum: ['archive', 'reserved', 'out', 'gone'].reduce((s, id) => s + n(id), 0),
+      total: window.AX.FOLDERS.length, queueLabel: ch.querySelector('[data-testid=chip-queue] .l').textContent }; });
+  ck('АХ-84 · сначала состояния (в архиве · забронированы · на руках · выбыли), за чертой «из них» — просрочены · передаются · с очередью',
+    c.order.join() === 'chip-archive,chip-reserved,chip-out,chip-gone,chips-sep,chip-over,chip-transfer,chip-queue' && c.sep === 'из них' && c.queueLabel === 'с очередью', c);
+  ck('АХ-84 · состояния в сумме — все папки: 17 + 1 + 10 + 2 = 30', c.sum === 30 && c.total === 30, c);
+  const L = await E(() => { const P = document.querySelector('#panel'), F = P.querySelectorAll('.filters'), b = [...F[0].children].map(e => Math.round(e.getBoundingClientRect().bottom));
+    return { rows: F.length, spread: Math.max(...b) - Math.min(...b), selects: [...P.querySelectorAll('.filters select')].map(s => s.dataset.testid), accept: !!F[0].querySelector('[data-testid=accept]'),
+      fit: F[0].scrollWidth <= F[0].clientWidth, tableTop: Math.round(P.querySelector('[data-testid=tbl-folders]').getBoundingClientRect().top) }; });
+  ck('АХ-85 · поиск, пять отборов и «Принять папку» — одна строка', L.rows === 1 && L.spread <= 2 && L.accept && L.fit, L);
+  ck('АХ-85 · отборы: вид · место · держатель · подразделение · подразделение держателя; отбора «Заёмщик» нет', L.selects.join() === 'f-kind,f-place,f-holder,f-dept,f-hdept', L.selects);
+  ck('АХ-85 · таблица начинается выше 250 px (было 291)', L.tableTop < 250, L.tableTop);
+  const pl = {};
+  for (const v of ['r:dpo', 'c:go3', 's:go3-4']) { await page.selectOption('[data-testid=f-place]', v); pl[v] = await rowsOf(E); }
+  ck('АХ-85 · «Место» одним списком: помещение ДПО — 3 папки; шкаф ГО · 3 — 217…225; полка ГО · 3 · 4 — 219, 220, 221',
+    pl['r:dpo'].split(',').length === 3 && pl['c:go3'] === '217,218,219,220,221,222,223,224,225' && pl['s:go3-4'] === '219,220,221', pl);
+  await page.selectOption('[data-testid=f-place]', '');
+  const h = await E(() => { const tr = document.querySelector('[data-testid=row-203]'); return { txt: tr.children[6].innerText.replace(/\s+/g, ' ').trim(), h: Math.round(tr.getBoundingClientRect().height) }; });
+  ck('АХ-95 · держатель с подразделением в одной строке: «Кадыров Т. · ДАК», строка ≤ 42 px (было 54)', h.txt === 'Кадыров Т. · ДАК' && h.h <= 42, h);
+  await shot(page, '11-folders');
+});
+
+await group('ПК-3 · полоса пачки на месте «Показано», прилипает; число на кнопках; отмечены только показанные; «Выдать» пачкой — срок у каждой свой; печать списка полки (АХ-86…АХ-90, АХ-Д19)', async (page, E) => {
+  await E(() => window.AX.go('folders'));
+  const top = () => E(() => Math.round(document.querySelector('[data-testid=row-205]').getBoundingClientRect().top));
+  const lb = () => E(() => Math.round(document.querySelector('[data-testid=listbar]').getBoundingClientRect().height));
+  const t0 = await top(), h0 = await lb();
+  await page.click('[data-testid=sel-202]');
+  const t1 = await top(), h1 = await lb();
+  ck('АХ-86 · первая отметка не сдвигает таблицу: полоса встала на место строки «Показано», та же высота',
+    t0 === t1 && h0 === h1 && await E(() => !!document.querySelector('[data-testid=batch]') && !document.querySelector('[data-testid=shown]')), { t0, t1, h0, h1 });
+  await page.click('[data-testid=sel-206]');
+  await page.locator('[data-testid=sel-230]').scrollIntoViewIfNeeded();
+  await page.click('[data-testid=sel-230]');
+  const st = await E(() => { const C = document.querySelector('.content'), c = C.getBoundingClientRect(), b = document.querySelector('[data-testid=batch]').getBoundingClientRect(), th = document.querySelector('[data-testid=tbl-folders] thead th:nth-child(2)').getBoundingClientRect();
+    return { scrolled: Math.round(C.scrollTop), batchTop: Math.round(b.top - c.top), thTop: Math.round(th.top - c.top), thBelow: th.top >= b.bottom - 1 }; });
+  ck('АХ-86 · прокручено к 30-й строке — полоса и шапка таблицы у верха экрана', st.scrolled > 200 && st.batchTop >= 0 && st.batchTop < 12 && st.thTop < 70 && st.thBelow, st);
+  await shot(page, '12-batch-sticky');
+  const bn = await E(() => Object.fromEntries([...document.querySelectorAll('[data-testid=batch] .btn')].map(b => [b.dataset.testid, (b.disabled ? '-' : '') + b.querySelector('.bn').textContent])));
+  ck('АХ-87 · на кнопках — сколько возьмёт: 202 в архиве, 206 забронирована, 230 на руках → Запросить (3) · Выдать (2) · Принять возврат (1) · Переместить (3) · Печать ярлыков (3) · Списать (3)',
+    bn['b-request'] === '(3)' && bn['b-issue'] === '(2)' && bn['b-return'] === '(1)' && bn['b-move'] === '(3)' && bn['b-labels'] === '(3)' && bn['b-writeoff'] === '(3)', bn);
+  await E(() => window.AX.clearSel());
+  await page.click('[data-testid=sel-202]');
+  const z = await E(() => { const b = document.querySelector('[data-testid=b-return]'); return { dis: b.disabled, why: b.dataset.why, t: b.textContent }; });
+  ck('АХ-87 · ноль — серая с причиной: «Принять возврат (0)» — «среди отмеченных нет папок на руках»', z.dis && has(z.t, '(0)') && has(z.why, 'нет папок на руках'), z);
+  await page.click('[data-testid=sel-206]');
+  await page.selectOption('[data-testid=f-place]', 's:go3-4');
+  const s0 = await E(() => window.AX.S.sel.size);
+  await page.click('[data-testid=sel-all]');
+  await page.click('[data-testid=b-writeoff]');
+  const w = await E(() => ({ sel: window.AX.S.sel.size, title: document.querySelector('[data-testid=form-title]').textContent }));
+  ck('АХ-88 · смена отбора снимает отметки со скрытых строк (АХ-Д19): «Списать пачкой · 3» — только полка ГО · 3 · 4', s0 === 0 && w.sel === 3 && w.title === 'Списать пачкой · 3', { s0, ...w });
+  await page.keyboard.press('Escape');
+  const iss = await E(() => { const A = window.AX; A.setF('place', ''); A.request('f213', { why: 'сверка премирования', needBy: '2026-11-30' }, 'sydykova'); A.clearSel(); return (A.reservedReq('f213') || {}).who; });
+  await page.click('[data-testid=sel-212]'); await page.click('[data-testid=sel-213]');
+  await page.click('[data-testid=b-issue]');
+  const f0 = await E(() => { const d = document.querySelector('[data-testid=ff-due]'); return { to: document.querySelector('[data-testid=ff-to]').value, due: d.value, req: d.closest('.fld').querySelector('label').classList.contains('req') }; });
+  ck('АХ-89 · «Вернуть до» пусто и не обязательно; «Кому» пусто — в пачке свободная и бронь', iss === 'sydykova' && f0.to === '' && f0.due === '' && !f0.req, { iss, ...f0 });
+  await page.selectOption('[data-testid=ff-to]', 'sydykova'); await page.fill('[data-testid=ff-why]', 'сверка премирования');
+  await page.click('[data-testid=form-submit]');
+  const d = await E(() => { const A = window.AX; return { d212: (A.openIssue('f212') || {}).due, d213: (A.openIssue('f213') || {}).due, def: A.addWork(A.S.today, A.SETTINGS.issueDays.v) }; });
+  ck('АХ-89 · срок у каждой свой: 213 — 30.11 из «нужна до» брони, 212 — срок по умолчанию', d.d213 === '2026-11-30' && d.d212 === d.def && d.d212 !== d.d213, d);
+  await page.keyboard.press('Escape');
+  await page.click('[data-testid=sel-206]');
+  await page.click('[data-testid=b-issue]');
+  ck('АХ-89 · все отмеченные забронированы за одним — «Кому» подставлено (Исаева А.)', await E(() => document.querySelector('[data-testid=ff-to]').value === 'isaeva'));
+  await page.keyboard.press('Escape');
+  await E(() => { window.AX.setUser('jeen'); window.AX.go('folders'); });
+  await page.click('[data-testid=sel-205]'); await page.click('[data-testid=sel-211]');
+  const j = await E(() => [...document.querySelectorAll('[data-testid=batch] .btn')].map(b => b.textContent.trim()).join());
+  ck('АХ-87 · у сотрудника одна кнопка — «Запросить (1)»: своя папка на руках (205) не считается', j === 'Запросить (1)', j);
+  const p = await E(() => { const A = window.AX, o = {}; A.setF('place', 's:go1-1'); o.jeen = !!document.querySelector('[data-testid=print-shelf]');
+    A.setUser('arch1'); A.go('folders'); A.setF('place', 'c:go1'); o.cab = !!document.querySelector('[data-testid=print-shelf]'); A.setF('place', 's:go1-1'); o.arch = !!document.querySelector('[data-testid=print-shelf]'); return o; });
+  ck('АХ-90 · «Печать списка полки» — у архивариуса и только при отборе одной полки', p.arch && !p.cab && !p.jeen, p);
+  await page.click('[data-testid=print-shelf]');
+  const sh = await E(() => ({ sub: document.querySelector('[data-testid=print-sheet] .sub').textContent, th: [...document.querySelectorAll('[data-testid=shelf-list] th')].map(t => t.textContent).join('|'),
+    n: document.querySelectorAll('[data-testid=shelf-list] tbody tr').length }));
+  ck('АХ-90 · лист сверки полки ГО · 1 · 1 — три папки и «На месте» (С-9: отбор → «Печать списка полки» → «Печать» = 3 клика)', has(sh.sub, 'Архив ГО · шкаф 1 · полка 1') && sh.th.endsWith('На месте') && sh.n === 3, sh);
+});
+
+await group('ПК-4 · карточка: своя папка от первого лица; «Запросить все тома»; архивариус запрашивает из «Ещё ▾»; реквизиты без повторов шапки; сообщение с кнопкой в одну строку (АХ-91…АХ-94, АХ-Д20)', async (page, E) => {
+  const w = await E(() => { const A = window.AX, o = {}, where = () => document.querySelector('[data-testid=where] .w1').textContent, flag = () => (document.querySelector('[data-testid=flag-mypos]') || {}).textContent || '';
+    A.setUser('isaeva'); A.openCard('f206'); o.isaeva = where();
+    A.setUser('asanov'); A.openCard('f230'); o.asanov = where(); A.openCard('f201'); o.asanovTr = where(); A.openCard('f205'); o.asanovPos = flag();
+    A.setUser('mambetov'); A.openCard('f201'); o.mambetov = where();
+    A.setUser('arch1'); A.openCard('f206'); o.arch = where(); A.openCard('f205'); o.archPos = flag(); return o; });
+  ck('АХ-91 · бронь за собой: «ЗАБРОНИРОВАНА за вами до 17.11 — заберите в архиве»', w.isaeva === 'ЗАБРОНИРОВАНА за вами до 17.11 — заберите в архиве', w.isaeva);
+  ck('АХ-91 · своя на руках: «НА РУКАХ у вас · вернуть до 10.11 — просрочена 3 р.д.»', w.asanov === 'НА РУКАХ у вас · вернуть до 10.11 — просрочена 3 р.д.', w.asanov);
+  ck('АХ-91 · передача: получателю «ПЕРЕДАЁТСЯ вам от Асанова Б. — подтвердите «Получил»», передающему «ПЕРЕДАЁТСЯ: вы → Мамбетов К.»',
+    w.mambetov === 'ПЕРЕДАЁТСЯ вам от Асанова Б. — подтвердите «Получил»' && w.asanovTr === 'ПЕРЕДАЁТСЯ: вы → Мамбетов К., ждёт «Получил»', w);
+  ck('АХ-91 · своё место в очереди — пометкой в шапке «вы № 1 в очереди»; архивариусу — третье лицо, без пометки',
+    w.asanovPos === 'вы № 1 в очереди' && w.arch === 'ЗАБРОНИРОВАНА за Исаевой А. до 17.11' && w.archPos === '', w);
+  await E(() => { window.AX.setUser('jeen'); window.AX.go('folders'); window.AX.openCard('f225'); });
+  await page.click('[data-testid=cb-request]');
+  await page.fill('[data-testid=ff-why]', 'подготовка иска');
+  await page.click('[data-testid=form-submit]');
+  ck('АХ-91 · С-16: юрист запросил занятую — в шапке сразу «вы № 1 в очереди»', await E(() => (document.querySelector('[data-testid=flag-mypos]') || {}).textContent === 'вы № 1 в очереди'));
+  await E(() => { window.AX.setUser('isaeva'); window.AX.go('folders'); window.AX.openCard('f202'); });
+  const av = await E(() => (document.querySelector('[data-testid=cb-allvols]') || {}).textContent || '');
+  ck('АХ-92 · том 1 из 2: рядом с «Запросить» — «Запросить все тома (2)»', av === 'Запросить все тома (2)', av);
+  await page.click('[data-testid=cb-allvols]');
+  ck('АХ-92 · одна форма на оба тома', await E(() => document.querySelector('[data-testid=form-title]').textContent === 'Запросить · 2 папки'));
+  await page.fill('[data-testid=ff-why]', 'подготовка заключения');
+  await page.click('[data-testid=form-submit]');
+  const r2 = await E(() => { const A = window.AX, s = id => (A.activeReqs(id).find(r => r.who === 'isaeva') || {}).st; return [s('f202'), s('f203')]; });
+  ck('АХ-92 · С-11 из карточки — 2 клика: том 1 забронирован, том 2 — в очереди', r2.join() === 'reserved,queue', r2);
+  ck('АХ-92 · у одиночной папки кнопки нет', await E(() => { window.AX.setUser('sydykova'); window.AX.openCard('f213'); return !document.querySelector('[data-testid=cb-allvols]'); }));
+  await E(() => { window.AX.setUser('arch1'); window.AX.go('folders'); window.AX.openCard('f213'); });
+  await page.click('[data-testid=cb-more]');
+  const mi = await E(() => { const m = document.querySelector('[data-testid=mi-request]'); return m ? { dis: m.disabled, main: !!document.querySelector('#cardpanel .cp-btns > [data-testid=cb-request]') } : null; });
+  ck('АХ-93 · архивариусу «Запросить» — в «Ещё ▾», не в главном ряду (АХ-Д16)', mi && !mi.dis && !mi.main, mi);
+  await page.click('[data-testid=mi-request]');
+  await page.fill('[data-testid=ff-why]', 'проверка Счётной палаты');
+  await page.click('[data-testid=form-submit]');
+  const a3 = await E(() => { const A = window.AX, o = { res: (A.reservedReq('f213') || {}).who, mi: !!document.querySelector('[data-testid=mi-withdraw]') }; A.openCard('f209'); o.goneMore = !!document.querySelector('[data-testid=cb-more]'); return o; });
+  ck('АХ-93 · запрос встал (бронь за архивариусом), в «Ещё ▾» — «Отозвать запрос»; у выбывшей «Ещё ▾» нет', a3.res === 'arch1' && a3.mi && !a3.goneMore, a3);
+  const kv = await E(() => { const A = window.AX, ks = () => [...document.querySelectorAll('#cardpanel .kv .k')], val = k => { const e = ks().find(x => x.textContent === k); return e ? e.nextElementSibling.textContent.replace(/\s+/g, ' ').trim() : ''; },
+    sub = () => (document.querySelector('[data-testid=where] .w2') || {}).textContent || '', o = {};
+    A.openCard('f230'); o.k230 = ks().map(k => k.textContent).join('|'); o.acc230 = val('Принята'); o.sub230 = sub();
+    A.openCard('f202'); o.vol202 = val('Том'); A.openCard('f211'); o.sub211 = sub(); o.w211 = document.querySelector('[data-testid=where] .w1').textContent; A.openCard('f209'); o.sub209 = sub();
+    A.openCard('f205'); o.extTop = Math.round(document.querySelector('[data-testid=ext-box]').getBoundingClientRect().top); return o; });
+  ck('АХ-94 · реквизиты одиночной КЗД — 4 строки: заёмщик · подразделение · содержание · принята (без места, «Том 1 из 1», «Сдал —»)', kv.k230 === 'Заёмщик|Подразделение|Содержание|Принята', kv.k230);
+  ck('АХ-94 · «сдал» — в строке «Принята», если известен', kv.acc230 === '21.09.2026, Бекова С. · сдал Асанов Б.', kv.acc230);
+  ck('АХ-94 · «Том 1 из 2» — у тома из двух', kv.vol202.startsWith('1 из 2'), kv.vol202);
+  ck('АХ-94 · место — только в шапке: «В АРХИВЕ · …», на руках «вернётся на: …», выбыла «стояла: …»',
+    kv.w211 === 'В АРХИВЕ · Архив ГО · шкаф 2 · полка 1' && kv.sub211 === '' && kv.sub230 === 'вернётся на: Архив ГО · шкаф 1 · полка 3' && kv.sub209 === 'стояла: Архив ГО · шкаф 1 · полка 4', kv);
+  ck('АХ-94 · блок «Просьба продлить» поднялся (был на 553 px) и виден без прокрутки', kv.extTop < 500, kv.extTop);
+  await shot(page, '13-card-ext');
+  await E(() => { window.AX.closeCard(); window.AX.uiRebind('f218'); });
+  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  await page.fill('[data-testid=ff-basis]', 'ошибка при приёме');
+  await page.click('[data-testid=form-submit]');
+  const t = await E(() => { const d = [...document.querySelectorAll('[data-testid=toast]')].find(x => x.querySelector('button')), b = d.getBoundingClientRect(), bb = d.querySelector('button').getBoundingClientRect();
+    return { h: Math.round(b.height), w: Math.round(b.width), dy: Math.round(bb.top - b.top) }; });
+  ck('АХ-Д20 · сообщение «… перепечатайте ярлык» с кнопкой — одной строкой (было 640 × 68, кнопка второй строкой)', t.h <= 50 && t.dy < 14, t);
 });
 
 await browser.close();
