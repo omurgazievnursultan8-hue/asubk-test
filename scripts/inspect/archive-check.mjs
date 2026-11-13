@@ -19,6 +19,11 @@
 // пустой экран строкой, папки подразделения и «на руках у сотрудников» руководителя, «Вам передают» с «Кто ждёт», срок
 // «через N р.д.», одна сетка колонок, бронь — помещение; «Заёмщики без КЗД» без счётчика, отборы по роли, «Привязать»;
 // врезка «Где бумага» от первого лица, без колонки «Том», с «ждут N», выбывшая КЗД (АХ-Д23).
+// Блок ЖС-1…ЖС-7 — автогриллинг «Журнала движения», «Справочников» и печати (АХ-123…АХ-137): поиск первым (номер — сразу
+// карточка, «Вне отбора»), период кнопками, плашки событий с числом, «Подразделение сотрудника» и своё руководителю, колонка
+// «Сотрудник» с подразделением; печать любого списка листом с отборами, Excel файлом; ярлыки листом A4 с позиции, список полки
+// из трёх частей; в строке места одна кнопка и «Ещё ▾», число папок — ссылка, вывести только пустое, вернуть в употребление,
+// название без повтора, «что сейчас / что будет» в окнах; курсор: № строки с клавиатуры и после карточки.
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -778,20 +783,23 @@ await group('П-13 · Справочники: на что ссылается п�
     o.cab = A.deletePlace('cab', 'go1'); o.room = A.deletePlace('room', 'dpo');
     o.free = A.deletePlace('shelf', 'go2-5');
     o.newS = A.addPlace('shelf', 'go3', 'полка 6'); o.delNew = A.deletePlace('shelf', o.newS.id);
-    o.retire = A.retirePlace('shelf', 'go3-3'); o.acc = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-3' }); o.mv = A.move('f211', 'go3-3');
+    o.retFull = A.retirePlace('shelf', 'go3-3'); o.retFullCab = A.retirePlace('cab', 'dpo1');
+    o.retire = A.retirePlace('shelf', 'dpo1-3'); o.acc = A.accept({ kind: 'nom', title: 'х', shelf: 'dpo1-3' }); o.mv = A.move('f211', 'dpo1-3');
     o.kind = A.deleteKind('cards'); o.newK = A.addKind({ name: 'Акты ревизии', bind: 'no' }); o.delK = A.deleteKind(o.newK.id);
     o.retK = A.retireKind('nom'); o.accK = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-2' });
-    o.cabRetired = (A.retirePlace('cab', 'dpo1'), A.shelfActive('dpo1-3'));
+    const nc = A.addPlace('cab', 'dpo', 'шкаф 9'), ns = A.addPlace('shelf', nc.id, 'полка 1');
+    o.cabRetired = (A.retirePlace('cab', nc.id), A.shelfActive(ns.id));
     o.nonArch = A.retirePlace('shelf', 'go3-2', 'jeen');
     return o; });
   ck('полку с папками удалить нельзя — только вывести', !r.shelf.ok && has(r.shelf.why, 'только вывести из употребления'), r.shelf);
   ck('ссылка только через историю (папка переехала, полка пуста) тоже держит полку', r.histNow === 0 && r.hist >= 1 && !r.histDel.ok, r);
   ck('шкаф и помещение с папками — тоже нельзя', !r.cab.ok && !r.room.ok);
   ck('пустую полку удалить можно', r.free.ok && r.newS.ok && r.delNew.ok, [r.free, r.delNew]);
-  ck('выведенная полка не принимает и не перемещает', r.retire.ok && !r.acc.ok && !r.mv.ok, [r.acc, r.mv]);
+  ck('АХ-133 · полку и шкаф с папками вывести нельзя — «сначала переместите их»', !r.retFull.ok && has(r.retFull.why, 'на полке стоит 1 папка') && has(r.retFull.why, 'сначала переместите её') && !r.retFullCab.ok && has(r.retFullCab.why, 'в шкафу'), [r.retFull, r.retFullCab]);
+  ck('выведенная (пустая) полка не принимает и не перемещает', r.retire.ok && !r.acc.ok && !r.mv.ok, [r.retire, r.acc, r.mv]);
   ck('вид с папками удалить нельзя; пустой — можно', !r.kind.ok && r.delK.ok, [r.kind, r.delK]);
   ck('выведенный вид в приёме не принимается', r.retK.ok && !r.accK.ok, r.accK);
-  ck('выведенный шкаф выводит и свои полки', r.cabRetired === false);
+  ck('выведенный (пустой) шкаф выводит и свои полки', r.cabRetired === false, r.cabRetired);
   ck('не архивариус — нельзя', !r.nonArch.ok);
 });
 
@@ -1074,7 +1082,7 @@ await group('Р-3 · очередь: печать и Excel у «уволенны
       ext: blk('blk-ext').querySelectorAll('button').length, bind: blk('blk-bind').querySelectorAll('button').length }; });
   ck('АХ-79 · «На руках у уволенных» — «Печать» и «Excel»; «К выдаче» — «Печать обхода»; у «Продлений» и «Ждут привязки» — нет', pr.fired === 'print-list,excel' && pr.give === 'print-round' && pr.ext === 0 && pr.bind === 0, pr);
   await page.click('[data-testid=blk-fired] [data-testid=excel]');
-  ck('АХ-79 · Excel выгружает список уволенных — 1 строка', (await toasts(E)).some(t => t.text === '«На руках у уволенных» — выгрузка в Excel: 1 строка'), await toasts(E));
+  ck('АХ-79 · Excel выгружает список уволенных — 1 строка', (await toasts(E)).some(t => t.text === 'Выгружен файл «На руках у уволенных на 13.11.2026.xlsx» — 1 строка, колонки как на экране'), await toasts(E));
   await page.click('[data-testid=give-206] td:nth-child(3)');
   const c1 = await E(() => ({ open: document.querySelector('#cardpanel').classList.contains('open'), cur: [...document.querySelectorAll('#panel tr.cur')].map(t => t.dataset.testid) }));
   ck('АХ-81 · клик по строке «К выдаче» — панель карточки, строка подсвечена', c1.open && c1.cur.join() === 'give-206', c1);
@@ -1233,9 +1241,9 @@ await group('ПК-3 · полоса пачки на месте «Показан�
     A.setUser('arch1'); A.go('folders'); A.setF('place', 'c:go1'); o.cab = !!document.querySelector('[data-testid=print-shelf]'); A.setF('place', 's:go1-1'); o.arch = !!document.querySelector('[data-testid=print-shelf]'); return o; });
   ck('АХ-90 · «Печать списка полки» — у архивариуса и только при отборе одной полки', p.arch && !p.cab && !p.jeen, p);
   await page.click('[data-testid=print-shelf]');
-  const sh = await E(() => ({ sub: document.querySelector('[data-testid=print-sheet] .sub').textContent, th: [...document.querySelectorAll('[data-testid=shelf-list] th')].map(t => t.textContent).join('|'),
-    n: document.querySelectorAll('[data-testid=shelf-list] tbody tr').length }));
-  ck('АХ-90 · лист сверки полки ГО · 1 · 1 — три папки и «На месте» (С-9: отбор → «Печать списка полки» → «Печать» = 3 клика)', has(sh.sub, 'Архив ГО · шкаф 1 · полка 1') && sh.th.endsWith('На месте') && sh.n === 3, sh);
+  const sh = await E(() => ({ h: document.querySelector('[data-testid=print-sheet] h2').textContent, th: [...document.querySelectorAll('[data-testid=shelf-list] th')].map(t => t.textContent).join('|'),
+    n: document.querySelectorAll('[data-testid=shelf-list] tbody tr').length + document.querySelectorAll('[data-testid=shelf-out] tbody tr').length }));
+  ck('АХ-90 · лист сверки полки ГО · 1 · 1 — три папки и «На месте» (С-9: отбор → «Печать списка полки» → «Печать» = 3 клика)', sh.h === 'Архив ГО · шкаф 1 · полка 1' && sh.th.endsWith('На месте') && sh.n === 3, sh);
 });
 
 await group('ПК-4 · карточка: своя папка от первого лица; «Запросить все тома»; архивариус запрашивает из «Ещё ▾»; реквизиты без повторов шапки; сообщение с кнопкой в одну строку (АХ-91…АХ-94, АХ-Д20)', async (page, E) => {
@@ -1593,6 +1601,257 @@ await group('МП-4 · «Заёмщики без КЗД»: без счётчик
   ck('АХ-Д23 · передача у чужой папки — «Асанов Б. → Мамбетов К., вернуть до 20.11.2026» (было: «передаётся у Асанова Б.»)', has(p.other, 'Асанов Б. → Мамбетов К., вернуть до 20.11.2026'), p.other);
   ck('АХ-Д23 · КЗД выбыла — «Кредитно-залоговое дело выбыло: утрачена 01.10.2026 (А-000209) — в архиве его нет», «выбыла» один раз; не сдано — как было',
     p.gone[0] === 'Кредитно-залоговое дело выбыло: утрачена 01.10.2026 (А-000209) — в архиве его нет' && p.gone[1].split('выбыла').length === 2 && p.none === 'Кредитно-залоговое дело в архив не сдано', p);
+});
+
+/* ====== «Журнал движения», «Справочники» и печать — автогриллинг страницы (АХ-123…АХ-137) ====== */
+const jRowsTxt = E => E(() => [...document.querySelectorAll('[data-testid=j-row]')].map(r => [...r.children].map(c => c.innerText.trim())));
+const chipN = (E, k) => E(k => +document.querySelector(`[data-testid=j-chip-${k}] .n`).textContent, k);
+
+await group('ЖС-1 · журнал: поиск первым, период кнопками, плашки событий, колонки (АХ-123, АХ-124, АХ-125, АХ-127)', async (page, E) => {
+  await page.click('[data-testid=nav-journal]');
+  const a = await E(() => ({ focus: document.activeElement.id, per: (document.querySelector('[data-testid=j-per] .on') || {}).textContent, from: document.querySelector('#jFrom').value, to: document.querySelector('#jTo').value,
+    rows: document.querySelectorAll('[data-testid=j-row]').length, shown: +document.querySelector('[data-testid=j-shown]').textContent,
+    th: [...document.querySelectorAll('[data-testid=tbl-journal] thead th')].map(t => t.textContent).join('|'),
+    first: [...document.querySelector('[data-testid=filters], [data-testid=j-filters]').querySelectorAll('input, select, button')].map(x => x.id || x.dataset.testid)[0] }));
+  ck('АХ-123, АХ-124 · вход в журнал — курсор в поиске (он первый в строке), период «30 дней» 14.10.2026–13.11.2026, 12 событий',
+    a.focus === 'jq' && a.first === 'jq' && a.per === '30 дней' && a.from === '14.10.2026' && a.to === '13.11.2026' && a.rows === 12 && a.shown === 12, a);
+  ck('АХ-127 · колонки «Дата · Событие · Папка · Сотрудник · Подробности · Отметил»', a.th === 'Дата|Событие|Папка|Сотрудник|Подробности|Отметил', a.th);
+  const c = await E(() => Object.fromEntries([...document.querySelectorAll('[data-testid=j-chips] .tile')].map(t => [t.dataset.testid.slice(7), { n: +t.querySelector('.n').textContent, zero: t.classList.contains('zero') }])));
+  ck('АХ-125 · восемь плашек с числом за период: выдана 9, возвращена 2, списана 1, остальные 0 серым; сумма = «Показано 12»',
+    Object.keys(c).length === 8 && c.issued.n === 9 && c.returned.n === 2 && c.writtenOff.n === 1 && Object.values(c).reduce((s, x) => s + x.n, 0) === 12 && c.accepted.zero && !c.issued.zero, c);
+  await page.click('[data-testid=j-chip-issued]');
+  const k = await jRowsTxt(E);
+  ck('АХ-125 · плашка «выдана» — 9 строк, все «выдана»; «Показано 9»', k.length === 9 && k.every(r => r[1] === 'выдана') && await E(() => document.querySelector('[data-testid=j-shown]').textContent === '9'), k.length);
+  await page.click('[data-testid=j-chip-issued]');
+  ck('АХ-125 · повторный щелчок снимает плашку — снова 12', (await jRowsTxt(E)).length === 12);
+  const per = {};
+  for (const p of ['today', '7', 'year']) { await page.click(`[data-testid=j-per-${p}]`); per[p] = await E(() => ({ n: document.querySelectorAll('[data-testid=j-row]').length, from: document.querySelector('#jFrom').value, empty: (document.querySelector('[data-testid=tbl-journal] td.muted') || {}).textContent })); }
+  ck('АХ-124 · «Сегодня» — «Сегодня движения не было»; «7 дней» — 3; «С начала года» — 51 с 01.01.2026', per.today.n === 0 && per.today.empty === 'Сегодня движения не было' && per['7'].n === 3 && per.year.n === 51 && per.year.from === '01.01.2026', per);
+  await page.click('[data-testid=j-per-30]');
+  await page.fill('#jFrom', '01.11.2026'); await page.keyboard.press('Tab');
+  const cu = await E(() => ({ on: !!document.querySelector('[data-testid=j-per] .on'), n: document.querySelectorAll('[data-testid=j-row]').length, from: document.querySelector('#jFrom').value, to: document.querySelector('#jTo').value }));
+  ck('АХ-124 · своя дата «С 01.11.2026» — кнопка периода снята, 7 событий по 13.11.2026', !cu.on && cu.n === 7 && cu.from === '01.11.2026' && cu.to === '13.11.2026', cu);
+  await page.click('[data-testid=j-per-30]');
+  await page.click('#jq'); await page.keyboard.type('Иманов');
+  const s = await E(() => ({ n: document.querySelectorAll('[data-testid=j-row]').length, out: (document.querySelector('[data-testid=j-outside]') || {}).innerText, focus: document.activeElement.id }));
+  ck('АХ-123 · «Иманов» — 1 событие за 30 дней и «Вне отбора ещё 2 события по этим папкам · показать за всё время»; курсор остаётся в поиске',
+    s.n === 1 && s.out === 'Вне отбора ещё 2 события по этим папкам · показать за всё время' && s.focus === 'jq', s);
+  await page.keyboard.press('Enter');
+  ck('АХ-123 · Enter при двух найденных папках — карточки нет, подсказка «найдено папок: 2 — выберите строку»', await E(() => !window.AX.S.card) && (await toasts(E)).some(t => t.text === 'найдено папок: 2 — выберите строку'));
+  await page.click('[data-testid=j-all]');
+  const all = await E(() => ({ n: document.querySelectorAll('[data-testid=j-row]').length, from: document.querySelector('#jFrom').value, on: !!document.querySelector('[data-testid=j-per] .on'), focus: document.activeElement.id, out: !!document.querySelector('[data-testid=j-outside]') }));
+  ck('АХ-123 · «показать за всё время» — 3 события Иманова, период пуст («с начала»), строки «Вне отбора» нет, курсор в поиске', all.n === 3 && all.from === '' && !all.on && all.focus === 'jq' && !all.out, all);
+  await page.fill('#jq', '230'); await page.keyboard.press('Enter');
+  const cd = await E(() => ({ card: window.AX.S.card, focus: document.activeElement.dataset.testid }));
+  ck('АХ-123 · «230» + Enter — сразу карточка А-000230 (история папки), курсор в карточке', cd.card === 'f230' && cd.focus === 'cp-title', cd);
+  await page.keyboard.press('Escape');
+  const es = await E(() => { const el = document.activeElement; return { card: window.AX.S.card, focus: el.id, sel: el.selectionStart === 0 && el.selectionEnd === el.value.length && el.value === '230' }; });
+  ck('АХ-123 · Esc — карточка закрыта, курсор снова в поиске журнала, «230» выделено', !es.card && es.focus === 'jq' && es.sel, es);
+});
+
+await group('ЖС-2 · сотрудник с подразделением, «Подразделение сотрудника», руководителю — своё (АХ-126, АХ-127)', async (page, E) => {
+  const m = {};
+  for (const u of ['mambetov', 'arch1', 'isaeva', 'jeen']) {
+    await E(u => { window.AX.setUser(u); window.AX.go('journal'); }, u);
+    m[u] = await E(() => ({ dept: document.querySelector('#jDept').value, rows: [...document.querySelectorAll('[data-testid=j-row]')].map(r => r.children[2].innerText.slice(0, 8) + ':' + r.children[3].innerText) }));
+  }
+  ck('АХ-126 · заведующему ДРР по умолчанию «Подразделение сотрудника» = ДРР — 4 события: 225, 201, 216 (сам), 230; все «· ДРР»',
+    m.mambetov.dept === 'ДРР' && m.mambetov.rows.map(r => r.slice(0, 8)).join() === 'А-000225,А-000201,А-000216,А-000230' && m.mambetov.rows.every(r => r.endsWith('· ДРР')), m.mambetov);
+  ck('АХ-126 · архивариусу и сотрудникам — все подразделения, 12 событий', ['arch1', 'isaeva', 'jeen'].every(u => m[u].dept === '' && m[u].rows.length === 12), Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [v.dept, v.rows.length]])));
+  ck('АХ-127 · «Сотрудник» с подразделением — «Кадыров Т. · ДАК», «Жээнбекова Н. · ДПО»', m.arch1.rows.some(r => r === 'А-000203:Кадыров Т. · ДАК') && m.arch1.rows.some(r => r === 'А-000214:Жээнбекова Н. · ДПО'), m.arch1.rows);
+  const r = await E(() => { const A = window.AX; A.setUser('arch1');
+    const acc = A.accept({ kind: 'nom', title: 'Протоколы кредитного комитета · 2026', dept: 'ДАК', shelf: 'go3-2', from: 'isaeva' });
+    const got = A.received('f201', 'mambetov'); A.go('journal'); A.setJ('per', 'today');
+    const rows = () => [...document.querySelectorAll('[data-testid=j-row]')].map(r => [...r.children].map(c => c.innerText.trim()));
+    const o = { acc: acc.ok, got: got.ok, today: rows() };
+    A.setJ('dept', 'ДАК'); o.dak = rows().map(x => x[1]); A.setJ('dept', 'ДРР'); o.drr = rows().map(x => x[1]); A.setJ('dept', ''); A.setJ('emp', 'isaeva'); o.isaeva = rows().map(x => x[1]);
+    A.setJ('emp', 'arch1'); o.arch = rows().map(x => x[1]);
+    return o; });
+  const tg = r.today.find(x => x[1] === 'передана') || [], ac = r.today.find(x => x[1] === 'принята') || [];
+  ck('АХ-127 · передача — «Асанов Б. → Мамбетов К.», отметил получатель; приём — «сдал Исаева А. · ДАК», отметил архивариус',
+    r.acc && r.got && tg[3] === 'Асанов Б. → Мамбетов К.' && tg[5] === 'Мамбетов К.' && ac[3] === 'сдал Исаева А. · ДАК' && ac[5] === 'Токтосунова Г.', r.today);
+  ck('АХ-126 · подразделение по чьим рукам: ДАК — приём от Исаевой, ДРР — передача Асанов → Мамбетов; сотрудник «Исаева» — её приём; «Токтосунова» — что отметила',
+    r.dak.join() === 'принята' && r.drr.join() === 'передана' && r.isaeva.join() === 'принята' && r.arch.join() === 'принята', r);
+});
+
+await group('ЖС-3 · печать любого списка — лист с отборами; Excel — файл (АХ-128, АХ-129)', async (page, E) => {
+  await E(() => window.AX.go('journal'));
+  await page.click('[data-testid=j-chip-issued]');
+  await page.click('[data-testid=print-list]');
+  const p = await E(() => { const t = document.querySelector('[data-testid=print-table]');
+    return { title: document.querySelector('[data-testid=print-title]').textContent, h: document.querySelector('[data-testid=print-sheet] h2').textContent, sub: document.querySelector('[data-testid=print-sheet] .sub').textContent,
+      th: [...t.querySelectorAll('th')].map(x => x.textContent).join('|'), n: t.querySelectorAll('tbody tr').length, ctl: t.querySelectorAll('button, input, select, a').length, info: document.querySelector('[data-testid=print-info]').textContent,
+      focus: document.activeElement.dataset.testid }; });
+  ck('АХ-128 · «Печать» журнала — лист «Журнал движения»: отборы, дата, число строк, кто напечатал; таблица экрана без кнопок и ссылок; A4 альбомный',
+    p.title === 'Печать списка' && p.h === 'Журнал движения' && p.sub === 'за 14.10.2026–13.11.2026 · событие: выдана · на 13.11.2026 · 9 строк · напечатал(а) Токтосунова Г.'
+    && p.th === 'Дата|Событие|Папка|Сотрудник|Подробности|Отметил' && p.n === 9 && p.ctl === 0 && p.info === 'Лист A4, альбомный' && p.focus === 'print-go', p);
+  await page.keyboard.press('Enter');
+  ck('АХ-129 · Enter — «Печать», окно закрыто, «Отправлено на печать»', await E(() => !window.AX.S.print) && (await toasts(E)).some(t => t.text === 'Отправлено на печать'));
+  await page.click('[data-testid=excel]');
+  ck('АХ-128 · Excel — «Выгружен файл «Журнал движения на 13.11.2026.xlsx» — 9 строк, колонки как на экране»', (await toasts(E)).some(t => t.text === 'Выгружен файл «Журнал движения на 13.11.2026.xlsx» — 9 строк, колонки как на экране'), await toasts(E));
+  await E(() => window.AX.go('folders'));
+  const shown = await E(() => document.querySelectorAll('[data-testid=tbl-folders] tbody tr').length);
+  await page.click('[data-testid=print-list]');
+  const f = await E(() => { const t = document.querySelector('[data-testid=print-table]'); return { th: [...t.querySelectorAll('th')].map(x => x.textContent.trim()), n: t.querySelectorAll('tbody tr').length, inp: t.querySelectorAll('input').length, sub: document.querySelector('[data-testid=print-sheet] .sub').textContent }; });
+  ck('АХ-128 · «Папки» — без колонки галочек, все показанные строки, «все папки, кроме выбывших»', f.th[0] === '№' && f.inp === 0 && f.n === shown && f.sub.startsWith('все папки, кроме выбывших · на 13.11.2026 · ' + shown + ' строк'), f);
+  await page.keyboard.press('Escape');
+  await E(() => window.AX.go('nokzd'));
+  await page.click('[data-testid=print-list]');
+  const n = await E(() => { const t = document.querySelector('[data-testid=print-table]'); return { th: [...t.querySelectorAll('th')].map(x => x.textContent).join('|'), n: t.querySelectorAll('tbody tr').length, btn: t.querySelectorAll('button').length, sub: document.querySelector('[data-testid=print-sheet] .sub').textContent }; });
+  ck('АХ-128 · «Заёмщики без КЗД» — 5 строк, колонка кнопок не печатается', n.th === 'Заёмщик|ИНН|Куратор|Департамент|Первый кредит|Дней с регистрации' && n.n === 5 && n.btn === 0 && has(n.sub, 'с действующим кредитом'), n);
+  await page.keyboard.press('Escape');
+  await E(() => window.AX.go('queue'));
+  await page.click('[data-testid=blk-fired] [data-testid=print-list]');
+  ck('АХ-128 · «На руках у уволенных» — лист из 1 строки', await E(() => document.querySelector('[data-testid=print-sheet] h2').textContent === 'На руках у уволенных' && document.querySelectorAll('[data-testid=print-table] tbody tr').length === 1));
+});
+
+await group('ЖС-4 · ярлыки листом A4 с позиции; список полки из трёх частей (АХ-129, АХ-130, АХ-131)', async (page, E) => {
+  const l = await E(() => { const A = window.AX; A.uiLabels(['f201', 'f202', 'f203']);
+    return { title: document.querySelector('[data-testid=print-title]').textContent, a4: document.querySelectorAll('[data-testid=a4]').length, cells: document.querySelector('[data-testid=a4]').children.length, n: document.querySelectorAll('[data-testid=labels] .label').length,
+      start: document.querySelector('[data-testid=label-start]').value, info: document.querySelector('[data-testid=print-info]').textContent, l1: document.querySelector('[data-testid=labels] .label').innerText.replace(/\n/g, ' '),
+      rule: document.querySelector('#modal').innerText.includes('номер крупно'), h2: !!document.querySelector('[data-testid=print-sheet] h2') }; });
+  ck('АХ-130 · 3 ярлыка — один лист A4 на 24 позиции, с позиции 1; «3 ярлыка · 1 лист A4 по 24 ярлыка 70 × 37 мм»',
+    l.title === 'Ярлыки на корешок · 3' && l.a4 === 1 && l.cells === 24 && l.n === 3 && l.start === '1' && l.info === '3 ярлыка · 1 лист A4 по 24 ярлыка 70 × 37 мм' && l.l1 === 'А-000201 КЗД · ОсОО «Ак-Жол Агро» · том 1', l);
+  ck('АХ-129 · на листе ярлыков нет заголовка и текста правил («номер крупно…»)', !l.rule && !l.h2, l);
+  await page.fill('[data-testid=label-start]', '23');
+  const l2 = await E(() => ({ a4: document.querySelectorAll('[data-testid=a4]').length, used: document.querySelectorAll('[data-testid=labels] .used').length, n: document.querySelectorAll('[data-testid=labels] .label').length, info: document.querySelector('[data-testid=print-info]').textContent }));
+  ck('АХ-130 · «Начать с позиции 23» — 22 позиции серые, ярлыки на 23, 24 и на втором листе; «2 листа»', l2.a4 === 2 && l2.used === 22 && l2.n === 3 && l2.info === '3 ярлыка · 2 листа A4 по 24 ярлыка 70 × 37 мм', l2);
+  ck('АХ-130 · позиция вне 1–24 не принимается', await E(() => !window.AX.setLabelStart(25).ok && !window.AX.setLabelStart(0).ok));
+  await page.keyboard.press('Enter');
+  ck('АХ-130 · после печати — «следующий ярлык — с позиции 2»', await E(() => window.AX.S.labelNext === 2) && (await toasts(E)).some(t => t.text === 'Отправлено на печать: 3 ярлыка, 2 листа; следующий ярлык — с позиции 2'), await toasts(E));
+  const l3 = await E(() => { window.AX.uiLabels(['f205']); return { title: document.querySelector('[data-testid=print-title]').textContent, start: document.querySelector('[data-testid=label-start]').value, used: document.querySelectorAll('[data-testid=labels] .used').length }; });
+  ck('АХ-130 · следующая печать начинается с позиции 2 сама (1 серая); один — «Ярлык на корешок»', l3.title === 'Ярлык на корешок' && l3.start === '2' && l3.used === 1, l3);
+  await page.keyboard.press('Escape');
+  const sh = await E(() => { const A = window.AX; A.uiPrintShelf('go1-1'); const rows = t => [...document.querySelectorAll(`[data-testid=${t}] tbody tr`)].map(r => [...r.children].map(c => c.textContent.trim()).join(' | '));
+    return { h: document.querySelector('[data-testid=print-sheet] h2').textContent, sub: document.querySelector('[data-testid=print-sheet] .sub').textContent, parts: [...document.querySelectorAll('[data-testid=print-sheet] h3')].map(x => x.textContent),
+      on: rows('shelf-list'), out: rows('shelf-out'), found: document.querySelectorAll('[data-testid=shelf-found] tbody tr').length, outTh: [...document.querySelectorAll('[data-testid=shelf-out] th')].map(t => t.textContent).join('|') }; });
+  ck('АХ-131 · заголовок листа — полка, под ним «на дату · должны стоять 1 · на руках 2»', sh.h === 'Архив ГО · шкаф 1 · полка 1' && sh.sub === 'Список полки на 13.11.2026 · должны стоять 1 · на руках 2', sh);
+  ck('АХ-131 · три части: «Должны стоять» с ☐ (202), «На руках — на полке их нет» без ☐ (201 у Асанова, 203 у Кадырова), «Найдено на полке» — 5 пустых строк',
+    sh.parts.join('|') === 'Должны стоять на полке — 1|На руках — на полке их нет — 2|Найдено на полке, но нет в списке' && sh.on.join() === 'А-000202 | КЗД · Иманов К.Т. · том 1 | в архиве | ☐'
+    && sh.out.join() === 'А-000201 | КЗД · ОсОО «Ак-Жол Агро» · том 1 | Асанов Б. | 20.11.2026,А-000203 | КЗД · Иманов К.Т. · том 2 | Кадыров Т. | 20.11.2026' && sh.outTh === '№|Название|У кого|Вернуть до' && sh.found === 5, sh);
+  await page.keyboard.press('Escape');
+  const rs = await E(() => { const A = window.AX, r = A.REQS.find(x => x.st === 'reserved'), f = A.folder(r.folder); A.uiPrintShelf(f.shelf);
+    const row = [...document.querySelectorAll('[data-testid=shelf-list] tbody tr')].find(t => t.children[0].textContent === A.noStr(f.no));
+    return { row: row ? row.children[2].textContent : null, who: A.emp(r.who).ins, until: A.fmt(r.until).slice(0, 5) }; });
+  ck('АХ-131 · забронированная стоит на полке — в «Должны стоять» с «забронирована за … до …»', rs.row === `забронирована за ${rs.who} до ${rs.until}`, rs);
+  await page.keyboard.press('Escape');
+  const ro = await E(() => { window.AX.uiPrintRound(); return { t: document.querySelector('[data-testid=print-title]').textContent, h: document.querySelector('[data-testid=print-sheet] h2').textContent }; });
+  ck('АХ-129 · окно — что печатаем («Печать обхода»), на листе — свой заголовок («Обход полок — к выдаче»)', ro.t === 'Печать обхода' && ro.h === 'Обход полок — к выдаче', ro);
+});
+
+await group('ЖС-5 · места: одна кнопка и «Ещё ▾», число папок — ссылка, вывести только пустое, вернуть (АХ-132, АХ-133, АХ-Д24, АХ-Д26)', async (page, E) => {
+  await E(() => window.AX.go('dicts'));
+  const t = await E(() => { const b = id => [...document.querySelector(`[data-testid=pl-${id}]`).lastElementChild.querySelectorAll(':scope > .btn-row > .btn, :scope > .btn-row > .menu > .btn')].map(x => x.textContent.trim());
+    const hs = ['go', 'go1', 'go1-1'].map(id => Math.round(document.querySelector(`[data-testid=pl-${id}]`).getBoundingClientRect().height));
+    return { room: b('go'), cab: b('go1'), shelf: b('go1-1'), retired: b('go2-5'), hs, banner: !!document.querySelector('#panel .banner'), th: [...document.querySelectorAll('[data-testid=tbl-places] th')].map(x => x.textContent).join('|') }; });
+  ck('АХ-132 · в строке одна кнопка + «Ещё»: помещение «＋ шкаф», шкаф «＋ полка», полка «Печать списка полки»; у выведенной — только «Ещё»; строки в одну высоту',
+    t.room.join() === '＋ шкаф,Ещё' && t.cab.join() === '＋ полка,Ещё' && t.shelf.join() === 'Печать списка полки,Ещё' && t.retired.join() === 'Ещё' && Math.max(...t.hs) - Math.min(...t.hs) <= 2 && t.th === 'Помещение · шкаф · полка|Папок|Состояние|', t);
+  await page.click('[data-testid=rm-go1-3]');
+  const mn = await E(() => [...document.querySelectorAll('.menu.open .mi')].map(m => ({ t: m.firstChild.textContent, off: m.disabled, why: m.dataset.why || '' })));
+  ck('АХ-132, АХ-133 · «Ещё ▾» полки 3: «Переименовать»; «Вывести» серым — «на полке стоят 2 папки (из них на руках 1) — сначала переместите их»; «Удалить» серым',
+    mn.map(m => m.t).join('|') === 'Переименовать|Вывести из употребления|Удалить' && !mn[0].off && mn[1].off && mn[1].why === 'на полке стоят 2 папки (из них на руках 1) — сначала переместите их' && mn[2].off, mn);
+  await page.keyboard.press('Escape');
+  ck('АХ-132 · Esc закрывает меню строки', await E(() => window.AX.S.rowMenu === null && !document.querySelector('.menu.open')));
+  await page.click('[data-testid=rm-go1-3]'); await page.click('[data-testid=tbl-places] thead th >> nth=0');
+  ck('АХ-132 · щелчок мимо закрывает меню строки', await E(() => window.AX.S.rowMenu === null && !document.querySelector('.menu.open')));
+  const d24 = await E(() => { const A = window.AX, r = A.retirePlace('shelf', A.folder('f230').shelf); return { r, active: A.shelfActive(A.folder('f230').shelf), hint: A.returnHint('f230') }; });
+  ck('АХ-Д24 · полку с папкой на руках (230) не вывести — её возврату есть куда встать', !d24.r.ok && d24.active && has(d24.r.why, 'сначала переместите'), d24);
+  await page.click('[data-testid=rm-go2-5]');
+  const m25 = await E(() => [...document.querySelectorAll('.menu.open .mi')].map(m => m.firstChild.textContent + (m.disabled ? '×' : '')));
+  await page.click('[data-testid=restore-go2-5]');
+  const r25 = await E(() => ({ ret: window.AX.SHELVES.find(s => s.id === 'go2-5').retired, row: document.querySelector('[data-testid=pl-go2-5]').innerText.replace(/\s+/g, ' ').trim(), dup: window.AX.addPlace('shelf', 'go2', 'полка 5') }));
+  ck('АХ-133, АХ-Д26 · выведенная полка 5 — «Вернуть в употребление»; вернулась «действует», с «Печать списка полки»; второй «полки 5» не завести',
+    m25.join() === 'Переименовать,Вернуть в употребление,Удалить' && r25.ret === null && r25.row === 'полка 5 0 действует Печать списка полки Ещё' && !r25.dup.ok && r25.dup.why === 'такая полка уже есть' && (await toasts(E)).some(x => x.text === 'Возвращено в употребление: снова в выборе места'), { m25, r25 });
+  const rc = await E(() => { const A = window.AX, c = A.addPlace('cab', 'go', 'шкаф 9'), s = A.addPlace('shelf', c.id, 'полка 1');
+    const o = { rs: A.retirePlace('shelf', s.id).ok, rc: A.retirePlace('cab', c.id).ok }; o.early = A.restorePlace('shelf', s.id); o.cab = A.restorePlace('cab', c.id).ok; o.late = A.restorePlace('shelf', s.id).ok;
+    o.kind = A.restoreKind('cards').ok; o.kindRow = A.KINDS.find(k => k.id === 'cards').retired; o.nonArch = A.restorePlace('shelf', 'go1-1', 'jeen'); return o; });
+  ck('АХ-133 · полку под выведенным шкафом не вернуть — «сначала верните в употребление шкаф «шкаф 9»»; после шкафа — можно; вид — тоже возвращается',
+    rc.rs && rc.rc && !rc.early.ok && rc.early.why === 'сначала верните в употребление шкаф «шкаф 9»' && rc.cab && rc.late && rc.kind && rc.kindRow === null && !rc.nonArch.ok, rc);
+  await E(() => window.AX.go('dicts'));
+  await page.click('[data-testid=plc-go1-3]');
+  const lk = await E(() => ({ view: window.AX.S.view, shelf: window.AX.S.f.shelf, n: document.querySelectorAll('[data-testid=tbl-folders] tbody tr').length }));
+  ck('АХ-132 · число папок полки 3 — ссылка в «Папки» с отбором этой полки: 2 строки', lk.view === 'folders' && lk.shelf === 'go1-3' && lk.n === 2, lk);
+  await E(() => { window.AX.go('dicts'); window.AX.setTab('kinds'); });
+  const kc = await E(() => +document.querySelector('[data-testid=kc-kzd]').textContent);
+  await page.click('[data-testid=kc-kzd]');
+  const lk2 = await E(() => ({ view: window.AX.S.view, kind: window.AX.S.f.kind, n: document.querySelectorAll('[data-testid=tbl-folders] tbody tr').length }));
+  ck('АХ-136 · число папок вида — ссылка в «Папки» с отбором вида: КЗД 17 = 17 строк', kc === 17 && lk2.view === 'folders' && lk2.kind === 'kzd' && lk2.n === kc, { kc, lk2 });
+});
+
+await group('ЖС-6 · окна справочников «что сейчас / что будет», название без повтора, вид папки (АХ-134, АХ-135, АХ-136)', async (page, E) => {
+  await E(() => window.AX.go('dicts'));
+  await page.click('[data-testid=rm-go1-1]'); await page.click('[data-testid=rename-go1-1]');
+  const a = await E(() => ({ t: document.querySelector('[data-testid=form-title]').textContent, sub: document.querySelector('[data-testid=form-sub]').textContent, now: document.querySelector('[data-testid=form-now]').innerText,
+    dis: document.querySelector('[data-testid=form-submit]').disabled, focus: document.activeElement.id, sel: document.activeElement.selectionEnd === document.activeElement.value.length && document.activeElement.selectionStart === 0 }));
+  ck('АХ-134 · «Переименовать полку»: где она, «что сейчас» — «Здесь стоят 3 папки (с теми, что на руках).»; курсор в поле, название выделено, кнопка ждёт нового',
+    a.t === 'Переименовать полку' && a.sub === 'Архив ГО · шкаф 1 · полка 1' && a.now === 'Здесь стоят 3 папки (с теми, что на руках).' && a.dis && a.focus === 'ff_name' && a.sel, a);
+  await page.keyboard.type('полка 2');
+  const d = await E(() => ({ err: (document.querySelector('[data-testid=form-err]') || {}).textContent, will: document.querySelector('[data-testid=form-will]').innerText, dis: document.querySelector('[data-testid=form-submit]').disabled }));
+  ck('АХ-135 · «полка 2» — у поля «такая полка уже есть» до нажатия', d.err === 'такая полка уже есть' && d.dis && d.will === '', d);
+  await page.fill('#ff_name', 'полка 1а');
+  const w = await E(() => document.querySelector('[data-testid=form-will]').innerText);
+  ck('АХ-134 · «что будет» — «У 3 папок место станет «Архив ГО · шкаф 1 · полка 1а» …; ярлыки перепечатывать не нужно — места на них нет.»',
+    w === 'У 3 папок место станет «Архив ГО · шкаф 1 · полка 1а» — в карточках, списках и подсказке «куда»; ярлыки перепечатывать не нужно — места на них нет.', w);
+  await page.keyboard.press('Enter');
+  ck('АХ-134 · Enter — переименовано, сообщение «было → стало», место папки 202 новое', (await toasts(E)).some(x => x.text === 'Переименовано: «Архив ГО · шкаф 1 · полка 1» → «Архив ГО · шкаф 1 · полка 1а»') && await E(() => window.AX.placeFull(window.AX.folder('f202').shelf) === 'Архив ГО · шкаф 1 · полка 1а'), await toasts(E));
+  const e = await E(() => { const A = window.AX; return { dup: A.renamePlace('shelf', 'go1-2', 'полка 1а'), same: A.renamePlace('shelf', 'go1-2', 'полка 2'), other: A.renamePlace('shelf', 'go2-2', 'полка 1а'), cab: A.renamePlace('cab', 'go2', 'шкаф 1') }; });
+  ck('АХ-135 · движок: повтор у соседей — «такая полка уже есть», «такой шкаф уже есть»; то же имя — «название не изменилось»; в другом шкафу — можно',
+    e.dup.why === 'такая полка уже есть' && e.same.why === 'название не изменилось' && e.other.ok && e.cab.why === 'такой шкаф уже есть', e);
+  await E(() => window.AX.setTab('kinds'));
+  const k = await E(() => ({ th: [...document.querySelectorAll('[data-testid=tbl-kinds] th')].map(x => x.textContent).join('|'), kzd: document.querySelector('[data-testid=kind-pattern-kzd]').textContent, nom: document.querySelector('[data-testid=kind-pattern-nom]').textContent,
+    btn: [...document.querySelector('[data-testid=kind-kzd]').lastElementChild.querySelectorAll('.menu > .btn')].map(x => x.textContent.trim()).join() }));
+  ck('АХ-136 · виды: «Название · Название папки · Папок · Состояние»; КЗД — «КЗД · ‹заёмщик› · том N», номенклатурное — «вводится при приёме»; действия в «Ещё»',
+    k.th === 'Название|Название папки|Папок|Состояние|' && k.kzd === 'КЗД · ‹заёмщик› · том N' && k.nom === 'вводится при приёме' && k.btn === 'Ещё', k);
+  await page.click('[data-testid=add-kind]');
+  const w0 = await E(() => document.querySelector('[data-testid=form-will]').innerText);
+  await page.selectOption('#ff_bind', 'yes'); await page.fill('#ff_short', 'Акты');
+  const w1 = await E(() => document.querySelector('[data-testid=form-will]').innerText);
+  ck('АХ-134 · новый вид — «что будет»: без привязки «Название папки вводится при приёме.», с привязкой — «Название папки соберётся: «Акты · ОсОО «Ак-Жол Агро» · том 1»»',
+    w0 === 'Название папки вводится при приёме.' && w1 === 'Название папки соберётся: «Акты · ОсОО «Ак-Жол Агро» · том 1»', { w0, w1 });
+  await page.keyboard.press('Escape');
+  await E(() => window.AX.setTab('settings'));
+  ck('АХ-134 · на вкладке «Настройки» нет общей плашки правил', await E(() => !document.querySelector('#panel .banner')));
+  const st = {}, dues0 = await E(() => window.AX.ISSUES.filter(i => !i.end).map(i => i.id + ':' + i.due + ':' + i.remindAt).join());
+  for (const [key, v] of [['holdDays', '5'], ['remindDays', '3'], ['issueDays', '15']]) {
+    await page.click(`[data-testid=set-edit-${key}]`);
+    st[key] = await E(() => ({ now: document.querySelector('[data-testid=form-now]').innerText, dis: document.querySelector('[data-testid=form-submit]').disabled, focus: document.activeElement.id }));
+    await page.keyboard.type(v); st[key].will = await E(() => document.querySelector('[data-testid=form-will]').innerText);
+    if (key !== 'issueDays') await page.keyboard.press('Escape');
+  }
+  ck('АХ-134 · «что сейчас» — «Сейчас 10 р.д. — с 01.09.2026, Токтосунова Г.»; курсор в поле; без изменения кнопка ждёт',
+    st.issueDays.now === 'Сейчас 10 р.д. — с 01.09.2026, Токтосунова Г.' && st.issueDays.dis && st.issueDays.focus === 'ff_v' && st.holdDays.now === 'Сейчас 2 р.д. — с 01.09.2026, Токтосунова Г.', st);
+  ck('АХ-134 · «что будет» по числам: 15 р.д. — «вернуть до 04.12.2026; 10 папок на руках сохранят свои сроки»; бронь 5 — «до 20.11.2026; 1 бронь сохранит свой срок»; напоминание 3 — «24.11.2026»',
+    st.issueDays.will === 'Выдать сегодня — вернуть до 04.12.2026; 10 папок на руках сохранят свои сроки.' && st.holdDays.will === 'Бронь, поставленная сегодня, — до 20.11.2026; 1 бронь сохранит свой срок.'
+    && st.remindDays.will === 'Выдать сегодня до 27.11.2026 — напоминание 24.11.2026; уже назначенные напоминания не сдвигаются.', st);
+  await page.keyboard.press('Enter');
+  const after = await E(d0 => { const A = window.AX; return { v: A.SETTINGS.issueDays.v, due: A.dueDefault('f211', 'jeen'), open: A.ISSUES.filter(i => !i.end).length, kept: A.ISSUES.filter(i => !i.end).map(i => i.id + ':' + i.due + ':' + i.remindAt).join() === d0 }; }, dues0);
+  ck('АХ-134 · сохранено 15 — новая выдача до 04.12.2026, 10 выданных сроков не сдвинулись', after.v === 15 && after.due === '2026-12-04' && after.open === 10 && after.kept, after);
+  await page.click('[data-testid=set-edit-holdDays]'); await page.keyboard.type('0');
+  ck('АХ-134 · 0 — у поля «целое число от 1 до 60»', await E(() => (document.querySelector('[data-testid=form-err]') || {}).textContent === 'целое число от 1 до 60'));
+  await page.keyboard.press('Escape');
+});
+
+await group('ЖС-7 · курсор: № строки с клавиатуры — карточка, Esc — на тот же №; после карточки — в поле страницы (АХ-137)', async (page, E) => {
+  const target = await E(() => { const b = document.querySelectorAll('#panel [data-open]')[1]; b.focus(); return b.dataset.open; });
+  await page.keyboard.press('Enter');
+  const a = await E(() => ({ card: window.AX.S.card, focus: document.activeElement.dataset.testid }));
+  ck('АХ-137 · Tab на № в строке очереди + Enter — карточка, курсор в карточке', a.card === target && a.focus === 'cp-title', { target, a });
+  await page.keyboard.press('Tab');
+  ck('АХ-137 · Tab остаётся в карточке', await E(() => document.querySelector('#cardpanel').contains(document.activeElement)));
+  await page.keyboard.press('Escape');
+  const b = await E(() => ({ card: window.AX.S.card, open: document.activeElement.dataset.open }));
+  ck('АХ-137 · Esc — карточка закрыта, курсор на том же № строки', !b.card && b.open === target, b);
+  await page.click('#panel [data-open] >> nth=0');
+  await page.keyboard.press('Escape');
+  ck('АХ-137 · карточка из очереди, открытая мышью, закрыта — курсор в «Возврат»', await E(() => !window.AX.S.card && document.activeElement.id === 'retInput'));
+  await E(() => window.AX.go('journal'));
+  await page.click('[data-testid=j-row] >> nth=2');
+  await page.keyboard.press('Escape');
+  ck('АХ-137 · журнал: карточка по строке закрыта — курсор в поиске журнала', await E(() => !window.AX.S.card && document.activeElement.id === 'jq'));
+  await E(() => { window.AX.setUser('asanov'); window.AX.go('nokzd'); });
+  const nk = await E(() => { const b = document.querySelector('#panel [data-open]'); if (!b) return null; b.focus(); return b.dataset.open; });
+  if (nk) { await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
+  ck('АХ-137 · «Заёмщики без КЗД»: № с клавиатуры — карточка и обратно на тот же №', nk === null || await E(id => !window.AX.S.card && document.activeElement.dataset.open === id, nk), nk);
 });
 
 await browser.close();

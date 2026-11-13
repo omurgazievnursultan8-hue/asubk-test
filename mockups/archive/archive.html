@@ -164,6 +164,7 @@ table.cgrid td.chk input, table.cgrid th.chk input{ width:16px; height:16px; mar
 .fld{ display:flex; flex-direction:column; gap:4px; }
 .filters .fld{ width:170px; } .filters .fld.w2{ width:230px; } .filters .fld.w3{ width:380px; }
 .filters .fld.wq{ width:360px; } .filters .fld.wk{ width:190px; } .filters .fld.wp{ width:210px; } .filters .fld.wd{ width:150px; } .filters .fld.wh{ width:190px; }
+.filters .fld.wdt{ width:120px; } .filters .fld.wper{ width:auto; }
 .filters .fld select,.filters .fld input{ width:100%; min-width:0; }
 .fld > label{ font:var(--text-cap)/1.3 var(--asubk-font); color:var(--text-muted); }
 .fld select,.fld input,.fld textarea{ height:34px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
@@ -182,6 +183,9 @@ table.cgrid td.chk input, table.cgrid th.chk input{ width:16px; height:16px; mar
 .sum .tile .n{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font); font-variant-numeric:tabular-nums; }
 .sum .tile .l{ color:var(--text-muted); } .sum .tile.on .l{ color:inherit; }
 .sum .tile.hot .n{ color:var(--asubk-red); }
+.sum .tile.zero .n{ color:var(--text-muted); font-weight:var(--weight-regular); }
+.sum .grow{ margin-left:auto; display:flex; align-items:center; gap:10px; }
+.sum .grow .shown{ font:var(--font-label); color:var(--text-muted); } .sum .grow .shown b{ color:var(--text-heading); }
 .sum-sep{ align-self:center; margin:0 2px 0 6px; padding-left:14px; border-left:1px solid var(--border-strong); font:var(--text-cap)/1.3 var(--asubk-font); color:var(--text-muted); }
 /* строка над реестром: «Показано N · Печать · Excel» или полоса пачки — одной высоты, прилипает при прокрутке вместе с шапкой таблицы */
 .listbar{ position:sticky; top:0; z-index:6; height:52px; box-sizing:border-box; padding:4px 0 8px; background:var(--surface-page); }
@@ -326,15 +330,29 @@ table.cgrid.mine{ table-layout:fixed; }
 table.brows tr.skip td{ color:var(--text-muted); }
 table.brows tr.skip td.red{ color:var(--asubk-red); }
 .fld.bad select,.fld.bad input,.fld.bad textarea{ border-color:var(--action-danger); }
-/* ---- печать ---- */
-.sheet{ border:1px solid var(--border-default); background:#fff; padding:20px 24px; }
+/* ---- печать: лист как на бумаге ---- */
+.sheet{ border:1px solid var(--border-default); background:#fff; padding:20px 24px; box-shadow:0 1px 4px rgba(16,28,46,.12); }
 .sheet h2{ margin:0 0 4px; font:var(--weight-semibold) 17px/1.3 var(--asubk-font); }
 .sheet .sub{ font:var(--font-label); color:var(--text-muted); margin-bottom:12px; }
-.labels{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
-.label{ border:1px dashed var(--asubk-ink-45); padding:12px 12px 14px; min-height:120px; display:flex; flex-direction:column; justify-content:center; text-align:center; }
-.label .lno{ font:var(--weight-bold) 30px/1.1 var(--asubk-font); letter-spacing:.03em; font-variant-numeric:tabular-nums; }
-.label .lt{ font:var(--font-label); margin-top:8px; }
+.sheet h3.ph{ margin:16px 0 6px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); color:var(--text-heading); }
+.sheet td.box{ font-size:18px; line-height:1; }
+.sheet table.blank td{ height:30px; }
+.sheet table.blank td:first-child{ width:160px; }
+.sheet.bare{ border:none; box-shadow:none; background:var(--surface-panel); padding:16px; }
+.pctl{ display:flex; align-items:center; gap:10px; margin:0 0 12px; font:var(--font-label); color:var(--text-body); }
+.pctl input{ width:64px; height:32px; border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:0 8px; font:var(--font-label); }
+/* Лист ярлыков: A4 на 24 самоклеящихся ярлыка 70 × 37 мм (3 × 8), в предпросмотре — 2 px на мм. */
+.labels{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+.a4{ width:420px; height:594px; background:#fff; box-shadow:0 1px 6px rgba(16,28,46,.25); display:grid; grid-template-columns:repeat(3, 1fr); grid-template-rows:repeat(8, 1fr); }
+.a4 > div{ border:1px dashed var(--border-default); margin:-0.5px; overflow:hidden; }
+.a4 .used{ background:repeating-linear-gradient(135deg, var(--surface-panel) 0 6px, #e3e7ee 6px 8px); }
+.label{ display:flex; flex-direction:column; justify-content:center; text-align:center; padding:4px 8px; }
+.label .lno{ font:var(--weight-bold) 22px/1.1 var(--asubk-font); letter-spacing:.03em; font-variant-numeric:tabular-nums; color:#111; }
+.label .lt{ font:var(--weight-regular) 10.5px/1.25 var(--asubk-font); margin-top:4px; color:#111; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 /* ---- справочник мест: дерево ---- */
+table.dict td:last-child{ width:1%; white-space:nowrap; }
+table.dict td:last-child .btn-row{ flex-wrap:nowrap; justify-content:flex-end; }
+table.dict td.cnt{ width:110px; }
 .tree td.l1{ font-weight:var(--weight-semibold); }
 .tree td.l2{ padding-left:30px !important; }
 .tree td.l3{ padding-left:56px !important; }
@@ -505,7 +523,7 @@ const GONE_REASONS = ['утрачена', 'уничтожена', 'переда�
 /* ------------------------------ состояние --------------------------- */
 const S = { today: TODAY, user: 'arch1', view: 'queue', card: null, n: 0, ids: 0, lastNo: 200,
   q: '', chip: '', f: { kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '', borrower: '' }, sel: new Set(),
-  tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false, dept: null }, ret: { text: '', notes: {}, open: {}, done: null },
+  tab: 'places', jr: { per: '30', from: '', to: '', kind: '', q: '', emp: '', dept: null }, rowMenu: null, labelNext: 1, cardBack: null, focusJ: false, nk: { mine: null, closed: false, dept: null }, ret: { text: '', notes: {}, open: {}, done: null },
   retB: { notes: {}, open: {} }, focusRet: false, focusQ: false, focusMine: false, cardFromQ: false, cardKb: false, form: null, print: null, pb: 'b2', menu: false };
 const FOLDERS = [], ISSUES = [], REQS = [], EXTS = [], EVENTS = [], NOTES = [];
 const DEMO = {};
@@ -903,7 +921,7 @@ function askExtend(fid, d, who = S.user) {
 }
 function prolong(i, date, reason, by, via) {
   const old = i.due; i.due = date; i.exts.push({ from: old, to: date, reason, by, d: S.today, via });
-  ev(i.folder, 'extended', by, { issue: i.id, from: old, to: date, reason, via });
+  ev(i.folder, 'extended', by, { issue: i.id, from: old, to: date, reason, via, holder: i.holder });
   note(i.holder, 'ext', i.folder, `Решение по продлению: продлено до ${fmt(date)} · ${fnoT(folder(i.folder))}`);
   remind(i);
 }
@@ -1092,23 +1110,57 @@ function placeRefs(level, id) {
 }
 const shelfCount = (level, id) => { const ids = new Set(shelvesUnder(level, id)); return FOLDERS.filter(f => !f.gone && ids.has(f.shelf)).length; };
 const LEVEL = { room: [ROOMS, 'помещение'], cab: [CABS, 'шкаф'], shelf: [SHELVES, 'полку'] };
+const DUP = { room: 'такое помещение уже есть', cab: 'такой шкаф уже есть', shelf: 'такая полка уже есть' };
+const AT  = { room: 'в помещении', cab: 'в шкафу', shelf: 'на полке' };
+/* Соседи по уровню: помещения, шкафы того же помещения, полки того же шкафа. Название рядом не повторяется. */
+const placeSibs = (level, parent) => level === 'room' ? ROOMS : level === 'cab' ? CABS.filter(c => c.room === parent) : SHELVES.filter(s => s.cab === parent);
+const placeParent = (level, x) => level === 'cab' ? x.room : level === 'shelf' ? x.cab : null;
+function placeNameCheck(level, parent, name, self) {
+  name = trim(name); if (!name) return no('укажите название', 'name');
+  if (placeSibs(level, parent).some(e => e !== self && e.name === name)) return no(DUP[level], 'name');
+  return yes();
+}
+/* Вывести можно только пустое место: где стоит папка (и та, что на руках, — ей туда возвращаться), сначала «Переместить». */
+const outUnder = (level, id) => { const ids = new Set(shelvesUnder(level, id)); return FOLDERS.filter(f => !f.gone && ids.has(f.shelf) && openIssue(f.id)).length; };
+function retireWhy(level, id) {
+  const n = shelfCount(level, id); if (!n) return '';
+  const o = outUnder(level, id);
+  return `${AT[level]} ${plural(n, 'стоит', 'стоят', 'стоят')} ${n} ${plural(n, 'папка', 'папки', 'папок')}${o ? n === 1 ? ' (она на руках)' : ` (из них на руках ${o})` : ''} — сначала переместите ${n === 1 ? 'её' : 'их'}`;
+}
+/* Вернуть в употребление: полку — когда действует её шкаф, шкаф — когда действует помещение. */
+function restoreWhy(level, id) {
+  const x = LEVEL[level][0].find(e => e.id === id); if (!x) return 'не найдено'; if (!x.retired) return 'уже в употреблении';
+  if (level === 'shelf') { const c = cab(x.cab), r = room(c.room); if (r.retired) return `сначала верните в употребление помещение «${r.name}»`; if (c.retired) return `сначала верните в употребление шкаф «${c.name}»`; }
+  if (level === 'cab' && room(x.room).retired) return `сначала верните в употребление помещение «${room(x.room).name}»`;
+  return '';
+}
 function addPlace(level, parent, name, by = S.user) {
   if (!isArch(by)) return no('справочник ведёт архивариус');
   name = trim(name); if (!name) return no('укажите название', 'name');
-  if (level === 'room') { if (ROOMS.some(r => r.name === name)) return no('такое помещение уже есть', 'name'); const r = { id: nid('room'), name, short: name.replace(/^Архив\s*/, '') || name }; ROOMS.push(r); return yes({ id: r.id }); }
-  if (level === 'cab') { if (!room(parent)) return no('помещение не найдено'); if (CABS.some(c => c.room === parent && c.name === name)) return no('такой шкаф уже есть', 'name'); const c = { id: nid('cab'), room: parent, name }; CABS.push(c); return yes({ id: c.id }); }
-  if (level === 'shelf') { if (!cab(parent)) return no('шкаф не найден'); if (SHELVES.some(s => s.cab === parent && s.name === name)) return no('такая полка уже есть', 'name'); const s = { id: nid('sh'), cab: parent, name }; SHELVES.push(s); return yes({ id: s.id }); }
+  if (level === 'cab' && !room(parent)) return no('помещение не найдено'); if (level === 'shelf' && !cab(parent)) return no('шкаф не найден');
+  const c0 = placeNameCheck(level, parent, name); if (!c0.ok) return c0;
+  if (level === 'room') { const r = { id: nid('room'), name, short: name.replace(/^Архив\s*/, '') || name }; ROOMS.push(r); return yes({ id: r.id }); }
+  if (level === 'cab') { const c = { id: nid('cab'), room: parent, name }; CABS.push(c); return yes({ id: c.id }); }
+  if (level === 'shelf') { const s = { id: nid('sh'), cab: parent, name }; SHELVES.push(s); return yes({ id: s.id }); }
   return no('неизвестный уровень');
 }
 function renamePlace(level, id, name, by = S.user) {
   if (!isArch(by)) return no('справочник ведёт архивариус');
   const x = LEVEL[level][0].find(e => e.id === id); if (!x) return no('не найдено');
-  name = trim(name); if (!name) return no('укажите название', 'name'); x.name = name; return yes();
+  name = trim(name); if (name === x.name) return no('название не изменилось', 'name');
+  const c = placeNameCheck(level, placeParent(level, x), name, x); if (!c.ok) return c;
+  x.name = name; return yes();
 }
 function retirePlace(level, id, by = S.user) {
   if (!isArch(by)) return no('справочник ведёт архивариус');
   const x = LEVEL[level][0].find(e => e.id === id); if (!x) return no('не найдено'); if (x.retired) return no('уже выведено из употребления');
+  const w = retireWhy(level, id); if (w) return no(w);
   x.retired = S.today; return yes();
+}
+function restorePlace(level, id, by = S.user) {
+  if (!isArch(by)) return no('справочник ведёт архивариус');
+  const w = restoreWhy(level, id); if (w) return no(w);
+  LEVEL[level][0].find(e => e.id === id).retired = null; return yes();
 }
 function deletePlace(level, id, by = S.user) {
   if (!isArch(by)) return no('справочник ведёт архивариус');
@@ -1130,6 +1182,7 @@ function addKind(d, by = S.user) {
   const k = { id: nid('k'), name, short: trim(d.short), bind }; KINDS.push(k); return yes({ id: k.id });
 }
 function retireKind(id, by = S.user) { if (!isArch(by)) return no('справочник ведёт архивариус'); const k = kindOf(id); if (!k) return no('не найдено'); if (k.retired) return no('уже выведен из употребления'); k.retired = S.today; return yes(); }
+function restoreKind(id, by = S.user) { if (!isArch(by)) return no('справочник ведёт архивариус'); const k = kindOf(id); if (!k) return no('не найдено'); if (!k.retired) return no('уже в употреблении'); k.retired = null; return yes(); }
 function deleteKind(id, by = S.user) {
   if (!isArch(by)) return no('справочник ведёт архивариус');
   const k = kindOf(id); if (!k) return no('не найдено');
@@ -1149,8 +1202,12 @@ function setSetting(key, v, by = S.user) {
 /* ------------------------------ печать ------------------------------- */
 /* Ярлык на корешок — номер крупно и название, без места. */
 const labelSheet = ids => ids.map(folder).filter(f => f && !f.gone).map(f => ({ no: noStr(f.no), title: titleOf(f) }));
+/* Лист самоклеящихся ярлыков A4: 3 × 8 = 24 ярлыка 70 × 37 мм. */
+const LABELS_PER_SHEET = 24;
+/* Список полки: все папки, чьё постоянное место — эта полка; на полке стоят «в архиве» и «забронирована». */
 const shelfList  = sid => FOLDERS.filter(f => f.shelf === sid && !f.gone).sort((a, b) => a.no - b.no)
-  .map(f => { const i = openIssue(f.id); return { id: f.id, no: noStr(f.no), title: titleOf(f), state: ST[stateOf(f.id)], holder: i ? nm(i.holder) : '' }; });
+  .map(f => { const i = openIssue(f.id), st = stateOf(f.id), r = reservedReq(f.id);
+    return { id: f.id, no: noStr(f.no), title: titleOf(f), st, state: st === 'reserved' ? `забронирована за ${emp(r.who).ins} до ${fmtS(r.until)}` : ST[st], holder: i ? nm(i.holder) : '', due: i ? i.due : '', onShelf: st === 'archive' || st === 'reserved' }; });
 /* Печать обхода: брони по месту — снять с полок за один проход. */
 const roundList  = () => REQS.filter(r => r.st === 'reserved').map(r => ({ r, f: folder(r.folder) }))
   .sort((a, b) => placeKey(a.f.shelf) - placeKey(b.f.shelf) || a.f.no - b.f.no)
@@ -1240,13 +1297,41 @@ function noKzd(o = {}, u = S.user) {
 const curates = u => BORROWERS.some(b => b.cur === u);
 /* Руководитель — у кого в подчинении есть сотрудники (к нему поднимается задание «Вернуть папку»). */
 const isHead = u => EMP.some(e => e.head === u);
-/* Журнал движения: восемь видов событий за период. */
+/* Журнал движения: восемь видов событий за период, по всем папкам; история одной папки — её карточка. */
 const JOURNAL = [['accepted', 'принята'], ['issued', 'выдана'], ['transferGot', 'передана'], ['extended', 'продлена'], ['returned', 'возвращена'], ['moved', 'перемещена'], ['writtenOff', 'списана'], ['restored', 'восстановлена']];
+/* Держатель в событии продления и списания: записан в событии; у старых продлений — держатель выдачи. */
+const evHolder = e => e.holder || (e.kind === 'extended' ? (ISSUES.find(i => i.id === e.issue) || {}).holder : null) || null;
+/* Чьи руки в событии: получил, вернул, передал и получил, сдал, держатель при продлении и списании. Архивариус — «отметил». */
+function evParty(e) {
+  switch (e.kind) {
+    case 'issued': return [e.to];
+    case 'returned': return [e.from];
+    case 'transferGot': return [e.from, e.to];
+    case 'accepted': case 'extended': case 'writtenOff': { const id = e.kind === 'accepted' ? e.from : evHolder(e); return id ? [id] : []; }
+  }
+  return [];
+}
+/* Сотрудник — и чьи руки, и кто отметил; подразделение — только чьи руки. */
 function journal(o = {}) {
   const kinds = new Set(JOURNAL.map(x => x[0]));
   return EVENTS.filter(e => kinds.has(e.kind) && (!o.from || e.d >= o.from) && (!o.to || e.d <= o.to) && (!o.kind || e.kind === o.kind)
-    && (!o.q || matchQ(folder(e.folder), o.q)) && (!o.emp || [e.by, e.to, e.from].includes(o.emp))).sort((a, b) => b.n - a.n);
+    && (!o.q || matchQ(folder(e.folder), o.q)) && (!o.emp || e.by === o.emp || evParty(e).includes(o.emp))
+    && (!o.dept || evParty(e).some(id => (emp(id) || {}).dept === o.dept))).sort((a, b) => b.n - a.n);
 }
+/* Период журнала — кнопкой или своими датами. */
+const JPER = [['today', 'Сегодня'], ['7', '7 дней'], ['30', '30 дней'], ['year', 'С начала года']];
+function jRange(j = S.jr) {
+  const t = S.today;
+  if (j.per === 'today') return [t, t];
+  if (j.per === '7') return [addDays(t, -7), t];
+  if (j.per === '30') return [addDays(t, -30), t];
+  if (j.per === 'year') return [t.slice(0, 4) + '-01-01', t];
+  if (j.per === 'all') return ['', t];
+  return [j.from || '', j.to || t];
+}
+/* Руководителю по умолчанию — его подразделение. */
+const jDept = (u = S.user) => S.jr.dept != null ? S.jr.dept : isHead(u) ? emp(u).dept : '';
+const jRows = (x = {}) => { const [from, to] = jRange(); return journal(Object.assign({ from, to, kind: S.jr.kind, q: trim(S.jr.q), emp: S.jr.emp, dept: jDept() }, x)); };
 /* История по выдачам: строка на выдачу (с — по · держатель · зачем · итог), раскрывается в события;
    приём, перемещение, смена привязки, списание, восстановление и запросы без выдачи — своими строками. Новые сверху. */
 function issueResult(i) {
@@ -1336,10 +1421,12 @@ const viewsOf   = u => isArch(u) ? VIEWS_ARCH : VIEWS_ALL;
 const roleOf    = u => (USERS.find(x => x[0] === u) || [u, 'сотрудник'])[1];
 const ST_PILL = { archive: 'ok', reserved: 'info', out: 'warn', transfer: 'info', gone: 'neutral' };
 const stPill  = fid => { const st = stateOf(fid); return `<span class="pill ${ST_PILL[st]}" data-st="${st}">${ST[st]}</span>`; };
-const openBtn = f => `<button class="linky mono" onclick="event.stopPropagation();AX.openCard('${f.id}')">${noStr(f.no)}</button>`;
+/* № строки — ссылка в карточку. Нажат с клавиатуры (Tab, Enter) — карточка держит курсор, Esc вернёт его на этот №. */
+const openBtn = f => `<button class="linky mono" data-open="${f.id}" onclick="event.stopPropagation();AX.openCard('${f.id}', event.detail === 0)">${noStr(f.no)}</button>`;
 const btn = (label, call, o = {}) => `<button class="btn ${o.cls || 'btn-secondary'}${o.sm === false ? '' : ' btn-sm'}"${o.tid ? ` data-testid="${o.tid}"` : ''}${o.why ? ` disabled data-why="${esc(o.why)}" title="${esc(o.why)}"` : ''} onclick="event.stopPropagation();${call}">${o.html || esc(label)}</button>`;
 const sec = (title, n, right, tid) => `<div class="section-h"${tid ? ` data-testid="${tid}"` : ''}>${esc(title)}${n != null ? ` <span class="c">${n}</span>` : ''}${right ? `<div class="btn-row">${right}</div>` : ''}</div>`;
-const printXls = (name, n) => btn('', `AX.uiPrintList('${esc(name)}', ${n})`, { html: ico('print') + ' Печать', tid: 'print-list' }) + btn('', `AX.uiExcel('${esc(name)}', ${n})`, { html: ico('xls') + ' Excel', tid: 'excel' });
+/* Печать любого списка — предпросмотр листа с таблицей экрана (tid); Excel — файл с колонками как на экране. */
+const printXls = (name, n, tid) => btn('', `AX.uiPrintList('${esc(name)}', ${n}, '${tid}')`, { html: ico('print') + ' Печать', tid: 'print-list' }) + btn('', `AX.uiExcel('${esc(name)}', ${n})`, { html: ico('xls') + ' Excel', tid: 'excel' });
 
 function render() {
   if (typeof document === 'undefined') return;
@@ -1363,6 +1450,8 @@ function render() {
   if (S.focusQ) { S.focusQ = false; const el = $('#fq'); if (el && S.view === 'folders' && !S.form && !S.print && !S.card) { el.focus({ preventScroll: true }); el.select(); } }
   /* При входе на «Мои папки» и после закрытой карточки — курсор в «Найти папку». */
   if (S.focusMine) { S.focusMine = false; const el = $('#mineQ'); if (el && S.view === 'mine' && !S.form && !S.print && !S.card) el.focus({ preventScroll: true }); }
+  /* При входе в журнал и после карточки — курсор в поиске журнала, набранное выделено. */
+  if (S.focusJ) { S.focusJ = false; const el = $('#jq'); if (el && S.view === 'journal' && !S.form && !S.print && !S.card) { el.focus({ preventScroll: true }); el.select(); } }
 }
 
 /* --------------------- ЭКРАН: очередь архивариуса -------------------- */
@@ -1387,7 +1476,7 @@ function viewQueue() {
     `<table class="cgrid" data-testid="tbl-ext"><thead><tr><th>Держатель</th><th>№</th><th>Название</th><th>Срок → просит до</th><th>Причина</th><th>Кто ждёт</th><th></th></tr></thead><tbody>${q.ext.map(x => { const f = folder(x.folder), i = openIssue(f.id), w = activeReqs(f.id);
       return `${qRow(f, 'ext-' + f.no)}<td class="nw">${esc(nm(x.who))}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${fmt(i.due)} → <b>${fmt(x.date)}</b></td><td>${esc(x.reason)}</td>
       <td>${w.length ? `<span class="red">${w.map(r => esc(nm(r.who))).join(', ')}</span>` : '—'}</td><td class="nw"><div class="btn-row">${btn('Продлить', `AX.uiDecide('${x.id}', true)`, { cls: 'btn-primary', tid: 'ext-grant-' + f.no, why: isFired(i.holder) ? FIRED_EXT : '' })}${btn('Отказать', `AX.uiDecide('${x.id}', false)`, { tid: 'ext-refuse-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
-  if (q.fired.length) h += sec('На руках у уволенных', q.fired.length, printXls('На руках у уволенных', q.fired.length), 'blk-fired') +
+  if (q.fired.length) h += sec('На руках у уволенных', q.fired.length, printXls('На руках у уволенных', q.fired.length, 'tbl-fired'), 'blk-fired') +
     `<table class="cgrid" data-testid="tbl-fired"><thead><tr><th>Держатель</th><th>Уволен с</th><th>№</th><th>Название</th><th>Вернуть до</th><th>Руководитель</th><th></th></tr></thead><tbody>${q.fired.map(i => { const f = folder(i.folder), e = emp(i.holder);
       return `${qRow(f, 'fired-' + f.no)}<td class="nw">${esc(e.name)} <span class="flag">уволен</span></td><td class="nw">${fmt(e.fired)}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td>
       <td class="nw${S.today > i.due ? ' red' : ''}">${fmt(i.due)}</td><td class="nw">${esc(nm(e.head))}</td><td class="nw"><div class="btn-row">${btn('Принять возврат', `AX.uiReturn('${f.id}')`, { tid: 'fired-return-' + f.no })}${btn('Списать', `AX.uiWriteoff('${f.id}')`, { cls: 'btn-danger', tid: 'fired-writeoff-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
@@ -1466,7 +1555,7 @@ function folderList() {
   const bb = ([act, label, call, why], cls) => { const k = batchIds(act).length;
     return btn('', act === 'return' ? `${call}()` : `${call}(AX.batchIds('${act}'))`, { tid: 'b-' + (act === 'label' ? 'labels' : act), cls, why: k ? '' : why, html: `${esc(label)} <span class="bn" data-testid="bn-${act}">(${k})</span>` }); };
   const head = `<div class="listbar" data-testid="listbar">${n ? `<div class="batch" data-testid="batch">Отмечено <b data-testid="sel-count">${n}</b>${bb(BATCH[0])}${arch ? '<span class="sep"></span>' + BATCH.slice(1).map(b => bb(b, b[0] === 'writeoff' ? 'btn-danger' : '')).join('') : ''}<button class="linky" style="margin-left:auto" onclick="AX.clearSel()">снять отметки</button></div>`
-    : `<div class="lb-shown">Показано <span class="c" data-testid="shown">${rows.length}</span>${S.chip === 'gone' ? '' : '<span class="small">выбывшие скрыты — плашка «выбыли»</span>'}<div class="btn-row">${arch && S.f.shelf ? btn('', `AX.uiPrintShelf('${S.f.shelf}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf' }) : ''}${printXls('Папки', rows.length)}</div></div>`}</div>`;
+    : `<div class="lb-shown">Показано <span class="c" data-testid="shown">${rows.length}</span>${S.chip === 'gone' ? '' : '<span class="small">выбывшие скрыты — плашка «выбыли»</span>'}<div class="btn-row">${arch && S.f.shelf ? btn('', `AX.uiPrintShelf('${S.f.shelf}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf' }) : ''}${printXls('Папки', rows.length, 'tbl-folders')}</div></div>`}</div>`;
   /* Поиск нашёл скрытое отбором, плашкой или «выбывшие скрыты» — номера ссылками в карточку. */
   const outside = hidden.length ? `<div class="outside" data-testid="outside">Вне отбора найдено ещё ${hidden.length}: ${hidden.slice(0, 8).map(f => `<button class="linky mono" data-testid="out-${f.no}" onclick="AX.openCard('${f.id}')">${noStr(f.no)}</button> <span class="small">(${esc(placeShort(f.shelf))}, ${ST[stateOf(f.id)]})</span>`).join(' · ')}${hidden.length > 8 ? ' …' : ''}
     ${S.chip || Object.values(S.f).some(Boolean) ? ` · <button class="linky" data-testid="reset-f" onclick="AX.resetF()">сбросить отборы</button>` : ''}</div>` : '';
@@ -1549,7 +1638,7 @@ function viewNoKzd() {
     <div class="fld wd"><label for="nkDept">Департамент</label><select id="nkDept" data-testid="nk-dept" onchange="AX.setNk('dept', this.value)"><option value="">все</option>${depts.map(d => `<option value="${d}"${d === S.nk.dept ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
     <label class="chkl"><input type="checkbox" data-testid="nk-closed"${S.nk.closed ? ' checked' : ''} onchange="AX.setNk('closed', this.checked)"> и закрытые</label>
     <span class="small" style="align-self:flex-end;padding-bottom:9px">Заёмщики с действующим кредитом (зарегистрирован, действует, взыскание), у которых в архиве нет кредитно-залогового дела.</span>
-    <div class="grow btn-row"><span class="small" style="font-size:var(--text-sm)" data-testid="nk-count">Показано: ${rows.length}</span>${printXls('Заёмщики без КЗД', rows.length)}</div></div>
+    <div class="grow btn-row"><span class="small" style="font-size:var(--text-sm)" data-testid="nk-count">Показано: ${rows.length}</span>${printXls('Заёмщики без КЗД', rows.length, 'tbl-nokzd')}</div></div>
     <table class="cgrid" data-testid="tbl-nokzd"><thead><tr><th>Заёмщик</th><th>ИНН</th><th>Куратор</th><th>Департамент</th><th>Первый кредит</th><th>Дней с регистрации</th><th></th></tr></thead><tbody>${rows.map(x =>
       `<tr data-testid="nk-${x.b.id}"><td><button class="linky" onclick="AX.openBorrower('${x.b.id}')">${esc(x.b.name)}</button>${x.closed ? ' <span class="pill neutral">кредиты закрыты</span>' : ''}
         ${x.unlinked ? `<div class="small" data-testid="nk-unlinked-${x.b.id}">есть непривязанная папка ${openBtn(x.unlinked)}</div>` : ''}
@@ -1591,44 +1680,81 @@ function evLine(e) {
 const EV_NAME = { accepted: 'принята', requested: 'запрос', reserved: 'бронь', issued: 'выдана', transfer: 'передача', transferGot: 'передана', transferNotGot: 'передача: не получал', transferCancel: 'передача отменена',
   extAsk: 'просьба продлить', extended: 'продлена', extRefused: 'отказ в продлении', extClosed: 'просьба закрыта', returned: 'возвращена', moved: 'перемещена', rebound: 'смена привязки', writtenOff: 'списана', restored: 'восстановлена',
   reqRefused: 'запрос: отказ', reqWithdrawn: 'запрос отозван', reqNotTaken: 'запрос: не забран', reqClosedGone: 'запрос закрыт', reqClosedTransfer: 'запрос закрыт' };
+/* Сотрудник — чьи руки: получил, вернул, «А → Б» при передаче, «сдал …» при приёме, держатель при продлении и списании. */
+function jWho(e) {
+  const d = id => `${esc(nm(id))} <span class="small">· ${esc((emp(id) || {}).dept || '')}</span>`;
+  switch (e.kind) {
+    case 'issued': return d(e.to);
+    case 'returned': return d(e.from);
+    case 'transferGot': return `${esc(nm(e.from))} → ${esc(nm(e.to))}`;
+    case 'accepted': return e.from ? 'сдал ' + d(e.from) : '—';
+    case 'extended': case 'writtenOff': return evHolder(e) ? d(evHolder(e)) : '—';
+  }
+  return '—';
+}
+/* Журнал: поиск первым (номер — сразу карточка), период кнопками, сотрудник, подразделение сотрудника; плашки событий с числом. */
 function viewJournal() {
-  const j = S.jr, from = j.from || addDays(S.today, -30), to = j.to || S.today, rows = journal({ from, to, kind: j.kind, q: j.q, emp: j.emp });
+  const j = S.jr, [from, to] = jRange(), dept = jDept();
   const emps = EMP.slice().sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  return `<div class="filters"><div class="fld"><label>С</label><input data-testid="j-from" value="${fmt(from)}" onchange="AX.setJ('from', this.value)"></div><div class="fld"><label>По</label><input data-testid="j-to" value="${fmt(to)}" onchange="AX.setJ('to', this.value)"></div>
-    <div class="fld"><label>Событие</label><select data-testid="j-kind" onchange="AX.setJ('kind', this.value)"><option value="">все</option>${JOURNAL.map(([k, l]) => `<option value="${k}"${j.kind === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
-    <div class="fld w2"><label>Папка</label><input data-testid="j-q" value="${esc(j.q)}" placeholder="номер или название" onchange="AX.setJ('q', this.value)"></div>
-    <div class="fld w2"><label>Сотрудник</label><select data-testid="j-emp" onchange="AX.setJ('emp', this.value)"><option value="">все</option>${emps.map(e => `<option value="${e.id}"${j.emp === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}</select></div>
-    <div class="grow btn-row">${printXls('Журнал движения', rows.length)}</div></div>
-    <table class="cgrid" data-testid="tbl-journal"><thead><tr><th>Дата</th><th>Что</th><th>Папка</th><th>Кто</th><th>Кому / откуда</th><th>Подробности</th></tr></thead><tbody>${rows.map(e => { const f = folder(e.folder), l = evLine(e);
-      return `<tr class="click" data-testid="j-row" onclick="AX.openCard('${f.id}')"><td class="nw">${fmt(e.d)}</td><td class="nw"><b>${EV_NAME[e.kind]}</b></td><td>${openBtn(f)} ${esc(titleOf(f))}</td><td class="nw">${e.by ? esc(nm(e.by)) : 'система'}</td><td>${esc(l.whom)}</td><td>${esc(l.text)}</td></tr>`; }).join('') || '<tr><td colspan="6" class="muted">За период событий нет</td></tr>'}</tbody></table>`;
+  return `<div class="filters" data-testid="j-filters"><div class="fld wq"><label for="jq">Поиск — номер, название, ИНН</label><input id="jq" data-testid="j-q" autocomplete="off" value="${esc(j.q)}" placeholder="231, «Протоколы», ИНН"
+      oninput="AX.setJq(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();AX.journalEnter();}"></div>
+    <div class="fld wper"><label>Период</label><div class="seg" data-testid="j-per">${JPER.map(([k, l]) => `<button class="seg-b${j.per === k ? ' on' : ''}" data-testid="j-per-${k}" onclick="AX.setJ('per', '${k}')">${l}</button>`).join('')}</div></div>
+    <div class="fld wdt"><label for="jFrom">С</label><input id="jFrom" data-testid="j-from" value="${from ? fmt(from) : ''}" placeholder="с начала" onchange="AX.setJ('from', this.value)"></div>
+    <div class="fld wdt"><label for="jTo">По</label><input id="jTo" data-testid="j-to" value="${fmt(to)}" onchange="AX.setJ('to', this.value)"></div>
+    <div class="fld w2"><label for="jEmp">Сотрудник</label><select id="jEmp" data-testid="j-emp" onchange="AX.setJ('emp', this.value)"><option value="">все</option>${emps.map(e => `<option value="${e.id}"${j.emp === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}</select></div>
+    <div class="fld wh"><label for="jDept">Подразделение сотрудника</label><select id="jDept" data-testid="j-dept" onchange="AX.setJ('dept', this.value)"><option value="">все</option>${DEPTS.map(d => `<option value="${d}"${dept === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div></div>
+    <div id="jList">${journalList()}</div>`;
+}
+function journalList() {
+  const j = S.jr, rows = jRows(), cnt = {}; jRows({ kind: '' }).forEach(e => { cnt[e.kind] = (cnt[e.kind] || 0) + 1; });
+  /* Плашки событий — сводка периода; одна за раз, ноль серым. Справа — сколько показано, печать и Excel. */
+  const chips = `<div class="sum" data-testid="j-chips">${JOURNAL.map(([k, l]) => `<button class="tile${j.kind === k ? ' on' : ''}${cnt[k] ? '' : ' zero'}" data-testid="j-chip-${k}" onclick="AX.setJ('kind', '${k}')"><span class="n">${cnt[k] || 0}</span><span class="l">${l}</span></button>`).join('')}
+    <div class="grow"><span class="shown">Показано <b data-testid="j-shown">${rows.length}</b></span>${printXls('Журнал движения', rows.length, 'tbl-journal')}</div></div>`;
+  /* Поиск нашёл события, скрытые периодом или отбором, — «показать за всё время». */
+  const hid = trim(j.q) ? journal({ q: trim(j.q) }).length - rows.length : 0;
+  const outside = hid > 0 ? `<div class="outside" data-testid="j-outside">Вне отбора ещё ${hid} ${plural(hid, 'событие', 'события', 'событий')} по этим папкам · <button class="linky" data-testid="j-all" onclick="AX.journalAll()">показать за всё время</button></div>` : '';
+  return chips + outside + `<table class="cgrid" data-testid="tbl-journal"><thead><tr><th>Дата</th><th>Событие</th><th>Папка</th><th>Сотрудник</th><th>Подробности</th><th>Отметил</th></tr></thead><tbody>${rows.map(e => { const f = folder(e.folder), l = evLine(e);
+      return `<tr class="click${S.card === f.id ? ' cur' : ''}" data-testid="j-row" onclick="AX.openCard('${f.id}')"><td class="nw">${fmt(e.d)}</td><td class="nw"><b>${EV_NAME[e.kind]}</b></td><td>${openBtn(f)} ${esc(titleOf(f))}</td><td class="nw" data-testid="j-who">${jWho(e)}</td><td>${esc(l.text)}</td><td class="nw small">${e.by ? esc(nm(e.by)) : 'система'}</td></tr>`; }).join('')
+      || `<tr><td colspan="6" class="muted">${j.per === 'today' && !j.kind && !trim(j.q) ? 'Сегодня движения не было' : 'За период событий нет'}</td></tr>`}</tbody></table>`;
 }
 
 /* -------------------------- ЭКРАН: справочники ------------------------ */
+/* «Ещё ▾» в строке справочника: редкие действия; недоступное — серым с причиной, как в карточке. */
+const rowMenu = (key, items) => `<div class="menu${S.rowMenu === key ? ' open' : ''}"><button class="btn btn-secondary btn-sm" data-testid="rm-${key}" onclick="event.stopPropagation();AX.toggleRowMenu('${key}')">Ещё ${ico('down')}</button><div class="menu-pop">${items.join('')}</div></div>`;
+const rmi = (label, call, why, tid, cls) => `<button class="mi${cls ? ' ' + cls : ''}" data-testid="${tid}"${why ? ` disabled data-why="${esc(why)}"` : ''} onclick="AX.closeRowMenu();${call}">${esc(label)}${why ? `<div class="why">${esc(why)}</div>` : ''}</button>`;
 function viewDicts() {
   if (!isArch(S.user)) return `<div class="empty">Справочники архива ведёт архивариус.</div>`;
   const tabs = [['places', 'Места'], ['kinds', 'Виды папок'], ['settings', 'Настройки']];
   let h = `<div class="tabs">${tabs.map(([t, l]) => `<button class="tab${S.tab === t ? ' on' : ''}" data-testid="tab-${t}" onclick="AX.setTab('${t}')">${l}</button>`).join('')}</div>`;
   const off = x => x.retired ? `<span class="pill neutral">выведено с ${fmt(x.retired)}</span>` : '<span class="pill ok">действует</span>';
-  const acts = (level, x, extra) => { const refs = placeRefs(level, x.id);
-    return `<div class="btn-row">${extra || ''}${btn('Переименовать', `AX.uiRenamePlace('${level}', '${x.id}')`)}${x.retired ? '' : btn('Вывести из употребления', `AX.uiRetirePlace('${level}', '${x.id}')`, { tid: 'retire-' + x.id })}${btn('Удалить', `AX.uiDeletePlace('${level}', '${x.id}')`, { cls: 'btn-danger', tid: 'del-' + x.id, why: refs ? `на это ссылаются папки (${refs}) — только вывести из употребления` : '' })}</div>`; };
+  /* Число папок — ссылка в «Папки» с отбором этого места или вида. */
+  const cnt = (n, key, val, tid) => n ? `<button class="linky mono" data-testid="${tid}" onclick="AX.openFolders({ ${key}: '${val}' })">${n}</button>` : '<span class="mono muted">0</span>';
   if (S.tab === 'places') {
-    h += `<div class="filters"><div class="grow btn-row">${btn('＋ помещение', `AX.uiAddPlace('room')`, { cls: 'btn-primary', tid: 'add-room' })}</div></div><table class="cgrid tree" data-testid="tbl-places"><thead><tr><th>Помещение · шкаф · полка</th><th>Папок</th><th>Состояние</th><th></th></tr></thead><tbody>`;
+    /* В строке одна кнопка — добавить ниже или печать полки; переименовать, вывести (вернуть), удалить — в «Ещё ▾». */
+    const row = (level, x, cls, main) => { const refs = placeRefs(level, x.id), n = shelfCount(level, x.id);
+      const menu = rowMenu(x.id, [rmi('Переименовать', `AX.uiRenamePlace('${level}', '${x.id}')`, '', 'rename-' + x.id),
+        x.retired ? rmi('Вернуть в употребление', `AX.uiRestorePlace('${level}', '${x.id}')`, restoreWhy(level, x.id), 'restore-' + x.id)
+          : rmi('Вывести из употребления', `AX.uiRetirePlace('${level}', '${x.id}')`, retireWhy(level, x.id), 'retire-' + x.id),
+        rmi('Удалить', `AX.uiDeletePlace('${level}', '${x.id}')`, refs ? `на это ссылаются папки (${refs}) — только вывести из употребления` : '', 'del-' + x.id, 'danger')]);
+      return `<tr class="${x.retired ? 'off' : ''}" data-testid="pl-${x.id}"><td class="${cls}">${esc(x.name)}</td><td class="cnt">${cnt(n, level, x.id, 'plc-' + x.id)}</td><td>${off(x)}</td><td><div class="btn-row">${x.retired ? '' : main}${menu}</div></td></tr>`; };
+    h += `<div class="filters"><div class="grow btn-row">${btn('＋ помещение', `AX.uiAddPlace('room')`, { cls: 'btn-primary', tid: 'add-room' })}</div></div><table class="cgrid tree dict" data-testid="tbl-places"><thead><tr><th>Помещение · шкаф · полка</th><th>Папок</th><th>Состояние</th><th></th></tr></thead><tbody>`;
     ROOMS.forEach(r => {
-      h += `<tr class="${r.retired ? 'off' : ''}" data-testid="pl-${r.id}"><td class="l1">${esc(r.name)}</td><td class="mono">${shelfCount('room', r.id)}</td><td>${off(r)}</td><td>${acts('room', r, btn('＋ шкаф', `AX.uiAddPlace('cab', '${r.id}')`))}</td></tr>`;
+      h += row('room', r, 'l1', btn('＋ шкаф', `AX.uiAddPlace('cab', '${r.id}')`, { tid: 'add-cab-' + r.id }));
       CABS.filter(c => c.room === r.id).forEach(c => {
-        h += `<tr class="${c.retired ? 'off' : ''}" data-testid="pl-${c.id}"><td class="l2">${esc(c.name)}</td><td class="mono">${shelfCount('cab', c.id)}</td><td>${off(c)}</td><td>${acts('cab', c, btn('＋ полка', `AX.uiAddPlace('shelf', '${c.id}')`))}</td></tr>`;
-        SHELVES.filter(s => s.cab === c.id).forEach(s => {
-          h += `<tr class="${s.retired ? 'off' : ''}" data-testid="pl-${s.id}"><td class="l3">${esc(s.name)}</td><td class="mono">${shelfCount('shelf', s.id)}</td><td>${off(s)}</td><td>${acts('shelf', s, btn('', `AX.uiPrintShelf('${s.id}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf-' + s.id }))}</td></tr>`;
-        });
+        h += row('cab', c, 'l2', btn('＋ полка', `AX.uiAddPlace('shelf', '${c.id}')`, { tid: 'add-shelf-' + c.id }));
+        SHELVES.filter(s => s.cab === c.id).forEach(s => { h += row('shelf', s, 'l3', btn('', `AX.uiPrintShelf('${s.id}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf-' + s.id })); });
       });
     });
     h += `</tbody></table>`;
   } else if (S.tab === 'kinds') {
-    h += `<div class="filters"><div class="grow btn-row">${btn('＋ вид папки', 'AX.uiAddKind()', { cls: 'btn-primary', tid: 'add-kind' })}</div></div><table class="cgrid" data-testid="tbl-kinds"><thead><tr><th>Название</th><th>Краткое имя</th><th>Привязка</th><th>Папок</th><th>Состояние</th><th></th></tr></thead><tbody>${KINDS.map(k => { const n = FOLDERS.filter(f => f.kind === k.id).length;
-      return `<tr class="${k.retired ? 'gone' : ''}" data-testid="kind-${k.id}"><td>${esc(k.name)}</td><td>${esc(k.short || '—')}</td><td>${k.bind ? 'к заёмщику' : 'без привязки'}</td><td class="mono">${n}</td><td>${off(k)}</td>
-      <td><div class="btn-row">${k.retired ? '' : btn('Вывести из употребления', `AX.uiRetireKind('${k.id}')`, { tid: 'retire-kind-' + k.id })}${btn('Удалить', `AX.uiDeleteKind('${k.id}')`, { cls: 'btn-danger', tid: 'del-kind-' + k.id, why: n ? `на вид ссылаются папки (${n}) — только вывести из употребления` : '' })}</div></td></tr>`; }).join('')}</tbody></table>`;
+    /* Краткое имя нужно только для названия папки — показан образец названия. */
+    const pattern = k => k.bind ? `${esc(k.short)} · ‹заёмщик› · том N` : '<span class="muted">вводится при приёме</span>';
+    h += `<div class="filters"><div class="grow btn-row">${btn('＋ вид папки', 'AX.uiAddKind()', { cls: 'btn-primary', tid: 'add-kind' })}</div></div><table class="cgrid dict" data-testid="tbl-kinds"><thead><tr><th>Название</th><th>Название папки</th><th>Папок</th><th>Состояние</th><th></th></tr></thead><tbody>${KINDS.map(k => { const all = FOLDERS.filter(f => f.kind === k.id).length, n = FOLDERS.filter(f => f.kind === k.id && !f.gone).length;
+      const menu = rowMenu('k-' + k.id, [k.retired ? rmi('Вернуть в употребление', `AX.uiRestoreKind('${k.id}')`, '', 'restore-kind-' + k.id) : rmi('Вывести из употребления', `AX.uiRetireKind('${k.id}')`, '', 'retire-kind-' + k.id),
+        rmi('Удалить', `AX.uiDeleteKind('${k.id}')`, all ? `на вид ссылаются папки (${all}) — только вывести из употребления` : '', 'del-kind-' + k.id, 'danger')]);
+      return `<tr class="${k.retired ? 'off' : ''}" data-testid="kind-${k.id}"><td>${esc(k.name)}</td><td data-testid="kind-pattern-${k.id}">${pattern(k)}</td><td class="cnt">${cnt(n, 'kind', k.id, 'kc-' + k.id)}</td><td>${off(k)}</td><td>${menu}</td></tr>`; }).join('')}</tbody></table>`;
   } else {
-    h += `<div class="banner info">Новое значение действует на новые выдачи и брони; уже назначенные даты не сдвигаются.</div><table class="cgrid" data-testid="tbl-settings"><thead><tr><th>Настройка</th><th>Значение</th><th>Изменил</th><th></th></tr></thead><tbody>${Object.entries(SETTINGS).map(([key, s]) => { const last = s.hist[s.hist.length - 1];
+    h += `<table class="cgrid dict" data-testid="tbl-settings"><thead><tr><th>Настройка</th><th>Значение</th><th>Изменил</th><th></th></tr></thead><tbody>${Object.entries(SETTINGS).map(([key, s]) => { const last = s.hist[s.hist.length - 1];
       return `<tr data-testid="set-${key}"><td>${esc(s.label)}</td><td class="mono"><b>${s.v}</b> ${s.unit}</td><td>${last ? `${esc(nm(last.by))}, ${fmt(last.d)}` : '—'}${s.hist.length > 1 ? `<div class="small">было: ${s.hist.slice(0, -1).map(x => `${x.v} (${fmt(x.d)})`).join(', ')}</div>` : ''}</td><td>${btn('Изменить', `AX.uiSetting('${key}')`, { tid: 'set-edit-' + key })}</td></tr>`; }).join('')}</tbody></table>`;
   }
   return h;
@@ -1836,10 +1962,13 @@ function renderModal() {
   if (typeof document === 'undefined') return;
   const ov = $('#overlay'), md = $('#modal');
   if (S.print) {
-    md.className = 'modal wide';
-    md.innerHTML = `<div class="modal-h"><div class="mt">${esc(S.print.title)}</div><button class="modal-x" onclick="AX.closeForm()" title="Закрыть (Esc)">×</button></div>
-      <div class="modal-b"><div class="sheet" data-testid="print-sheet"><h2>${esc(S.print.title)}</h2>${S.print.sub ? `<div class="sub">${esc(S.print.sub)}</div>` : ''}${S.print.html}</div></div>
-      <div class="modal-f"><div class="will"></div><button class="btn btn-secondary" onclick="AX.closeForm()">Закрыть</button>${S.print.noPrint ? '' : `<button class="btn btn-primary" data-primary="1" data-testid="print-go" onclick="AX.printGo()">${ico('print')} Печать</button>`}</div>`;
+    /* Окно печати — лист как на бумаге: на листе только то, что ляжет на бумагу; слева у кнопок — сколько листов и какой бумаги. */
+    const P = S.print, lab = P.kind === 'labels';
+    md.className = 'modal ' + (P.xwide ? 'xwide' : 'wide');
+    md.innerHTML = `<div class="modal-h"><div class="mt" data-testid="print-title">${esc(P.title)}</div><button class="modal-x" onclick="AX.closeForm()" title="Закрыть (Esc)">×</button></div>
+      <div class="modal-b">${lab ? `<div class="pctl" data-testid="label-ctl"><label for="lstart">Начать с позиции</label><input id="lstart" type="number" min="1" max="${LABELS_PER_SHEET}" data-testid="label-start" value="${P.start}" oninput="AX.setLabelStart(this.value)"><span>из ${LABELS_PER_SHEET}</span><span class="small">занятые на листе позиции — серые; после печати следующая подставится сама</span></div>` : ''}
+        <div class="sheet${lab ? ' bare' : ''}" data-testid="print-sheet" id="psheet">${lab ? labelsHtml(P.L, P.start) : `<h2>${esc(P.heading || P.title)}</h2>${P.sub ? `<div class="sub">${esc(P.sub)}</div>` : ''}${P.html}`}</div></div>
+      <div class="modal-f"><div class="will" data-testid="print-info">${esc(lab ? labelsInfo(P.L.length, P.start) : P.paper || '')}</div><button class="btn btn-secondary" onclick="AX.closeForm()">Закрыть</button>${P.noPrint ? '' : `<button class="btn btn-primary" data-primary="1" data-testid="print-go" onclick="AX.printGo()">${ico('print')} Печать</button>`}</div>`;
     ov.classList.add('open');
     const b = md.querySelector('[data-primary]') || md.querySelector('.modal-f .btn'); if (b && !md.contains(document.activeElement)) b.focus({ preventScroll: true });
     return;
@@ -1869,7 +1998,7 @@ function renderModal() {
   md.querySelectorAll('.pick-list').forEach(l => { if (l.getBoundingClientRect().right > md.getBoundingClientRect().right - 8) { l.style.left = 'auto'; l.style.right = '0'; } });
   let t = null;
   if (fm.next != null) { t = focusTarget(fm, fm.next); fm.next = null; }
-  else if (fm.first) { fm.first = false; t = fm.focus ? document.getElementById('ff_' + fm.focus) : focusTarget(fm); }
+  else if (fm.first) { fm.first = false; t = fm.focus ? document.getElementById('ff_' + fm.focus) : focusTarget(fm); if (fm.focus && t && t.select) { t.focus({ preventScroll: true }); t.select(); t = null; } }
   if (t) t.focus({ preventScroll: true });
   else if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); if (fm.selAll === keep.id) el.select(); else if (keep.s != null) try { el.setSelectionRange(keep.s, keep.e); } catch (e) { /* поле без выделения */ } } }
   fm.selAll = null;
@@ -1924,7 +2053,7 @@ function submitForm(btnId, vals) {
 function pageFocus() {
   if (typeof document === 'undefined' || S.form || S.print) return;
   if (S.card) { if (S.cardKb) focusCard(); return; }
-  const el = S.view === 'queue' ? $('#retInput') : S.view === 'folders' ? $('#fq') : S.view === 'mine' ? $('#mineQ') : null;
+  const el = S.view === 'queue' ? $('#retInput') : S.view === 'folders' ? $('#fq') : S.view === 'mine' ? $('#mineQ') : S.view === 'journal' ? $('#jq') : null;
   if (el) el.focus({ preventScroll: true });
 }
 function focusCard() { const t = typeof document !== 'undefined' && $('#cardpanel .cp-title'); if (t) t.focus({ preventScroll: true }); }
@@ -2237,65 +2366,160 @@ function uiAccept(pre = {}, title = 'Принять папку', series = null) 
 function uiNextVol(fid) { const g = gate('nextVol', fid); if (!g.ok) return say(g); const d = nextVolume(fid); return uiAccept(d, 'Принять следующий том'); }
 
 /* ------------------------------- печать ------------------------------- */
-function openPrint(title, html, sub) { S.form = null; S.menu = false; S.print = { title, html, sub }; renderModal(); return yes(); }
+function openPrint(title, html, sub, o = {}) { S.form = null; S.menu = false; S.print = Object.assign({ title, html, sub, paper: 'Лист A4' }, o); renderModal(); return yes(); }
+/* Лист ярлыков: позиции до первой — заняты (серые), дальше ярлыки по порядку, остаток листа — пустой. */
+function labelsHtml(L, start) {
+  const pages = Math.ceil((start - 1 + L.length) / LABELS_PER_SHEET); let k = 0, h = '';
+  for (let p = 0; p < pages; p++) {
+    h += `<div class="a4" data-testid="a4">`;
+    for (let c = 0; c < LABELS_PER_SHEET; c++) { const pos = p * LABELS_PER_SHEET + c;
+      if (pos < start - 1) h += '<div class="used"></div>';
+      else if (k < L.length) { const l = L[k++]; h += `<div class="label"><div class="lno">${l.no}</div><div class="lt">${esc(l.title)}</div></div>`; }
+      else h += '<div></div>'; }
+    h += '</div>';
+  }
+  return `<div class="labels" data-testid="labels">${h}</div>`;
+}
+const labelsInfo = (n, start) => { const sh = Math.ceil((start - 1 + n) / LABELS_PER_SHEET); return `${n} ${plural(n, 'ярлык', 'ярлыка', 'ярлыков')} · ${sh} ${plural(sh, 'лист', 'листа', 'листов')} A4 по ${LABELS_PER_SHEET} ярлыка 70 × 37 мм`; };
+/* Первый ярлык — со следующей свободной позиции листа в принтере (после прошлой печати), можно поменять. */
 function uiLabels(ids = selIds()) {
   if (!isArch(S.user)) return say(no('ярлыки печатает архивариус'));
   const L = labelSheet(ids); if (!L.length) return say(no('нет папок для ярлыков'));
-  return openPrint(L.length > 1 ? 'Ярлыки на корешок — лист' : 'Ярлык на корешок', `<div class="labels" data-testid="labels">${L.map(l => `<div class="label"><div class="lno">${l.no}</div><div class="lt">${esc(l.title)}</div></div>`).join('')}</div>`,
-    `${L.length} шт. · номер крупно и название, без места`);
+  return openPrint(L.length > 1 ? `Ярлыки на корешок · ${L.length}` : 'Ярлык на корешок', '', '', { kind: 'labels', L, start: S.labelNext || 1 });
 }
+function setLabelStart(v) {
+  const P = S.print; if (!P || P.kind !== 'labels') return no('печать ярлыков не открыта');
+  const n = Math.round(+v); if (!(n >= 1 && n <= LABELS_PER_SHEET)) return no(`позиция от 1 до ${LABELS_PER_SHEET}`);
+  P.start = n;
+  if (typeof document !== 'undefined') { const sh = $('#psheet'), inf = $('[data-testid=print-info]'); if (sh) sh.innerHTML = labelsHtml(P.L, n); if (inf) inf.textContent = labelsInfo(P.L.length, n); }
+  return yes();
+}
+/* Список полки для сверки — три части: должны стоять (☐), на руках (на полке их нет), найдено чужое (пустые строки). */
 function uiPrintShelf(sid) {
-  const L = shelfList(sid);
-  return openPrint('Список полки', `<table class="cgrid" data-testid="shelf-list"><thead><tr><th>№</th><th>Название</th><th>Состояние</th><th>Держатель</th><th>На месте</th></tr></thead><tbody>${L.map(x => `<tr><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td>${x.state}</td><td>${esc(x.holder)}</td><td>☐</td></tr>`).join('') || '<tr><td colspan="5" class="muted">на полке нет папок</td></tr>'}</tbody></table>`,
-    `${placeFull(sid)} · на ${fmt(S.today)} · ${L.length} ${plural(L.length, 'папка', 'папки', 'папок')}`);
+  const L = shelfList(sid), on = L.filter(x => x.onShelf), out = L.filter(x => !x.onShelf);
+  const html = `<h3 class="ph">Должны стоять на полке — ${on.length}</h3><table class="cgrid" data-testid="shelf-list"><thead><tr><th>№</th><th>Название</th><th>Состояние</th><th>На месте</th></tr></thead><tbody>${on.map(x => `<tr><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td class="nw">${esc(x.state)}</td><td class="box">☐</td></tr>`).join('') || '<tr><td colspan="4" class="muted">на полке нет папок</td></tr>'}</tbody></table>
+    ${out.length ? `<h3 class="ph">На руках — на полке их нет — ${out.length}</h3><table class="cgrid" data-testid="shelf-out"><thead><tr><th>№</th><th>Название</th><th>У кого</th><th>Вернуть до</th></tr></thead><tbody>${out.map(x => `<tr><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td class="nw">${esc(x.holder)}</td><td class="nw">${fmt(x.due)}</td></tr>`).join('')}</tbody></table>` : ''}
+    <h3 class="ph">Найдено на полке, но нет в списке</h3><table class="cgrid blank" data-testid="shelf-found"><thead><tr><th>№</th><th>Название</th></tr></thead><tbody>${'<tr><td></td><td></td></tr>'.repeat(5)}</tbody></table>`;
+  return openPrint('Список полки', html, `Список полки на ${fmt(S.today)} · должны стоять ${on.length} · на руках ${out.length}`, { heading: placeFull(sid) });
 }
 function uiPrintRound() {
   const L = roundList();
-  return openPrint('Обход полок — к выдаче', `<table class="cgrid" data-testid="round-list"><thead><tr><th>Место</th><th>№</th><th>Название</th><th>Для кого</th><th>Бронь до</th><th>Снята</th></tr></thead><tbody>${L.map(x => `<tr><td class="mono nw">${x.place}</td><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td>${esc(nm(x.who))}</td><td>${fmt(x.until)}</td><td>☐</td></tr>`).join('')}</tbody></table>`,
-    `${fmt(S.today)} · по порядку мест — снять с полок за один проход`);
+  return openPrint('Печать обхода', `<table class="cgrid" data-testid="round-list"><thead><tr><th>Место</th><th>№</th><th>Название</th><th>Для кого</th><th>Бронь до</th><th>Снята</th></tr></thead><tbody>${L.map(x => `<tr><td class="mono nw">${x.place}</td><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td>${esc(nm(x.who))}</td><td>${fmt(x.until)}</td><td class="box">☐</td></tr>`).join('')}</tbody></table>`,
+    `${fmt(S.today)} · по порядку мест — снять с полок за один проход`, { heading: 'Обход полок — к выдаче' });
+}
+/* Строка отборов на листе: без неё напечатанный список через неделю не прочесть. */
+function listFilters(tid) {
+  const p = [];
+  if (tid === 'tbl-journal') { const [from, to] = jRange(), d = jDept();
+    p.push(from ? `за ${fmt(from)}–${fmt(to)}` : `за всё время по ${fmt(to)}`);
+    if (S.jr.kind) p.push('событие: ' + JOURNAL.find(x => x[0] === S.jr.kind)[1]); if (S.jr.emp) p.push('сотрудник: ' + nm(S.jr.emp)); if (d) p.push('подразделение сотрудника: ' + d); if (trim(S.jr.q)) p.push(`поиск «${trim(S.jr.q)}»`); }
+  if (tid === 'tbl-folders') {
+    if (S.chip) p.push((CHIPS.find(x => x[0] === S.chip) || [, ''])[1]); if (S.f.kind) p.push('вид: ' + kindOf(S.f.kind).name);
+    if (S.f.shelf || S.f.cab || S.f.room) p.push('место: ' + (S.f.shelf ? placeFull(S.f.shelf) : S.f.cab ? `${room(cab(S.f.cab).room).name} · ${cab(S.f.cab).name}` : room(S.f.room).name));
+    if (S.f.holder) p.push('держатель: ' + nm(S.f.holder)); if (S.f.dept) p.push('подразделение: ' + S.f.dept); if (S.f.hdept) p.push('подразделение держателя: ' + S.f.hdept); if (trim(S.q)) p.push(`поиск «${trim(S.q)}»`);
+    if (!p.length) p.push('все папки, кроме выбывших'); }
+  if (tid === 'tbl-nokzd') { if (S.nk.mine && curates(S.user)) p.push('мои заёмщики'); if (S.nk.dept) p.push('департамент: ' + S.nk.dept); p.push(S.nk.closed ? 'с закрытыми кредитами' : 'с действующим кредитом'); }
+  return p.join(' · ');
+}
+/* Печать списка: таблица экрана без галочек, кнопок и ссылок; колонка кнопок строки (без заголовка) не печатается. */
+function uiPrintList(name, n, tid) {
+  const t = typeof document !== 'undefined' && document.querySelector(`#panel [data-testid=${tid}]`); if (!t) return no('список не найден');
+  const c = t.cloneNode(true); c.removeAttribute('data-testid'); c.classList.remove('stick');
+  c.querySelectorAll('.chk').forEach(x => x.remove());
+  const drop = [...c.querySelectorAll('thead th')].map((th, k) => th.textContent.trim() ? -1 : k).filter(k => k >= 0).reverse();
+  c.querySelectorAll('tr').forEach(tr => { const cells = [...tr.children]; if (cells.length > 1) drop.forEach(k => { if (cells[k]) cells[k].remove(); }); tr.removeAttribute('class'); tr.removeAttribute('onclick'); tr.removeAttribute('data-testid'); });
+  c.querySelectorAll('button.linky').forEach(b => b.replaceWith(document.createTextNode(b.textContent)));
+  c.querySelectorAll('button, input, select').forEach(b => b.remove());
+  c.setAttribute('data-testid', 'print-table');
+  const sub = [listFilters(tid), `на ${fmt(S.today)}`, `${n} ${plural(n, 'строка', 'строки', 'строк')}`, `напечатал(а) ${nm(S.user)}`].filter(Boolean).join(' · ');
+  return openPrint('Печать списка', c.outerHTML, sub, { heading: name, xwide: true, paper: 'Лист A4, альбомный' });
 }
 
 /* ---------------------------- справочники ---------------------------- */
-function uiAddPlace(level, parent) {
-  const what = { room: 'помещение', cab: 'шкаф', shelf: 'полку' }[level];
-  return openForm({ title: 'Добавить ' + what, submit: 'Добавить', note: parent ? esc(level === 'cab' ? room(parent).name : `${room(cab(parent).room).name} · ${cab(parent).name}`) : '',
-    fields: [{ id: 'name', label: 'Название', req: true, ph: level === 'room' ? 'Архив …' : level === 'cab' ? 'шкаф 4' : 'полка 6' }],
-    onSubmit: v => { const r = addPlace(level, parent, v.name); if (r.ok) r.msg = 'Добавлено: ' + v.name; return r; } });
+const WHAT = { room: 'помещение', cab: 'шкаф', shelf: 'полку' };
+/* Путь места: «Архив ГО · шкаф 1 · полка 1»; name — подставить новое название этого уровня. */
+function placePath(level, x, name) {
+  const nmx = name != null ? name : x.name;
+  if (level === 'room') return nmx;
+  if (level === 'cab') return `${room(x.room).name} · ${nmx}`;
+  const c = cab(x.cab); return `${room(c.room).name} · ${c.name} · ${nmx}`;
 }
+function uiAddPlace(level, parent) {
+  /* «Что будет» не нужно: последствие одно — новое место в выборе полки. Повтор названия — у поля до нажатия. */
+  return openForm({ title: 'Добавить ' + WHAT[level], submit: 'Добавить', note: parent ? esc(level === 'cab' ? room(parent).name : `${room(cab(parent).room).name} · ${cab(parent).name}`) : '',
+    fields: [{ id: 'name', label: 'Название', req: true, ph: level === 'room' ? 'Архив …' : level === 'cab' ? 'шкаф 4' : 'полка 6' }],
+    check: v => { if (!trim(v.name)) return null; const c = placeNameCheck(level, parent, v.name); return c.ok ? null : { field: 'name', why: c.why }; },
+    onSubmit: v => { const r = addPlace(level, parent, v.name); if (r.ok) r.msg = 'Добавлено: ' + trim(v.name); return r; } });
+}
+/* Переименовать: «что сейчас» — сколько папок здесь стоит; «что будет» — у скольких сменится место; ярлыки без места. */
 function uiRenamePlace(level, id) {
-  const x = LEVEL[level][0].find(e => e.id === id);
-  return openForm({ title: 'Переименовать', submit: 'Сохранить', fields: [{ id: 'name', label: 'Название', req: true, value: x.name }],
-    onSubmit: v => { const r = renamePlace(level, id, v.name); if (r.ok) r.msg = 'Переименовано'; return r; } });
+  const x = LEVEL[level][0].find(e => e.id === id), n = shelfCount(level, id);
+  return openForm({ title: 'Переименовать ' + WHAT[level], sub: placePath(level, x), submit: 'Переименовать',
+    note: n ? `Здесь ${plural(n, 'стоит', 'стоят', 'стоят')} <b>${n}</b> ${plural(n, 'папка', 'папки', 'папок')} (с теми, что на руках).` : 'Папок здесь нет.',
+    fields: [{ id: 'name', label: 'Новое название', req: true, value: x.name }], focus: 'name',
+    check: v => { if (!trim(v.name) || trim(v.name) === x.name) return null; const c = placeNameCheck(level, placeParent(level, x), v.name, x); return c.ok ? null : { field: 'name', why: c.why }; },
+    blocked: v => trim(v.name) === x.name ? 'название не изменилось' : '',
+    will: v => !trim(v.name) || trim(v.name) === x.name || !placeNameCheck(level, placeParent(level, x), v.name, x).ok ? '' : n ? `У ${n} ${plural(n, 'папки', 'папок', 'папок')} место станет «${esc(placePath(level, x, trim(v.name)))}» — в карточках, списках и подсказке «куда»; ярлыки перепечатывать не нужно — места на них нет.` : `В выборе места: «${esc(placePath(level, x, trim(v.name)))}».`,
+    onSubmit: v => { const was = placePath(level, x), r = renamePlace(level, id, v.name); if (r.ok) r.msg = `Переименовано: «${was}» → «${placePath(level, x)}»`; return r; } });
 }
 function uiRetirePlace(level, id) { const r = retirePlace(level, id); if (r.ok) r.msg = 'Выведено из употребления: в приёме и перемещении не предлагается'; return say(r); }
+function uiRestorePlace(level, id) { const r = restorePlace(level, id); if (r.ok) r.msg = 'Возвращено в употребление: снова в выборе места'; return say(r); }
 function uiDeletePlace(level, id) { const r = deletePlace(level, id); if (r.ok) r.msg = 'Удалено'; return say(r); }
+/* Новый вид: «что будет» — каким выйдет название папки. */
 function uiAddKind() {
+  const ex = BORROWERS[0].name;
   return openForm({ title: 'Добавить вид папки', submit: 'Добавить',
     fields: [{ id: 'name', label: 'Название', req: true, wide: true }, { id: 'bind', label: 'Привязка', type: 'select', empty: false, options: [['no', 'без привязки'], ['yes', 'к заёмщику']], value: 'no' },
       { id: 'short', label: 'Краткое имя (для названия папки)', show: v => v.bind === 'yes' }],
-    onSubmit: v => { const r = addKind(v); if (r.ok) r.msg = 'Вид добавлен'; return r; } });
+    will: v => v.bind === 'yes' ? `Название папки соберётся: «${esc(trim(v.short) || '‹краткое имя›')} · ${esc(ex)} · том 1»` : 'Название папки вводится при приёме.',
+    onSubmit: v => { const r = addKind(v); if (r.ok) r.msg = 'Вид добавлен: ' + trim(v.name); return r; } });
 }
-function uiRetireKind(id) { const r = retireKind(id); if (r.ok) r.msg = 'Вид выведен из употребления'; return say(r); }
+function uiRetireKind(id) { const r = retireKind(id); if (r.ok) r.msg = 'Вид выведен из употребления: в приёме не предлагается'; return say(r); }
+function uiRestoreKind(id) { const r = restoreKind(id); if (r.ok) r.msg = 'Вид возвращён в употребление'; return say(r); }
 function uiDeleteKind(id) { const r = deleteKind(id); if (r.ok) r.msg = 'Вид удалён'; return say(r); }
+/* Настройка: «что сейчас» — значение, с какого числа и кто; «что будет» — дата сегодняшней выдачи (брони, напоминания)
+   по новому значению и что назначенное не сдвинется. */
+const settingOk = n => Number.isInteger(n) && n >= 1 && n <= 60;
+function settingWill(key, n) {
+  if (!settingOk(n)) return '';
+  const t = S.today, open = ISSUES.filter(i => !i.end).length, res = REQS.filter(r => r.st === 'reserved').length;
+  if (key === 'issueDays') return `Выдать сегодня — вернуть до <b>${fmt(addWork(t, n))}</b>; ${open} ${plural(open, 'папка', 'папки', 'папок')} на руках ${plural(open, 'сохранит', 'сохранят', 'сохранят')} свои сроки.`;
+  if (key === 'holdDays') return `Бронь, поставленная сегодня, — до <b>${fmt(addWork(t, n))}</b>; ${res} ${plural(res, 'бронь', 'брони', 'броней')} ${plural(res, 'сохранит', 'сохранят', 'сохранят')} свой срок.`;
+  const due = addWork(t, SETTINGS.issueDays.v);
+  return `Выдать сегодня до ${fmt(due)} — напоминание <b>${fmt(workBefore(due, n))}</b>; уже назначенные напоминания не сдвигаются.`;
+}
 function uiSetting(key) {
-  const s = SETTINGS[key];
-  return openForm({ title: s.label, submit: 'Сохранить', note: 'Новое значение действует на новые выдачи и брони; уже назначенные даты не сдвигаются.',
-    fields: [{ id: 'v', label: `Значение, ${s.unit}`, req: true, value: String(s.v) }],
-    onSubmit: v => { const r = setSetting(key, v.v); if (r.ok) r.msg = `${s.label}: ${s.v} ${s.unit}`; return r; } });
+  const s = SETTINGS[key], last = s.hist[s.hist.length - 1];
+  return openForm({ title: s.label, submit: 'Сохранить', note: `Сейчас <b>${s.v} ${s.unit}</b>${last ? ` — с ${fmt(last.d)}, ${esc(nm(last.by))}` : ''}`,
+    fields: [{ id: 'v', label: `Новое значение, ${s.unit}`, req: true, value: String(s.v) }], focus: 'v',
+    check: v => trim(v.v) && !settingOk(+trim(v.v)) ? { field: 'v', why: 'целое число от 1 до 60' } : null,
+    blocked: v => +trim(v.v) === s.v ? 'значение не изменилось' : '',
+    will: v => +trim(v.v) === s.v ? '' : settingWill(key, +trim(v.v)),
+    onSubmit: v => { const r = setSetting(key, v.v); if (r.ok) r.msg = `${s.label}: ${s.v} ${s.unit} — для новых выдач и броней`; return r; } });
 }
 
 /* --------------------- навигация и window.AX --------------------- */
-function openCard(fid) {
+function openCard(fid, kb) {
   const f = folder(fid); if (!f) return no('папка не найдена');
   /* Ссылка внутри карточки, нажатая с клавиатуры (другой том), — новая карточка тоже держит курсор. */
   const inCard = typeof document !== 'undefined' && S.card && $('#cardpanel').contains(document.activeElement);
-  S.card = fid; S.cardFromQ = false; S.cardKb = !!inCard; S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
-  setHash('#/folder/' + f.no); render(); if (inCard) focusCard(); return yes();
+  /* № строки списка, нажатый с клавиатуры, — запомнить, какой по счёту: Esc вернёт курсор на него. */
+  const back = kb && !inCard && typeof document !== 'undefined' ? [...document.querySelectorAll('#panel [data-open]')].indexOf(document.activeElement) : -1;
+  S.cardBack = back >= 0 ? back : inCard ? S.cardBack : null;
+  S.card = fid; S.cardFromQ = false; S.cardKb = !!(inCard || kb); S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
+  setHash('#/folder/' + f.no); render(); if (S.cardKb) focusCard(); return yes();
 }
 /* Карточка, открытая Enter из поиска, держит курсор: заголовок, Tab по кругу внутри, Esc — снова в поиск. */
 function kbCard(fid) { openCard(fid); S.cardFromQ = true; S.cardKb = true; focusCard(); return yes({ card: fid }); }
-/* Закрыл карточку, открытую Enter из поиска, — курсор снова в поиске, номер выделен: следующий набирается поверх. */
-function closeCard() { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; if (S.view === 'mine') S.focusMine = true; S.cardFromQ = false; S.cardKb = false; S.card = null; S.menu = false; setHash(''); render(); return yes(); }
+/* Закрыл карточку, открытую Enter из поиска, — курсор снова в поиске, номер выделен: следующий набирается поверх.
+   Открытую с клавиатуры с № строки — курсор на этот №; иначе — в своё поле страницы (очередь — «Возврат», журнал — поиск). */
+function closeCard() {
+  const back = S.cardBack;
+  if (back == null) { if (S.cardFromQ && S.view === 'folders') S.focusQ = true; if (S.view === 'mine') S.focusMine = true; if (S.view === 'queue') S.focusRet = true; if (S.view === 'journal') S.focusJ = true; }
+  S.cardFromQ = false; S.cardKb = false; S.cardBack = null; S.card = null; S.menu = false; setHash(''); render();
+  if (back != null && typeof document !== 'undefined') { const el = document.querySelectorAll('#panel [data-open]')[back]; if (el) el.focus({ preventScroll: true }); }
+  return yes();
+}
 /* Адрес карточки. Файл, открытый с диска, не даёт менять историю — тогда меняется сам якорь. */
 function setHash(h) {
   if (typeof location === 'undefined' || (location.hash || '') === h) return;
@@ -2314,13 +2538,13 @@ Object.assign(AX, {
   stateOf, ST, openIssue, pendingTr, pendingExt, activeReqs, reservedReq, posOf, isOver, overDays, whereNow, gate, isArch, isFired, qNo, matchQ, allVols,
   accept, nextVolume, issue, issueBatch, dueDefault, request, requestBatch, requestPreview, withdraw, refuse, askExtend, decideExtend, extend,
   transfer, received, notReceived, cancelTransfer, acceptReturn, acceptReturnBatch, returnHint, returnLookup, move, moveBatch, rebind,
-  writeOff, writeOffBatch, writeOffPreview, restore, addPlace, renamePlace, retirePlace, deletePlace, placeRefs, addKind, retireKind, deleteKind, setSetting,
-  labelSheet, shelfList, roundList, archQueue, mine, menuCounts, registry, noKzd, journal, history, paperBox, tasks, tasksOf, invariants,
+  writeOff, writeOffBatch, writeOffPreview, restore, addPlace, renamePlace, retirePlace, restorePlace, deletePlace, placeRefs, retireWhy, addKind, retireKind, restoreKind, deleteKind, setSetting, settingWill,
+  labelSheet, shelfList, roundList, archQueue, mine, menuCounts, registry, noKzd, journal, jRange, jRows, evParty, history, paperBox, tasks, tasksOf, invariants, LABELS_PER_SHEET,
   setToday, advance, render, openForm, submitForm, closeForm, fset, fseg, fquick, fpick, pkFocus, pkInput, pkBlur, pkKey, pkItems, openCard, closeCard,
   uiIssue, uiIssueBatch, uiRequest, uiRequestBatch, uiWithdraw, uiRefuse, uiUnreserve, uiAskExt, uiExtend, uiDecide, uiTransfer, uiGot, uiNotGot, uiCancelTr,
   uiReturn, uiReturnSel, uiMove, uiMoveBatch, uiRebind, uiWriteoff, uiWriteoffBatch, uiRestore, uiAccept, uiNextVol, uiLabels, uiPrintShelf, uiPrintRound,
-  uiAddPlace, uiRenamePlace, uiRetirePlace, uiDeletePlace, uiAddKind, uiRetireKind, uiDeleteKind, uiSetting,
-  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.cardKb = false; S.menu = false; S.focusRet = v === 'queue'; S.focusQ = v === 'folders'; S.focusMine = v === 'mine'; setHash(''); render(); return yes(); },
+  uiAddPlace, uiRenamePlace, uiRetirePlace, uiRestorePlace, uiDeletePlace, uiAddKind, uiRetireKind, uiRestoreKind, uiDeleteKind, uiSetting, uiPrintList, setLabelStart,
+  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.cardKb = false; S.cardBack = null; S.menu = false; S.rowMenu = null; S.focusRet = v === 'queue'; S.focusQ = v === 'folders'; S.focusMine = v === 'mine'; S.focusJ = v === 'journal'; setHash(''); render(); return yes(); },
   /* Enter в поиске «Папок»: карточка папки с этим номером, иначе — единственной найденной. */
   searchEnter() {
     const n = qNo(S.q), f = n != null ? byNo(n) : null, rows = registry(Object.assign({ q: S.q, chip: S.chip }, S.f)).rows;
@@ -2330,7 +2554,7 @@ Object.assign(AX, {
   },
   resetF() { Object.keys(S.f).forEach(k => { S.f[k] = ''; }); S.chip = ''; render(); return yes(); },
   batchIds,
-  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.cardKb = false; S.sel.clear(); S.nk.mine = null; S.nk.dept = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; renderModal(); render(); return yes(); },
+  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.cardKb = false; S.cardBack = null; S.rowMenu = null; S.sel.clear(); S.nk.mine = null; S.nk.dept = null; S.jr.dept = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; renderModal(); render(); return yes(); },
   setF(k, v) {
     /* «Место» — одним списком: r:<помещение>, c:<шкаф>, s:<полка>. */
     if (k === 'place') { const [lv, id] = (v || '').split(':'); S.f.room = lv === 'r' ? id : ''; S.f.cab = lv === 'c' ? id : ''; S.f.shelf = lv === 's' ? id : ''; render(); return; }
@@ -2349,7 +2573,26 @@ Object.assign(AX, {
   },
   /* Ссылки «Моих папок»: «Папки» с отбором подразделения или подразделения держателя (и плашкой). */
   openFolders(o = {}) { S.view = 'folders'; S.q = ''; S.chip = o.chip || ''; Object.keys(S.f).forEach(k => { S.f[k] = o[k] || ''; }); S.card = null; S.cardKb = false; S.menu = false; S.focusQ = true; setHash(''); render(); return yes(); },
-  setJ(k, v) { if (k === 'from' || k === 'to') { const iso = toIso(v); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ', 'err'); render(); return; } S.jr[k] = iso; } else S.jr[k] = v; render(); },
+  /* Журнал: период кнопкой или своими датами (правка даты снимает кнопку), плашка события — одна за раз. */
+  setJ(k, v) {
+    if (k === 'from' || k === 'to') { const iso = toIso(v); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ', 'err'); render(); return no('дата в формате ДД.ММ.ГГГГ'); }
+      const [f, t] = jRange(); S.jr.from = f; S.jr.to = t; S.jr[k] = iso; S.jr.per = ''; }
+    else if (k === 'per') { S.jr.per = v; S.jr.from = ''; S.jr.to = ''; }
+    else if (k === 'kind') S.jr.kind = S.jr.kind === v ? '' : v;
+    else S.jr[k] = v;
+    render(); return yes();
+  },
+  setJq(q) { S.jr.q = q; const el = $('#jList'); if (el) el.innerHTML = journalList(); },
+  /* Enter в поиске журнала: номер или единственная найденная папка — её карточка (история по выдачам). */
+  journalEnter() {
+    const q = trim(S.jr.q), n = qNo(q), f = n != null ? byNo(n) : null, fs = q ? FOLDERS.filter(x => matchQ(x, q)) : [];
+    const t = f || (fs.length === 1 ? fs[0] : null);
+    if (!t) { const r = no(q ? `найдено папок: ${fs.length} — выберите строку` : 'наберите номер, название или ИНН'); toast(r.why, 'err'); return r; }
+    return kbCard(t.id);
+  },
+  journalAll() { S.jr.per = 'all'; S.jr.from = ''; S.jr.to = ''; S.jr.kind = ''; S.jr.emp = ''; S.jr.dept = ''; S.focusJ = true; render(); return yes(); },
+  toggleRowMenu(key) { S.rowMenu = S.rowMenu === key ? null : key; render(); },
+  closeRowMenu() { S.rowMenu = null; render(); },
   setNk(k, v) { S.nk[k] = v; render(); },
   setTab(t) { S.tab = t; render(); },
   setPb(b) { S.pb = b; render(); },
@@ -2369,9 +2612,14 @@ Object.assign(AX, {
   },
   toggleMenu() { S.menu = !S.menu; const m = $('#moreMenu'); if (m) m.classList.toggle('open', S.menu); },
   closeMenu() { S.menu = false; const m = $('#moreMenu'); if (m) m.classList.remove('open'); },
-  printGo() { toast('Отправлено на печать', 'ok'); closeForm(); },
-  uiPrintList(name, n) { toast(`«${name}» — печать: ${n} ${plural(n, 'строка', 'строки', 'строк')}`, 'ok'); },
-  uiExcel(name, n) { toast(`«${name}» — выгрузка в Excel: ${n} ${plural(n, 'строка', 'строки', 'строк')}`, 'ok'); },
+  /* Печать: у ярлыков — следующая свободная позиция листа подставится при следующей печати. */
+  printGo() {
+    const P = S.print; let msg = 'Отправлено на печать';
+    if (P && P.kind === 'labels') { const n = P.L.length, last = P.start - 1 + n, sh = Math.ceil(last / LABELS_PER_SHEET); S.labelNext = last % LABELS_PER_SHEET + 1;
+      msg = `Отправлено на печать: ${n} ${plural(n, 'ярлык', 'ярлыка', 'ярлыков')}, ${sh} ${plural(sh, 'лист', 'листа', 'листов')}; следующий ярлык — с позиции ${S.labelNext}`; }
+    toast(msg, 'ok'); closeForm(); return yes({ msg });
+  },
+  uiExcel(name, n) { const r = yes({ msg: `Выгружен файл «${name} на ${fmt(S.today)}.xlsx» — ${n} ${plural(n, 'строка', 'строки', 'строк')}, колонки как на экране` }); toast(r.msg, 'ok'); return r; },
 });
 
 seed();
@@ -2379,9 +2627,9 @@ if (typeof window !== 'undefined') window.AX = AX;
 if (typeof document !== 'undefined') {
   fromHash(true); S.focusRet = S.view === 'queue'; S.focusMine = S.view === 'mine'; render();
   window.addEventListener('hashchange', () => { if (fromHash(false)) render(); });
-  document.addEventListener('click', e => { if (S.menu && !e.target.closest('.menu')) AX.closeMenu(); });
+  document.addEventListener('click', e => { if (S.menu && !e.target.closest('.menu')) AX.closeMenu(); if (S.rowMenu && !e.target.closest('.menu')) { S.rowMenu = null; render(); } });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { if (S.menu) AX.closeMenu(); else if (S.form || S.print) closeForm(); else if (S.card) closeCard(); return; }
+    if (e.key === 'Escape') { if (S.rowMenu) { S.rowMenu = null; render(); } else if (S.menu) AX.closeMenu(); else if (S.form || S.print) closeForm(); else if (S.card) closeCard(); return; }
     /* Карточка держит курсор: Tab ходит по её кнопкам и ссылкам по кругу, под карточку не уходит. */
     const cp = $('#cardpanel');
     if (e.key === 'Tab' && S.card && !S.form && !S.print && cp.contains(document.activeElement)) {
@@ -2397,6 +2645,8 @@ if (typeof document !== 'undefined') {
       if (!els.length) return; const k = els.indexOf(document.activeElement);
       e.preventDefault(); els[k < 0 ? (e.shiftKey ? els.length - 1 : 0) : (k + (e.shiftKey ? -1 : 1) + els.length) % els.length].focus(); return;
     }
+    /* Окно печати: Enter в поле (позиция ярлыка) — «Печать». */
+    if (e.key === 'Enter' && S.print && !S.print.noPrint && e.target.tagName !== 'BUTTON') { e.preventDefault(); AX.printGo(); return; }
     /* Enter — главная кнопка окна; в многострочном поле — Ctrl+Enter; на кнопке Enter нажимает её саму. */
     if (e.key === 'Enter' && S.form) {
       const t = e.target; if (t.tagName === 'BUTTON' && md.contains(t)) return; if (t.tagName === 'TEXTAREA' && !(e.ctrlKey || e.metaKey)) return;
