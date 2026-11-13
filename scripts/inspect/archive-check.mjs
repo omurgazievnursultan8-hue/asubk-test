@@ -10,6 +10,10 @@
 // «Вне отбора», плашки состояний и «из них», отборы одной строкой, полоса пачки на месте «Показано» с числом на
 // кнопках, отмечены только показанные, срок «Выдать» пачкой, список полки, карточка от первого лица, все тома,
 // запрос архивариуса из «Ещё ▾», реквизиты без повторов шапки, сообщение с кнопкой одной строкой.
+// Блок ОД-1…ОД-4 — автогриллинг «Окон действий» (АХ-96…АХ-108): одно устройство окна, клавиатура (курсор в первом
+// поле, Enter, Esc, Tab в окне), поиск сотрудника и заёмщика с «Предложено», место одним списком, причина кнопками,
+// даты с подсказкой и «+5 / +10 р.д.», запрет у поля до нажатия, строки пачки с исходом, сообщение «что сделано и что
+// дальше», действия без окна, уволенному не продлевают, ввод подряд, причина-шаблон, своя строка очереди без кнопки.
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -29,6 +33,13 @@ function ck(name, cond, detail) {
   console.log(m); fails.push(m);
 }
 const has = (s, sub) => String(s || '').toLowerCase().includes(String(sub).toLowerCase());
+/* Поле выбора сотрудника или заёмщика: фокус открывает список, набор — поиск (фамилия, ИНН), выбор — щелчок по строке. */
+async function pick(page, id, val) {
+  const q = await page.evaluate(v => { const A = window.AX, e = A.EMP.find(x => x.id === v), b = A.BORROWERS.find(x => x.id === v); return e ? e.name.split(' ')[0] : b ? b.inn : ''; }, val);
+  await page.click(`[data-testid=ff-${id}]`);
+  if (q) await page.fill(`[data-testid=ff-${id}]`, q);
+  await page.click(`[data-testid=pi-${id}-${val}]`);
+}
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -172,11 +183,11 @@ await group('И-6 · формы: обязательное помечено, ош
   ck('обязательные поля помечены', await E(() => document.querySelectorAll('#modal label.req').length === 3));
   await page.click('[data-testid=form-submit]');
   ck('пустое «Кому» — ошибка у поля', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'to'));
-  await page.selectOption('[data-testid=ff-to]', 'sydykova');
+  await pick(page, 'to', 'sydykova');
   await page.fill('[data-testid=ff-due]', '01.01.2026');
   await page.fill('[data-testid=ff-why]', 'сверка');
-  await page.click('[data-testid=form-submit]');
-  ck('срок в прошлом — ошибка у поля «Вернуть до»', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'due' && /позже сегодняшнего/.test(document.querySelector('[data-testid=form-err]').textContent)));
+  ck('срок в прошлом — ошибка у поля «Вернуть до» сразу, кнопка серая с причиной', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'due' && /позже сегодняшнего/.test(document.querySelector('[data-testid=form-err]').textContent)
+    && document.querySelector('[data-testid=form-submit]').disabled));
   await page.click('[data-testid=form-cancel]');
   ck('«Отмена» — окно закрыто, папка по-прежнему в архиве', await E(() => !document.querySelector('#overlay').classList.contains('open') && window.AX.stateOf('f211') === 'archive'));
   await E(() => window.AX.uiAccept());
@@ -272,11 +283,11 @@ await group('С-6 · просьба продлить при очереди → �
 
 await group('С-7 · приём новой КЗД → ярлык → уведомление сдавшему; «Принять следующий том»', async (page, E) => {
   await E(() => { window.AX.go('folders'); window.AX.uiAccept(); });
-  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  await pick(page, 'borrower', 'n1');
   const auto = await E(() => document.querySelector('[data-testid=auto-title]').textContent);
   ck('название собирается само: «КЗД · ОсОО «Кен-Сай» · том 1»', auto === 'КЗД · ОсОО «Кен-Сай» · том 1', auto);
-  await page.selectOption('[data-testid=ff-shelf_room]', 'go'); await page.selectOption('[data-testid=ff-shelf_cab]', 'go3'); await page.selectOption('[data-testid=ff-shelf]', 'go3-3');
-  await page.selectOption('[data-testid=ff-from]', 'asanov');
+  await page.selectOption('[data-testid=ff-shelf]', 'go3-3');
+  await pick(page, 'from', 'asanov');
   await page.click('[data-testid=form-submit]');
   const r = await E(() => { const A = window.AX, f = A.byNo(231); return { no: f && A.noStr(f.no), title: f && A.titleOf(f), st: f && A.stateOf(f.id), note: A.NOTES.filter(n => n.to === 'asanov' && n.kind === 'accepted' && n.folder === 'f231').map(n => n.text) }; });
   ck('принята сквозным номером А-000231, сразу «в архиве»', r.no === 'А-000231' && r.st === 'archive', r);
@@ -296,10 +307,10 @@ await group('С-8 · ввод при запуске: «Принять и ещё�
   const r = await E(() => { const A = window.AX, kept = [];
     A.uiAccept();
     for (const t of ['Приказы по личному составу · 2023', 'Приказы по личному составу · 2024', 'Приказы по личному составу · 2025']) {
-      A.submitForm('more', { kind: 'nom', title: t, dept: 'Общий отдел', shelf: 'go3-3' }); kept.push([A.S.form && A.S.form.vals.kind, A.S.form && A.S.form.vals.shelf, A.S.form && A.S.form.note]); }
+      A.submitForm('more', { kind: 'nom', title: t, dept: 'Общий отдел', shelf: 'go3-3' }); kept.push([A.S.form && A.S.form.vals.kind, A.S.form && A.S.form.vals.shelf, A.S.form && A.S.form.now]); }
     A.closeForm(); return { kept, nos: [231, 232, 233].map(n => A.byNo(n) && A.titleOf(A.byNo(n))) }; });
   ck('после «Принять и ещё» форма снова открыта с тем же видом и полкой', r.kept.every(k => k[0] === 'nom' && k[1] === 'go3-3'), r.kept);
-  ck('в форме — «Принята А-… · Печать ярлыка»', has(r.kept[2][2], 'Принята <b>А-000233</b>') && has(r.kept[2][2], 'Печать ярлыка'), r.kept[2][2]);
+  ck('в форме — «Принята А-… · подряд 3 · Печать ярлыков (3)»', has(r.kept[2][2], 'Принята <b>А-000233</b>') && has(r.kept[2][2], 'подряд 3') && has(r.kept[2][2], 'Печать ярлыков (3)'), r.kept[2][2]);
   ck('три папки приняты подряд: 231, 232, 233', r.nos.every(Boolean), r.nos);
   const u = await E(() => { const A = window.AX;
     const bad = A.accept({ kind: 'kzd', borrower: '_none', uname: 'ОсОО «Жаңы Жол»', uinn: '1234567890123', shelf: 'go3-1' });
@@ -321,7 +332,7 @@ await group('С-9 · печать полки; «Переместить» най�
   const pre = await E(() => [...document.querySelectorAll('[data-testid=shelf-list] tbody tr')].map(t => t.children[0].textContent));
   ck('список полки ГО·1·5: А-000228, А-000229', pre.join() === 'А-000228,А-000229', pre);
   await shot(page, '07b-print-shelf');
-  const r = await E(() => { const A = window.AX; A.closeForm(); A.openCard('f229'); A.uiMove('f229'); A.fplace('shelf', 'room', 'go'); A.fplace('shelf', 'cab', 'go1'); A.fplace('shelf', 'shelf', 'go1-4');
+  const r = await E(() => { const A = window.AX; A.closeForm(); A.openCard('f229'); A.uiMove('f229'); A.fset('shelf', 'go1-4');
     const s = A.submitForm('main'); return { s, shelf: A.folder('f229').shelf, list: A.shelfList('go1-5').map(x => x.no), ev: A.EVENTS.filter(e => e.folder === 'f229' && e.kind === 'moved').map(e => [e.from, e.to]) }; });
   ck('перемещена на ГО·1·4; в списке ГО·1·5 её больше нет', r.s.ok && r.shelf === 'go1-4' && r.list.join() === 'А-000228', r);
   ck('перемещение — в истории (откуда → куда)', r.ev.length === 1 && r.ev[0].join() === 'go1-5,go1-4', r.ev);
@@ -329,9 +340,9 @@ await group('С-9 · печать полки; «Переместить» най�
 
 await group('С-10 · папка у уволенного → «Списать: утрачена» → очередь закрыта; «Восстановить»', async (page, E) => {
   await page.click('[data-testid=fired-writeoff-208]');
-  const note = await E(() => document.querySelector('#modal .banner').innerText);
-  ck('в форме — «на руках у Орозова Т.» и «очередь (1) закроется»', has(note, 'На руках у Орозова Т.') && has(note, 'Очередь (1) закроется'), note);
-  await page.selectOption('[data-testid=ff-reason]', 'утрачена');
+  const note = await E(() => document.querySelector('[data-testid=form-now]').innerText + ' / ' + document.querySelector('[data-testid=form-will]').innerText);
+  ck('в форме — «на руках у Орозова Т. (уволен)» и «очередь (1) закроется»', has(note, 'На руках у Орозова Т. (уволен)') && has(note, 'очередь (1) закроется'), note);
+  await page.click('[data-testid=ff-reason] [data-v="утрачена"]');
   await page.fill('[data-testid=ff-basis]', 'Акт об утрате № 15 от 13.11.2026');
   await page.click('[data-testid=form-submit]');
   const r = await E(() => { const A = window.AX; return { st: A.stateOf('f208'), q: A.REQS.filter(x => x.folder === 'f208').map(x => x.st), note: A.NOTES.filter(n => n.to === 'kadyrov' && n.kind === 'closed' && n.folder === 'f208').map(n => n.text),
@@ -346,7 +357,7 @@ await group('С-10 · папка у уволенного → «Списать: �
 await group('С-20 · держатель у окна просит неделю → «Продлить» напрямую с причиной → уведомление', async (page, E) => {
   await E(() => { window.AX.request('f225', { why: 'сверка графика' }, 'kadyrov'); window.AX.go('folders'); window.AX.openCard('f225'); });
   await page.click('[data-testid=cb-extend]');
-  ck('в форме видна очередь: «Ждут: 1. Кадыров Т. — сверка графика»', await E(() => document.querySelector('#modal .banner').innerText.includes('Ждут: 1. Кадыров Т. — сверка графика')));
+  ck('в форме видна очередь: «Ждут: 1. Кадыров Т. — сверка графика»', await E(() => document.querySelector('[data-testid=form-now]').innerText.includes('Ждут: 1. Кадыров Т. — сверка графика')));
   await page.fill('[data-testid=ff-date]', '27.11.2026');
   await page.click('[data-testid=form-submit]');
   ck('без причины — ошибка у поля', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'reason'));
@@ -363,7 +374,7 @@ await group('С-21 · акт уничтожения: отбор полки → �
   ck('отмечены все три папки полки', await E(() => document.querySelector('[data-testid=sel-count]').textContent === '3'));
   await page.click('[data-testid=b-writeoff]');
   ck('до списания — сколько на руках и с очередью', await E(() => document.querySelector('[data-testid=wo-preview]').textContent === 'Из отмеченных: на руках — 0, с очередью — 0.'));
-  await page.selectOption('[data-testid=ff-reason]', 'уничтожена');
+  await page.click('[data-testid=ff-reason] [data-v="уничтожена"]');
   await page.fill('[data-testid=ff-basis]', 'Акт об уничтожении № 4 от 13.11.2026');
   await page.click('[data-testid=form-submit]');
   const r = await E(() => { const A = window.AX; return ['f219', 'f220', 'f221'].map(id => [A.stateOf(id), A.folder(id).gone.basis, A.EVENTS.filter(e => e.folder === id && e.kind === 'writtenOff').length]); });
@@ -408,7 +419,7 @@ await group('С-12 · «Папка свободна» → получил у ок
 await group('С-13 · «Передать» заведующему → «Получил» → передача обратно', async (page, E) => {
   await E(() => window.AX.setUser('asanov'));
   await page.click('[data-testid=transfer-225]');
-  await page.selectOption('[data-testid=ff-to]', 'mambetov');
+  await pick(page, 'to', 'mambetov');
   await page.click('[data-testid=form-submit]');
   const a = await E(() => { const A = window.AX, i = A.openIssue('f225'); return { st: A.stateOf('f225'), holder: i.holder, due: i.due, mark: document.querySelector('[data-testid=hand-225]').innerText, note: A.NOTES.filter(n => n.to === 'mambetov' && n.kind === 'transfer' && n.folder === 'f225').length }; });
   ck('«передаётся»; держатель пока — Асанов; срок не меняется', a.st === 'transfer' && a.holder === 'asanov' && a.due === '2026-11-20', a);
@@ -464,7 +475,7 @@ await group('С-16 · юрист: запрос занятой папки → м�
     return { pv, q, btnQ, info, t, g, st: rq.st, holder: A.openIssue('f225').holder, h: A.history('f225').find(x => x.type === 'issue').events.map(e => e.kind) }; });
   ck('строка формы: «на руках у Асанова Б. до 20.11.2026, вы будете № 1»', r.pv === 'на руках у Асанова Б. до 20.11.2026, вы будете № 1', r.pv);
   ck('запрос встал № 1 в очередь', r.q.ok && r.q.pos === 1 && !r.q.reserved, r.q);
-  ck('держатель видит в очереди «Передать» ждущему; форма — «передача ему закроет его запрос»', r.btnQ && has(r.info, 'передача ему закроет его запрос'), r);
+  ck('держатель видит в очереди «Передать» ждущему; форма — «передача закроет этот запрос»', r.btnQ && has(r.info, 'передача закроет этот запрос'), r);
   ck('«Получил» → держатель — юрист, запрос «закрыт передачей»', r.t.ok && r.g.ok && r.holder === 'jeen' && r.st === 'closedTransfer', r);
   ck('запрос виден в событиях выдачи', r.h.includes('requested') && r.h.includes('reqClosedTransfer'), r.h);
 });
@@ -520,7 +531,7 @@ await group('П-1 · Принять: привязка, действующая п
     o.dup = A.accept({ kind: 'kzd', borrower: 'b2', vol: 2, shelf: 'go3-3' });
     o.a = A.accept({ kind: 'kzd', borrower: 'b1', vol: 2, shelf: 'go1-1' }); o.b = A.accept({ kind: 'other', title: 'Сметы · 2026', dept: 'Бухгалтерия', shelf: 'go2-2' });
     o.t = A.titleOf(A.folder(o.a.id)); o.ev = A.EVENTS.filter(e => e.folder === o.a.id).map(e => e.kind);
-    o.opts = (() => { A.uiAccept(); A.fplace('shelf', 'room', 'go'); A.fplace('shelf', 'cab', 'go2'); const s = [...document.querySelectorAll('[data-testid=ff-shelf] option')].map(x => x.value); const k = [...document.querySelectorAll('[data-testid=ff-kind] option')].map(x => x.value); A.closeForm(); return { s, k }; })();
+    o.opts = (() => { A.uiAccept(); const s = [...document.querySelectorAll('[data-testid=ff-shelf] option')].map(x => x.value); const k = [...document.querySelectorAll('[data-testid=ff-kind] option')].map(x => x.value); A.closeForm(); return { s, k }; })();
     return o; });
   ck('не архивариус — нельзя', !r.nonArch.ok && has(r.nonArch.why, 'архивариус'), r.nonArch);
   ck('вид с привязкой без заёмщика — нельзя', !r.noBor.ok && r.noBor.field === 'borrower', r.noBor);
@@ -1072,7 +1083,7 @@ await group('Р-3 · очередь: печать и Excel у «уволенны
   const t217 = (await toasts(E)).find(t => has(t.text, 'Привязка изменена'));
   ck('АХ-80 · название не изменилось (А-000217) — сообщение без «Печать ярлыка»', t217 && !has(t217.text, 'перепечатайте') && t217.btn === '', t217);
   await E(() => window.AX.uiRebind('f218'));
-  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  await pick(page, 'borrower', 'n1');
   await page.fill('[data-testid=ff-basis]', 'Ошибка при приёме: дело ОсОО «Кен-Сай»');
   await page.click('[data-testid=form-submit]');
   const t218 = (await toasts(E)).find(t => has(t.text, 'перепечатайте ярлык'));
@@ -1193,21 +1204,21 @@ await group('ПК-3 · полоса пачки на месте «Показан�
   await page.click('[data-testid=sel-all]');
   await page.click('[data-testid=b-writeoff]');
   const w = await E(() => ({ sel: window.AX.S.sel.size, title: document.querySelector('[data-testid=form-title]').textContent }));
-  ck('АХ-88 · смена отбора снимает отметки со скрытых строк (АХ-Д19): «Списать пачкой · 3» — только полка ГО · 3 · 4', s0 === 0 && w.sel === 3 && w.title === 'Списать пачкой · 3', { s0, ...w });
+  ck('АХ-88 · смена отбора снимает отметки со скрытых строк (АХ-Д19): «Списать · 3 папки» — только полка ГО · 3 · 4', s0 === 0 && w.sel === 3 && w.title === 'Списать · 3 папки', { s0, ...w });
   await page.keyboard.press('Escape');
   const iss = await E(() => { const A = window.AX; A.setF('place', ''); A.request('f213', { why: 'сверка премирования', needBy: '2026-11-30' }, 'sydykova'); A.clearSel(); return (A.reservedReq('f213') || {}).who; });
   await page.click('[data-testid=sel-212]'); await page.click('[data-testid=sel-213]');
   await page.click('[data-testid=b-issue]');
   const f0 = await E(() => { const d = document.querySelector('[data-testid=ff-due]'); return { to: document.querySelector('[data-testid=ff-to]').value, due: d.value, req: d.closest('.fld').querySelector('label').classList.contains('req') }; });
   ck('АХ-89 · «Вернуть до» пусто и не обязательно; «Кому» пусто — в пачке свободная и бронь', iss === 'sydykova' && f0.to === '' && f0.due === '' && !f0.req, { iss, ...f0 });
-  await page.selectOption('[data-testid=ff-to]', 'sydykova'); await page.fill('[data-testid=ff-why]', 'сверка премирования');
+  await pick(page, 'to', 'sydykova'); await page.fill('[data-testid=ff-why]', 'сверка премирования');
   await page.click('[data-testid=form-submit]');
   const d = await E(() => { const A = window.AX; return { d212: (A.openIssue('f212') || {}).due, d213: (A.openIssue('f213') || {}).due, def: A.addWork(A.S.today, A.SETTINGS.issueDays.v) }; });
   ck('АХ-89 · срок у каждой свой: 213 — 30.11 из «нужна до» брони, 212 — срок по умолчанию', d.d213 === '2026-11-30' && d.d212 === d.def && d.d212 !== d.d213, d);
   await page.keyboard.press('Escape');
   await page.click('[data-testid=sel-206]');
   await page.click('[data-testid=b-issue]');
-  ck('АХ-89 · все отмеченные забронированы за одним — «Кому» подставлено (Исаева А.)', await E(() => document.querySelector('[data-testid=ff-to]').value === 'isaeva'));
+  ck('АХ-89 · все отмеченные забронированы за одним — «Кому» подставлено (Исаева А.)', await E(() => window.AX.S.form.vals.to === 'isaeva' && document.querySelector('[data-testid=ff-to]').value.startsWith('Исаева А.')));
   await page.keyboard.press('Escape');
   await E(() => { window.AX.setUser('jeen'); window.AX.go('folders'); });
   await page.click('[data-testid=sel-205]'); await page.click('[data-testid=sel-211]');
@@ -1271,12 +1282,154 @@ await group('ПК-4 · карточка: своя папка от первого
   ck('АХ-94 · блок «Просьба продлить» поднялся (был на 553 px) и виден без прокрутки', kv.extTop < 500, kv.extTop);
   await shot(page, '13-card-ext');
   await E(() => { window.AX.closeCard(); window.AX.uiRebind('f218'); });
-  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  await pick(page, 'borrower', 'n1');
   await page.fill('[data-testid=ff-basis]', 'ошибка при приёме');
   await page.click('[data-testid=form-submit]');
   const t = await E(() => { const d = [...document.querySelectorAll('[data-testid=toast]')].find(x => x.querySelector('button')), b = d.getBoundingClientRect(), bb = d.querySelector('button').getBoundingClientRect();
     return { h: Math.round(b.height), w: Math.round(b.width), dy: Math.round(bb.top - b.top) }; });
   ck('АХ-Д20 · сообщение «… перепечатайте ярлык» с кнопкой — одной строкой (было 640 × 68, кнопка второй строкой)', t.h <= 50 && t.dy < 14, t);
+});
+
+/* ================= окна действий (АХ-96…АХ-108) ================= */
+
+await group('ОД-1 · устройство окна и клавиатура: «что сейчас» / «что будет», главная — глагол заголовка; курсор в первом поле, Enter, Esc, Tab не уходит под окно (АХ-96, АХ-97, АХ-Д21)', async (page, E) => {
+  await page.click('[data-testid=give-refuse-206]');
+  const w = await E(() => { const m = document.querySelector('#modal'), q = s => (m.querySelector(s) || {}).innerText || '';
+    return { title: q('[data-testid=form-title]'), sub: q('[data-testid=form-sub]'), now: q('[data-testid=form-now]'), will: q('[data-testid=form-will]'), banner: !!m.querySelector('.banner'),
+      prim: m.querySelector('[data-primary]').textContent, focus: document.activeElement.dataset.testid, clean: !/АХ-|ADR/.test(m.innerText) }; });
+  ck('АХ-96 · заголовок «Отказать в запросе · А-000206», серой строкой название, без синей плашки',
+    w.title === 'Отказать в запросе · А-000206' && w.sub === 'КЗД · ОсОО «Токмок-Строй» · том 1' && !w.banner && w.clean, w);
+  ck('АХ-96 · «что сейчас» — запрос и бронь; «что будет» — уведомление и кому перейдёт бронь; главная — «Отказать»',
+    has(w.now, 'Запрос Исаевой А. от') && has(w.now, 'бронь до 17.11.2026') && has(w.will, 'бронь перейдёт Кадырову Т.') && w.prim === 'Отказать', w);
+  ck('АХ-97 · окно открыто мышью — курсор в «Причина» (было: нигде)', w.focus === 'ff-reason', w.focus);
+  const tabs = [];
+  for (let k = 0; k < 6; k++) { await page.keyboard.press('Tab'); tabs.push(await E(() => document.querySelector('#modal').contains(document.activeElement))); }
+  ck('АХ-97 · Tab ×6 — курсор не уходит под окно (было: на «Продлить» чужой просьбы)', tabs.every(Boolean), tabs);
+  await page.keyboard.press('Escape');
+  const esc = await E(() => ({ open: document.querySelector('#overlay').classList.contains('open'), focus: document.activeElement.id, q: window.AX.activeReqs('f206').length }));
+  ck('АХ-97 · Esc — «Отмена»: окно закрыто, ничего не сделано, курсор — в поле «Возврат»', !esc.open && esc.q === 2 && esc.focus === 'retInput', esc);
+  await page.click('[data-testid=give-refuse-206]');
+  await page.keyboard.type('нужна для проверки Счётной палаты');
+  await page.keyboard.press('Enter');
+  const done = await E(() => ({ open: document.querySelector('#overlay').classList.contains('open'), res: (window.AX.reservedReq('f206') || {}).who, focus: document.activeElement.id }));
+  ck('АХ-97 · набрал причину, Enter — отказ сделан, бронь перешла Кадырову, курсор снова в «Возврат»', !done.open && done.res === 'kadyrov' && done.focus === 'retInput', done);
+  ck('АХ-103 · сообщение: что сделано и что дальше — «бронь перешла Кадырову Т. до 17.11.2026»',
+    (await toasts(E)).some(t => t.text === 'Отказано: запрос Исаевой А. на А-000206 закрыт — бронь перешла Кадырову Т. до 17.11.2026'), await toasts(E));
+  const un = await E(() => { const A = window.AX; A.openCard('f206'); A.uiUnreserve('f206'); const p = document.querySelector('[data-primary]'); const o = { t: document.querySelector('[data-testid=form-title]').textContent, p: p.textContent };
+    A.closeForm(); A.uiWriteoff('f211'); o.wo = document.querySelector('[data-primary]').className; A.closeForm(); return o; });
+  ck('АХ-96 · «Снять бронь» — главная «Снять бронь», не «Отказать»; «Списать» — красная', un.t === 'Снять бронь · А-000206' && un.p === 'Снять бронь' && has(un.wo, 'btn-danger-solid'), un);
+  await E(() => { const A = window.AX; A.closeCard(); A.go('folders'); A.uiAccept({ kind: 'nom', title: 'Протоколы правления · 2024', shelf: 'go3-3' }); });
+  await page.click('[data-testid=ff-content]');
+  await page.keyboard.type('протоколы'); await page.keyboard.press('Enter'); await page.keyboard.type('выписки');
+  const ta = await E(() => ({ open: !!window.AX.S.form, v: window.AX.S.form && window.AX.S.form.vals.content }));
+  await page.keyboard.press('Control+Enter');
+  const ce = await E(() => { const f = window.AX.byNo(231); return { f: !!f, content: f && f.content }; });
+  ck('АХ-97 · в «Содержании» Enter — новая строка, Ctrl+Enter — «Принять»', ta.open && ta.v === 'протоколы\nвыписки' && ce.f && ce.content === 'протоколы\nвыписки', { ta, ce });
+});
+
+await group('ОД-2 · выбор сотрудника и заёмщика поиском с «Предложено»; место — один список; причина — кнопками (АХ-98, АХ-99)', async (page, E) => {
+  await E(() => { const A = window.AX; A.request('f225', { why: 'сверка графика' }, 'kadyrov'); A.setUser('asanov'); A.uiTransfer('f225'); });
+  const sug = await E(() => ({ focus: document.activeElement.dataset.testid, ph: !!document.querySelector('[data-testid=pick-to] .ph'), items: [...document.querySelectorAll('[data-testid=pick-to] .pi')].map(x => x.textContent) }));
+  ck('АХ-98 · «Передать»: курсор в «Кому», «Предложено» — ждущий в очереди и руководитель',
+    sug.focus === 'ff-to' && sug.ph && sug.items.join('|') === 'Кадыров Т. · ДАК ждёт, № 1|Мамбетов К. · ДРР ваш руководитель', sug);
+  await page.keyboard.type('ДРР');
+  const s2 = await E(() => [...document.querySelectorAll('[data-testid=pick-to] .pi')].map(x => x.textContent));
+  ck('АХ-98 · поиск по подразделению: «ДРР» — сотрудники ДРР, себя нет', s2.length >= 2 && s2.every(t => t.endsWith('· ДРР')) && !s2.some(t => t.startsWith('Асанов')), s2);
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  const p = await E(() => ({ to: window.AX.S.form.vals.to, focus: document.activeElement.dataset.testid, list: !!document.querySelector('[data-testid=pick-to]') }));
+  ck('АХ-98 · стрелка и Enter выбирают; список закрыт, курсор — на «Передать»', p.to === 'jusup' && !p.list && p.focus === 'form-submit', p);
+  await page.keyboard.press('Escape');
+  const r = await E(() => { const A = window.AX, o = {}, items = id => [...document.querySelectorAll(`[data-testid=pick-${id}] .pi`)].map(x => x.dataset.testid.split('-').pop());
+    A.setUser('arch1'); A.uiIssue('f206'); A.pkFocus('to'); o.issue = items('to'); A.closeForm();
+    A.uiRebind('f217'); o.rebind = items('borrower'); A.closeForm();
+    A.uiAccept(); A.fpick('borrower', 'b1'); A.pkFocus('from'); o.from = items('from'); o.fromNote = (document.querySelector('[data-testid=pick-from] .pn') || {}).textContent; A.closeForm();
+    A.uiMove('f211'); const sel = document.querySelector('#modal select'); o.selects = document.querySelectorAll('#modal select').length;
+    o.groups = sel.querySelectorAll('optgroup').length; const cur = sel.querySelector('option[value=go2-1]'); o.cur = cur && [cur.disabled, cur.textContent]; A.closeForm();
+    A.uiWriteoff('f211'); o.seg = [...document.querySelectorAll('[data-testid=ff-reason] button')].map(b => b.textContent); A.closeForm(); return o; });
+  ck('АХ-98 · «Выдать»: предложены запросившие — бронь и очередь', r.issue.join() === 'isaeva,kadyrov', r.issue);
+  ck('АХ-98 · «Изменить привязку» непривязанной — предложен заёмщик с тем же ИНН', r.rebind.join() === 'n5', r.rebind);
+  ck('АХ-98 · «Принять папку»: «Сдал» — предложен куратор заёмщика', r.from.join() === 'asanov' && r.fromNote === 'куратор заёмщика', r);
+  ck('АХ-99 · место — один список полок по помещениям и шкафам; текущая «сейчас здесь» не выбирается',
+    r.selects === 1 && r.groups >= 4 && r.cur && r.cur[0] && r.cur[1] === 'ГО · шкаф 2 · полка 1 — сейчас здесь', r);
+  ck('АХ-99 · причина списания — четыре кнопки', r.seg.join('|') === 'утрачена|уничтожена|передана в госархив|передана другой организации', r.seg);
+});
+
+await group('ОД-3 · даты с подсказкой и «+5 / +10 р.д.»; запрет виден у поля сразу, кнопка серая с причиной (АХ-100, АХ-101)', async (page, E) => {
+  await E(() => { window.AX.go('folders'); window.AX.openCard('f225'); });
+  await page.click('[data-testid=cb-extend]');
+  const q = await E(() => [...document.querySelectorAll('#modal .qb')].map(b => b.textContent));
+  ck('АХ-100 · «Продлить»: быстрый срок от текущего (20.11) — «+5 р.д. · 27.11», «+10 р.д. · 04.12»', q.join('|') === '+5 р.д. · 27.11|+10 р.д. · 04.12', q);
+  await page.click('[data-testid=q-date-5]');
+  const qd = await E(() => ({ v: window.AX.S.form.vals.date, hint: (document.querySelector('#fh_date') || {}).textContent, focus: document.activeElement.dataset.testid }));
+  ck('АХ-100 · «+5 р.д.» — дата 27.11.2026, под полем «пт · через 10 р.д.», курсор — в «Причина»', qd.v === '27.11.2026' && qd.hint === 'пт · через 10 р.д.' && qd.focus === 'ff-reason', qd);
+  await page.fill('[data-testid=ff-date]', '19.11.2026');
+  const bad = await E(() => ({ err: (document.querySelector('[data-testid=form-err]') || {}).textContent, field: (document.querySelector('[data-testid=form-err]') || {}).dataset?.field,
+    dis: document.querySelector('[data-testid=form-submit]').disabled, why: document.querySelector('[data-testid=form-submit]').dataset.why }));
+  ck('АХ-101 · срок раньше текущего — красным у поля сразу, «Продлить» серая с той же причиной',
+    bad.field === 'date' && bad.err === 'новый срок — позже текущего (20.11.2026)' && bad.dis && bad.why === bad.err, bad);
+  await page.fill('[data-testid=ff-date]', '27.11.20');
+  ck('АХ-100 · дата набирается — ошибки нет, пока не набрана целиком', await E(() => !document.querySelector('[data-testid=form-err]') && !document.querySelector('[data-testid=form-submit]').disabled));
+  await page.keyboard.press('Escape');
+  await E(() => { window.AX.closeCard(); window.AX.uiIssue('f206'); });
+  await pick(page, 'to', 'kadyrov');
+  const iss = await E(() => ({ err: (document.querySelector('[data-testid=form-err]') || {}).textContent, dis: document.querySelector('[data-testid=form-submit]').disabled }));
+  ck('АХ-101 · «Выдать» забронированную другому — у поля «Кому» сразу, кнопка серая', iss.err === 'забронирована за Исаевой А. до 17.11.2026 — выдать другому нельзя' && iss.dis, iss);
+  const r = await E(() => { const A = window.AX, o = {}, err = () => (document.querySelector('[data-testid=form-err]') || {}).textContent || '', dis = () => document.querySelector('[data-testid=form-submit]').disabled;
+    A.closeForm(); A.uiAccept(); A.fpick('borrower', 'b2'); o.vol = A.S.form.vals.vol; A.fset('vol', '2'); o.dup = [err(), dis()];
+    A.closeForm(); A.uiRebind('f218'); A.fpick('borrower', 'b1'); o.rb = [err(), dis()];
+    A.closeForm(); A.setUser('sydykova'); A.uiRequest('f214'); A.fset('needBy', '20.11.2026'); o.need = (document.querySelector('#fh_needBy') || {}).textContent; A.closeForm(); return o; });
+  ck('АХ-101 · «Принять папку»: том подставлен следующий (3); набран том 2 — «том 2 уже в архиве — А-000203» сразу', r.vol === 3 && r.dup[0] === 'том 2 уже в архиве — А-000203' && r.dup[1], r);
+  ck('АХ-101 · «Изменить привязку» к заёмщику, у которого уже есть том 1, — сразу у поля', r.rb[0] === 'у заёмщика уже есть том 1 — А-000201' && r.rb[1], r.rb);
+  ck('АХ-100 · «нужна до» раньше срока держателя — «держатель может передать вам напрямую»', has(r.need, 'на руках до 25.11 — позже, чем нужно; держатель может передать вам напрямую'), r.need);
+});
+
+await group('ОД-4 · пачкой — строки с исходом до нажатия, итог сообщением; без окна; уволенному не продлевают; ввод подряд; причина-шаблон; своя строка очереди (АХ-102…АХ-108, АХ-Д22)', async (page, E) => {
+  await E(() => { const A = window.AX; A.go('folders'); A.uiIssueBatch(['f206', 'f211', 'f212']); });
+  await pick(page, 'to', 'kadyrov');
+  const b = await E(() => ({ rows: [...document.querySelectorAll('[data-testid=batch-rows] tbody tr')].map(t => t.children[2].textContent), btn: document.querySelector('[data-testid=form-submit]').textContent }));
+  ck('АХ-102 · «Выдать · 3 папки»: строка на папку до нажатия — чужая бронь видна сразу, «Выдать (2)»',
+    b.rows[0] === 'не выдаётся: забронирована за Исаевой А. до 17.11' && b.rows[1] === 'выдаётся до 27.11 — 10 р.д.' && b.btn === 'Выдать (2)', b);
+  await page.fill('[data-testid=ff-why]', 'сверка');
+  await page.keyboard.press('Enter');
+  const bt = await E(() => ({ open: document.querySelector('#overlay').classList.contains('open'), res: !!document.querySelector('[data-testid=batch-result]'), t: [...document.querySelectorAll('[data-testid=toast]')].map(x => x.textContent) }));
+  ck('АХ-102 · итог — сообщением, второго окна нет: «Выдано 2 из 3 — Кадырову Т. …; не выдано: А-000206 — …»',
+    !bt.open && !bt.res && bt.t.some(t => t.startsWith('Выдано 2 из 3 — Кадырову Т., получателю уведомление; не выдано: А-000206 — забронирована за Исаевой А.')), bt);
+  const z = await E(() => { const A = window.AX; A.uiWriteoffBatch(['f209']); const p = document.querySelector('[data-testid=form-submit]'); const o = { t: p.textContent, dis: p.disabled, why: p.dataset.why }; A.closeForm(); return o; });
+  ck('АХ-102 · ноль к действию — кнопка «Списать (0)» серая с причиной', z.t === 'Списать (0)' && z.dis && has(z.why, 'уже выбыли'), z);
+  const t = await E(() => { const A = window.AX, last = () => [...document.querySelectorAll('[data-testid=toast]')].pop().textContent, o = {};
+    A.setUser('isaeva'); A.openCard('f223'); A.uiAskExt('f223'); A.submitForm('main', { date: '24.11.2026', reason: 'мониторинг перенесён' }); o.ask = last();
+    A.setUser('sydykova'); A.uiRequest('f214'); A.submitForm('main', { why: 'сверка' }); o.req = last();
+    A.setUser('asanov'); A.openCard('f205'); o.ownRow = !!document.querySelector('[data-testid=cp-queue] [data-testid=q-withdraw]'); o.cbW = !!document.querySelector('[data-testid=cb-withdraw]');
+    o.rows = [...document.querySelectorAll('[data-testid=cp-queue] tbody tr')].map(r => r.children[6].textContent);
+    A.uiWithdraw('f205'); o.wOpen = document.querySelector('#overlay').classList.contains('open'); o.w = last(); return o; });
+  ck('АХ-103 · занятая: «Вы № 1 в очереди на А-000214 — на руках у Жээнбековой Н. до 25.11.2026; дойдёт очередь — придёт уведомление»',
+    t.req === 'Вы № 1 в очереди на А-000214 — на руках у Жээнбековой Н. до 25.11.2026; дойдёт очередь — придёт уведомление', t.req);
+  ck('АХ-103 · просьба продлить — что дальше: «решение придёт уведомлением»', t.ask === 'Просьба продлить А-000223 до 24.11.2026 отправлена архивариусу — решение придёт уведомлением', t.ask);
+  ck('АХ-108 · в очереди карточки своя строка без кнопки; «Отозвать запрос» — в кнопках над реквизитами', !t.ownRow && t.cbW && t.rows[0] === '', t);
+  ck('АХ-104 · «Отозвать запрос» — без окна, одним нажатием, сообщение «Запрос на А-000205 отозван»', !t.wOpen && t.w === 'Запрос на А-000205 отозван', t);
+  const f = await E(() => { const A = window.AX, o = {}; A.setUser('arch1'); A.openCard('f208'); const b = document.querySelector('[data-testid=cb-extend]'); o.btn = b && [b.disabled, b.dataset.why];
+    o.ext = A.extend('f208', { date: '2026-11-30', reason: 'х' }); o.gate = A.gate('extend', 'f208'); return o; });
+  ck('АХ-105 · уволенному не продлевают: «Продлить» серая, движок — «держатель уволен — продлевать некому: примите возврат или спишите»',
+    f.btn && f.btn[0] && f.btn[1] === 'держатель уволен — продлевать некому: примите возврат или спишите' && !f.ext.ok && f.ext.why === f.btn[1] && !f.gate.ok, f);
+  await E(() => { const A = window.AX; A.closeCard(); A.uiAccept(); });
+  await page.keyboard.type('Иманов'); await page.keyboard.press('Enter');
+  await page.selectOption('[data-testid=ff-shelf]', 'go1-2');
+  await page.click('[data-testid=form-more]');
+  const s1 = await E(() => ({ prim: document.querySelector('[data-primary]').dataset.testid, primT: document.querySelector('[data-primary]').textContent, focus: document.activeElement.dataset.testid, now: document.querySelector('[data-testid=form-now]').innerText }));
+  ck('АХ-106 · после «Принять и ещё» главная (Enter) — «Принять и ещё», курсор в «Заёмщик», сверху «Принята А-000231 · подряд 1»',
+    s1.prim === 'form-more' && s1.primT === 'Принять и ещё' && s1.focus === 'ff-borrower' && s1.now.startsWith('Принята А-000231 · подряд 1'), s1);
+  await page.keyboard.type('Иманов'); await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  const s2 = await E(() => ({ now: document.querySelector('[data-testid=form-now]').innerText, nos: [231, 232].map(n => window.AX.byNo(n) && window.AX.titleOf(window.AX.byNo(n))) }));
+  ck('АХ-106 · второй том — без мыши: заёмщик, Enter, Enter; «подряд 2 · Печать ярлыков (2)»',
+    s2.nos.join('|') === 'КЗД · Иманов К.Т. · том 3|КЗД · Иманов К.Т. · том 4' && s2.now === 'Принята А-000232 · подряд 2 · Печать ярлыков (2)', s2);
+  await page.click('[data-testid=series-labels]');
+  ck('АХ-106 · «Печать ярлыков (2)» — лист всей серии', await E(() => document.querySelectorAll('[data-testid=labels] .label').length === 2));
+  const p = await E(() => { const A = window.AX, o = {}; A.closeForm();
+    A.uiRebind('f217', 'n5'); o.inn = A.S.form.vals.basis; A.closeForm(); A.uiRebind('f218'); o.none = A.S.form.vals.basis; A.closeForm();
+    const x = A.EXTS.find(e => e.st === 'pending'); A.uiDecide(x.id, false); o.ext = A.S.form.vals.reason; A.closeForm(); return o; });
+  ck('АХ-107 · причина подставлена, только где система знает: «совпал ИНН», «папку ждут: …»; иначе пусто',
+    p.inn === 'заёмщик заведён в системе — совпал ИНН' && p.none === '' && p.ext === 'папку ждут: Абдыкеримова Ж.', p);
 });
 
 await browser.close();
