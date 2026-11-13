@@ -1,0 +1,979 @@
+// Смоук макета «Архив папок» — mockups/archive/archive.html.
+// Источник ожиданий — mockups/archive/ASUBK-arhiv-plan.md: сценарии С-1…С-21 (§6) и правила движка 1–17 (§4);
+// права — канон ASUBK-arhiv-logika.md §7. Плюс инварианты модели (в том числе после случайных действий)
+// и проверки интерфейса: каждый раздел отрисован на 1920 px, без горизонтальной прокрутки, без ошибок консоли.
+// Каждая группа — свежая загрузка страницы (свежее состояние), порядок групп не важен.
+// Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
+import { chromium } from 'playwright-core';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const FILE = pathToFileURL(join(ROOT, 'mockups', 'archive', 'archive.html')).href;
+const SHOTS = (() => { const i = process.argv.indexOf('--shots'); return i > 0 ? process.argv[i + 1] : null; })();
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+
+let passed = 0, failed = 0; const fails = [];
+function ck(name, cond, detail) {
+  if (cond) { passed++; console.log('  ✓ ' + name); return; }
+  failed++;
+  const m = '  ✗ ' + name + (detail !== undefined ? '\n      факт: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '');
+  console.log(m); fails.push(m);
+}
+const has = (s, sub) => String(s || '').toLowerCase().includes(String(sub).toLowerCase());
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+
+/* Группа = сценарий или правило. Свежая страница; в конце — инварианты модели и ошибки консоли. */
+async function group(label, fn, hash = '') {
+  console.log('\n' + label);
+  const page = await ctx.newPage(), errs = [];
+  page.on('pageerror', e => errs.push('pageerror: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+  try {
+    await page.goto(FILE + hash); await page.waitForFunction(() => !!window.AX);
+    const E = (f, a) => page.evaluate(f, a);
+    await fn(page, E);
+    const inv = await E(() => window.AX.invariants());
+    ck('инварианты модели целы', inv.length === 0, inv);
+  } catch (e) {
+    failed++; const m = `  ✗ (исключение) ${label}\n      ${e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e}`; console.log(m); fails.push(m);
+  }
+  ck('без ошибок консоли', errs.length === 0, errs);
+  await page.close();
+}
+/* Раскладка: нет горизонтальной прокрутки страницы и рабочей области, таблицы не шире своего контейнера. */
+const layout = E => E(() => {
+  const de = document.documentElement, c = document.querySelector('.content');
+  const wide = [...document.querySelectorAll('#panel table, #cardpanel table')].filter(t => t.offsetParent && t.scrollWidth > t.parentElement.clientWidth + 1).length;
+  const cp = document.querySelector('#cardpanel');
+  return { page: de.scrollWidth <= de.clientWidth, content: c.scrollWidth <= c.clientWidth + 1, wide, card: !cp.classList.contains('open') || cp.querySelector('.cp-body').scrollWidth <= cp.querySelector('.cp-body').clientWidth + 1,
+    filled: document.querySelector('#panel').innerText.trim().length > 20 };
+});
+const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, name + '.png') }); };
+
+/* =========================== интерфейс =========================== */
+
+await group('И-1 · раскладка на 1920: каждый раздел у каждой роли отрисован, без горизонтальной прокрутки', async (page, E) => {
+  const users = await E(() => window.AX.USERS.map(u => u[0]));
+  for (const u of users) {
+    const views = await E(u => { window.AX.setUser(u); return [...document.querySelectorAll('.nav-item')].map(b => b.dataset.v); }, u);
+    for (const v of views) {
+      await E(v => window.AX.go(v), v);
+      const L = await layout(E);
+      ck(`${u} · ${v}: отрисован, без прокрутки вбок`, L.filled && L.page && L.content && !L.wide, L);
+    }
+  }
+  await E(() => { window.AX.setUser('isaeva'); window.AX.go('borrower'); });
+  const L = await layout(E); ck('образец врезки «Где бумага»: отрисован, без прокрутки вбок', L.filled && L.page && L.content && !L.wide, L);
+});
+
+await group('И-2 · стартовый экран и меню по ролям (АХ-35, канон §9.1)', async (page, E) => {
+  const r = await E(() => { const A = window.AX, out = {};
+    A.USERS.forEach(([u]) => { A.setUser(u); out[u] = { view: A.S.view, menu: [...document.querySelectorAll('.nav-item')].map(b => b.dataset.v), cnt: { q: document.querySelector('[data-testid=cnt-queue]')?.textContent || '', m: document.querySelector('[data-testid=cnt-mine]').textContent } }; });
+    return out; });
+  ck('архивариусу стартовый — «Очередь архивариуса»', r.arch1.view === 'queue' && r.arch2.view === 'queue', r.arch1);
+  ck('остальным стартовый — «Мои папки»', ['asanov', 'isaeva', 'mambetov', 'jeen', 'sydykova'].every(u => r[u].view === 'mine'));
+  ck('меню архивариуса: Очередь · Папки · Мои папки · Заёмщики без КЗД · Журнал · Справочники', r.arch1.menu.join() === 'queue,folders,mine,nokzd,journal,dicts', r.arch1.menu);
+  ck('меню остальных: Мои папки · Папки · Заёмщики без КЗД · Журнал', r.jeen.menu.join() === 'mine,folders,nokzd,journal', r.jeen.menu);
+  ck('счётчик очереди = строки, ждущие действия (1 к выдаче + 1 продление + 2 привязки + 1 у уволенного)', r.arch1.cnt.q === '5', r.arch1.cnt);
+  ck('счётчик «Моих папок»: Асанов — 1 просрочка; Мамбетов — 1 «Вам передают»; Исаева — 1 бронь; бухгалтер — пусто',
+    r.asanov.cnt.m === '1' && r.mambetov.cnt.m === '1' && r.isaeva.cnt.m === '1' && r.sydykova.cnt.m === '', [r.asanov.cnt, r.mambetov.cnt, r.isaeva.cnt, r.sydykova.cnt]);
+  await shot(page, '00-start');
+});
+
+await group('И-3 · карточка — панель ~900 px поверх списка, свой адрес; кнопки по состоянию (АХ-50, АХ-51, АХ-58)', async (page, E) => {
+  await E(() => window.AX.go('folders'));
+  await page.click('[data-testid=row-205]');
+  const r = await E(() => { const cp = document.querySelector('#cardpanel'), b = cp.getBoundingClientRect(), t = document.querySelector('[data-testid=tbl-folders]').getBoundingClientRect();
+    return { open: cp.classList.contains('open'), w: Math.round(b.width), listVisible: t.left < b.left && document.querySelector('[data-testid=tbl-folders]').offsetParent !== null, hash: location.hash,
+      order: [...cp.querySelectorAll('.cp-sec > h4')].map(h => h.firstChild.textContent.trim()), where: cp.querySelector('[data-testid=where]').innerText }; });
+  ck('панель открыта, ширина ~900 px', r.open && Math.abs(r.w - 900) <= 10, r.w);
+  ck('список остаётся видимым слева', r.listVisible);
+  ck('свой адрес #/folder/205', r.hash === '#/folder/205', r.hash);
+  ck('один столбец сверху вниз: реквизиты → просьба продлить → очередь → история', r.order.join('|') === 'Реквизиты|Просьба продлить|Очередь|История', r.order);
+  ck('шапка «где сейчас»: НА РУКАХ у Жээнбековой Н. (ДПО) · вернуть до 16.11', has(r.where, 'НА РУКАХ у Жээнбековой Н. (ДПО) · вернуть до 16.11'), r.where);
+  const L = await layout(E); ck('в панели нет прокрутки вбок', L.card && L.page, L);
+  await shot(page, '03-card');
+  await page.click('[data-testid=row-206] td:nth-child(2)');
+  ck('клик по следующей строке — следующая папка в той же панели', await E(() => location.hash === '#/folder/206' && document.querySelector('[data-testid=cb-issue]').textContent === 'Выдать Исаевой А.'));
+  await page.keyboard.press('Escape');
+  ck('Esc закрывает панель, список на месте', await E(() => !document.querySelector('#cardpanel').classList.contains('open') && window.AX.S.view === 'folders'));
+  const btns = await E(() => { const A = window.AX, out = {};
+    const main = id => { A.openCard(id); const b = document.querySelector('#cardpanel .cp-btns .btn'); return { t: b.textContent, dis: b.disabled, why: b.dataset.why || '' }; };
+    out.archive = main('f211'); out.reserved = main('f206'); out.out = main('f230'); out.transfer = main('f201'); out.lost = main('f209'); out.destroyed = main('f215');
+    A.openCard('f205'); out.extendWhy = document.querySelector('[data-testid=cb-extend]').dataset.why;
+    A.openCard('f211'); document.querySelector('[data-testid=cb-more]').click(); out.more = [...document.querySelectorAll('[data-testid=more-pop] .mi')].map(m => m.firstChild.textContent);
+    out.rebindNom = document.querySelector('[data-testid=mi-rebind]').disabled;
+    A.openCard('f206'); document.querySelector('[data-testid=cb-more]').click(); out.moreRes = [...document.querySelectorAll('[data-testid=more-pop] .mi')].map(m => m.firstChild.textContent);
+    A.openCard('f230'); document.querySelector('[data-testid=cb-more]').click(); out.moreOut = [...document.querySelectorAll('[data-testid=more-pop] .mi')].map(m => m.firstChild.textContent); return out; });
+  ck('в архиве — главная «Выдать», рядом «Переместить»', btns.archive.t === 'Выдать' && !btns.archive.dis, btns.archive);
+  ck('забронирована — «Выдать <кому>»', btns.reserved.t === 'Выдать Исаевой А.', btns.reserved);
+  ck('на руках и передаётся — «Принять возврат»', btns.out.t === 'Принять возврат' && btns.transfer.t === 'Принять возврат');
+  ck('утрачена — «Восстановить»; уничтожена — «Восстановить» серая с причиной', btns.lost.t === 'Восстановить' && !btns.lost.dis && btns.destroyed.dis && has(btns.destroyed.why, 'только утраченную'), [btns.lost, btns.destroyed]);
+  ck('«Продлить» при просьбе на решении — серая с причиной', has(btns.extendWhy, 'просьба держателя'), btns.extendWhy);
+  ck('«Ещё ▾»: следующий том · привязка · ярлык · списать', btns.more.join('|') === 'Принять следующий том|Изменить привязку|Печать ярлыка|Списать', btns.more);
+  ck('«Изменить привязку» у вида без привязки — серая', btns.rebindNom === true);
+  ck('у забронированной и у папки на руках «Переместить» уходит в «Ещё ▾»', btns.moreRes.join('|') === 'Переместить|Принять следующий том|Изменить привязку|Печать ярлыка|Списать' && btns.moreOut.join('|') === btns.moreRes.join('|'), [btns.moreRes, btns.moreOut]);
+  const own = await E(() => { const A = window.AX; A.setUser('asanov'); A.openCard('f211'); const a = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
+    A.openCard('f230'); const b = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
+    A.openCard('f201'); const c = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
+    A.setUser('mambetov'); A.openCard('f201'); const d = [...document.querySelectorAll('#cardpanel .cp-btns .btn')].map(b => b.textContent);
+    A.setUser('jeen'); A.openCard('f209'); const g = document.querySelector('[data-testid=cb-request]'); return { a, b, c, d, gone: g.disabled && g.dataset.why }; });
+  ck('сотруднику кнопок архивариуса нет — только «Запросить»', own.a.join() === 'Запросить', own.a);
+  ck('держателю — «Передать» и «Попросить продление»', own.b.join() === 'Передать,Попросить продление', own.b);
+  ck('передающему — «Отменить передачу»', own.c.includes('Отменить передачу'), own.c);
+  ck('получателю — «Получил» / «Не получал»', own.d.join() === 'Получил,Не получал', own.d);
+  ck('«Запросить» у выбывшей — серая с причиной', has(own.gone, 'выбыла'), own.gone);
+});
+
+await group('И-4 · прямая ссылка открывает панель поверх «Папок»', async (page, E) => {
+  const r = await E(() => ({ view: window.AX.S.view, card: window.AX.S.card, open: document.querySelector('#cardpanel').classList.contains('open') }));
+  ck('#/folder/230 → «Папки» и панель папки А-000230', r.view === 'folders' && r.card === 'f230' && r.open, r);
+}, '#/folder/230');
+
+await group('И-5 · реестр: восемь колонок, плашки, поиск, отборы (АХ-48, АХ-53, АХ-41)', async (page, E) => {
+  await E(() => { window.AX.setUser('jeen'); window.AX.go('folders'); });
+  const r = await E(() => ({ th: [...document.querySelectorAll('[data-testid=tbl-folders] thead th')].map(t => t.textContent.trim()), shown: +document.querySelector('[data-testid=shown]').textContent,
+    chips: Object.fromEntries([...document.querySelectorAll('[data-testid=chips] .tile')].map(t => [t.dataset.testid.slice(5), +t.querySelector('.n').textContent])) }));
+  ck('☐ + восемь колонок: № · Название · Подразделение · Место · Состояние · Держатель · Вернуть до · Ждут', r.th.slice(1).join('|') === '№|Название|Подразделение|Место|Состояние|Держатель|Вернуть до|Ждут', r.th);
+  ck('выбывшие скрыты до плашки: показано 28 из 30', r.shown === 28, r.shown);
+  ck('плашки: в архиве 17 · забронированы 1 · на руках 10 (вместе с передающейся) · просрочены 2 · в очереди 3 · передаются 1 · выбыли 2',
+    r.chips.archive === 17 && r.chips.reserved === 1 && r.chips.out === 10 && r.chips.over === 2 && r.chips.queue === 3 && r.chips.transfer === 1 && r.chips.gone === 2, r.chips);
+  await page.click('[data-testid=chip-gone]');
+  ck('плашка «выбыли» показывает выбывшие', await E(() => +document.querySelector('[data-testid=shown]').textContent === 2));
+  await page.click('[data-testid=chip-gone]');
+  const q = async s => { await page.fill('[data-testid=f-q]', s); return E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.dataset.testid)); };
+  ck('поиск по номеру без ведущих нулей: «205» → А-000205', (await q('205')).join() === 'row-205');
+  ck('поиск по ИНН заёмщика → его папки', (await q('11203197800456')).join() === 'row-204,row-205');
+  ck('поиск по ИНН непривязанной КЗД', (await q('22003195600011')).join() === 'row-218');
+  ck('поиск по «Содержанию»: «договор залога № 45» → А-000204', (await q('договор залога № 45')).join() === 'row-204');
+  ck('две «Протоколы правления · 2025» различает подразделение в строке', (await q('Протоколы правления')).length === 2 && await E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.children[3].textContent).sort().join() === 'Бухгалтерия,ДПО'));
+  await page.fill('[data-testid=f-q]', '');
+  const f = await E(() => { const A = window.AX, n = o => A.registry(o).rows.map(f => f.no);
+    return { hdept: n({ hdept: 'ДРР' }), dept: n({ dept: 'Бухгалтерия' }), shelf: n({ shelf: 'go3-4' }), holder: n({ holder: 'jeen' }), kind: n({ kind: 'vz' }), borrower: n({ borrower: 'b2' }), room: n({ room: 'dpo' }).length }; });
+  ck('отбор «подразделение держателя» ДРР: у Асанова и Мамбетова', f.hdept.join() === '201,216,225,230', f.hdept);
+  ck('отбор «подразделение»: папки бухгалтерии без выбывших', f.dept.join() === '213,221', f.dept);
+  ck('отбор полки, держателя, вида, заёмщика, помещения', f.shelf.join() === '219,220,221' && f.holder.join() === '205,214,227' && f.kind.join() === '205,226' && f.borrower.join() === '202,203' && f.room === 3, f);
+  await shot(page, '02-folders');
+});
+
+await group('И-6 · формы: обязательное помечено, ошибка у поля, «Отмена» ничего не делает', async (page, E) => {
+  await E(() => window.AX.uiIssue('f211'));
+  ck('обязательные поля помечены', await E(() => document.querySelectorAll('#modal label.req').length === 3));
+  await page.click('[data-testid=form-submit]');
+  ck('пустое «Кому» — ошибка у поля', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'to'));
+  await page.selectOption('[data-testid=ff-to]', 'sydykova');
+  await page.fill('[data-testid=ff-due]', '01.01.2026');
+  await page.fill('[data-testid=ff-why]', 'сверка');
+  await page.click('[data-testid=form-submit]');
+  ck('срок в прошлом — ошибка у поля «Вернуть до»', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'due' && /позже сегодняшнего/.test(document.querySelector('[data-testid=form-err]').textContent)));
+  await page.click('[data-testid=form-cancel]');
+  ck('«Отмена» — окно закрыто, папка по-прежнему в архиве', await E(() => !document.querySelector('#overlay').classList.contains('open') && window.AX.stateOf('f211') === 'archive'));
+  await E(() => window.AX.uiAccept());
+  await shot(page, '08-form-accept');
+  const L = await E(() => { const m = document.querySelector('#modal'); return m.scrollWidth <= m.clientWidth + 1 && m.getBoundingClientRect().height < 1080; });
+  ck('форма «Принять папку» помещается без прокрутки вбок', L);
+});
+
+/* ======================= сценарии по ролям (§6) ======================= */
+
+await group('С-1 · утро архивариуса: стартовый экран — очередь; «К выдаче» по месту', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    A.request('f210', { why: 'мониторинг' }, 'kadyrov'); A.request('f202', { why: 'сверка' }, 'sydykova'); A.render();
+    return { view: A.S.view, rows: [...document.querySelectorAll('[data-testid=tbl-give] tbody tr')].map(t => t.children[0].textContent), blocks: [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid) }; });
+  ck('стартовый экран — «Очередь архивариуса»', r.view === 'queue');
+  ck('«К выдаче» по месту: ГО·1·1 → ГО·1·2 → ГО·2·1', r.rows.join('|') === 'ГО · 1 · 1|ГО · 1 · 2|ГО · 2 · 1', r.rows);
+  ck('четыре блока, «Просрочены» нет (АХ-56)', r.blocks.join() === 'blk-give,blk-ext,blk-bind,blk-fired', r.blocks);
+  await shot(page, '01-queue');
+  await page.click('[data-testid=print-round]');
+  ck('«Печать обхода» — брони по месту', await E(() => [...document.querySelectorAll('[data-testid=round-list] tbody tr')].map(t => t.children[1].textContent).join() === 'А-000202,А-000206,А-000210'));
+});
+
+await group('С-2 · выдача по брони у окна: срок из «нужна до»; держателю уведомление', async (page, E) => {
+  await E(() => window.AX.uiIssue('f206'));
+  const pre = await E(() => ({ to: window.AX.S.form.vals.to, due: window.AX.S.form.vals.due, why: window.AX.S.form.vals.why }));
+  ck('«Кому» подставлено из брони, «зачем» — из запроса', pre.to === 'isaeva' && pre.why === 'подготовка к комиссии по реструктуризации', pre);
+  ck('срок подставлен из «нужна до» запроса — 26.11.2026 (по умолчанию было бы 27.11)', pre.due === '2026-11-26', pre.due);
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX, i = A.openIssue('f206'); return { st: A.stateOf('f206'), holder: i.holder, due: i.due, note: A.NOTES.filter(n => n.to === 'isaeva' && n.kind === 'issued' && n.folder === 'f206').map(n => n.text), next: A.activeReqs('f206').map(r => [r.who, r.st]) }; });
+  ck('папка на руках у Исаевой до 26.11', r.st === 'out' && r.holder === 'isaeva' && r.due === '2026-11-26', r);
+  ck('уведомление «Вам выдана папка …, вернуть до 26.11.2026»', r.note.length === 1 && has(r.note[0], 'вернуть до 26.11.2026'), r.note);
+  ck('второй в очереди (Кадыров) остаётся в очереди', r.next.join() === 'kadyrov,queue', r.next);
+});
+
+await group('С-3 · выдача пришедшему без запроса; забронированную за другим — нельзя', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    const a = A.issue('f206', { to: 'asanov', why: 'срочно', due: '2026-11-20' });
+    A.uiIssue('f202'); A.fset('to', 'sydykova', true); const due = A.S.form.vals.due; const b = A.submitForm('main', { why: 'сверка остатков' });
+    return { a, due, b, st: A.stateOf('f202'), holder: A.openIssue('f202').holder }; });
+  ck('выдать забронированную за Исаевой Асанову — запрет с причиной', !r.a.ok && has(r.a.why, 'забронирована за Исаевой А. до 17.11.2026'), r.a);
+  ck('пришедшему без запроса — срок по умолчанию 10 р.д. (27.11.2026)', r.due === '2026-11-27', r.due);
+  ck('выдана сразу', r.b.ok && r.st === 'out' && r.holder === 'sydykova', r);
+});
+
+await group('С-4 · отказ в запросе → «Запрос закрыт: отказ» → бронь следующему', async (page, E) => {
+  const rid = await E(() => window.AX.reservedReq('f206').id);
+  await E(rid => window.AX.uiRefuse(rid), rid);
+  await page.click('[data-testid=form-submit]');
+  ck('без причины — ошибка у поля', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'reason'));
+  await page.fill('[data-testid=ff-reason]', 'дело нужно для проверки');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(rid => { const A = window.AX, q = A.REQS.find(x => x.id === rid), n = A.reservedReq('f206');
+    return { st: q.st, note: A.NOTES.filter(x => x.to === 'isaeva' && x.kind === 'closed').map(x => x.text), next: n && [n.who, n.until], free: A.NOTES.filter(x => x.to === 'kadyrov' && x.kind === 'free' && x.folder === 'f206').length }; }, rid);
+  ck('запрос Исаевой — «отказан»', r.st === 'refused');
+  ck('Исаевой уведомление «Запрос закрыт: отказ — причина»', r.note.some(t => has(t, 'Запрос закрыт: отказ — дело нужно для проверки')), r.note);
+  ck('бронь перешла Кадырову до 17.11 + «папка свободна»', r.next && r.next[0] === 'kadyrov' && r.next[1] === '2026-11-17' && r.free === 1, r);
+});
+
+await group('С-5 · возврат стопкой через поле «Возврат»: подсказка «куда» до нажатия; бронь первому; примечание', async (page, E) => {
+  await page.fill('[data-testid=ret-input]', '230 205 216 211 000203');
+  const pre = await E(() => ({ ok: [...document.querySelectorAll('[data-testid^=ret-row-]')].map(t => t.dataset.testid), bad: [...document.querySelectorAll('[data-testid=ret-bad]')].map(t => t.innerText),
+    h230: document.querySelector('[data-testid=ret-hint-230]').textContent, h205: document.querySelector('[data-testid=ret-hint-205]').textContent, btn: document.querySelector('[data-testid=ret-accept]').textContent,
+    holders: [...document.querySelectorAll('[data-testid^=ret-row-]')].map(t => t.children[2].textContent) }));
+  ck('строки папок: 230, 205, 216 и 203 (ведущие нули не мешают)', pre.ok.join() === 'ret-row-230,ret-row-205,ret-row-216,ret-row-203', pre.ok);
+  ck('разные держатели в одной стопке', new Set(pre.holders).size === 4, pre.holders);
+  ck('папка не на руках — строка с причиной «в архиве — возвращать нечего»', pre.bad.length === 1 && has(pre.bad[0], 'в архиве — возвращать нечего'), pre.bad);
+  ck('подсказка «на полку: Архив ГО · шкаф 1 · полка 3»', pre.h230 === 'на полку: Архив ГО · шкаф 1 · полка 3', pre.h230);
+  ck('при очереди — «отложить: бронь — Асанов Б. до 17.11»', pre.h205 === 'отложить: бронь — Асанов Б. до 17.11', pre.h205);
+  ck('кнопка «Принять возврат (4)» не считает строку с причиной', pre.btn === 'Принять возврат (4)', pre.btn);
+  await page.click('[data-testid=ret-addnote-216]');
+  await page.fill('[data-testid=ret-note-216]', 'без письма Минфина № 14');
+  await shot(page, '01b-queue-return');
+  await page.click('[data-testid=ret-accept]');
+  const r = await E(() => { const A = window.AX; return { st: ['f230', 'f205', 'f216', 'f211', 'f203'].map(A.stateOf), res: A.reservedReq('f205') && A.reservedReq('f205').who,
+    content: A.folder('f216').content, h: A.history('f216')[0].result, ev211: A.EVENTS.filter(e => e.folder === 'f211' && e.kind === 'returned').length, shown: !!document.querySelector('[data-testid=batch-result]') }; });
+  ck('230, 216, 203 — в архиве; 205 — забронирована за первым в очереди (Асановым)', r.st.join() === 'archive,reserved,archive,archive,archive' && r.res === 'asanov', r);
+  ck('примечание — в «Содержание» и в итог выдачи', has(r.content, 'без письма Минфина № 14') && has(r.h, 'вернул с примечанием'), r);
+  ck('строка с причиной не принята', r.ev211 === 0);
+  ck('итог пачкой показан', r.shown);
+});
+
+await group('С-6 · просьба продлить при очереди → отказ «папку ждут»', async (page, E) => {
+  const xid = await E(() => window.AX.EXTS.find(x => x.st === 'pending').id);
+  await E(xid => window.AX.uiDecide(xid, false), xid);
+  const pre = await E(() => window.AX.S.form.vals.reason);
+  ck('причина подставлена: «папку ждут: Асанов Б., Абдыкеримова Ж.»', pre === 'папку ждут: Асанов Б., Абдыкеримова Ж.', pre);
+  await page.click('[data-testid=form-submit]');
+  const r = await E(xid => { const A = window.AX, x = A.EXTS.find(e => e.id === xid); return { st: x.st, due: A.openIssue('f205').due, note: A.NOTES.filter(n => n.to === 'jeen' && n.kind === 'ext').map(n => n.text) }; }, xid);
+  ck('просьба — отказ, срок прежний 16.11', r.st === 'refused' && r.due === '2026-11-16', r);
+  ck('держателю «Решение по продлению: отказ — папку ждут…»', r.note.some(t => has(t, 'Решение по продлению: отказ — папку ждут')), r.note);
+});
+
+await group('С-7 · приём новой КЗД → ярлык → уведомление сдавшему; «Принять следующий том»', async (page, E) => {
+  await E(() => { window.AX.go('folders'); window.AX.uiAccept(); });
+  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  const auto = await E(() => document.querySelector('[data-testid=auto-title]').textContent);
+  ck('название собирается само: «КЗД · ОсОО «Кен-Сай» · том 1»', auto === 'КЗД · ОсОО «Кен-Сай» · том 1', auto);
+  await page.selectOption('[data-testid=ff-shelf_room]', 'go'); await page.selectOption('[data-testid=ff-shelf_cab]', 'go3'); await page.selectOption('[data-testid=ff-shelf]', 'go3-3');
+  await page.selectOption('[data-testid=ff-from]', 'asanov');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX, f = A.byNo(231); return { no: f && A.noStr(f.no), title: f && A.titleOf(f), st: f && A.stateOf(f.id), note: A.NOTES.filter(n => n.to === 'asanov' && n.kind === 'accepted' && n.folder === 'f231').map(n => n.text) }; });
+  ck('принята сквозным номером А-000231, сразу «в архиве»', r.no === 'А-000231' && r.st === 'archive', r);
+  ck('сдавшему уведомление «Папка принята в архив, № А-000231»', r.note.length === 1 && has(r.note[0], 'Папка принята в архив, № А-000231'), r.note);
+  await page.click('[data-testid=toast] button');
+  const lab = await E(() => ({ txt: document.querySelector('[data-testid=labels]').innerText, n: document.querySelectorAll('[data-testid=labels] .label').length }));
+  ck('ярлык из уведомления о приёме: номер и название, без места', lab.n === 1 && has(lab.txt, 'А-000231') && has(lab.txt, 'КЗД · ОсОО «Кен-Сай» · том 1') && !has(lab.txt, 'полка') && !has(lab.txt, 'ГО ·'), lab);
+  await shot(page, '09-print-label');
+  const nv = await E(() => { const A = window.AX; A.closeForm(); A.uiNextVol('f231'); const v = Object.assign({}, A.S.form.vals); const r = A.submitForm('main'); const f = A.byNo(232);
+    A.openCard('f231'); return { v, r, title: f && A.titleOf(f), shelf: f && f.shelf, card: document.querySelector('#cardpanel .kv').innerText }; });
+  ck('«Принять следующий том» подставляет вид, заёмщика, том 2 и полку рядом', nv.v.kind === 'kzd' && nv.v.borrower === 'n1' && +nv.v.vol === 2 && nv.v.shelf === 'go3-3', nv.v);
+  ck('принят том 2: «КЗД · ОсОО «Кен-Сай» · том 2», на ту же полку', nv.r.ok && nv.title === 'КЗД · ОсОО «Кен-Сай» · том 2' && nv.shelf === 'go3-3', nv);
+  ck('в карточке тома 1 — «1 из 2» со ссылкой на том 2', has(nv.card, '1 из 2') && has(nv.card, 'А-000232'), nv.card);
+});
+
+await group('С-8 · ввод при запуске: «Принять и ещё» ×3; КЗД без заёмщика → «Ждут привязки» → привязка', async (page, E) => {
+  const r = await E(() => { const A = window.AX, kept = [];
+    A.uiAccept();
+    for (const t of ['Приказы по личному составу · 2023', 'Приказы по личному составу · 2024', 'Приказы по личному составу · 2025']) {
+      A.submitForm('more', { kind: 'nom', title: t, dept: 'Общий отдел', shelf: 'go3-3' }); kept.push([A.S.form && A.S.form.vals.kind, A.S.form && A.S.form.vals.shelf, A.S.form && A.S.form.note]); }
+    A.closeForm(); return { kept, nos: [231, 232, 233].map(n => A.byNo(n) && A.titleOf(A.byNo(n))) }; });
+  ck('после «Принять и ещё» форма снова открыта с тем же видом и полкой', r.kept.every(k => k[0] === 'nom' && k[1] === 'go3-3'), r.kept);
+  ck('в форме — «Принята А-… · Печать ярлыка»', has(r.kept[2][2], 'Принята <b>А-000233</b>') && has(r.kept[2][2], 'Печать ярлыка'), r.kept[2][2]);
+  ck('три папки приняты подряд: 231, 232, 233', r.nos.every(Boolean), r.nos);
+  const u = await E(() => { const A = window.AX;
+    const bad = A.accept({ kind: 'kzd', borrower: '_none', uname: 'ОсОО «Жаңы Жол»', uinn: '1234567890123', shelf: 'go3-1' });
+    const ok = A.accept({ kind: 'kzd', borrower: '_none', uname: 'Турдубаев А.Ж.', uinn: '21801199000287', shelf: 'go3-1' });
+    const inBind = A.archQueue().bind.map(x => [x.f.id, x.match && x.match.id]);
+    const counted = A.noKzd({}, 'arch1').some(x => x.b.id === 'n2');
+    const mark = (A.noKzd({}, 'arch1').find(x => x.b.id === 'n2') || {}).unlinked;
+    const rb = A.rebind(ok.id, { borrower: 'n2', basis: 'заёмщик заведён в системе, ИНН совпал' });
+    return { bad, ok, inBind, counted, mark: mark && mark.id, rb, after: A.archQueue().bind.map(x => x.f.id), still: A.noKzd({}, 'arch1').some(x => x.b.id === 'n2'), title: A.titleOf(A.folder(ok.id)) }; });
+  ck('ИНН не из 14 цифр — ошибка у поля ИНН', !u.bad.ok && u.bad.field === 'uinn', u.bad);
+  ck('КЗД без заёмщика принята → в «Ждут привязки» с подсказкой «найден по ИНН»', u.ok.ok && u.inBind.some(([id, m]) => id === u.ok.id && m === 'n2'), u.inBind);
+  ck('до привязки в «Заёмщики без КЗД» не засчитывается; там пометка «есть непривязанная папка»', u.counted && u.mark === u.ok.id, u);
+  ck('«Изменить привязку» → ушла из «Ждут привязки», заёмщик ушёл из «без КЗД», название пересобрано', u.rb.ok && !u.after.includes(u.ok.id) && !u.still && u.title === 'КЗД · Турдубаев А.Ж. · том 1', u);
+});
+
+await group('С-9 · печать полки; «Переместить» найденную на чужой полке', async (page, E) => {
+  await E(() => { window.AX.go('dicts'); });
+  await page.click('[data-testid=print-shelf-go1-5]');
+  const pre = await E(() => [...document.querySelectorAll('[data-testid=shelf-list] tbody tr')].map(t => t.children[0].textContent));
+  ck('список полки ГО·1·5: А-000228, А-000229', pre.join() === 'А-000228,А-000229', pre);
+  await shot(page, '07b-print-shelf');
+  const r = await E(() => { const A = window.AX; A.closeForm(); A.openCard('f229'); A.uiMove('f229'); A.fplace('shelf', 'room', 'go'); A.fplace('shelf', 'cab', 'go1'); A.fplace('shelf', 'shelf', 'go1-4');
+    const s = A.submitForm('main'); return { s, shelf: A.folder('f229').shelf, list: A.shelfList('go1-5').map(x => x.no), ev: A.EVENTS.filter(e => e.folder === 'f229' && e.kind === 'moved').map(e => [e.from, e.to]) }; });
+  ck('перемещена на ГО·1·4; в списке ГО·1·5 её больше нет', r.s.ok && r.shelf === 'go1-4' && r.list.join() === 'А-000228', r);
+  ck('перемещение — в истории (откуда → куда)', r.ev.length === 1 && r.ev[0].join() === 'go1-5,go1-4', r.ev);
+});
+
+await group('С-10 · папка у уволенного → «Списать: утрачена» → очередь закрыта; «Восстановить»', async (page, E) => {
+  await page.click('[data-testid=fired-writeoff-208]');
+  const note = await E(() => document.querySelector('#modal .banner').innerText);
+  ck('в форме — «на руках у Орозова Т.» и «очередь (1) закроется»', has(note, 'На руках у Орозова Т.') && has(note, 'Очередь (1) закроется'), note);
+  await page.selectOption('[data-testid=ff-reason]', 'утрачена');
+  await page.fill('[data-testid=ff-basis]', 'Акт об утрате № 15 от 13.11.2026');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX; return { st: A.stateOf('f208'), q: A.REQS.filter(x => x.folder === 'f208').map(x => x.st), note: A.NOTES.filter(n => n.to === 'kadyrov' && n.kind === 'closed' && n.folder === 'f208').map(n => n.text),
+    task: A.tasks().some(t => t.folder === 'f208'), fired: A.archQueue().fired.length, top: A.history('f208')[0] }; });
+  ck('выбыла; запрос Кадырова — «закрыт: папка выбыла» + уведомление', r.st === 'gone' && r.q.join() === 'closedGone' && r.note.some(t => has(t, 'папка выбыла')), r);
+  ck('задание «Вернуть папку» закрыто; список «На руках у уволенных» пуст', !r.task && r.fired === 0, r);
+  ck('первая строка истории — списание с последним держателем', r.top.type === 'event' && r.top.e.kind === 'writtenOff' && r.top.e.holder === 'orozov', r.top);
+  const rs = await E(() => { const A = window.AX; A.openCard('f208'); A.uiRestore('f208'); const pre = A.S.form.vals.shelf; const s = A.submitForm('main', { basis: 'нашлась в кабинете ДАК, служебная записка № 31' }); return { pre, s, st: A.stateOf('f208') }; });
+  ck('«Восстановить»: прежняя полка подставлена; папка снова в архиве', rs.pre === 'go1-4' && rs.s.ok && rs.st === 'archive', rs);
+});
+
+await group('С-20 · держатель у окна просит неделю → «Продлить» напрямую с причиной → уведомление', async (page, E) => {
+  await E(() => { window.AX.request('f225', { why: 'сверка графика' }, 'kadyrov'); window.AX.go('folders'); window.AX.openCard('f225'); });
+  await page.click('[data-testid=cb-extend]');
+  ck('в форме видна очередь: «Ждут: 1. Кадыров Т. — сверка графика»', await E(() => document.querySelector('#modal .banner').innerText.includes('Ждут: 1. Кадыров Т. — сверка графика')));
+  await page.fill('[data-testid=ff-date]', '27.11.2026');
+  await page.click('[data-testid=form-submit]');
+  ck('без причины — ошибка у поля', await E(() => document.querySelector('[data-testid=form-err]')?.dataset.field === 'reason'));
+  await page.fill('[data-testid=ff-reason]', 'держатель у окна: выезд к залогодателю 25.11');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX, i = A.openIssue('f225'); return { due: i.due, ext: i.exts.map(x => x.via), note: A.NOTES.filter(n => n.to === 'asanov' && n.kind === 'ext' && n.folder === 'f225').map(n => n.text) }; });
+  ck('срок 27.11, продление «напрямую» в истории', r.due === '2026-11-27' && r.ext.join() === 'напрямую', r);
+  ck('держателю «Решение по продлению: продлено до 27.11.2026»', r.note.some(t => has(t, 'продлено до 27.11.2026')), r.note);
+});
+
+await group('С-21 · акт уничтожения: отбор полки → отметить все → «Списать» пачкой; «Печать ярлыков» листом', async (page, E) => {
+  await E(() => { window.AX.go('folders'); window.AX.setF('room', 'go'); window.AX.setF('cab', 'go3'); window.AX.setF('shelf', 'go3-4'); });
+  await page.click('[data-testid=sel-all]');
+  ck('отмечены все три папки полки', await E(() => document.querySelector('[data-testid=sel-count]').textContent === '3'));
+  await page.click('[data-testid=b-writeoff]');
+  ck('до списания — сколько на руках и с очередью', await E(() => document.querySelector('[data-testid=wo-preview]').textContent === 'Из отмеченных: на руках — 0, с очередью — 0.'));
+  await page.selectOption('[data-testid=ff-reason]', 'уничтожена');
+  await page.fill('[data-testid=ff-basis]', 'Акт об уничтожении № 4 от 13.11.2026');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX; return ['f219', 'f220', 'f221'].map(id => [A.stateOf(id), A.folder(id).gone.basis, A.EVENTS.filter(e => e.folder === id && e.kind === 'writtenOff').length]); });
+  ck('все три выбыли с одним основанием, запись — у каждой', r.every(x => x[0] === 'gone' && x[1] === 'Акт об уничтожении № 4 от 13.11.2026' && x[2] === 1), r);
+  const pv = await E(() => { const A = window.AX; A.issue('f211', { to: 'jeen', why: 'х', due: '2026-11-30' }); A.request('f212', { why: 'х' }, 'jeen'); return A.writeOffPreview(['f211', 'f212', 'f213', 'f219']); });
+  ck('предупреждение пачки считает на руках, с очередью и уже выбывшие', pv.out === 1 && pv.queued === 1 && pv.gone === 1 && pv.total === 3, pv);
+  await E(() => { const A = window.AX; A.closeForm(); A.setF('room', ''); A.uiAccept(); ['Акты · 2019', 'Акты · 2020', 'Акты · 2021'].forEach(t => A.submitForm('more', { kind: 'other', title: t, dept: 'Бухгалтерия', shelf: 'go3-3' })); A.closeForm();
+    A.S.sel.clear(); [231, 232, 233].forEach(n => A.S.sel.add('f' + n)); A.render(); });
+  await page.click('[data-testid=b-labels]');
+  const lab = await E(() => ({ n: document.querySelectorAll('[data-testid=labels] .label').length, txt: document.querySelector('[data-testid=labels]').innerText }));
+  ck('после ввода при запуске — лист ярлыков по отмеченным (3), без места', lab.n === 3 && !has(lab.txt, 'полка') && !has(lab.txt, 'ГО ·'), lab);
+});
+
+await group('С-11 · куратор из врезки «Где бумага» запрашивает все тома пачкой', async (page, E) => {
+  await E(() => { window.AX.setUser('isaeva'); window.AX.openBorrower('b2'); });
+  await shot(page, '10-paperbox');
+  ck('врезка: два тома, кнопка «Запросить все тома (2)»', await E(() => document.querySelector('[data-testid=pb-all]').textContent === 'Запросить все тома (2)'));
+  await page.click('[data-testid=pb-all]');
+  await page.fill('[data-testid=ff-why]', 'подготовка к мониторингу');
+  await page.click('[data-testid=form-submit]');
+  const r = await E(() => { const A = window.AX; return ['f202', 'f203'].map(id => { const q = A.activeReqs(id).find(x => x.who === 'isaeva'); return q && [q.st, A.posOf(q)]; }); });
+  ck('том 1 (в архиве) забронирован, том 2 (на руках) — № 1 в очереди', r[0] && r[0][0] === 'reserved' && r[1] && r[1][0] === 'queue' && r[1][1] === 1, r);
+  const nk = await E(() => { const A = window.AX; A.openBorrower('n2'); return !!document.querySelector('[data-testid=pb-nokzd]') && document.querySelector('[data-testid=pb-nokzd]').textContent; });
+  ck('у заёмщика без КЗД — «Кредитно-залоговое дело в архив не сдано»', nk === 'Кредитно-залоговое дело в архив не сдано', nk);
+});
+
+await group('С-12 · «Папка свободна» → получил у окна → «Мои папки»', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    const q = A.request('f202', { why: 'мониторинг', needBy: '2026-11-25' }, 'isaeva');
+    const n = A.NOTES.filter(x => x.to === 'isaeva' && x.kind === 'free' && x.folder === 'f202').map(x => x.text);
+    A.setUser('isaeva'); const before = (A.mine('isaeva').requests.find(x => x.f.id === 'f202') || {}).r; const bst = before && before.st;
+    const row = document.querySelector('[data-testid=req-202]').innerText;
+    A.setUser('arch1'); A.uiIssue('f202'); const due = A.S.form.vals.due; const s = A.submitForm('main');
+    A.setUser('isaeva'); const m = A.mine('isaeva');
+    return { q, n, before: bst, row, due, s, hands: m.hands.map(x => x.f.id), reqs: m.requests.map(x => x.f.id), dom: !!document.querySelector('[data-testid=hand-202]') }; });
+  ck('уведомление «Папка … свободна, заберите до 17.11.2026»', r.q.reserved && r.n.some(t => has(t, 'свободна, заберите до 17.11.2026')), r.n);
+  ck('в «Моих запросах» — «ждёт вас в архиве до 17.11.2026»', r.before === 'reserved' && has(r.row, 'ждёт вас в архиве до 17.11.2026'), r.row);
+  ck('выдача: срок из «нужна до» (25.11)', r.s.ok && r.due === '2026-11-25', r);
+  ck('папка — в «На руках у меня», запрос ушёл', r.hands.includes('f202') && !r.reqs.includes('f202') && r.dom, r);
+});
+
+await group('С-13 · «Передать» заведующему → «Получил» → передача обратно', async (page, E) => {
+  await E(() => window.AX.setUser('asanov'));
+  await page.click('[data-testid=transfer-225]');
+  await page.selectOption('[data-testid=ff-to]', 'mambetov');
+  await page.click('[data-testid=form-submit]');
+  const a = await E(() => { const A = window.AX, i = A.openIssue('f225'); return { st: A.stateOf('f225'), holder: i.holder, due: i.due, mark: document.querySelector('[data-testid=hand-225]').innerText, note: A.NOTES.filter(n => n.to === 'mambetov' && n.kind === 'transfer' && n.folder === 'f225').length }; });
+  ck('«передаётся»; держатель пока — Асанов; срок не меняется', a.st === 'transfer' && a.holder === 'asanov' && a.due === '2026-11-20', a);
+  ck('пометка в строке «передаётся → Мамбетов К., ждёт «Получил»»; получателю уведомление', has(a.mark, 'передаётся → Мамбетов К.') && a.note === 1, a);
+  await E(() => window.AX.setUser('mambetov'));
+  await shot(page, '04b-mine-head');
+  ck('у заведующего «Вам передают» — первым блоком', await E(() => document.querySelector('.section-h[data-testid^=blk]').dataset.testid === 'blk-incoming'));
+  await page.click('[data-testid=got-225]');
+  const b = await E(() => { const A = window.AX; const r1 = A.transfer('f225', { to: 'asanov' }, 'mambetov'); const r2 = A.received('f225', 'asanov'); const h = A.history('f225').find(x => x.type === 'issue');
+    return { r1, r2, holder: A.openIssue('f225').holder, holders: h.holders, res: h.result }; });
+  ck('«Получил» → держатель Мамбетов; передача обратно → держатель снова Асанов', b.r1.ok && b.r2.ok && b.holder === 'asanov', b);
+  ck('история по выдаче: Асанов → Мамбетов → Асанов, итог «передана»', b.holders.join() === 'asanov,mambetov,asanov' && has(b.res, 'передана'), b);
+});
+
+await group('С-14 · напоминание за 2 р.д. → «Попросить продление» → решение', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    const pre = A.NOTES.filter(n => n.to === 'isaeva' && n.kind === 'remind' && n.folder === 'f223').map(n => [n.d, n.text]);
+    A.setUser('isaeva'); A.uiAskExt('f223'); const s = A.submitForm('main', { date: '2026-11-24', reason: 'заключение по мониторингу не готово' });
+    const row = document.querySelector('[data-testid=hand-223]').innerText;
+    A.setUser('arch1'); const qx = document.querySelector('[data-testid=ext-223]') ? 1 : 0;
+    const x = A.EXTS.find(e => e.folder === 'f223' && e.st === 'pending'); const d = A.decideExtend(x.id, { grant: true });
+    return { pre, s, row, qx, d, due: A.openIssue('f223').due, note: A.NOTES.filter(n => n.to === 'isaeva' && n.kind === 'ext').map(n => n.text) }; });
+  ck('напоминание «Скоро вернуть папку» пришло 13.11 — за 2 р.д. до срока 17.11', r.pre.length === 1 && r.pre[0][0] === '2026-11-13' && has(r.pre[0][1], 'до 17.11.2026'), r.pre);
+  ck('просьба ушла; в строке — «просьба продлить до 24.11.2026 — на решении»', r.s.ok && has(r.row, 'просьба продлить до 24.11.2026 — на решении'), r.row);
+  ck('у архивариуса — в блоке «Продления»', r.qx === 1);
+  ck('продлено до 24.11; держателю «Решение по продлению: продлено»', r.d.ok && r.due === '2026-11-24' && r.note.some(t => has(t, 'продлено до 24.11.2026')), r);
+});
+
+await group('С-15 · куратор: «Заёмщики без КЗД» с «мои заёмщики»; сдал дело → уведомление о приёме', async (page, E) => {
+  await E(() => { window.AX.setUser('asanov'); window.AX.go('nokzd'); });
+  await shot(page, '05-nokzd');
+  const a = await E(() => ({ on: document.querySelector('[data-testid=nk-mine]').checked, rows: [...document.querySelectorAll('[data-testid^=nk-]')].filter(t => t.tagName === 'TR').map(t => t.dataset.testid),
+    mark: document.querySelector('[data-testid=nk-unlinked-n5]')?.textContent || '' }));
+  ck('куратору отбор «мои заёмщики» включён по умолчанию', a.on);
+  ck('в списке — свои: ОсОО «Достук Трейд», ОсОО «Кен-Сай» (больше дней — выше)', a.rows.join() === 'nk-n5,nk-n1', a.rows);
+  ck('пометка «есть непривязанная папка А-000217»', has(a.mark, 'есть непривязанная папка А-000217'), a.mark);
+  await page.click('[data-testid=nk-closed]');
+  ck('«и закрытые» добавляет заёмщиков с закрытыми кредитами', await E(() => [...document.querySelectorAll('tr[data-testid^=nk-]')].map(t => t.dataset.testid).join() === 'nk-n4,nk-b6,nk-n5,nk-n1'));
+  const b = await E(() => { const A = window.AX; A.setUser('arch1'); A.go('nokzd'); document.querySelector('[data-testid=nk-accept-n1]').click(); const pre = [A.S.form.vals.kind, A.S.form.vals.borrower];
+    const s = A.submitForm('main', { shelf: 'go3-3', from: 'asanov' }); return { pre, s, gone: !A.noKzd({}, 'asanov').some(x => x.b.id === 'n1'), note: A.NOTES.filter(n => n.to === 'asanov' && n.kind === 'accepted').map(n => n.text) }; });
+  ck('архивариусу в строке «Принять папку» с подставленным заёмщиком', b.pre.join() === 'kzd,n1', b.pre);
+  ck('после приёма заёмщик ушёл из списка; куратору «Папка принята в архив, № А-000231»', b.s.ok && b.gone && b.note.some(t => has(t, '№ А-000231')), b);
+  const c = await E(() => window.AX.noKzd({}, 'arch1').find(x => x.b.id === 'b9'));
+  ck('заёмщик с выбывшей КЗД — в списке с пометкой «КЗД выбыла»', c && c.goneKzd && c.goneKzd.id === 'f209', c && c.b);
+});
+
+await group('С-16 · юрист: запрос занятой папки → место в очереди → куратор передаёт напрямую → запрос закрыт', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    const pv = A.requestPreview('f225', 'jeen'); const q = A.request('f225', { why: 'подготовка иска', needBy: '2026-12-01' }, 'jeen');
+    A.setUser('asanov'); A.openCard('f225'); const btnQ = !!document.querySelector('[data-testid=q-transfer-jeen]');
+    A.uiTransfer('f225', 'jeen'); const info = document.querySelector('[data-testid=tr-closes]')?.textContent || ''; const t = A.submitForm('main');
+    A.setUser('jeen'); const g = A.received('f225', 'jeen'); const rq = A.REQS.find(x => x.id === q.req);
+    return { pv, q, btnQ, info, t, g, st: rq.st, holder: A.openIssue('f225').holder, h: A.history('f225').find(x => x.type === 'issue').events.map(e => e.kind) }; });
+  ck('строка формы: «на руках у Асанова Б. до 20.11.2026, вы будете № 1»', r.pv === 'на руках у Асанова Б. до 20.11.2026, вы будете № 1', r.pv);
+  ck('запрос встал № 1 в очередь', r.q.ok && r.q.pos === 1 && !r.q.reserved, r.q);
+  ck('держатель видит в очереди «Передать» ждущему; форма — «передача ему закроет его запрос»', r.btnQ && has(r.info, 'передача ему закроет его запрос'), r);
+  ck('«Получил» → держатель — юрист, запрос «закрыт передачей»', r.t.ok && r.g.ok && r.holder === 'jeen' && r.st === 'closedTransfer', r);
+  ck('запрос виден в событиях выдачи', r.h.includes('requested') && r.h.includes('reqClosedTransfer'), r.h);
+});
+
+await group('С-17 · юрист: продление под суд; возврат «без оригинала» с примечанием', async (page, E) => {
+  const r = await E(() => { const A = window.AX;
+    const a = A.askExtend('f227', { date: '2026-12-15', reason: 'суд назначен на 10.12, нужен оригинал договора' }, 'jeen');
+    const d = A.decideExtend(a.ext, { grant: true }, 'arch2');
+    const ret = A.acceptReturn('f227', { note: 'без оригинала договора залога — приобщён к делу № 2-777/26' }, 'arch2');
+    const h = A.history('f227').find(x => x.type === 'issue');
+    return { a, d, ret, content: A.folder('f227').content, res: h.result, ev: h.events.map(e => e.kind) }; });
+  ck('продлено по просьбе до 15.12', r.a.ok && r.d.ok, r);
+  ck('возврат с примечанием: в «Содержании» и в итоге выдачи', r.ret.ok && has(r.content, 'без оригинала договора залога') && has(r.res, 'продлена 1 раз') && has(r.res, 'вернул с примечанием'), r);
+});
+
+await group('С-18 · бухгалтер: «Мои папки» пусты → «Найти папку» по содержанию → одноимённые различает подразделение → запрос', async (page, E) => {
+  await E(() => window.AX.setUser('sydykova'));
+  ck('стартовый экран «Мои папки» пуст: «У вас нет папок архива»', await E(() => window.AX.S.view === 'mine' && !!document.querySelector('[data-testid=mine-empty]')));
+  await shot(page, '04-mine-empty');
+  await page.fill('[data-testid=mine-search]', 'протоколы правления');
+  await page.keyboard.press('Enter');
+  const r = await E(() => ({ view: window.AX.S.view, q: window.AX.S.q, rows: [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => [t.dataset.testid, t.children[2].textContent.trim(), t.children[3].textContent]) }));
+  ck('Enter ведёт в «Папки» с запросом', r.view === 'folders' && r.q === 'протоколы правления', r);
+  ck('две «Протоколы правления · 2025» — Бухгалтерия и ДПО', r.rows.length === 2 && r.rows.map(x => x[2]).join() === 'Бухгалтерия,ДПО', r.rows);
+  await page.click('[data-testid=sel-213]');
+  await page.click('[data-testid=b-request]');
+  await page.fill('[data-testid=ff-why]', 'сверка премирования за 2025');
+  await page.fill('[data-testid=ff-needBy]', '30.11.2026');
+  await page.click('[data-testid=form-submit]');
+  const s = await E(() => { const A = window.AX, q = A.activeReqs('f213')[0]; A.setUser('arch1'); const due = A.dueDefault('f213', 'sydykova'); return { st: q && q.st, needBy: q && q.needBy, due }; });
+  ck('запрос с «нужна до»: папка забронирована; при выдаче срок — 30.11 (не срок по умолчанию)', s.st === 'reserved' && s.needBy === '2026-11-30' && s.due === '2026-11-30', s);
+});
+
+await group('С-19 · руководитель: поднятое задание «Вернуть папку» → карточка → отбор «подразделение держателя»', async (page, E) => {
+  await E(() => window.AX.setUser('mambetov'));
+  const r = await E(() => ({ up: document.querySelector('[data-testid=task-up-230]')?.textContent || '', tasks: window.AX.tasksOf('mambetov').map(t => [t.folder, t.holder, t.up]) }));
+  ck('у заведующего — задание по А-000230 Асанова, поднятое к нему', has(r.up, 'поднято к руководителю: Мамбетов К.') && r.tasks.some(t => t[0] === 'f230' && t[1] === 'asanov' && t[2]), r);
+  await page.click('[data-testid=task-230]');
+  ck('задание ведёт в карточку папки', await E(() => window.AX.S.card === 'f230' && document.querySelector('#cardpanel').classList.contains('open')));
+  await E(() => { window.AX.closeCard(); window.AX.go('folders'); window.AX.setF('hdept', 'ДРР'); });
+  ck('отбор «подразделение держателя» ДРР — папки на руках у его сотрудников', await E(() => [...document.querySelectorAll('[data-testid=tbl-folders] tbody tr')].map(t => t.dataset.testid).join() === 'row-201,row-216,row-225,row-230'));
+});
+
+/* ======================= правила движка (§4) ======================= */
+
+await group('П-1 · Принять: привязка, действующая полка, сквозной номер, название само', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.nonArch = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-3' }, 'asanov');
+    o.noBor = A.accept({ kind: 'kzd', shelf: 'go3-3' });
+    o.retShelf = A.accept({ kind: 'nom', title: 'х', shelf: 'go2-5' });
+    o.retKind = A.accept({ kind: 'cards', title: 'х', shelf: 'go3-3' });
+    o.noTitle = A.accept({ kind: 'other', shelf: 'go3-3' });
+    o.dup = A.accept({ kind: 'kzd', borrower: 'b2', vol: 2, shelf: 'go3-3' });
+    o.a = A.accept({ kind: 'kzd', borrower: 'b1', vol: 2, shelf: 'go1-1' }); o.b = A.accept({ kind: 'other', title: 'Сметы · 2026', dept: 'Бухгалтерия', shelf: 'go2-2' });
+    o.t = A.titleOf(A.folder(o.a.id)); o.ev = A.EVENTS.filter(e => e.folder === o.a.id).map(e => e.kind);
+    o.opts = (() => { A.uiAccept(); A.fplace('shelf', 'room', 'go'); A.fplace('shelf', 'cab', 'go2'); const s = [...document.querySelectorAll('[data-testid=ff-shelf] option')].map(x => x.value); const k = [...document.querySelectorAll('[data-testid=ff-kind] option')].map(x => x.value); A.closeForm(); return { s, k }; })();
+    return o; });
+  ck('не архивариус — нельзя', !r.nonArch.ok && has(r.nonArch.why, 'архивариус'), r.nonArch);
+  ck('вид с привязкой без заёмщика — нельзя', !r.noBor.ok && r.noBor.field === 'borrower', r.noBor);
+  ck('выведенная полка — нельзя', !r.retShelf.ok && has(r.retShelf.why, 'выведена'), r.retShelf);
+  ck('выведенный вид — нельзя', !r.retKind.ok && has(r.retKind.why, 'выведен'), r.retKind);
+  ck('без привязки — название обязательно', !r.noTitle.ok && r.noTitle.field === 'title', r.noTitle);
+  ck('тот же том того же заёмщика дважды — нельзя', !r.dup.ok && has(r.dup.why, 'том 2 уже в архиве — А-000203'), r.dup);
+  ck('сквозной номер: А-000231, затем А-000232', r.a.no === 'А-000231' && r.b.no === 'А-000232', [r.a, r.b]);
+  ck('название с привязкой собирается само', r.t === 'КЗД · ОсОО «Ак-Жол Агро» · том 2', r.t);
+  ck('событие «принята»', r.ev.join() === 'accepted', r.ev);
+  ck('в форме выведенная полка и выведенный вид не предлагаются', !r.opts.s.includes('go2-5') && !r.opts.k.includes('cards'), r.opts);
+});
+
+await group('П-2 · Выдать: архивариус; свободная или своя бронь; срок и «зачем» обязательны; действующий получатель; пачкой', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.nonArch = A.issue('f211', { to: 'jeen', why: 'х', due: '2026-11-30' }, 'asanov');
+    o.gone = A.issue('f209', { to: 'jeen', why: 'х', due: '2026-11-30' });
+    o.busy = A.issue('f203', { to: 'jeen', why: 'х', due: '2026-11-30' });
+    o.noWhy = A.issue('f211', { to: 'jeen', why: ' ', due: '2026-11-30' });
+    o.noDue = A.issue('f211', { to: 'jeen', why: 'х', due: '' });
+    o.fired = A.issue('f211', { to: 'orozov', why: 'х', due: '2026-11-30' });
+    o.ok = A.issue('f211', { to: 'jeen', why: 'сверка', due: '2026-11-30' });
+    o.note = A.NOTES.filter(n => n.to === 'jeen' && n.kind === 'issued' && n.folder === 'f211').length;
+    o.batch = A.issueBatch(['f212', 'f203', 'f209', 'f206', 'f213'], { to: 'jeen', why: 'проверка', due: '2026-11-30' });
+    o.batchNoWhy = A.issueBatch(['f212'], { to: 'jeen', why: '', due: '2026-11-30' });
+    o.each = o.batch.done.map(id => A.EVENTS.filter(e => e.folder === id && e.kind === 'issued').length);
+    return o; });
+  ck('не архивариус — нельзя', !r.nonArch.ok, r.nonArch);
+  ck('выбывшую — нельзя', !r.gone.ok && has(r.gone.why, 'выбыла'), r.gone);
+  ck('на руках — нельзя, «сначала принять возврат»', !r.busy.ok && has(r.busy.why, 'сначала принять возврат'), r.busy);
+  ck('«зачем» и срок обязательны', !r.noWhy.ok && r.noWhy.field === 'why' && !r.noDue.ok && r.noDue.field === 'due', [r.noWhy, r.noDue]);
+  ck('уволенному — нельзя', !r.fired.ok && has(r.fired.why, 'действующий'), r.fired);
+  ck('выдача + уведомление держателю', r.ok.ok && r.note === 1, r);
+  ck('пачкой: выданы свободные (212, 213), занятые нет — с причиной', r.batch.done.join() === 'f212,f213' && r.batch.skipped.map(s => s.id).join() === 'f203,f209,f206', r.batch);
+  ck('пачкой: у каждой папки своя выдача', r.each.every(n => n === 1), r.each);
+  ck('пачкой: «зачем» обязательно для всей пачки', !r.batchNoWhy.ok && r.batchNoWhy.field === 'why', r.batchNoWhy);
+});
+
+await group('П-3 · Запросить: «зачем» обязательно; второй свой и на выбывшую — нельзя; очередь по времени; пачкой', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.noWhy = A.request('f216', { why: '' }, 'kadyrov');
+    o.past = A.request('f216', { why: 'х', needBy: '2026-11-13' }, 'kadyrov');
+    o.a = A.request('f216', { why: 'первый' }, 'kadyrov'); o.b = A.request('f216', { why: 'второй' }, 'sydykova');
+    o.again = A.request('f216', { why: 'ещё раз' }, 'kadyrov');
+    o.gone = A.request('f209', { why: 'х' }, 'kadyrov');
+    o.own = A.request('f216', { why: 'х' }, 'mambetov');
+    o.order = A.activeReqs('f216').map(q => [q.who, A.posOf(q)]);
+    o.batch = A.requestBatch(['f211', 'f212', 'f209'], { why: 'проверка' }, 'jeen');
+    o.batchSt = ['f211', 'f212'].map(id => A.activeReqs(id)[0].st);
+    return o; });
+  ck('без «зачем» — нельзя; «нужна до» не в прошлом', !r.noWhy.ok && r.noWhy.field === 'why' && !r.past.ok && r.past.field === 'needBy', [r.noWhy, r.past]);
+  ck('порядок очереди — по времени: № 1, № 2', r.order.join('|') === 'kadyrov,1|sydykova,2', r.order);
+  ck('второй свой запрос — нельзя', !r.again.ok && has(r.again.why, 'уже есть запрос'), r.again);
+  ck('на выбывшую — нельзя', !r.gone.ok && has(r.gone.why, 'выбыла'), r.gone);
+  ck('держатель свою папку не запрашивает', !r.own.ok && has(r.own.why, 'у вас на руках'), r.own);
+  ck('пачкой: запрос на каждую папку; свободные сразу забронированы; выбывшая — с причиной', r.batch.done.join() === 'f211,f212' && r.batch.skipped[0].id === 'f209' && r.batchSt.join() === 'reserved,reserved', r);
+});
+
+await group('П-4 · Бронь: ставит система; срок брони; другому не выдать; истекла → «не забран», бронь следующему', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.a = A.request('f211', { why: 'х' }, 'kadyrov'); o.b = A.request('f211', { why: 'у' }, 'sydykova');
+    o.note = A.NOTES.filter(n => n.to === 'kadyrov' && n.kind === 'free' && n.folder === 'f211').map(n => n.text);
+    o.other = A.issue('f211', { to: 'sydykova', why: 'х', due: '2026-11-30' });
+    o.until = A.reservedReq('f211').until;
+    A.setToday('2026-11-17'); o.still = A.reservedReq('f211').who;
+    A.setToday('2026-11-18'); o.r1 = A.REQS.find(q => q.id === o.a.req).st; o.next = A.reservedReq('f211') && [A.reservedReq('f211').who, A.reservedReq('f211').until];
+    o.closed = A.NOTES.filter(n => n.to === 'kadyrov' && n.kind === 'closed' && n.folder === 'f211').map(n => n.text);
+    o.ev = A.EVENTS.filter(e => e.folder === 'f211' && e.kind === 'reqNotTaken').length;
+    return o; });
+  ck('свободная папка — бронь первому сразу, без одобрения', r.a.reserved && !r.b.reserved, r);
+  ck('срок брони — 2 р.д. (до 17.11)', r.until === '2026-11-17', r.until);
+  ck('«Папка … свободна, заберите до 17.11.2026»', r.note.length === 1 && has(r.note[0], 'заберите до 17.11.2026'), r.note);
+  ck('другому выдать нельзя', !r.other.ok && has(r.other.why, 'забронирована за Кадыровым Т.'), r.other);
+  ck('в последний день брони она ещё стоит', r.still === 'kadyrov');
+  ck('срок прошёл → «не забран», бронь следующему (до 20.11)', r.r1 === 'notTaken' && r.next && r.next[0] === 'sydykova' && r.next[1] === '2026-11-20', r);
+  ck('уведомление «Запрос закрыт: не забран»; событие в истории', r.closed.some(t => has(t, 'не забран')) && r.ev === 1, r);
+});
+
+await group('П-5 · Отказать в запросе: причина обязательна, в любой момент до выдачи', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    const q = A.activeReqs('f205'); o.noReason = A.refuse(q[1].id, '');
+    o.nonArch = A.refuse(q[1].id, 'х', 'asanov');
+    o.queued = A.refuse(q[1].id, 'не по профилю', 'arch2');
+    o.note = A.NOTES.filter(n => n.to === 'abdyk' && n.kind === 'closed').map(n => n.text);
+    const res = A.reservedReq('f206'); A.issue('f206', { to: res.who, why: 'х', due: '2026-11-27' }); o.issued = A.refuse(res.id, 'х');
+    o.left = A.activeReqs('f205').map(x => x.who);
+    return o; });
+  ck('без причины — ошибка у поля', !r.noReason.ok && r.noReason.field === 'reason', r.noReason);
+  ck('не архивариус — нельзя', !r.nonArch.ok, r.nonArch);
+  ck('отказ в запросе из очереди (не только в брони)', r.queued.ok && r.left.join() === 'asanov', r);
+  ck('запросившему «Запрос закрыт: отказ — причина»', r.note.some(t => has(t, 'отказ — не по профилю')), r.note);
+  ck('после выдачи отказать нельзя', !r.issued.ok && has(r.issued.why, 'выдан'), r.issued);
+});
+
+await group('П-6 · Продление: просит только держатель, решает архивариус; напрямую — архивариус с причиной', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.notHolder2 = A.askExtend('f225', { date: '2026-12-01', reason: 'х' }, 'jeen');
+    o.early = A.askExtend('f225', { date: '2026-11-20', reason: 'х' }, 'asanov');
+    o.noReason = A.askExtend('f225', { date: '2026-12-01', reason: '' }, 'asanov');
+    o.ok = A.askExtend('f225', { date: '2026-12-01', reason: 'выезд' }, 'asanov');
+    o.twice = A.askExtend('f225', { date: '2026-12-02', reason: 'х' }, 'asanov');
+    o.gateDirect = A.gate('extend', 'f225', 'arch1');
+    o.refNoReason = A.decideExtend(o.ok.ext, { grant: false, reason: '' });
+    o.nonArch = A.decideExtend(o.ok.ext, { grant: true }, 'mambetov');
+    o.grant = A.decideExtend(o.ok.ext, { grant: true });
+    o.due = A.openIssue('f225').due;
+    o.dNonArch = A.extend('f216', { date: '2026-12-05', reason: 'х' }, 'asanov');
+    o.dEarly = A.extend('f216', { date: '2026-11-20', reason: 'х' });
+    o.dOk = A.extend('f216', { date: '2026-12-05', reason: 'по телефону' });
+    o.dArch = A.extend('f211', { date: '2026-12-05', reason: 'х' });
+    o.notes = A.NOTES.filter(n => n.kind === 'ext' && ['asanov', 'mambetov'].includes(n.to)).map(n => n.to);
+    return o; });
+  ck('просит только держатель', !r.notHolder2.ok && has(r.notHolder2.why, 'только держатель'), r.notHolder2);
+  ck('дата не позже текущего срока — нельзя', !r.early.ok && r.early.field === 'date', r.early);
+  ck('причина обязательна', !r.noReason.ok && r.noReason.field === 'reason', r.noReason);
+  ck('вторая просьба, пока первая на решении, — нельзя', r.ok.ok && !r.twice.ok, r.twice);
+  ck('пока просьба на решении, «Продлить» напрямую — серая с причиной', !r.gateDirect.ok && has(r.gateDirect.why, 'просьба держателя'), r.gateDirect);
+  ck('отказ — с причиной; решает только архивариус', !r.refNoReason.ok && !r.nonArch.ok, [r.refNoReason, r.nonArch]);
+  ck('продлено по просьбе: срок 01.12', r.grant.ok && r.due === '2026-12-01', r);
+  ck('напрямую: не архивариус — нельзя (по праву); дата позже срока; на руках — можно; в архиве — нельзя', !r.dNonArch.ok && has(r.dNonArch.why, 'архивариус') && !r.dEarly.ok && r.dOk.ok && !r.dArch.ok, [r.dNonArch, r.dEarly, r.dOk, r.dArch]);
+  ck('держателям — «Решение по продлению» (по просьбе и напрямую)', r.notes.includes('asanov') && r.notes.includes('mambetov'), r.notes);
+});
+
+await group('П-7 · Передать: только держатель; до «Получил» — «передаётся», отвечает передающий; «Отменить» и «Не получал»', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.notHolder = A.transfer('f225', { to: 'jeen' }, 'jeen');
+    o.self = A.transfer('f225', { to: 'asanov' }, 'asanov');
+    o.fired = A.transfer('f225', { to: 'orozov' }, 'asanov');
+    o.ok = A.transfer('f230', { to: 'mambetov' }, 'asanov');
+    o.st = A.stateOf('f230'); o.due = A.openIssue('f230').due; o.task = A.tasks().find(t => t.folder === 'f230').holder;
+    o.again = A.transfer('f230', { to: 'jeen' }, 'asanov');
+    o.cancelOther = A.cancelTransfer('f230', 'mambetov');
+    o.notGot = A.notReceived('f201', 'mambetov'); o.after = [A.stateOf('f201'), A.openIssue('f201').holder];
+    o.noteSender = A.NOTES.filter(n => n.to === 'asanov' && n.kind === 'transfer' && n.folder === 'f201').map(n => n.text);
+    o.cancel = A.cancelTransfer('f230', 'asanov'); o.after2 = [A.stateOf('f230'), A.openIssue('f230').holder];
+    o.ev = A.EVENTS.filter(e => ['transferNotGot', 'transferCancel'].includes(e.kind) && ['f201', 'f230'].includes(e.folder)).length;
+    return o; });
+  ck('не держатель — нельзя; самому себе — нельзя; уволенному — нельзя', !r.notHolder.ok && !r.self.ok && !r.fired.ok, [r.notHolder, r.self, r.fired]);
+  ck('«передаётся», срок не меняется', r.ok.ok && r.st === 'transfer' && r.due === '2026-11-10', r);
+  ck('просрочка при незавершённой передаче — задание передающему', r.task === 'asanov', r.task);
+  ck('вторая передача, пока первая ждёт, — нельзя; отменяет только передающий', !r.again.ok && !r.cancelOther.ok, [r.again, r.cancelOther]);
+  ck('«Не получал» → папка снова у передающего + ему уведомление', r.notGot.ok && r.after.join() === 'out,asanov' && r.noteSender.some(t => has(t, 'не получал')), r);
+  ck('«Отменить передачу» → папка у передающего', r.cancel.ok && r.after2.join() === 'out,asanov', r.after2);
+  ck('и «не получал», и отмена — в истории', r.ev === 2, r.ev);
+});
+
+await group('П-8 · Принять возврат: на постоянное место; очередь → бронь первому; подсказка; примечание; поле «Возврат»', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.nonArch = A.acceptReturn('f203', {}, 'kadyrov');
+    o.archive = A.acceptReturn('f211', {});
+    o.hint = A.returnHint('f203').text;
+    o.r = A.acceptReturn('f203', {}); o.st = A.stateOf('f203'); o.shelf = A.folder('f203').shelf;
+    o.lk = A.returnLookup('А-000205 0205 205 9999 abc').map(x => [x.input, x.ok, x.why || '']);
+    o.hold = A.acceptReturn('f205', {}); o.held = A.reservedReq('f205').who;
+    o.extClosed = A.EXTS.find(x => x.folder === 'f205').st;
+    o.tr = A.acceptReturn('f201', {}); o.trSt = A.openIssue('f201') ? 'open' : A.ISSUES.filter(i => i.folder === 'f201').pop().transfers.map(t => t.st).join();
+    return o; });
+  ck('не архивариус — нельзя', !r.nonArch.ok, r.nonArch);
+  ck('папка в архиве — «возвращать нечего»', !r.archive.ok && has(r.archive.why, 'возвращать нечего'), r.archive);
+  ck('подсказка «на полку: Архив ГО · шкаф 1 · полка 1»; встала на постоянное место', r.hint === 'на полку: Архив ГО · шкаф 1 · полка 1' && r.st === 'archive' && r.shelf === 'go1-1', r);
+  ck('поле «Возврат»: номер находится с буквой, с нулями и без; повтор схлопывается; неизвестный — с причиной', r.lk.length === 3 && r.lk[0][1] && r.lk[1][2] === 'папка не найдена' && r.lk[2][2] === 'не номер папки', r.lk);
+  ck('есть очередь — бронь первому', r.hold.ok && r.held === 'asanov', r);
+  ck('просьба продлить у вернувшейся папки закрыта', r.extClosed === 'closed', r.extClosed);
+  ck('возврат при незавершённой передаче — передача отменена', r.tr.ok && r.trSt === 'cancelled', r.trSt);
+});
+
+await group('П-9 · Просрочка: напоминание за N р.д.; задание держателю; подъём; закрывается возвратом, передачей, продлением, списанием', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.i = A.issue('f211', { to: 'jeen', why: 'х', due: '2026-11-19' }, 'arch1');
+    o.n0 = A.NOTES.filter(n => n.folder === 'f211' && n.kind === 'remind').length;
+    A.setToday('2026-11-17'); o.n1 = A.NOTES.filter(n => n.folder === 'f211' && n.kind === 'remind').map(n => n.d);
+    A.setToday('2026-11-19'); o.t0 = A.tasks().some(t => t.folder === 'f211');
+    A.setToday('2026-11-20'); o.t1 = A.tasks().find(t => t.folder === 'f211');
+    A.setToday('2026-11-25'); o.t2 = A.tasks().find(t => t.folder === 'f211');
+    o.byExt = (A.extend('f211', { date: '2026-12-10', reason: 'х' }), !A.tasks().some(t => t.folder === 'f211'));
+    o.byRet = (A.acceptReturn('f230', {}), !A.tasks().some(t => t.folder === 'f230'));
+    A.transfer('f203', { to: 'isaeva' }, 'kadyrov'); A.received('f203', 'isaeva'); o.byTr = A.tasks().filter(t => t.folder === 'f203').map(t => t.holder);
+    o.byWo = (A.writeOff('f208', { reason: 'утрачена', basis: 'акт' }), !A.tasks().some(t => t.folder === 'f208'));
+    return o; });
+  ck('при выдаче за 4 р.д. до срока напоминания нет', r.n0 === 0, r.n0);
+  ck('напоминание — за 2 р.д. (17.11 при сроке 19.11)', r.n1.join() === '2026-11-17', r.n1);
+  ck('в день срока задания нет; на следующий — держателю', !r.t0 && r.t1 && r.t1.holder === 'jeen' && !r.t1.up, r);
+  ck('не исполнено — поднято к руководителю держателя', r.t2 && r.t2.up && r.t2.head === 'osmonov', r.t2);
+  ck('закрывается продлением, возвратом, передачей (у нового держателя — своё), списанием', r.byExt && r.byRet && r.byTr.join() === 'isaeva' && r.byWo, r);
+});
+
+await group('П-10 · Переместить: кроме «выбыла»; полка действующая; пачкой — на одну полку', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.gone = A.move('f209', 'go1-1'); o.ret = A.move('f211', 'go2-5'); o.same = A.move('f211', 'go2-1');
+    o.out = A.move('f230', 'go1-2'); o.hint = A.returnHint('f230').text;
+    o.b = A.moveBatch(['f211', 'f212', 'f209'], 'go3-5'); o.shelves = ['f211', 'f212'].map(id => A.folder(id).shelf);
+    o.nonArch = A.move('f213', 'go3-5', 'jeen');
+    return o; });
+  ck('выбывшую — нельзя; на выведенную полку — нельзя; на ту же — нельзя', !r.gone.ok && !r.ret.ok && !r.same.ok, [r.gone, r.ret, r.same]);
+  ck('папка на руках — меняется полка, куда она вернётся', r.out.ok && r.hint === 'на полку: Архив ГО · шкаф 1 · полка 2', r);
+  ck('пачкой — все на одну полку, выбывшая с причиной', r.b.done.length === 2 && r.b.skipped.length === 1 && r.shelves.join() === 'go3-5,go3-5', r.b);
+  ck('не архивариус — нельзя', !r.nonArch.ok);
+});
+
+await group('П-11 · Изменить привязку: архивариус, основание обязательно, название пересобирается', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.nonArch = A.rebind('f218', { borrower: 'n3', basis: 'х' }, 'asanov');
+    o.noBasis = A.rebind('f218', { borrower: 'n3', basis: '' });
+    o.nom = A.rebind('f211', { borrower: 'n3', basis: 'х' });
+    o.ok = A.rebind('f218', { borrower: 'n3', basis: 'ошибка при приёме' });
+    o.e = A.EVENTS.filter(e => e.folder === 'f218' && e.kind === 'rebound').map(e => [e.wasTitle, e.title, e.basis]);
+    o.h = A.history('f207').some(x => x.type === 'event' && x.e.kind === 'rebound' && x.e.wasTitle === 'КЗД · ОсОО «Нур-Сервис» · том 1');
+    return o; });
+  ck('не архивариус — нельзя; без основания — нельзя; у вида без привязки — нельзя', !r.nonArch.ok && !r.noBasis.ok && r.noBasis.field === 'basis' && !r.nom.ok, [r.nonArch, r.noBasis, r.nom]);
+  ck('название пересобрано; было и стало — в истории', r.ok.ok && r.e[0][0] === 'КЗД · Абдылдаев Н. · том 1' && r.e[0][1] === 'КЗД · ОсОО «Ала-Тоо Сут» · том 1', r.e);
+  ck('демо: смена привязки «Нур-Сервис» → «Жумабаев» в истории', r.h);
+});
+
+await group('П-12 · Списать: причина и основание; закрывает выдачу, бронь, задание, очередь; «Восстановить» — только утраченную', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.noReason = A.writeOff('f206', { reason: '', basis: 'х' }); o.noBasis = A.writeOff('f206', { reason: 'уничтожена', basis: '' });
+    o.res = A.writeOff('f206', { reason: 'передана другой организации', basis: 'Акт передачи № 2 от 13.11.2026' });
+    o.q = A.REQS.filter(x => x.folder === 'f206').map(x => x.st);
+    o.out = A.writeOff('f205', { reason: 'передана в госархив', basis: 'Акт № 7' });
+    o.iss = A.ISSUES.filter(i => i.folder === 'f205').pop(); o.issEnd = [o.iss.end, o.iss.closedBy];
+    o.ext = A.EXTS.find(x => x.folder === 'f205').st;
+    o.again = A.writeOff('f205', { reason: 'утрачена', basis: 'х' });
+    o.rDestroyed = A.restore('f215', { basis: 'х' }); o.rNoBasis = A.restore('f209', { basis: '' }); o.rOk = A.restore('f209', { basis: 'нашлась' });
+    o.h = A.history('f205').filter(x => x.type === 'issue')[0].result;
+    return o; });
+  ck('причина и основание обязательны', !r.noReason.ok && r.noReason.field === 'reason' && !r.noBasis.ok && r.noBasis.field === 'basis', [r.noReason, r.noBasis]);
+  ck('у забронированной: бронь и очередь — «закрыт: папка выбыла»', r.res.ok && r.q.every(s => s === 'closedGone'), r.q);
+  ck('у папки на руках: выдача закрыта списанием; просьба продлить закрыта', r.out.ok && r.issEnd[0] === '2026-11-13' && r.issEnd[1] === 'writeoff' && r.ext === 'closed', r);
+  ck('итог выдачи — «списана: передана в госархив»', has(r.h, 'списана: передана в госархив'), r.h);
+  ck('повторно списать — нельзя', !r.again.ok);
+  ck('«Восстановить» уничтоженную — нельзя; утраченную — с основанием', !r.rDestroyed.ok && !r.rNoBasis.ok && r.rOk.ok, [r.rDestroyed, r.rNoBasis, r.rOk]);
+});
+
+await group('П-13 · Справочники: на что ссылается папка — не удаляется, только выводится', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.shelf = A.deletePlace('shelf', 'go1-4');
+    const hs = A.addPlace('shelf', 'go3', 'полка 7'), hf = A.accept({ kind: 'nom', title: 'Проверка ссылки', dept: 'ДРР', shelf: hs.id }); A.move(hf.id, 'go3-1');
+    o.hist = A.placeRefs('shelf', hs.id); o.histDel = A.deletePlace('shelf', hs.id); o.histNow = A.FOLDERS.filter(f => f.shelf === hs.id).length;
+    o.cab = A.deletePlace('cab', 'go1'); o.room = A.deletePlace('room', 'dpo');
+    o.free = A.deletePlace('shelf', 'go2-5');
+    o.newS = A.addPlace('shelf', 'go3', 'полка 6'); o.delNew = A.deletePlace('shelf', o.newS.id);
+    o.retire = A.retirePlace('shelf', 'go3-3'); o.acc = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-3' }); o.mv = A.move('f211', 'go3-3');
+    o.kind = A.deleteKind('cards'); o.newK = A.addKind({ name: 'Акты ревизии', bind: 'no' }); o.delK = A.deleteKind(o.newK.id);
+    o.retK = A.retireKind('nom'); o.accK = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-2' });
+    o.cabRetired = (A.retirePlace('cab', 'dpo1'), A.shelfActive('dpo1-3'));
+    o.nonArch = A.retirePlace('shelf', 'go3-2', 'jeen');
+    return o; });
+  ck('полку с папками удалить нельзя — только вывести', !r.shelf.ok && has(r.shelf.why, 'только вывести из употребления'), r.shelf);
+  ck('ссылка только через историю (папка переехала, полка пуста) тоже держит полку', r.histNow === 0 && r.hist >= 1 && !r.histDel.ok, r);
+  ck('шкаф и помещение с папками — тоже нельзя', !r.cab.ok && !r.room.ok);
+  ck('пустую полку удалить можно', r.free.ok && r.newS.ok && r.delNew.ok, [r.free, r.delNew]);
+  ck('выведенная полка не принимает и не перемещает', r.retire.ok && !r.acc.ok && !r.mv.ok, [r.acc, r.mv]);
+  ck('вид с папками удалить нельзя; пустой — можно', !r.kind.ok && r.delK.ok, [r.kind, r.delK]);
+  ck('выведенный вид в приёме не принимается', r.retK.ok && !r.accK.ok, r.accK);
+  ck('выведенный шкаф выводит и свои полки', r.cabRetired === false);
+  ck('не архивариус — нельзя', !r.nonArch.ok);
+});
+
+await group('П-14 · Приём без заёмщика → «Ждут привязки»; «Кто сдал» необязательно, указан — уведомление', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.a = A.accept({ kind: 'kzd', borrower: '_none', uname: 'ОсОО «Ак-Тилек»', uinn: '01507200810044', shelf: 'go3-1' });
+    o.inBind = A.archQueue().bind.some(x => x.f.id === o.a.id);
+    o.noFromNotes = A.NOTES.filter(n => n.folder === o.a.id).length;
+    o.b = A.accept({ kind: 'kzd', borrower: 'n3', shelf: 'go3-1', from: 'abdyk' });
+    o.note = A.NOTES.filter(n => n.folder === o.b.id && n.to === 'abdyk' && n.kind === 'accepted').length;
+    o.firedFrom = A.accept({ kind: 'kzd', borrower: 'n2', shelf: 'go3-1', from: 'orozov' });
+    o.vz = A.accept({ kind: 'vz', borrower: 'n2', shelf: 'dpo1-3' }); o.n2 = A.noKzd({}, 'arch1').some(x => x.b.id === 'n2');
+    return o; });
+  ck('КЗД без привязки — в «Ждут привязки»; без сдавшего — без уведомления', r.a.ok && r.inBind && r.noFromNotes === 0, r);
+  ck('сдавший указан — ему «Папка принята в архив»', r.b.ok && r.note === 1, r);
+  ck('сдавший — только действующий сотрудник', !r.firedFrom.ok && r.firedFrom.field === 'from', r.firedFrom);
+  ck('«Дело взыскания» не закрывает «без КЗД»', r.vz.ok && r.n2, r);
+});
+
+await group('П-15 · Права по канону §7: запрет — в движке, не только скрытая кнопка', async (page, E) => {
+  const r = await E(() => { const A = window.AX, u = 'asanov', ext = A.EXTS.find(x => x.st === 'pending').id, rid = A.reservedReq('f206').id;
+    const calls = {
+      'принять': () => A.accept({ kind: 'nom', title: 'х', shelf: 'go3-3' }, u), 'выдать': () => A.issue('f211', { to: u, why: 'х', due: '2026-11-30' }, u),
+      'отказать': () => A.refuse(rid, 'х', u), 'продлить': () => A.extend('f216', { date: '2026-12-30', reason: 'х' }, u), 'решить просьбу': () => A.decideExtend(ext, { grant: true }, u),
+      'принять возврат': () => A.acceptReturn('f203', {}, u), 'переместить': () => A.move('f211', 'go3-3', u), 'изменить привязку': () => A.rebind('f217', { borrower: 'n5', basis: 'х' }, u),
+      'списать': () => A.writeOff('f211', { reason: 'утрачена', basis: 'х' }, u), 'восстановить': () => A.restore('f209', { basis: 'х' }, u),
+      'настройки': () => A.setSetting('issueDays', 5, u), 'справочник мест': () => A.addPlace('room', null, 'Архив ДРР', u), 'справочник видов': () => A.addKind({ name: 'х', bind: 'no' }, u),
+      'выдать пачкой': () => A.issueBatch(['f211'], { to: 'jeen', why: 'х', due: '2026-11-30' }, u), 'списать пачкой': () => A.writeOffBatch(['f211'], { reason: 'утрачена', basis: 'х' }, u),
+      'переместить пачкой': () => A.moveBatch(['f211'], 'go3-3', u), 'возврат пачкой': () => A.acceptReturnBatch(['f203'], {}, u) };
+    const out = {}, whys = {}; Object.entries(calls).forEach(([k, f]) => { const r = f(); out[k] = r.ok; whys[k] = r.why || (r.skipped && r.skipped[0] && r.skipped[0].why) || ''; });
+    const any = { 'запросить': A.request('f211', { why: 'х' }, 'sydykova').ok, 'отозвать чужой': A.withdraw(A.activeReqs('f211')[0].id, 'jeen').ok, 'отозвать свой': A.withdraw(A.activeReqs('f211')[0].id, 'sydykova').ok };
+    A.setUser('jeen'); A.openCard('f211'); const ui = { arch: !!document.querySelector('[data-testid=cb-issue]'), more: !!document.querySelector('[data-testid=cb-more]') };
+    A.setUser('jeen'); A.go('dicts'); const dicts = { view: A.S.view, nav: !!document.querySelector('[data-testid=nav-dicts]') };
+    return { out, whys, any, ui, dicts, store: A.FOLDERS.length }; });
+  const allowed = Object.entries(r.out).filter(([, ok]) => ok).map(([k]) => k);
+  ck('все действия архивариуса (17) отклонены движком для куратора', allowed.length === 0, allowed);
+  const notByRight = Object.entries(r.whys).filter(([, w]) => !has(w, 'архивариус')).map(([k, w]) => k + ': ' + w);
+  ck('каждый отказ — по праву («…архивариус»), а не по состоянию папки', notByRight.length === 0, notByRight);
+  ck('запросить и отозвать свой — любой; чужой отозвать нельзя', r.any['запросить'] && !r.any['отозвать чужой'] && r.any['отозвать свой'], r.any);
+  ck('у сотрудника кнопок архивариуса в карточке нет', !r.ui.arch && !r.ui.more, r.ui);
+  ck('справочники не архивариусу — нет в меню, переход возвращает в «Мои папки»', r.dicts.view === 'mine' && !r.dicts.nav, r.dicts);
+});
+
+await group('П-16 · Настройки: меняет только архивариус; новое значение — на новые выдачи и брони', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    o.bad = A.setSetting('issueDays', 0); o.badStr = A.setSetting('holdDays', 'два');
+    o.oldDue = A.openIssue('f225').due; o.oldUntil = A.reservedReq('f206').until;
+    o.s1 = A.setSetting('issueDays', 5); o.s2 = A.setSetting('holdDays', 3);
+    o.defDue = A.dueDefault('f211', 'jeen');
+    o.q = A.request('f212', { why: 'х' }, 'jeen'); o.until = o.q.until;
+    o.keep = [A.openIssue('f225').due, A.reservedReq('f206').until];
+    o.hist = A.SETTINGS.issueDays.hist.map(h => [h.v, h.by, h.d]);
+    A.go('dicts'); A.setTab('settings'); o.row = document.querySelector('[data-testid=set-issueDays]').innerText;
+    return o; });
+  ck('неверное значение — ошибка', !r.bad.ok && !r.badStr.ok);
+  ck('новый срок выдачи по умолчанию — 5 р.д. (20.11)', r.s1.ok && r.defDue === '2026-11-20', r.defDue);
+  ck('новая бронь — 3 р.д. (до 18.11)', r.s2.ok && r.until === '2026-11-18', r.until);
+  ck('уже назначенные срок и бронь не сдвинулись', r.keep[0] === r.oldDue && r.keep[1] === r.oldUntil, r);
+  ck('видно, кто и когда изменил', r.hist.length === 2 && r.hist[1].join() === '5,arch1,2026-11-13' && has(r.row, 'Токтосунова Г., 13.11.2026') && has(r.row, 'было: 10'), r);
+  await shot(page, '07-dicts-settings');
+  await E(() => window.AX.setTab('places'));
+  await shot(page, '07-dicts-places');
+});
+
+await group('П-17 · Ярлык: номер и название, без места; лист — по отмеченным', async (page, E) => {
+  const r = await E(() => { const A = window.AX; return A.labelSheet(['f205', 'f213', 'f209']); });
+  ck('ярлык — только номер и название', r.length === 2 && r.every(l => Object.keys(l).join() === 'no,title'), r);
+  ck('выбывшей ярлык не нужен', !r.some(l => l.no === 'А-000209'));
+  await E(() => { window.AX.go('folders'); });
+  await page.click('[data-testid=sel-205]'); await page.click('[data-testid=sel-213]');
+  await page.click('[data-testid=b-labels]');
+  const s = await E(() => ({ n: document.querySelectorAll('[data-testid=labels] .label').length, txt: document.querySelector('[data-testid=labels]').innerText }));
+  ck('лист ярлыков по двум отмеченным, без места', s.n === 2 && !has(s.txt, 'ДПО · 1') && !has(s.txt, 'полка'), s);
+});
+
+/* ============================ инварианты ============================ */
+
+await group('П-18 · края: просьба продлить при передаче; передача при возврате и списании; бронь снята, отозвана; напоминание; новый том', async (page, E) => {
+  const a = await E(() => { const A = window.AX, o = {};
+    o.t = A.transfer('f205', { to: 'asanov' }, 'jeen'); o.g = A.received('f205', 'asanov');
+    o.x = A.EXTS.find(x => x.folder === 'f205').st; o.due = A.openIssue('f205').due;
+    o.note = A.NOTES.filter(n => n.to === 'jeen' && n.kind === 'ext' && n.folder === 'f205').map(n => n.text);
+    o.gExt = A.gate('extend', 'f205', 'arch1'); o.ask = A.askExtend('f205', { date: '2026-11-30', reason: 'нужна до решения суда' }, 'asanov');
+    o.h = A.history('f205').find(x => x.type === 'issue').events.map(e => e.kind);
+    return o; });
+  ck('«Получил» закрывает просьбу продлить прежнего держателя; срок прежний', a.t.ok && a.g.ok && a.x === 'closed' && a.due === '2026-11-16', a);
+  ck('прежнему держателю — «Решение по продлению: просьба закрыта — папка передана Асанову Б.»', a.note.some(t => has(t, 'просьба закрыта — папка передана Асанову Б.')), a.note);
+  ck('новый держатель просит сам; «Продлить» напрямую снова доступно до его просьбы', a.gExt.ok && a.ask.ok, [a.gExt, a.ask]);
+  ck('закрытие просьбы — в событиях выдачи', a.h.includes('extClosed'), a.h);
+  const b = await E(() => { const A = window.AX, o = {};
+    o.r = A.acceptReturn('f201', {}, 'arch1');
+    o.ev = A.EVENTS.filter(e => e.folder === 'f201' && e.kind === 'transferCancel').map(e => e.why);
+    o.note = A.NOTES.filter(n => n.to === 'mambetov' && n.kind === 'transfer' && n.folder === 'f201').map(n => n.text);
+    o.inc = A.mine('mambetov').incoming.map(x => x.f.id);
+    A.transfer('f203', { to: 'isaeva' }, 'kadyrov'); A.writeOff('f203', { reason: 'утрачена', basis: 'Акт № 16' }, 'arch1');
+    o.wo = A.NOTES.filter(n => n.to === 'isaeva' && n.kind === 'transfer' && n.folder === 'f203').map(n => n.text);
+    A.transfer('f214', { to: 'sydykova' }, 'jeen'); A.cancelTransfer('f214', 'jeen');
+    o.cancel = A.NOTES.filter(n => n.to === 'sydykova' && n.kind === 'transfer' && n.folder === 'f214').map(n => n.text);
+    return o; });
+  ck('возврат во время передачи: передача закрыта событием «отменена: папку вернули в архив»', b.r.ok && b.ev.join() === 'папку вернули в архив', b);
+  ck('получателю — «Передача папки … отменена», из «Вам передают» папка ушла', b.note.some(t => has(t, 'отменена: папку вернули в архив')) && !b.inc.includes('f201'), b);
+  ck('списание во время передачи и «Отменить передачу» — получателю тоже уведомление', b.wo.some(t => has(t, 'отменена: папка выбыла')) && b.cancel.some(t => has(t, 'отменена')), [b.wo, b.cancel]);
+  const c = await E(() => { const A = window.AX, o = {};
+    A.uiUnreserve('f206'); o.title = A.S.form.title; o.empty = A.submitForm('main', {}); o.s = A.submitForm('main', { reason: 'дело уходит на проверку' });
+    o.isa = A.REQS.filter(r => r.folder === 'f206' && r.who === 'isaeva').map(r => r.st); o.next = A.reservedReq('f206') && A.reservedReq('f206').who;
+    o.w = A.withdraw(A.reservedReq('f206').id, 'kadyrov'); o.after = A.stateOf('f206');
+    A.request('f204', { why: 'а' }, 'jeen'); A.request('f204', { why: 'б' }, 'abdyk');
+    o.w2 = A.withdraw(A.reservedReq('f204').id, 'jeen'); o.next2 = A.reservedReq('f204') && A.reservedReq('f204').who;
+    return o; });
+  ck('«Снять бронь» — отказ с обязательной причиной; бронь — следующему', c.title === 'Снять бронь · А-000206' && !c.empty.ok && c.s.ok && c.isa.join() === 'refused' && c.next === 'kadyrov', c);
+  ck('отозвал бронь последний — папка свободна; при очереди — бронь следующему', c.w.ok && c.after === 'archive' && c.w2.ok && c.next2 === 'abdyk', c);
+  const d = await E(() => { const A = window.AX, o = {};
+    A.issue('f211', { to: 'jeen', why: 'х', due: '2026-11-24' }, 'arch1');
+    A.setSetting('remindDays', 10, 'arch1');
+    A.issue('f212', { to: 'jeen', why: 'х', due: '2026-12-11' }, 'arch1');
+    const rem = id => A.NOTES.filter(n => n.folder === id && n.kind === 'remind').map(n => n.d);
+    o.at13 = [rem('f211'), rem('f212')];
+    A.setToday('2026-11-19'); o.at19 = [rem('f211'), rem('f212')];
+    A.setToday('2026-11-23'); o.at23 = [rem('f211'), rem('f212')];
+    A.setToday('2026-11-27'); o.at27 = [rem('f211'), rem('f212')];
+    o.weekend = A.NOTES.filter(n => n.kind === 'remind' && !A.isWork(n.d)).map(n => n.d);
+    return o; });
+  ck('новое значение напоминания не трогает выданную раньше: f211 — 20.11 (2 р.д.), не сразу', d.at13[0].length === 0 && d.at19[0].length === 0 && d.at23[0].join() === '2026-11-20', d);
+  ck('выданная после смены — за 10 р.д. (27.11 при сроке 11.12)', d.at23[1].length === 0 && d.at27[1].join() === '2026-11-27', d);
+  ck('напоминание не приходит в выходной', d.weekend.length === 0, d.weekend);
+  const e = await E(() => { const A = window.AX, o = {};
+    o.past = A.extend('f230', { date: '2026-11-12', reason: 'х' }, 'arch1');
+    A.retireKind('vz', 'arch1'); o.nv = A.gate('nextVol', 'f205', 'arch1');
+    A.openCard('f205'); document.querySelector('[data-testid=cb-more]').click(); const mi = document.querySelector('[data-testid=mi-nextVol]'); o.mi = { dis: mi.disabled, why: mi.innerText };
+    return o; });
+  ck('продлить на дату в прошлом — нельзя', !e.past.ok && e.past.field === 'date' && has(e.past.why, 'позже сегодняшнего'), e.past);
+  ck('«Принять следующий том» у выведенного вида — серая с причиной', !e.nv.ok && e.mi.dis && has(e.mi.why, 'выведен из употребления'), e);
+});
+
+await group('Н-1 · демо-набор собран действиями движка и покрывает план §5', async (page, E) => {
+  const r = await E(() => { const A = window.AX, st = {}; A.FOLDERS.forEach(f => { const s = A.stateOf(f.id); st[s] = (st[s] || 0) + 1; });
+    const nos = A.FOLDERS.map(f => f.no);
+    return { st, n: A.FOLDERS.length, today: A.S.today, seq: nos.every((x, i) => x === 201 + i),
+      rooms: A.ROOMS.length, cabs: A.CABS.length, shelves: A.SHELVES.length, retShelf: A.SHELVES.filter(s => s.retired).length,
+      over: A.FOLDERS.filter(f => A.isOver(f.id)).length, up: A.tasks().filter(t => t.up).length, fired: A.archQueue().fired.length,
+      transfer: st.transfer, cancelled: A.ISSUES.some(i => i.transfers.some(t => t.st === 'cancelled')), q2: A.FOLDERS.some(f => A.activeReqs(f.id).length >= 2 && A.stateOf(f.id) === 'out'),
+      ext: A.EXTS.filter(x => x.st === 'pending').length, refused: A.REQS.some(r => r.st === 'refused'), notTaken: A.REQS.some(r => r.st === 'notTaken'),
+      lost: A.FOLDERS.filter(f => f.gone && f.gone.reason === 'утрачена').length, destroyed: A.FOLDERS.filter(f => f.gone && f.gone.reason === 'уничтожена').length,
+      restored: A.EVENTS.filter(e => e.kind === 'restored').length, rebound: A.EVENTS.filter(e => e.kind === 'rebound').length, unlinked: A.FOLDERS.filter(f => f.unlinked).length,
+      prot: A.FOLDERS.filter(f => f.title === 'Протоколы правления · 2025').map(f => f.dept).sort().join(), note: A.ISSUES.some(i => i.ret && i.ret.note), vz: A.FOLDERS.some(f => f.kind === 'vz'),
+      twoVol: A.FOLDERS.some(f => f.borrower && (f.vol || 1) === 2), nokzd: A.noKzd({ closed: true }, 'arch1').length, closed: A.noKzd({ closed: true }, 'arch1').filter(x => x.closed).length,
+      days: new Set(A.noKzd({}, 'arch1').map(x => x.days)).size, retKind: A.KINDS.filter(k => k.retired).length, accepted: A.EVENTS.filter(e => e.kind === 'accepted').length,
+      moved: A.EVENTS.filter(e => e.kind === 'moved').length, notes: new Set(A.NOTES.map(n => n.kind)).size }; });
+  ck('сегодня — заморожено 13.11.2026', r.today === '2026-11-13');
+  ck('30 папок, номера сквозные 201…230, каждая — событием «принята»', r.n === 30 && r.seq && r.accepted === 30, r);
+  ck('2 помещения, 4 шкафа, 20 полок, одна выведенная', r.rooms === 2 && r.cabs === 4 && r.shelves === 20 && r.retShelf === 1, r);
+  ck('все пять состояний: в архиве · забронирована · на руках · передаётся · выбыла', ['archive', 'reserved', 'out', 'transfer', 'gone'].every(s => r.st[s] > 0), r.st);
+  ck('просрочка с заданием, поднятым к руководителю; держатель уволен', r.over === 2 && r.up === 2 && r.fired === 1, r);
+  ck('передаётся; отменённая передача в истории; очередь из двух; просьба продлить на решении', r.transfer === 1 && r.cancelled && r.q2 && r.ext === 1, r);
+  ck('отказ в запросе; «не забран»', r.refused && r.notTaken);
+  ck('выбывшие: утрачена и уничтожена; восстановленная; смена привязки', r.lost === 1 && r.destroyed === 1 && r.restored === 1 && r.rebound === 1, r);
+  ck('КЗД без привязки (2); две «Протоколы правления · 2025» разных подразделений', r.unlinked === 2 && r.prot === 'Бухгалтерия,ДПО', r);
+  ck('возврат с примечанием; «Дело взыскания»; двухтомное дело; выведенный вид; перемещение', r.note && r.vz && r.twoVol && r.retKind === 1 && r.moved === 1, r);
+  ck('«Заёмщики без КЗД»: разные дни, есть закрытый', r.nokzd >= 4 && r.closed >= 1 && r.days >= 4, r);
+  ck('уведомления всех семи видов уже случились в демо-наборе', r.notes === 7, r.notes);
+});
+
+await group('Н-2 · инварианты после 400 случайных действий движка', async (page, E) => {
+  const r = await E(() => { const A = window.AX; let seed = 7; const rnd = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const pick = a => a[rnd(a.length)], emps = A.EMP.filter(e => !A.isFired(e.id)).map(e => e.id), shelves = A.SHELVES.map(s => s.id);
+    const bad = [], tally = { ok: 0, no: 0 };
+    for (let k = 0; k < 400; k++) {
+      const f = pick(A.FOLDERS).id, u = pick(emps), i = A.openIssue(f), q = A.activeReqs(f);
+      const acts = [
+        () => A.request(f, { why: 'случайно' }, u), () => A.issue(f, { to: q[0] ? q[0].who : u, why: 'случайно', due: A.addWork(A.S.today, 1 + rnd(8)) }, 'arch1'),
+        () => i ? A.acceptReturn(f, {}, 'arch2') : A.move(f, pick(shelves), 'arch1'), () => i ? A.transfer(f, { to: u }, i.holder) : A.writeOff(f, { reason: pick(A.GONE_REASONS), basis: 'акт' }, 'arch1'),
+        () => i && A.pendingTr(i) ? (rnd(2) ? A.received(f, A.pendingTr(i).to) : A.notReceived(f, A.pendingTr(i).to)) : A.restore(f, { basis: 'нашлась' }, 'arch1'),
+        () => q.length ? (rnd(2) ? A.refuse(q[rnd(q.length)].id, 'нет', 'arch1') : A.withdraw(q[0].id, q[0].who)) : A.askExtend(f, { date: '2027-01-15', reason: 'х' }, i ? i.holder : u),
+        () => { const x = A.EXTS.find(e => e.st === 'pending'); return x ? A.decideExtend(x.id, { grant: !!rnd(2), reason: 'нет' }, 'arch1') : A.extend(f, { date: '2027-02-01', reason: 'х' }, 'arch1'); },
+        () => rnd(5) ? A.cancelTransfer(f, i ? i.holder : u) : A.setToday(A.addWork(A.S.today, 1)),
+      ];
+      const res = pick(acts)(); res && res.ok ? tally.ok++ : tally.no++;
+      const inv = A.invariants(); if (inv.length) { bad.push([k, inv]); break; }
+    }
+    return { bad, tally, today: A.S.today }; });
+  ck('после каждого из 400 действий инварианты целы', r.bad.length === 0, r.bad);
+  ck('случайный проход реально двигал модель (есть и успехи, и запреты)', r.tally.ok > 50 && r.tally.no > 20, r.tally);
+});
+
+await group('Н-3 · «Мои папки»: три блока по срочности, пустые скрыты; журнал движения', async (page, E) => {
+  const r = await E(() => { const A = window.AX, o = {};
+    A.setUser('asanov'); o.asanov = [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid);
+    A.setUser('mambetov'); o.mambetov = [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid);
+    A.setUser('jeen'); o.jeen = [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid);
+    A.transfer('f227', { to: 'kadyrov' }, 'jeen'); A.received('f227', 'kadyrov');
+    A.setUser('arch1'); A.go('journal'); o.kinds = [...new Set([...document.querySelectorAll('[data-testid=tbl-journal] tbody tr')].map(t => t.children[1].textContent))].sort(); const jr = [...document.querySelectorAll('[data-testid=tbl-journal] tbody tr')].map(t => t.children[0].textContent); o.first = jr[0]; o.last = jr[jr.length - 1].split('.').reverse().join('-');
+    o.all = new Set(A.journal({}).map(e => e.kind)).size;
+    A.setJ('kind', 'returned'); o.ret = [...document.querySelectorAll('[data-testid=tbl-journal] tbody tr')].length;
+    A.setJ('kind', ''); A.setJ('emp', 'orozov'); o.oroz = A.journal({ emp: 'orozov', from: '2026-09-01' }).map(e => e.kind);
+    A.setJ('emp', ''); A.setJ('from', '01.09.2026'); o.fromSept = [...document.querySelectorAll('[data-testid=tbl-journal] tbody tr')].length;
+    return o; });
+  ck('куратор: «На руках у меня» → «Мои запросы»; «Вам передают» пуст — скрыт', r.asanov.join() === 'blk-hands,blk-req', r.asanov);
+  ck('заведующий: «Вам передают» → «На руках у меня»', r.mambetov.join() === 'blk-incoming,blk-hands', r.mambetov);
+  ck('юрист: только «На руках у меня»', r.jeen.join() === 'blk-hands', r.jeen);
+  ck('журнал по умолчанию — за 30 дней (с 14.10): возвраты, выдачи, сегодняшняя передача, списание', r.kinds.join() === 'возвращена,выдана,передана,списана' && r.first === '13.11.2026' && r.last >= '14.10.2026'.split('.').reverse().join('-'), r);
+  ck('за всё время — все восемь видов событий движения', r.all === 8, r.all);
+  ck('отбор по событию и сотруднику', r.ret === 2 && r.oroz.join() === 'issued', r);
+  ck('период меняется', r.fromSept > 40, r.fromSept);
+  await shot(page, '06-journal');
+});
+
+await browser.close();
+console.log(`\n${passed + failed} проверок: ${passed} пройдено, ${failed} провалено`);
+if (failed) { console.log('\nПровалы:'); fails.forEach(f => console.log(f)); process.exit(1); }
