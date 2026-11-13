@@ -3,6 +3,9 @@
 // права — канон ASUBK-arhiv-logika.md §7. Плюс инварианты модели (в том числе после случайных действий)
 // и проверки интерфейса: каждый раздел отрисован на 1920 px, без горизонтальной прокрутки, без ошибок консоли.
 // Каждая группа — свежая загрузка страницы (свежее состояние), порядок групп не важен.
+// Блок Р-1…Р-3 — автогриллинг страницы «Рамка модуля и Очередь архивариуса» (АХ-71…АХ-81): демо-стенд в шапке,
+// цвет счётчиков, поле «Возврат» с клавиатуры, итог под полем, возврат пачкой из «Папок» окном, печать и Excel
+// у «уволенных», ярлык после привязки, подсветка открытой папки.
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -186,7 +189,7 @@ await group('С-1 · утро архивариуса: стартовый экр�
     return { view: A.S.view, rows: [...document.querySelectorAll('[data-testid=tbl-give] tbody tr')].map(t => t.children[0].textContent), blocks: [...document.querySelectorAll('.section-h[data-testid^=blk]')].map(b => b.dataset.testid) }; });
   ck('стартовый экран — «Очередь архивариуса»', r.view === 'queue');
   ck('«К выдаче» по месту: ГО·1·1 → ГО·1·2 → ГО·2·1', r.rows.join('|') === 'ГО · 1 · 1|ГО · 1 · 2|ГО · 2 · 1', r.rows);
-  ck('четыре блока, «Просрочены» нет (АХ-56)', r.blocks.join() === 'blk-give,blk-ext,blk-bind,blk-fired', r.blocks);
+  ck('четыре блока по срочности: к выдаче → продления → у уволенных → ждут привязки; «Просрочены» нет (АХ-56, АХ-78)', r.blocks.join() === 'blk-give,blk-ext,blk-fired,blk-bind', r.blocks);
   await shot(page, '01-queue');
   await page.click('[data-testid=print-round]');
   ck('«Печать обхода» — брони по месту', await E(() => [...document.querySelectorAll('[data-testid=round-list] tbody tr')].map(t => t.children[1].textContent).join() === 'А-000202,А-000206,А-000210'));
@@ -244,11 +247,12 @@ await group('С-5 · возврат стопкой через поле «Воз�
   await shot(page, '01b-queue-return');
   await page.click('[data-testid=ret-accept]');
   const r = await E(() => { const A = window.AX; return { st: ['f230', 'f205', 'f216', 'f211', 'f203'].map(A.stateOf), res: A.reservedReq('f205') && A.reservedReq('f205').who,
-    content: A.folder('f216').content, h: A.history('f216')[0].result, ev211: A.EVENTS.filter(e => e.folder === 'f211' && e.kind === 'returned').length, shown: !!document.querySelector('[data-testid=batch-result]') }; });
+    content: A.folder('f216').content, h: A.history('f216')[0].result, ev211: A.EVENTS.filter(e => e.folder === 'f211' && e.kind === 'returned').length,
+    modal: document.querySelector('#overlay').classList.contains('open'), done: [...document.querySelectorAll('[data-testid^=ret-done-]')].map(t => t.dataset.testid.slice(9) + ':' + t.children[2].textContent) }; });
   ck('230, 216, 203 — в архиве; 205 — забронирована за первым в очереди (Асановым)', r.st.join() === 'archive,reserved,archive,archive,archive' && r.res === 'asanov', r);
   ck('примечание — в «Содержание» и в итог выдачи', has(r.content, 'без письма Минфина № 14') && has(r.h, 'вернул с примечанием'), r);
   ck('строка с причиной не принята', r.ev211 === 0);
-  ck('итог пачкой показан', r.shown);
+  ck('итог — под полем, без окна: четыре принятые папки с «куда» (АХ-76)', !r.modal && r.done.join('|') === '230:на полку: Архив ГО · шкаф 1 · полка 3|205:отложить: бронь — Асанов Б. до 17.11|216:на полку: Архив ГО · шкаф 2 · полка 3|203:на полку: Архив ГО · шкаф 1 · полка 1', r);
 });
 
 await group('С-6 · просьба продлить при очереди → отказ «папку ждут»', async (page, E) => {
@@ -972,6 +976,123 @@ await group('Н-3 · «Мои папки»: три блока по срочно�
   ck('отбор по событию и сотруднику', r.ret === 2 && r.oroz.join() === 'issued', r);
   ck('период меняется', r.fromSept > 40, r.fromSept);
   await shot(page, '06-journal');
+});
+
+/* ============ рамка и «Очередь архивариуса» — автогриллинг страницы (АХ-71…АХ-81) ============ */
+
+const toasts = E => E(() => [...document.querySelectorAll('[data-testid=toast]')].map(t => ({ text: t.textContent, btn: (t.querySelector('button') || {}).textContent || '' })));
+
+await group('Р-1 · рамка: демо-стенд одной полосой в шапке; счётчики красные только при своей просрочке; поиск и «Принять папку» в рамку не вынесены (АХ-71, АХ-72, АХ-73)', async (page, E) => {
+  const st = await E(() => { const s = document.querySelector('[data-testid=stand]'), foot = document.querySelector('.sidebar-foot');
+    return { inTop: !!s.closest('.topbar'), today: s.querySelector('[data-testid=stand-today]').textContent, user: !!s.querySelector('[data-testid=user]'), link: !!s.querySelector('[data-testid=demo-paperbox]'),
+      foot: foot.innerText.replace(/\s+/g, ' ').trim(), footDemo: !!foot.querySelector('.demo-tag') }; });
+  ck('АХ-71 · в шапке одна полоса стенда: сегодня 13.11.2026 · пользователь · образец врезки', st.inTop && st.today === '13.11.2026' && st.user && st.link, st);
+  ck('АХ-71 · низ меню — только кто вошёл: имя, роль · подразделение', !st.footDemo && st.foot === 'Токтосунова Г. архивариус · Общий отдел', st.foot);
+  await page.click('[data-testid=demo-paperbox]');
+  ck('АХ-71 · ссылка стенда открывает образец врезки «Где бумага»', await E(() => window.AX.S.view === 'borrower'));
+  const cnt = await E(() => { const A = window.AX, out = {}, c = v => { const e = document.querySelector(`[data-testid=cnt-${v}]`); return e ? e.textContent + (e.classList.contains('hot') ? '!' : '') : null; };
+    A.setUser('arch1'); out.arch = c('queue'); A.setUser('asanov'); out.asanov = c('mine'); A.setUser('mambetov'); out.mambetov = c('mine'); A.setUser('isaeva'); out.isaeva = c('mine');
+    A.acceptReturn('f230', {}, 'arch1'); A.setUser('asanov'); out.asanovAfter = c('mine');
+    A.setToday('2026-11-18'); A.setUser('isaeva'); out.isaevaLate = c('mine'); out.isaevaOver = A.mine('isaeva').hands.filter(x => x.over).map(x => x.f.no).join();
+    out.today = document.querySelector('[data-testid=stand-today]').textContent; return out; });
+  ck('АХ-72 · счётчик очереди «5» — серый (рабочий список, не тревога)', cnt.arch === '5', cnt.arch);
+  ck('АХ-72 · «Мои папки»: у Асанова «1» красный — своя просрочка; у Мамбетова («вам передают») и Исаевой (бронь) «1» серый',
+    cnt.asanov === '1!' && cnt.mambetov === '1' && cnt.isaeva === '1', cnt);
+  ck('АХ-72 · просрочка вернулась в архив — счётчик Асанова гаснет', cnt.asanovAfter === '', cnt.asanovAfter);
+  ck('АХ-72 · 18.11: бронь Исаевой истекла, папка А-000223 просрочена — её «1» становится красным', cnt.isaevaLate === '1!' && cnt.isaevaOver === '223', cnt);
+  ck('АХ-71 · дата стенда идёт вместе с часами', cnt.today === '18.11.2026', cnt.today);
+  const fr = await E(() => { window.AX.setUser('arch1');
+    return { topInputs: [...document.querySelectorAll('.topbar input, .topbar select')].map(e => e.id), acceptOnQueue: !!document.querySelector('#panel [data-testid=accept]') }; });
+  ck('АХ-73 · в шапке нет поля поиска (только переключатель стенда); в очереди нет «Принять папку»', fr.topInputs.join() === 'user' && !fr.acceptOnQueue, fr);
+});
+
+await group('Р-2 · поле «Возврат» с клавиатуры: курсор в поле, кнопка рядом, Enter; строки — № ссылкой, просрочка пометкой; итог под полем (АХ-74, АХ-75, АХ-76)', async (page, E) => {
+  const g = await E(() => { const i = document.querySelector('[data-testid=ret-input]').getBoundingClientRect(), b = document.querySelector('[data-testid=ret-accept]').getBoundingClientRect();
+    return { focus: document.activeElement && document.activeElement.dataset.testid, w: Math.round(i.width), gap: Math.round(b.left - i.right), h: document.querySelector('.retbox .ret-h').textContent }; });
+  ck('АХ-74 · при входе архивариуса курсор уже в поле «Возврат»', g.focus === 'ret-input', g.focus);
+  ck('АХ-74 · заголовок «Возврат»; поле под стопку (≤ 600 px), кнопка сразу за ним', g.h === 'Возврат' && g.w <= 600 && g.gap >= 0 && g.gap <= 20, g);
+  await E(() => { window.AX.go('folders'); window.AX.go('queue'); });
+  ck('АХ-74 · вернулся в очередь из меню — курсор снова в поле', await E(() => document.activeElement && document.activeElement.dataset.testid === 'ret-input'));
+  await page.keyboard.type('230 205 211');
+  const rows = await E(() => ({ th: [...document.querySelectorAll('[data-testid=ret-rows] thead th')].map(t => t.textContent).join('|'),
+    over230: document.querySelector('[data-testid=ret-over-230]')?.textContent || '', over205: !!document.querySelector('[data-testid=ret-over-205]'),
+    link205: !!document.querySelector('[data-testid=ret-row-205] td:first-child button.linky'), link211: !!document.querySelector('[data-testid=ret-bad] td:first-child button.linky') }));
+  ck('АХ-75 · колонки: № · Название · Держатель · Куда · Примечание — без «Вернуть до»', rows.th === '№|Название|Держатель|Куда|Примечание', rows.th);
+  ck('АХ-75 · просрочка — пометкой под держателем: у А-000230 «просрочена 3 р.д.», у А-000205 (в срок) — нет', rows.over230 === 'просрочена 3 р.д.' && !rows.over205, rows);
+  ck('АХ-75 · № — ссылка и у строки с причиной', rows.link205 && rows.link211, rows);
+  await page.click('[data-testid=ret-bad] td:first-child button.linky');
+  const c211 = await E(() => ({ hash: location.hash, main: document.querySelector('#cardpanel .cp-btns .btn').textContent, text: window.AX.S.ret.text }));
+  ck('АХ-75 · номер папки «в архиве» → карточка, где главная кнопка «Выдать»; набранное в поле не теряется', c211.hash === '#/folder/211' && c211.main === 'Выдать' && c211.text === '230 205 211', c211);
+  await page.keyboard.press('Escape');
+  await page.fill('[data-testid=ret-input]', '211');
+  await page.press('[data-testid=ret-input]', 'Enter');
+  const z = await E(() => ({ ev: window.AX.EVENTS.filter(e => e.kind === 'returned' && e.folder === 'f211').length, text: document.querySelector('[data-testid=ret-input]').value, focus: document.activeElement && document.activeElement.dataset.testid }));
+  ck('АХ-74 · Enter без папок на руках ничего не принимает; набранное и курсор на месте', z.ev === 0 && z.text === '211' && z.focus === 'ret-input', z);
+  await page.fill('[data-testid=ret-input]', '');
+  await page.keyboard.type('230 A-214');
+  const pre = await E(() => [...document.querySelectorAll('[data-testid^=ret-hint-]')].map(t => t.dataset.testid.slice(9) + ':' + t.textContent));
+  ck('АХ-74 · латинская «A-214» находит А-000214', pre.length === 2 && pre[1].startsWith('214:'), pre);
+  await page.keyboard.press('Enter');
+  const after = await E(() => ({ st: ['f230', 'f214'].map(window.AX.stateOf).join(), modal: document.querySelector('#overlay').classList.contains('open'), focus: document.activeElement && document.activeElement.dataset.testid,
+    text: document.querySelector('[data-testid=ret-input]').value, done: [...document.querySelectorAll('[data-testid^=ret-done-]')].map(t => t.dataset.testid.slice(9) + ':' + t.children[2].textContent),
+    head: document.querySelector('[data-testid=ret-done] .ret-done-h')?.textContent || '' }));
+  ck('АХ-74 · Enter = «Принять возврат (2)»: обе папки в архиве', after.st === 'archive,archive', after.st);
+  ck('АХ-76 · окна итога нет; поле очищено, курсор в нём — можно набирать следующую стопку', !after.modal && after.text === '' && after.focus === 'ret-input', after);
+  ck('АХ-76 · под полем «Принято только что: 2» с «куда» — те же подсказки, что до нажатия', has(after.head, 'Принято только что: 2') && after.done.join('|') === pre.join('|'), [after.done, pre]);
+  await E(() => { window.AX.go('folders'); window.AX.go('queue'); });
+  ck('АХ-76 · ушёл из очереди и вернулся — итога прошлой стопки нет', await E(() => !document.querySelector('[data-testid=ret-done]')));
+  await page.fill('[data-testid=ret-input]', '225');
+  await page.keyboard.press('Enter');
+  ck('АХ-76 · итог новой стопки на месте', await E(() => [...document.querySelectorAll('[data-testid^=ret-done-]')].map(t => t.dataset.testid).join() === 'ret-done-225'));
+  await page.keyboard.type('2');
+  ck('АХ-76 · новый ввод убирает итог прошлой стопки', await E(() => !document.querySelector('[data-testid=ret-done]')));
+});
+
+await group('Р-3 · очередь: печать и Excel у «уволенных»; открытая папка подсвечена; ярлык после привязки; возврат пачкой из «Папок» окном (АХ-77, АХ-79, АХ-80, АХ-81)', async (page, E) => {
+  const pr = await E(() => { const blk = id => document.querySelector(`[data-testid=${id}]`);
+    return { fired: [...blk('blk-fired').querySelectorAll('button')].map(b => b.dataset.testid).join(), give: [...blk('blk-give').querySelectorAll('button')].map(b => b.dataset.testid).join(),
+      ext: blk('blk-ext').querySelectorAll('button').length, bind: blk('blk-bind').querySelectorAll('button').length }; });
+  ck('АХ-79 · «На руках у уволенных» — «Печать» и «Excel»; «К выдаче» — «Печать обхода»; у «Продлений» и «Ждут привязки» — нет', pr.fired === 'print-list,excel' && pr.give === 'print-round' && pr.ext === 0 && pr.bind === 0, pr);
+  await page.click('[data-testid=blk-fired] [data-testid=excel]');
+  ck('АХ-79 · Excel выгружает список уволенных — 1 строка', (await toasts(E)).some(t => t.text === '«На руках у уволенных» — выгрузка в Excel: 1 строка'), await toasts(E));
+  await page.click('[data-testid=give-206] td:nth-child(3)');
+  const c1 = await E(() => ({ open: document.querySelector('#cardpanel').classList.contains('open'), cur: [...document.querySelectorAll('#panel tr.cur')].map(t => t.dataset.testid) }));
+  ck('АХ-81 · клик по строке «К выдаче» — панель карточки, строка подсвечена', c1.open && c1.cur.join() === 'give-206', c1);
+  await page.click('[data-testid=ext-205] td:nth-child(3)');
+  ck('АХ-81 · следующая строка — подсветка переходит на неё', await E(() => [...document.querySelectorAll('#panel tr.cur')].map(t => t.dataset.testid).join() === 'ext-205'));
+  await page.keyboard.press('Escape');
+  ck('АХ-81 · панель закрыта — подсветки нет', await E(() => !document.querySelector('#panel tr.cur')));
+  await page.click('[data-testid=bind-go-217]');
+  await page.fill('[data-testid=ff-basis]', 'Заёмщик заведён в системе 12.11.2026');
+  await page.click('[data-testid=form-submit]');
+  const t217 = (await toasts(E)).find(t => has(t.text, 'Привязка изменена'));
+  ck('АХ-80 · название не изменилось (А-000217) — сообщение без «Печать ярлыка»', t217 && !has(t217.text, 'перепечатайте') && t217.btn === '', t217);
+  await E(() => window.AX.uiRebind('f218'));
+  await page.selectOption('[data-testid=ff-borrower]', 'n1');
+  await page.fill('[data-testid=ff-basis]', 'Ошибка при приёме: дело ОсОО «Кен-Сай»');
+  await page.click('[data-testid=form-submit]');
+  const t218 = (await toasts(E)).find(t => has(t.text, 'перепечатайте ярлык'));
+  ck('АХ-80 · название изменилось (А-000218) — «перепечатайте ярлык» и кнопка «Печать ярлыка»', t218 && t218.btn === 'Печать ярлыка' && has(t218.text, 'КЗД · ОсОО «Кен-Сай» · том 1'), t218);
+  await page.click('[data-testid=toast] button');
+  const lab = await E(() => [...document.querySelectorAll('[data-testid=labels] .label')].map(l => l.innerText.replace(/\s+/g, ' ')));
+  ck('АХ-80 · кнопка печатает ярлык с новым названием', lab.length === 1 && lab[0] === 'А-000218 КЗД · ОсОО «Кен-Сай» · том 1', lab);
+  await E(() => { window.AX.closeForm(); window.AX.go('folders'); });
+  for (const n of [230, 205, 211]) await page.click(`[data-testid=sel-${n}]`);
+  await page.click('[data-testid=b-return]');
+  const w = await E(() => ({ title: document.querySelector('[data-testid=form-title]').textContent, submit: document.querySelector('[data-testid=form-submit]').textContent,
+    rows: [...document.querySelectorAll('#modal [data-testid^=ret-row-]')].map(t => t.dataset.testid.slice(8)), hints: [...document.querySelectorAll('#modal [data-testid^=ret-hint-]')].map(t => t.textContent),
+    bad: [...document.querySelectorAll('#modal [data-testid=ret-bad]')].map(t => t.innerText), st: window.AX.stateOf('f230') }));
+  ck('АХ-77 · «Принять возврат» пачкой — окно, ничего ещё не принято', w.title === 'Принять возврат · 3 папки' && w.st === 'out', w);
+  ck('АХ-77 · в окне те же строки, что в поле «Возврат»: «куда» до нажатия, не на руках — с причиной', w.rows.join() === '205,230' && w.hints.join('|') === 'отложить: бронь — Асанов Б. до 17.11|на полку: Архив ГО · шкаф 1 · полка 3' && w.bad.length === 1 && has(w.bad[0], 'в архиве — возвращать нечего'), w);
+  ck('АХ-77 · кнопка «Принять возврат (2)» не считает строку с причиной', w.submit === 'Принять возврат (2)', w.submit);
+  await page.click('#modal [data-testid=ret-addnote-230]');
+  await page.fill('#modal [data-testid=ret-note-230]', 'без графика погашения');
+  await page.click('[data-testid=form-submit]');
+  const res = await E(() => { const A = window.AX; return { st: ['f230', 'f205', 'f211'].map(A.stateOf).join(), res: (A.reservedReq('f205') || {}).who, content: A.folder('f230').content,
+    ev211: A.EVENTS.filter(e => e.kind === 'returned' && e.folder === 'f211').length, result: !!document.querySelector('[data-testid=batch-result]') }; });
+  ck('АХ-77 · приняты 230 и 205 (бронь первому — Асанову), 211 не тронута', res.st === 'archive,reserved,archive' && res.res === 'asanov' && res.ev211 === 0, res);
+  ck('АХ-77 · примечание из окна — в «Содержание»; итог пачкой показан', has(res.content, 'без графика погашения') && res.result, res);
+  await shot(page, '09-batch-return');
 });
 
 await browser.close();

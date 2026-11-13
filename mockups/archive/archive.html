@@ -85,6 +85,9 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .demo-scaffold{ display:flex; align-items:center; gap:10px; padding:4px 10px 4px 12px; flex-wrap:wrap;
   border:1px dashed var(--border-default); border-radius:var(--radius-md); background:var(--asubk-tint-fill); }
 .demo-tag{ font:var(--weight-semibold) 10px/1.6 var(--asubk-font); letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); white-space:nowrap; }
+.stand-today{ font:var(--font-label); color:var(--text-muted); white-space:nowrap; }
+.stand-today b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
+.demo-scaffold .stand-link{ font:var(--font-label); white-space:nowrap; }
 .scaffold-note{ padding:8px 10px; border:1px dashed var(--border-default); border-radius:var(--radius-md); background:var(--asubk-tint-fill);
   font:var(--weight-regular) var(--text-cap)/1.5 var(--asubk-font); color:var(--text-muted); }
 .scaffold-note .demo-tag{ display:block; }
@@ -239,9 +242,12 @@ details.hrow .ev td{ padding:3px 8px 3px 0; vertical-align:top; }
 details.hrow[open] .caret{ transform:rotate(90deg); }
 /* ---- поле «Возврат» ---- */
 .retbox{ border:1px solid var(--border-strong); border-radius:var(--radius-lg); padding:14px 16px; margin-bottom:18px; background:var(--surface-card); }
-.retbox .row1{ display:flex; gap:12px; align-items:flex-end; }
-.retbox .row1 .fld{ flex:1; }
-.retbox .row1 input{ height:40px; font-size:var(--text-base); }
+.retbox .row1{ display:flex; gap:12px; align-items:center; }
+.retbox .ret-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin-right:4px; }
+.retbox .ret-in{ width:520px; height:40px; border-radius:var(--radius-md); border:1px solid var(--border-strong); padding:0 12px; font:var(--font-body); color:var(--text-body); }
+.retbox .row1 .btn{ height:40px; }
+.ret-done{ margin-top:12px; }
+.ret-done-h{ font:var(--weight-semibold) var(--text-sm)/1.4 var(--asubk-font); color:var(--asubk-green); margin-bottom:6px; }
 .retbox table{ margin-top:12px; }
 .retbox .note-in{ width:100%; height:30px; border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:0 8px; font:var(--font-label); margin-top:6px; }
 .hint{ display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:var(--radius-md); font:var(--weight-semibold) var(--text-sm)/1.5 var(--asubk-font); }
@@ -252,6 +258,7 @@ details.hrow[open] .caret{ transform:rotate(90deg); }
 .overlay.open{ display:flex; }
 .modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(720px,100%); max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
 .modal.wide{ width:min(980px,100%); }
+.modal.xwide{ width:min(1240px,100%); }
 .modal-h{ padding:18px 24px 10px; display:flex; align-items:center; gap:10px; }
 .modal-h .mt{ font:var(--weight-bold) 19px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
 .modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:20px; }
@@ -305,16 +312,18 @@ details.hrow[open] .caret{ transform:rotate(90deg); }
       <div class="nav-head"><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg>Архив папок</div>
       <div id="navItems"></div>
     </nav>
-    <div class="sidebar-foot"><div class="who" id="who"></div><div class="scaffold-note" id="standNote"></div></div>
+    <div class="sidebar-foot"><div class="who" id="who"></div></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <div class="crumb-title" id="title"></div>
       <div class="right">
-        <!-- Демо-стенд: в рабочей системе пользователь берётся из входа. -->
-        <div class="demo-scaffold" title="Контролы демонстрационного стенда. В рабочей системе пользователь берётся из входа.">
+        <!-- Демо-стенд: в рабочей системе дата — сегодняшняя, пользователь берётся из входа. -->
+        <div class="demo-scaffold" data-testid="stand" title="Контролы демонстрационного стенда. В рабочей системе дата — сегодняшняя, пользователь берётся из входа.">
           <span class="demo-tag">Демо-стенд</span>
+          <span class="stand-today">Сегодня <b id="standToday" data-testid="stand-today"></b></span>
           <span><label for="user">Пользователь</label><select id="user" data-testid="user" onchange="AX.setUser(this.value)"></select></span>
+          <button class="linky stand-link" data-testid="demo-paperbox" onclick="AX.go('borrower')">Образец врезки «Где бумага»</button>
         </div>
       </div>
     </div>
@@ -440,8 +449,8 @@ const GONE_REASONS = ['утрачена', 'уничтожена', 'переда�
 /* ------------------------------ состояние --------------------------- */
 const S = { today: TODAY, user: 'arch1', view: 'queue', card: null, n: 0, ids: 0, lastNo: 200,
   q: '', chip: '', f: { kind: '', room: '', cab: '', shelf: '', holder: '', dept: '', hdept: '', borrower: '' }, sel: new Set(),
-  tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false }, ret: { text: '', notes: {}, open: {} },
-  form: null, print: null, pb: 'b2', menu: false };
+  tab: 'places', jr: { from: '', to: '', kind: '', q: '', emp: '' }, nk: { mine: null, closed: false }, ret: { text: '', notes: {}, open: {}, done: null },
+  retB: { notes: {}, open: {} }, focusRet: false, form: null, print: null, pb: 'b2', menu: false };
 const FOLDERS = [], ISSUES = [], REQS = [], EXTS = [], EVENTS = [], NOTES = [];
 const DEMO = {};
 
@@ -973,7 +982,7 @@ function rebind(fid, d, by = S.user) {
   const wasTitle = titleOf(f), was = f.borrower ? { borrower: f.borrower } : { unlinked: f.unlinked };
   f.borrower = d.borrower; f.unlinked = null;
   ev(fid, 'rebound', by, { was, wasTitle, to: d.borrower, basis, title: titleOf(f) });
-  return yes({ title: titleOf(f) });
+  return yes({ title: titleOf(f), wasTitle });
 }
 /* Списать: причина и основание обязательны; закрывает выдачу, бронь, задание и очередь («закрыт: папка выбыла»). */
 function writeOffFields(d) {
@@ -1105,7 +1114,8 @@ function mine(u) {
 }
 function menuCounts(u) {
   const m = mine(u);
-  return { queue: isArch(u) ? archQueue().total : 0, mine: m.incoming.length + m.requests.filter(x => x.r.st === 'reserved').length + m.hands.filter(x => x.over).length };
+  const over = m.hands.filter(x => x.over).length;
+  return { queue: isArch(u) ? archQueue().total : 0, mine: m.incoming.length + m.requests.filter(x => x.r.st === 'reserved').length + over, mineOver: over };
 }
 /* Поиск: номер (без ведущих нулей), название, ИНН, «Содержание». */
 function matchQ(f, q) {
@@ -1257,58 +1267,79 @@ function render() {
   if (typeof document === 'undefined') return;
   const u = S.user, vs = viewsOf(u), mc = menuCounts(u);
   if (!vs.some(v => v[0] === S.view) && S.view !== 'borrower') S.view = startView(u);
-  $('#navItems').innerHTML = vs.map(([v, l]) => { const c = v === 'queue' ? mc.queue : v === 'mine' ? mc.mine : 0;
-    return `<button class="nav-item${S.view === v ? ' active' : ''}" data-v="${v}" data-testid="nav-${v}" onclick="AX.go('${v}')">${l}<span class="cnt${c ? ' hot' : ''}" data-testid="cnt-${v}">${c || ''}</span></button>`; }).join('');
+  /* Счётчик серый; красный — только когда в счёт входит своя просрочка. */
+  $('#navItems').innerHTML = vs.map(([v, l]) => { const c = v === 'queue' ? mc.queue : v === 'mine' ? mc.mine : 0, hot = v === 'mine' && mc.mineOver > 0;
+    return `<button class="nav-item${S.view === v ? ' active' : ''}" data-v="${v}" data-testid="nav-${v}" onclick="AX.go('${v}')">${l}<span class="cnt${hot ? ' hot' : ''}" data-testid="cnt-${v}">${c || ''}</span></button>`; }).join('');
   $('#user').innerHTML = USERS.map(([id, role]) => `<option value="${id}"${id === u ? ' selected' : ''}>${esc(nm(id))} — ${role}</option>`).join('');
   $('#who').innerHTML = `${esc(nm(u))}<small>${esc(roleOf(u))} · ${esc(emp(u).dept)}</small>`;
-  $('#standNote').innerHTML = `<span class="demo-tag">Демо-стенд</span>Сегодня ${fmt(S.today)}. Образец для модуля «Заёмщик»: <button class="linky" data-testid="demo-paperbox" onclick="AX.go('borrower')">врезка «Где бумага»</button>`;
+  $('#standToday').textContent = fmt(S.today);
   $('#title').textContent = TITLES[S.view];
   const V = { queue: viewQueue, folders: viewFolders, mine: viewMine, nokzd: viewNoKzd, journal: viewJournal, dicts: viewDicts, borrower: viewBorrower };
   $('#panel').innerHTML = V[S.view]();
   $('#panel').dataset.view = S.view;
   if (S.view === 'queue') renderRet();
   renderCard();
+  /* При входе в очередь и после возврата курсор — в поле «Возврат». */
+  if (S.focusRet) { S.focusRet = false; const el = $('#retInput'); if (el && S.view === 'queue' && !S.form && !S.print && !S.card) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
 }
 
 /* --------------------- ЭКРАН: очередь архивариуса -------------------- */
+/* Блоки по срочности: к выдаче → продления → у уволенных → ждут привязки (без срока, растёт при запуске).
+   Строка открытой в панели папки подсвечена, как в «Папках». */
+const qRow = (f, tid) => `<tr class="click${S.card === f.id ? ' cur' : ''}" data-testid="${tid}" onclick="AX.openCard('${f.id}')">`;
 function viewQueue() {
   if (!isArch(S.user)) return `<div class="empty">Очередь архивариуса — у роли «Архивариус».</div>`;
   const q = archQueue();
-  let h = `<div class="retbox" data-testid="ret-box"><div class="row1"><div class="fld"><label for="retInput">Возврат — номера с корешков подряд, через пробел; «231» находит А-000231</label>
-    <input id="retInput" data-testid="ret-input" autocomplete="off" placeholder="например: 230 205 214" value="${esc(S.ret.text)}" oninput="AX.retInput(this.value)"></div>
-    <button class="btn btn-primary" id="retBtn" data-testid="ret-accept" onclick="AX.uiReturnBatch()">Принять возврат</button></div><div id="retRows"></div></div>`;
+  /* Поле «Возврат»: ввод с клавиатуры — кнопка рядом с полем, Enter принимает. */
+  let h = `<div class="retbox" data-testid="ret-box"><div class="row1"><label class="ret-h" for="retInput">Возврат</label>
+    <input id="retInput" class="ret-in" data-testid="ret-input" autocomplete="off" placeholder="номера с корешков через пробел: 230 205 214" value="${esc(S.ret.text)}"
+      oninput="AX.retInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();AX.uiReturnBatch();}">
+    <button class="btn btn-primary" id="retBtn" data-testid="ret-accept" onclick="AX.uiReturnBatch()">Принять возврат</button>
+    <span class="small">«231» — это А-000231, можно и с «А-»; Enter — принять</span></div><div id="retRows"></div></div>`;
   if (!q.total) h += `<div class="empty" data-testid="queue-empty">Ничего не ждёт вашего действия.</div>`;
   if (q.give.length) h += sec('К выдаче', q.give.length, btn('', 'AX.uiPrintRound()', { html: ico('print') + ' Печать обхода', tid: 'print-round' }), 'blk-give') +
     `<table class="cgrid" data-testid="tbl-give"><thead><tr><th>Место</th><th>№</th><th>Название</th><th>Для кого</th><th>Бронь до</th><th>Зачем</th><th></th></tr></thead><tbody>${q.give.map(x => { const f = folder(x.id);
-      return `<tr class="click" data-testid="give-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw mono">${x.place}</td><td class="nw">${openBtn(f)}</td><td>${esc(x.title)}</td><td class="nw">${esc(nm(x.who))} <span class="small">${esc(emp(x.who).dept)}</span></td>
+      return `${qRow(f, 'give-' + f.no)}<td class="nw mono">${x.place}</td><td class="nw">${openBtn(f)}</td><td>${esc(x.title)}</td><td class="nw">${esc(nm(x.who))} <span class="small">${esc(emp(x.who).dept)}</span></td>
       <td class="nw">${fmt(x.until)}</td><td>${esc(x.why)}</td><td class="nw"><div class="btn-row">${btn('Выдать', `AX.uiIssue('${f.id}')`, { cls: 'btn-primary', tid: 'give-issue-' + f.no })}${btn('Отказать', `AX.uiRefuse('${x.req}')`, { tid: 'give-refuse-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
   if (q.ext.length) h += sec('Продления', q.ext.length, '', 'blk-ext') +
     `<table class="cgrid" data-testid="tbl-ext"><thead><tr><th>Держатель</th><th>№</th><th>Название</th><th>Срок → просит до</th><th>Причина</th><th>Кто ждёт</th><th></th></tr></thead><tbody>${q.ext.map(x => { const f = folder(x.folder), i = openIssue(f.id), w = activeReqs(f.id);
-      return `<tr class="click" data-testid="ext-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${esc(nm(x.who))}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${fmt(i.due)} → <b>${fmt(x.date)}</b></td><td>${esc(x.reason)}</td>
+      return `${qRow(f, 'ext-' + f.no)}<td class="nw">${esc(nm(x.who))}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${fmt(i.due)} → <b>${fmt(x.date)}</b></td><td>${esc(x.reason)}</td>
       <td>${w.length ? `<span class="red">${w.map(r => esc(nm(r.who))).join(', ')}</span>` : '—'}</td><td class="nw"><div class="btn-row">${btn('Продлить', `AX.uiDecide('${x.id}', true)`, { cls: 'btn-primary', tid: 'ext-grant-' + f.no })}${btn('Отказать', `AX.uiDecide('${x.id}', false)`, { tid: 'ext-refuse-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
+  if (q.fired.length) h += sec('На руках у уволенных', q.fired.length, printXls('На руках у уволенных', q.fired.length), 'blk-fired') +
+    `<table class="cgrid" data-testid="tbl-fired"><thead><tr><th>Держатель</th><th>Уволен с</th><th>№</th><th>Название</th><th>Вернуть до</th><th>Руководитель</th><th></th></tr></thead><tbody>${q.fired.map(i => { const f = folder(i.folder), e = emp(i.holder);
+      return `${qRow(f, 'fired-' + f.no)}<td class="nw">${esc(e.name)} <span class="flag">уволен</span></td><td class="nw">${fmt(e.fired)}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td>
+      <td class="nw${S.today > i.due ? ' red' : ''}">${fmt(i.due)}</td><td class="nw">${esc(nm(e.head))}</td><td class="nw"><div class="btn-row">${btn('Принять возврат', `AX.uiReturn('${f.id}')`, { tid: 'fired-return-' + f.no })}${btn('Списать', `AX.uiWriteoff('${f.id}')`, { cls: 'btn-danger', tid: 'fired-writeoff-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
   if (q.bind.length) h += sec('Ждут привязки', q.bind.length, '', 'blk-bind') +
     `<table class="cgrid" data-testid="tbl-bind"><thead><tr><th>№</th><th>Название (вручную)</th><th>ИНН</th><th>Место</th><th>Заёмщик в системе</th><th></th></tr></thead><tbody>${q.bind.map(({ f, match }) =>
-      `<tr class="click" data-testid="bind-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="mono nw">${f.unlinked.inn}</td><td class="nw mono">${placeShort(f.shelf)}</td>
+      `${qRow(f, 'bind-' + f.no)}<td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td class="mono nw">${f.unlinked.inn}</td><td class="nw mono">${placeShort(f.shelf)}</td>
       <td>${match ? `<span class="hint shelf" data-testid="bind-hint-${f.no}">найден по ИНН: ${esc(match.name)}</span>` : '<span class="muted">заёмщика с этим ИНН в системе нет</span>'}</td>
       <td class="nw">${match ? btn('Привязать', `AX.uiRebind('${f.id}', '${match.id}')`, { cls: 'btn-primary', tid: 'bind-go-' + f.no }) : btn('Привязать…', `AX.uiRebind('${f.id}')`, { tid: 'bind-go-' + f.no })}</td></tr>`).join('')}</tbody></table>`;
-  if (q.fired.length) h += sec('На руках у уволенных', q.fired.length, '', 'blk-fired') +
-    `<table class="cgrid" data-testid="tbl-fired"><thead><tr><th>Держатель</th><th>Уволен с</th><th>№</th><th>Название</th><th>Вернуть до</th><th>Руководитель</th><th></th></tr></thead><tbody>${q.fired.map(i => { const f = folder(i.folder), e = emp(i.holder);
-      return `<tr class="click" data-testid="fired-${f.no}" onclick="AX.openCard('${f.id}')"><td class="nw">${esc(e.name)} <span class="flag">уволен</span></td><td class="nw">${fmt(e.fired)}</td><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td>
-      <td class="nw${S.today > i.due ? ' red' : ''}">${fmt(i.due)}</td><td class="nw">${esc(nm(e.head))}</td><td class="nw"><div class="btn-row">${btn('Принять возврат', `AX.uiReturn('${f.id}')`, { tid: 'fired-return-' + f.no })}${btn('Списать', `AX.uiWriteoff('${f.id}')`, { cls: 'btn-danger', tid: 'fired-writeoff-' + f.no })}</div></td></tr>`; }).join('')}</tbody></table>`;
   return h;
 }
-/* Поле «Возврат»: строки перерисовываются без перерисовки поля ввода. */
+/* Строки возврата — одни для поля «Возврат» и для окна «Принять возврат» пачкой из «Папок» (mode 'b'):
+   № · название · держатель (просрочка пометкой) · куда · примечание; папка не на руках — строка с причиной. */
+function retRowsHtml(rows, st, mode) {
+  if (!rows.length) return '';
+  const no = f => mode === 'b' ? `<span class="mono">${noStr(f.no)}</span>` : openBtn(f);
+  return `<table class="cgrid" data-testid="ret-rows"><thead><tr><th>№</th><th>Название</th><th>Держатель</th><th>Куда</th><th>Примечание</th></tr></thead><tbody>${rows.map(r => {
+    const f = r.id && folder(r.id);
+    if (!r.ok) return `<tr data-testid="ret-bad"><td class="nw">${f ? no(f) : `<span class="mono">${esc(r.input)}</span>`}</td><td colspan="4"><span class="why err">${esc(r.why)}</span>${f ? ' · ' + esc(titleOf(f)) : ''}</td></tr>`;
+    const i = openIssue(r.id), od = overDays(r.id);
+    return `<tr data-testid="ret-row-${f.no}"><td class="nw">${no(f)}</td><td>${esc(titleOf(f))}</td><td class="nw">${esc(nm(i.holder))}${od ? `<div class="small red" data-testid="ret-over-${f.no}">просрочена ${od} р.д.</div>` : ''}</td>
+      <td><span class="hint ${r.hint.kind}" data-testid="ret-hint-${f.no}">${esc(r.hint.text)}</span></td>
+      <td style="min-width:${mode === 'b' ? 200 : 260}px">${st.open[r.id] || st.notes[r.id] ? `<input class="note-in" data-testid="ret-note-${f.no}" placeholder="вернулось не всё: …" value="${esc(st.notes[r.id] || '')}" oninput="AX.retNote('${r.id}', this.value, '${mode}')">`
+        : `<button class="linky" data-testid="ret-addnote-${f.no}" onclick="AX.retOpenNote('${r.id}', '${mode}')">＋ примечание</button>`}</td></tr>`; }).join('')}</tbody></table>`;
+}
+/* Поле «Возврат»: строки перерисовываются без перерисовки поля ввода. Пусто — итог последнего возврата
+   («куда» нужно, пока папки раскладываются), до следующего ввода или ухода из очереди. */
 function renderRet() {
   const box = $('#retRows'), b = $('#retBtn'); if (!box) return;
-  const rows = returnLookup(S.ret.text), ok = rows.filter(r => r.ok);
+  const rows = returnLookup(S.ret.text), ok = rows.filter(r => r.ok), d = S.ret.done;
   b.textContent = `Принять возврат (${ok.length})`; b.disabled = !ok.length;
-  box.innerHTML = !rows.length ? '' : `<table class="cgrid" data-testid="ret-rows"><thead><tr><th>№</th><th>Название</th><th>Держатель</th><th>Вернуть до</th><th>Куда</th><th>Примечание</th></tr></thead><tbody>${rows.map(r => {
-    if (!r.ok) { const f = r.id && folder(r.id); return `<tr data-testid="ret-bad"><td class="mono nw">${esc(f ? noStr(f.no) : r.input)}</td><td colspan="5"><span class="why err">${esc(r.why)}</span>${f ? ' · ' + esc(titleOf(f)) : ''}</td></tr>`; }
-    const f = folder(r.id), i = openIssue(r.id);
-    return `<tr data-testid="ret-row-${f.no}"><td class="mono nw">${noStr(f.no)}</td><td>${esc(titleOf(f))}</td><td class="nw">${esc(nm(i.holder))}</td><td class="nw${S.today > i.due ? ' red' : ''}">${fmt(i.due)}</td>
-      <td><span class="hint ${r.hint.kind}" data-testid="ret-hint-${f.no}">${esc(r.hint.text)}</span></td>
-      <td style="min-width:260px">${S.ret.open[r.id] || S.ret.notes[r.id] ? `<input class="note-in" data-testid="ret-note-${f.no}" placeholder="вернулось не всё: …" value="${esc(S.ret.notes[r.id] || '')}" oninput="AX.retNote('${r.id}', this.value)">`
-        : `<button class="linky" data-testid="ret-addnote-${f.no}" onclick="AX.retOpenNote('${r.id}')">＋ примечание</button>`}</td></tr>`; }).join('')}</tbody></table>`;
+  if (rows.length) { box.innerHTML = retRowsHtml(rows, S.ret, 'q'); return; }
+  box.innerHTML = d && d.length ? `<div class="ret-done" data-testid="ret-done"><div class="ret-done-h">Принято только что: ${d.length} — разложите по местам</div>
+    <table class="cgrid"><thead><tr><th>№</th><th>Название</th><th>Куда</th></tr></thead><tbody>${d.map(x => { const f = folder(x.id);
+      return `<tr data-testid="ret-done-${f.no}"><td class="nw">${openBtn(f)}</td><td>${esc(titleOf(f))}</td><td><span class="hint ${x.kind}">${esc(x.text)}</span></td></tr>`; }).join('')}</tbody></table></div>` : '';
 }
 
 /* --------------------------- ЭКРАН: папки ---------------------------- */
@@ -1594,7 +1625,7 @@ function renderModal() {
   }
   const fm = S.form; if (!fm) { ov.classList.remove('open'); md.innerHTML = ''; return; }
   const v = fm.vals;
-  md.className = 'modal' + (fm.wide ? ' wide' : '');
+  md.className = 'modal' + (fm.xwide ? ' xwide' : fm.wide ? ' wide' : '');
   md.innerHTML = `<div class="modal-h"><div class="mt" data-testid="form-title">${esc(fm.title)}</div><button class="modal-x" onclick="AX.closeForm()">×</button></div>
     <div class="modal-b">${fm.note ? `<div class="banner info">${fm.note}</div>` : ''}${fm.err && !fm.errField ? `<div class="banner danger" data-testid="form-err">${esc(fm.err)}</div>` : ''}
     <div class="mform">${fm.fields.map(f => { if (!fieldShown(f, v)) return '';
@@ -1637,7 +1668,7 @@ function toast(msg, kind, act) {
   if (typeof document === 'undefined') return;
   const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.setAttribute('data-testid', 'toast');
   d.innerHTML = esc(msg) + (act ? ` <button class="btn btn-secondary btn-sm" style="margin-left:10px" onclick="${act.call}">${esc(act.label)}</button>` : '');
-  $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), 6000);
+  $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), act ? 12000 : 6000);
 }
 const say = r => { toast(r.ok ? r.msg || 'Готово' : r.why, r.ok ? 'ok' : 'err'); render(); return r; };
 const head = f => `${noStr(f.no)} «${esc(titleOf(f))}»`;
@@ -1737,11 +1768,18 @@ function uiReturn(fid) {
       { id: 'note', label: 'Примечание (вернулось не всё)', type: 'textarea', wide: true, hint: 'попадёт в историю и в «Содержание»' }],
     onSubmit: v => { const r = acceptReturn(fid, v); if (r.ok) r.msg = r.hold ? `Возвращена — отложить: бронь ${nm(r.hold)} до ${fmt(r.until)}` : `Возвращена — на полку ${placeShort(r.shelf)}`; return r; } });
 }
+/* «Принять возврат» пачкой из «Папок» — окном с теми же строками, что поле «Возврат»: куда, примечание, причина. */
 function uiReturnSel(ids = selIds()) {
   if (!isArch(S.user)) return say(no('возврат принимает только архивариус'));
-  const hints = {}; ids.forEach(id => { const h = returnHint(id); if (h.ok) hints[id] = h.text; });
-  const r = acceptReturnBatch(ids, {}); if (r.ok) { S.sel.clear(); batchResult('Принять возврат', r, id => hints[id]); renderModal(); }
-  return say(r);
+  S.retB = { notes: {}, open: {} };
+  const rows = ids.filter(id => folder(id)).sort((x, y) => folder(x).no - folder(y).no).map(id => { const f = folder(id), h = returnHint(id); return h.ok ? { input: noStr(f.no), ok: true, id, hint: h } : { input: noStr(f.no), ok: false, id, why: h.why }; });
+  const ok = rows.filter(r => r.ok);
+  return openForm({ title: `Принять возврат · ${rows.length} ${plural(rows.length, 'папка', 'папки', 'папок')}`, submit: `Принять возврат (${ok.length})`, xwide: true,
+    note: 'Каждая папка — своя запись. «Куда» — видно до нажатия; примечание — если вернулось не всё.',
+    fields: [{ id: 'rows', type: 'info', html: () => retRowsHtml(rows, S.retB, 'b') }],
+    onSubmit: () => { if (!ok.length) return no('среди отмеченных нет папок на руках — возвращать нечего');
+      const hints = {}; ok.forEach(x => { hints[x.id] = x.hint.text; });
+      const r = acceptReturnBatch(ok.map(x => x.id), S.retB.notes); if (r.ok) { S.sel.clear(); batchResult('Принять возврат', r, id => hints[id]); } return r; } });
 }
 function uiMove(fid) {
   const g = gate('move', fid); if (!g.ok) return say(g);
@@ -1762,7 +1800,11 @@ function uiRebind(fid, pre) {
     fields: [{ id: 'borrower', label: 'Заёмщик', type: 'select', req: true, wide: true, options: borrowerOpts, value: pre || '' },
       { id: 'pv', type: 'info', html: v => v.borrower ? `Название станет: <b>${esc(kindOf(f.kind).short)} · ${esc(borrower(v.borrower).name)} · том ${f.vol || 1}</b>` : '' },
       { id: 'basis', label: 'Основание', type: 'textarea', req: true, wide: true, hint: 'документ: реорганизация, перевод долга, ошибка при приёме' }],
-    onSubmit: v => { const r = rebind(fid, v); if (r.ok) r.msg = `Привязка изменена: «${r.title}»`; return r; } });
+    onSubmit: v => { const r = rebind(fid, v); if (!r.ok) return r;
+      /* Название изменилось — ярлык на корешке устарел: кнопка печати прямо в сообщении. */
+      if (r.title !== r.wasTitle) { r.msg = `Привязка изменена: «${r.title}» — перепечатайте ярлык`; r.act = { label: 'Печать ярлыка', call: `AX.uiLabels(['${fid}'])` }; }
+      else r.msg = `Привязка изменена: «${r.title}»`;
+      return r; } });
 }
 const reasonF = { id: 'reason', label: 'Причина', type: 'select', req: true, options: GONE_REASONS.map(x => [x, x]) };
 const basisF = { id: 'basis', label: 'Основание (документ, №, дата)', type: 'text', req: true, wide: true, ph: 'Акт об уничтожении № 4 от 13.11.2026' };
@@ -1896,8 +1938,8 @@ Object.assign(AX, {
   uiIssue, uiIssueBatch, uiRequest, uiRequestBatch, uiWithdraw, uiRefuse, uiUnreserve, uiAskExt, uiExtend, uiDecide, uiTransfer, uiGot, uiNotGot, uiCancelTr,
   uiReturn, uiReturnSel, uiMove, uiMoveBatch, uiRebind, uiWriteoff, uiWriteoffBatch, uiRestore, uiAccept, uiNextVol, uiLabels, uiPrintShelf, uiPrintRound,
   uiAddPlace, uiRenamePlace, uiRetirePlace, uiDeletePlace, uiAddKind, uiRetireKind, uiDeleteKind, uiSetting,
-  go(v) { S.view = v; S.card = null; S.menu = false; setHash(''); render(); return yes(); },
-  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.sel.clear(); S.nk.mine = null; S.form = null; S.print = null; S.menu = false; renderModal(); render(); return yes(); },
+  go(v) { if (v !== 'queue') S.ret.done = null; S.view = v; S.card = null; S.menu = false; S.focusRet = v === 'queue'; setHash(''); render(); return yes(); },
+  setUser(u) { if (!emp(u)) return no('нет такого сотрудника'); S.user = u; S.view = startView(u); S.card = null; S.sel.clear(); S.nk.mine = null; S.ret.done = null; S.form = null; S.print = null; S.menu = false; S.focusRet = S.view === 'queue'; renderModal(); render(); return yes(); },
   setF(k, v) { S.f[k] = v; if (k === 'room') { S.f.cab = ''; S.f.shelf = ''; } if (k === 'cab') S.f.shelf = ''; render(); },
   setQ(q) { S.q = q; const el = $('#fList'); if (el) el.innerHTML = folderList(); },
   setChip(c) { S.chip = S.chip === c ? '' : c; const el = $('#fList'); if (el) el.innerHTML = folderList(); },
@@ -1910,14 +1952,17 @@ Object.assign(AX, {
   setTab(t) { S.tab = t; render(); },
   setPb(b) { S.pb = b; render(); },
   openBorrower(b) { S.pb = b; S.view = 'borrower'; S.card = null; render(); },
-  retInput(t) { S.ret.text = t; renderRet(); },
-  retNote(id, t) { S.ret.notes[id] = t; },
-  retOpenNote(id) { S.ret.open[id] = true; renderRet(); const f = folder(id), el = document.querySelector(`[data-testid="ret-note-${f.no}"]`); if (el) el.focus(); },
+  retInput(t) { S.ret.text = t; if (trim(t)) S.ret.done = null; renderRet(); },
+  retNote(id, t, mode) { (mode === 'b' ? S.retB : S.ret).notes[id] = t; },
+  retOpenNote(id, mode) { const st = mode === 'b' ? S.retB : S.ret; st.open[id] = true; if (mode === 'b') renderModal(); else renderRet();
+    const f = folder(id), el = document.querySelector(`[data-testid="ret-note-${f.no}"]`); if (el) el.focus(); },
+  /* Поле «Возврат»: принять все строки на руках; итог — под полем, курсор остаётся в поле. */
   uiReturnBatch() {
+    S.focusRet = true;
     const rows = returnLookup(S.ret.text).filter(r => r.ok); if (!rows.length) return say(no('нет папок к возврату'));
-    const hints = {}; rows.forEach(r => { hints[r.id] = r.hint.text; });
     const r = acceptReturnBatch(rows.map(x => x.id), S.ret.notes);
-    if (r.ok) { S.ret = { text: '', notes: {}, open: {} }; batchResult('Принять возврат', r, id => hints[id]); renderModal(); }
+    if (r.ok) { S.ret = { text: '', notes: {}, open: {}, done: rows.filter(x => r.done.includes(x.id)).map(x => ({ id: x.id, kind: x.hint.kind, text: x.hint.text })) };
+      r.msg = `Принято возвратом: ${r.done.length}${r.skipped.length ? ', не принято ' + r.skipped.length : ''}`; }
     return say(r);
   },
   toggleMenu() { S.menu = !S.menu; const m = $('#moreMenu'); if (m) m.classList.toggle('open', S.menu); },
@@ -1930,7 +1975,7 @@ Object.assign(AX, {
 seed();
 if (typeof window !== 'undefined') window.AX = AX;
 if (typeof document !== 'undefined') {
-  fromHash(true); render();
+  fromHash(true); S.focusRet = S.view === 'queue'; render();
   window.addEventListener('hashchange', () => { if (fromHash(false)) render(); });
   document.addEventListener('click', e => { if (S.menu && !e.target.closest('.menu')) AX.closeMenu(); });
   document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (S.menu) AX.closeMenu(); else if (S.form || S.print) closeForm(); else if (S.card) closeCard(); });
