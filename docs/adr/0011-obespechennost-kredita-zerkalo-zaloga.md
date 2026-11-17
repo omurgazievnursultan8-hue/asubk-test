@@ -1,6 +1,6 @@
 # Обеспеченность кредита — зеркало залога; база — сумма под риском
 
-**Статус:** принято · 2026-07-27 · модули «Кредиты» и «Залоговое обеспечение» · частный случай [ADR-0001](./0001-proizvodnye-ne-hranyatsya.md) · правит [ADR-0007](./0007-zhurnal-hranit-obe-metriki-i-porog.md)
+**Статус:** принято · 2026-07-27 · модули «Кредиты» и «Залоговое обеспечение» · частный случай [ADR-0001](./0001-proizvodnye-ne-hranyatsya.md) · правит [ADR-0007](./0007-zhurnal-hranit-obe-metriki-i-porog.md) · база правится [ADR-0341](./0341-baza-poroga-obespechennosti-vsya-zadolzhennost.md) (2026-11-17): в неё вошли проценты и штрафы
 
 Модуль кредита считает обеспеченность сам — функцией `computeCoverage`, по своим данным.
 Модуль залога считает то же самое — `requiredCover(creditId)` и `liquidShare(creditId)`,
