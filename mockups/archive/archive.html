@@ -216,7 +216,6 @@ table.cgrid.stick thead th{ position:sticky; top:50px; z-index:5; box-shadow:ins
   border-left:1px solid var(--border-strong); box-shadow:-18px 0 40px rgba(16,28,46,0.18); display:none; flex-direction:column; }
 .cardpanel.open{ display:flex; }
 .cp-top{ display:flex; align-items:center; gap:10px; padding:12px 20px 0; }
-.cp-top .addr{ font:var(--text-cap)/1.4 var(--asubk-font); color:var(--text-muted); }
 .cp-top .x{ margin-left:auto; border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:22px; line-height:1; padding:4px 6px; }
 .cp-body{ flex:1; overflow:auto; padding:6px 24px 40px; }
 .cp-no{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-muted); font-variant-numeric:tabular-nums; }
@@ -1297,7 +1296,7 @@ const qNo = q => { const m = /^[аa]?[\s-]*(\d{1,6})$/i.exec(trim(q)); return m 
 function matchQ(f, q) {
   q = trim(q).toLowerCase(); if (!q) return true;
   const n = qNo(q); if (n != null && f.no === n) return true;
-  if (/^\d{7,}$/.test(q) && innOf(f).startsWith(q)) return true; /* до 7 цифр ИНН не ищется: «215» — номер, не начало ИНН 215… (АХ-Д27) */
+  if (/^\d{7,}$/.test(q) && innOf(f).startsWith(q)) return true; /* до 7 цифр ИНН не ищется: «215» — номер, не начало ИНН 215… */
   const hay = [titleOf(f), f.content || '', f.unlinked ? f.unlinked.name : ''].join(' ').toLowerCase();
   return hay.includes(q);
 }
@@ -1521,8 +1520,7 @@ function viewQueue() {
   let h = `<div class="retbox" data-testid="ret-box"><div class="row1"><label class="ret-h" for="retInput">Возврат</label>
     <input id="retInput" class="ret-in" data-testid="ret-input" autocomplete="off" placeholder="номера с корешков через пробел: 230 205 214" value="${esc(S.ret.text)}"
       oninput="AX.retInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();AX.uiReturnBatch();}">
-    <button class="btn btn-primary" id="retBtn" data-testid="ret-accept" onclick="AX.uiReturnBatch()">Принять возврат</button>
-    <span class="small">«231» — это А-000231, можно и с «А-»; Enter — принять</span></div><div id="retRows"></div></div>`;
+    <button class="btn btn-primary" id="retBtn" data-testid="ret-accept" onclick="AX.uiReturnBatch()">Принять возврат</button></div><div id="retRows"></div></div>`;
   if (!q.total) h += `<div class="empty" data-testid="queue-empty">Ничего не ждёт вашего действия.</div>`;
   if (q.give.length) h += sec('К выдаче', q.give.length, btn('', 'AX.uiPrintRound()', { html: ico('print') + ' Печать обхода', tid: 'print-round' }), 'blk-give') +
     `<table class="cgrid" data-testid="tbl-give"><thead><tr><th>Место</th><th>№</th><th>Название</th><th>Для кого</th><th>Бронь до</th><th>Зачем</th><th></th></tr></thead><tbody>${q.give.map(x => { const f = folder(x.id);
@@ -1611,7 +1609,7 @@ function folderList() {
   const bb = ([act, label, call, why], cls) => { const k = batchIds(act).length;
     return btn('', act === 'return' ? `${call}()` : `${call}(AX.batchIds('${act}'))`, { tid: 'b-' + (act === 'label' ? 'labels' : act), cls, why: k ? '' : why, html: `${esc(label)} <span class="bn" data-testid="bn-${act}">(${k})</span>` }); };
   const head = `<div class="listbar" data-testid="listbar">${n ? `<div class="batch" data-testid="batch">Отмечено <b data-testid="sel-count">${n}</b>${bb(BATCH[0])}${arch ? '<span class="sep"></span>' + BATCH.slice(1).map(b => bb(b, b[0] === 'writeoff' ? 'btn-danger' : '')).join('') : ''}<button class="linky" style="margin-left:auto" onclick="AX.clearSel()">снять отметки</button></div>`
-    : `<div class="lb-shown">Показано <span class="c" data-testid="shown">${rows.length}</span>${S.chip === 'gone' ? '' : '<span class="small">выбывшие скрыты — плашка «выбыли»</span>'}<div class="btn-row">${arch && S.f.shelf ? btn('', `AX.uiPrintShelf('${S.f.shelf}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf' }) : ''}${printXls('Папки', rows.length, 'tbl-folders')}</div></div>`}</div>`;
+    : `<div class="lb-shown">Показано <span class="c" data-testid="shown">${rows.length}</span><div class="btn-row">${arch && S.f.shelf ? btn('', `AX.uiPrintShelf('${S.f.shelf}')`, { html: ico('print') + ' Печать списка полки', tid: 'print-shelf' }) : ''}${printXls('Папки', rows.length, 'tbl-folders')}</div></div>`}</div>`;
   /* Поиск нашёл скрытое отбором, плашкой или «выбывшие скрыты» — номера ссылками в карточку. */
   const outside = hidden.length ? `<div class="outside" data-testid="outside">Вне отбора найдено ещё ${hidden.length}: ${hidden.slice(0, 8).map(f => `<button class="linky mono" data-testid="out-${f.no}" onclick="AX.openCard('${f.id}')">${noStr(f.no)}</button> <span class="small">(${esc(placeShort(f.shelf))}, ${ST[stateOf(f.id)]})</span>`).join(' · ')}${hidden.length > 8 ? ' …' : ''}
     ${S.chip || Object.values(S.f).some(Boolean) ? ` · <button class="linky" data-testid="reset-f" onclick="AX.resetF()">сбросить отборы</button>` : ''}</div>` : '';
@@ -1697,7 +1695,6 @@ function viewNoKzd() {
   return `<div class="filters">${cur ? `<label class="chkl"><input type="checkbox" data-testid="nk-mine"${S.nk.mine ? ' checked' : ''} onchange="AX.setNk('mine', this.checked)"> мои заёмщики</label>` : ''}
     <div class="fld wd"><label for="nkDept">Департамент</label><select id="nkDept" data-testid="nk-dept" onchange="AX.setNk('dept', this.value)"><option value="">все</option>${depts.map(d => `<option value="${d}"${d === S.nk.dept ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
     <label class="chkl"><input type="checkbox" data-testid="nk-closed"${S.nk.closed ? ' checked' : ''} onchange="AX.setNk('closed', this.checked)"> и закрытые</label>
-    <span class="small" style="align-self:flex-end;padding-bottom:9px">Заёмщики с действующим кредитом (зарегистрирован, действует, взыскание), у которых в архиве нет кредитно-залогового дела.</span>
     <div class="grow btn-row"><span class="small" style="font-size:var(--text-sm)" data-testid="nk-count">Показано: ${rows.length}</span>${printXls('Заёмщики без КЗД', rows.length, 'tbl-nokzd')}</div></div>
     <table class="cgrid" data-testid="tbl-nokzd"><thead><tr><th>Заёмщик</th><th>ИНН</th><th>Куратор</th><th>Департамент</th><th>Первый кредит</th><th>Дней с регистрации</th><th></th></tr></thead><tbody>${rows.map(x =>
       `<tr data-testid="nk-${x.b.id}"><td><button class="linky" onclick="AX.openBorrower('${x.b.id}')">${esc(x.b.name)}</button>${x.closed ? ' <span class="pill neutral">кредиты закрыты</span>' : ''}
@@ -1898,10 +1895,10 @@ function renderCard() {
   const sib = siblings(f).filter(s => !s.gone).sort((a, b) => (a.vol || 1) - (b.vol || 1));
   if ((k.bind || f.vol) && (sib.length || (f.vol || 1) > 1)) { const M = Math.max(f.vol || 1, ...sib.map(s => s.vol || 1));
     kv.push(['Том', `${f.vol || 1} из ${M}${sib.length ? '<div class="small">' + sib.map(s => `том ${s.vol || 1} — <button class="linky" onclick="AX.openCard('${s.id}')">${noStr(s.no)}</button> (${ST[stateOf(s.id)]}${openIssue(s.id) ? ' у ' + esc(emp(openIssue(s.id).holder).gen) : ''})`).join('<br>') + '</div>' : ''}`]); }
-  kv.push(['Подразделение', esc(deptOf(f) || '—') + (k.bind && f.borrower ? ' <span class="small">— куратора заёмщика</span>' : '')]);
+  kv.push(['Подразделение', esc(deptOf(f) || '—')]);
   kv.push(['Содержание', esc(f.content || '—')]);
   kv.push(['Принята', `${fmt(f.at)}, ${esc(nm(f.by))}${f.from ? ` · сдал ${esc(nm(f.from))}` : ''}`]);
-  let h = `<div class="cp-top"><span class="addr" data-testid="cp-addr">#/folder/${f.no}</span><button class="x" data-testid="cp-close" onclick="AX.closeCard()" title="Закрыть (Esc)">×</button></div><div class="cp-body">
+  let h = `<div class="cp-top"><button class="x" data-testid="cp-close" onclick="AX.closeCard()" title="Закрыть (Esc)">×</button></div><div class="cp-body">
     <div class="cp-no">${noStr(f.no)}</div><h2 class="cp-title" data-testid="cp-title" tabindex="-1">${esc(titleOf(f))}</h2><div class="cp-kind">${esc(k.name)}</div>
     <div class="where ${w.over ? 'over' : w.st}" data-testid="where"><div class="w1">${esc(w.line)}</div>${w.sub ? `<div class="w2">${esc(w.sub)}</div>` : ''}${flags ? `<div class="flags">${flags}</div>` : ''}</div>
     <div class="cp-btns" data-testid="cp-btns">${cardButtons(f, u)}</div>
@@ -1976,9 +1973,10 @@ function ctl(f, v) {
     let list = '';
     if (pk.open) {
       const items = pkItems(f, v), hi = Math.min(pk.hi, items.length - 1), q = trim(pk.q);
-      list = `<div class="pick-list" data-testid="pick-${f.id}">${!q && items.some(x => x.sug) ? '<div class="ph">Предложено</div>' : ''}${items.map((x, k) =>
+      /* Пустое поле без предложений — список не открывается. */
+      if (q || items.length) list = `<div class="pick-list" data-testid="pick-${f.id}">${!q && items.some(x => x.sug) ? '<div class="ph">Предложено</div>' : ''}${items.map((x, k) =>
         `<div class="pi${k === hi ? ' hi' : ''}${x.none ? ' none' : ''}" data-testid="pi-${f.id}-${x.id}" onmousedown="event.preventDefault();AX.fpick('${f.id}', '${x.id}')">${esc(x.label)}${x.note ? ` <span class="pn">${esc(x.note)}</span>` : ''}</div>`).join('')}${
-        !q ? `<div class="pt">${f.src === 'emp' ? 'или наберите фамилию, подразделение' : 'или наберите название, ИНН'}</div>` : !items.some(x => !x.none) ? '<div class="pt">ничего не найдено</div>' : ''}</div>`;
+        q && !items.some(x => !x.none) ? '<div class="pt">ничего не найдено</div>' : ''}</div>`;
     }
     return `<div class="pick"><input id="${id}" data-testid="ff-${f.id}" data-pick="${f.id}" autocomplete="off" placeholder="${f.src === 'emp' ? 'фамилия или подразделение' : 'название или ИНН'}" value="${esc(pk.open ? pk.q : lab(val))}"
       onfocus="AX.pkFocus('${f.id}')" oninput="AX.pkInput('${f.id}', this.value)" onblur="AX.pkBlur('${f.id}')" onkeydown="AX.pkKey(event, '${f.id}')">${list}</div>`;
@@ -2027,7 +2025,7 @@ function renderModal() {
     const P = S.print, lab = P.kind === 'labels';
     md.className = 'modal ' + (P.xwide ? 'xwide' : 'wide');
     md.innerHTML = `<div class="modal-h"><div class="mt" data-testid="print-title">${esc(P.title)}</div><button class="modal-x" onclick="AX.closeForm()" title="Закрыть (Esc)">×</button></div>
-      <div class="modal-b">${lab ? `<div class="pctl" data-testid="label-ctl"><label for="lstart">Начать с позиции</label><input id="lstart" type="number" min="1" max="${LABELS_PER_SHEET}" data-testid="label-start" value="${P.start}" oninput="AX.setLabelStart(this.value)"><span>из ${LABELS_PER_SHEET}</span><span class="red small" data-testid="label-err" id="lerr">${esc(P.startErr || '')}</span><span class="small">занятые на листе позиции — серые; после печати следующая подставится сама</span></div>` : ''}
+      <div class="modal-b">${lab ? `<div class="pctl" data-testid="label-ctl"><label for="lstart">Начать с позиции</label><input id="lstart" type="number" min="1" max="${LABELS_PER_SHEET}" data-testid="label-start" value="${P.start}" oninput="AX.setLabelStart(this.value)"><span>из ${LABELS_PER_SHEET}</span><span class="red small" data-testid="label-err" id="lerr">${esc(P.startErr || '')}</span></div>` : ''}
         <div class="sheet${lab ? ' bare' : ''}" data-testid="print-sheet" id="psheet">${lab ? labelsHtml(P.L, P.start) : `<h2>${esc(P.heading || P.title)}</h2>${P.sub ? `<div class="sub">${esc(P.sub)}</div>` : ''}${P.html}`}</div></div>
       <div class="modal-f"><div class="will" data-testid="print-info">${esc(lab ? labelsInfo(P.L.length, P.start) : P.paper || '')}</div><button class="btn btn-secondary" onclick="AX.closeForm()">Закрыть</button>${P.noPrint ? '' : `<button class="btn btn-primary" data-primary="1" data-testid="print-go" id="pgo"${P.startErr ? ` disabled title="${esc(P.startErr)}" data-why="${esc(P.startErr)}"` : ''} onclick="AX.printGo()">${ico('print')} Печать</button>`}</div>`;
     ov.classList.add('open');
@@ -2087,7 +2085,7 @@ function pkKey(e, id) {
   if (!pk.open) { if (e.key === 'ArrowDown') { e.preventDefault(); pkFocus(id); } return; }
   const items = pkItems(f, fm.vals);
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); pk.hi = Math.max(0, Math.min(items.length - 1, pk.hi + (e.key === 'ArrowDown' ? 1 : -1))); renderModal(); }
-  else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (items.length) fpick(id, items[Math.min(pk.hi, items.length - 1)].id); }
+  else if (e.key === 'Enter') { if (!items.length) { pkBlur(id); return; } /* пусто — Enter уходит окну */ e.preventDefault(); e.stopPropagation(); fpick(id, items[Math.min(pk.hi, items.length - 1)].id); }
   else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pkBlur(id); }
 }
 /* Отправка: смоук может передать значения полей (vals) — путь тот же, что у кнопки. */
@@ -2157,7 +2155,7 @@ function uiIssue(fid) {
       { id: 'to', label: 'Кому', type: 'pick', src: 'emp', req: true, value: to, onChange: v => { v.due = dueDefault(fid, v.to); },
         suggest: () => activeReqs(fid).map(r => [r.who, r.st === 'reserved' ? 'бронь' : `№ ${posOf(r)} в очереди`]) },
       { id: 'due', label: 'Вернуть до', type: 'date', req: true, value: dueDefault(fid, to),
-        hint: v => { const iso = toIso(v.due); return rr && rr.needBy && v.to === rr.who && iso === rr.needBy ? 'из «нужна до» запроса' : iso === addWork(S.today, SETTINGS.issueDays.v) ? `срок по умолчанию — ${SETTINGS.issueDays.v} р.д.` : ''; } },
+        hint: v => { const iso = toIso(v.due); return rr && rr.needBy && v.to === rr.who && iso === rr.needBy ? 'из «нужна до» запроса' : ''; } },
       { id: 'why', label: 'Зачем', req: true, wide: true, value: rr ? rr.why : '', ph: 'мониторинг, подготовка иска, сверка…' },
     ],
     check: v => { if (v.to && rr && rr.who !== v.to) return no(`забронирована за ${emp(rr.who).ins} до ${fmt(rr.until)} — выдать другому нельзя`, 'to');
@@ -2183,12 +2181,12 @@ function uiIssueBatch(ids = selIds()) {
   return openForm({ title: `Выдать · ${ids.length} ${plural(ids.length, 'папка', 'папки', 'папок')}`, submit: 'Выдать', xwide: true,
     fields: [{ id: 'to', label: 'Кому', type: 'pick', src: 'emp', req: true, value: who,
         suggest: () => { const m = {}; res.filter(Boolean).forEach(r => { m[r.who] = (m[r.who] || 0) + 1; }); return Object.keys(m).map(id => [id, `бронь на ${m[id]} из ${ids.length}`]); } },
-      { id: 'due', label: 'Вернуть до', type: 'date', value: '', hint: `пусто — у каждой свой: «нужна до» брони, иначе ${SETTINGS.issueDays.v} р.д.` },
+      { id: 'due', label: 'Вернуть до', type: 'date', value: '', hint: 'пусто — у каждой свой срок' },
       { id: 'why', label: 'Зачем', req: true, wide: true, value: who ? res[0].why : '' },
       { id: 'rows', type: 'info', html: v => batchRows(ids, id => out(id, v)) }],
     check: v => { const d = dateBad(v.due, null, '', 'срок возврата — позже сегодняшнего дня'); return d ? no(d, 'due') : null; },
     submitLabel: v => `Выдать (${k(v)})`, blocked: v => k(v) ? '' : 'среди отмеченных нет папок, которые можно выдать',
-    will: 'Каждой папке — своя выдача; получателю — уведомление',
+    will: 'Получателям — уведомление «Вам выдана папка»',
     onSubmit: v => { const r = issueBatch(ids, v); if (r.ok) { S.sel.clear(); r.msg = `Выдано ${cnt(r)} — ${emp(v.to).dat}, получателю уведомление${skippedTail(r, 'не выдано')}`; } return r; } });
 }
 function uiRequest(fid) {
@@ -2197,7 +2195,7 @@ function uiRequest(fid) {
   return openForm({ title: 'Запросить · ' + noStr(f.no), sub: titleOf(f), submit: 'Запросить',
     fields: [{ id: 'why', label: 'Зачем', req: true, wide: true, ph: 'сверка, мониторинг, подготовка иска…' },
       { id: 'needBy', label: 'Нужна до', type: 'date',
-        hint: v => { const iso = toIso(v.needBy); return i && iso && iso > S.today && iso < i.due ? `на руках до ${fmtS(i.due)} — позже, чем нужно; держатель может передать вам напрямую` : 'станет сроком возврата при выдаче'; } }],
+        hint: v => { const iso = toIso(v.needBy); return i && iso && iso > S.today && iso < i.due ? `на руках до ${fmtS(i.due)} — позже, чем нужно; держатель может передать вам напрямую` : ''; } }],
     check: v => { const d = dateBad(v.needBy, null, '', '«нужна до» — позже сегодняшнего дня'); return d ? no(d, 'needBy') : null; },
     will: () => `<span data-testid="req-preview">${esc(cap(requestPreview(fid)))}</span>`,
     onSubmit: v => { const r = request(fid, v); if (r.ok) r.msg = r.reserved ? `Папка ${noStr(f.no)} забронирована за вами до ${fmt(r.until)} — заберите в архиве`
@@ -2208,11 +2206,10 @@ function uiRequestBatch(ids) {
   const out = id => { const g = gate('request', id); return g.ok ? { ok: true, text: requestPreview(id) } : { ok: false, text: 'не запрашивается: ' + g.why }; };
   const k = () => ids.filter(id => out(id).ok).length;
   return openForm({ title: `Запросить · ${ids.length} ${plural(ids.length, 'папка', 'папки', 'папок')}`, submit: 'Запросить', xwide: true,
-    fields: [{ id: 'why', label: 'Зачем', req: true, wide: true, ph: 'сверка, мониторинг, подготовка иска…' }, { id: 'needBy', label: 'Нужна до', type: 'date', hint: 'станет сроком возврата при выдаче' },
+    fields: [{ id: 'why', label: 'Зачем', req: true, wide: true, ph: 'сверка, мониторинг, подготовка иска…' }, { id: 'needBy', label: 'Нужна до', type: 'date' },
       { id: 'rows', type: 'info', html: () => batchRows(ids, out) }],
     check: v => { const d = dateBad(v.needBy, null, '', '«нужна до» — позже сегодняшнего дня'); return d ? no(d, 'needBy') : null; },
     submitLabel: () => `Запросить (${k()})`, blocked: () => k() ? '' : 'среди отмеченных нет папок, которые вы можете запросить',
-    will: 'Свободные забронируются за вами, занятые — встанут в очередь по времени',
     onSubmit: v => { const r = requestBatch(ids, v); if (r.ok) { S.sel.clear();
       const mine = r.done.map(id => activeReqs(id).find(x => x.who === S.user)).filter(Boolean), res = mine.filter(q => q.st === 'reserved');
       r.msg = `Запрошено ${cnt(r)}: забронировано за вами ${res.length}${res.length ? ` — заберите в архиве до ${fmt(res[0].until)}` : ''}, в очереди ${mine.length - res.length}${skippedTail(r, 'не запрошено')}`; } return r; } });
@@ -2290,7 +2287,7 @@ function uiReturn(fid) {
   return openForm({ title: 'Принять возврат · ' + noStr(f.no), sub: titleOf(f), submit: 'Принять возврат',
     now: `На руках у ${esc(emp(i.holder).gen)} · ${dueLine(fid, i)}`,
     fields: [{ id: 'hint', type: 'info', html: () => `<span class="hint ${h.kind}" data-testid="return-hint">${esc(h.text)}</span>` },
-      { id: 'note', label: 'Примечание — если вернулось не всё', wide: true, ph: 'без оригинала договора залога — остался в суде', hint: 'попадёт в историю и в «Содержание»' }],
+      { id: 'note', label: 'Примечание — если вернулось не всё', wide: true, ph: 'без оригинала договора залога — остался в суде' }],
     will: `Выдача закроется${hasTask(fid) ? ', задание «Вернуть папку» — тоже' : ''}${t ? `; передача ${esc(emp(t.to).dat)} отменится` : ''}${x ? '; просьба продлить закроется' : ''}`,
     onSubmit: v => { const r = acceptReturn(fid, v); if (r.ok) r.msg = r.hold ? `Возвращена ${noStr(f.no)} — отложить: бронь ${emp(r.hold).dat} до ${fmt(r.until)}, запросившему уведомление` : `Возвращена ${noStr(f.no)} — на полку: ${placeFull(r.shelf)}`; return r; } });
 }
@@ -2303,7 +2300,6 @@ function uiReturnSel(ids = selIds()) {
   return openForm({ title: `Принять возврат · ${rows.length} ${plural(rows.length, 'папка', 'папки', 'папок')}`, submit: `Принять возврат (${ok.length})`, xwide: true,
     fields: [{ id: 'rows', type: 'info', html: () => retRowsHtml(rows, S.retB, 'b') }],
     blocked: () => ok.length ? '' : 'среди отмеченных нет папок на руках — возвращать нечего',
-    will: 'Каждая папка — своя запись; «куда» видно до нажатия, примечание — если вернулось не всё',
     onSubmit: () => { const hints = {}; ok.forEach(x => { hints[x.id] = x.hint.text; });
       const r = acceptReturnBatch(ok.map(x => x.id), S.retB.notes); if (r.ok) { S.sel.clear(); batchResult('Принять возврат', r, id => hints[id]); } return r; } });
 }
@@ -2325,7 +2321,7 @@ function uiMoveBatch(ids = selIds()) {
   return openForm({ title: `Переместить · ${ids.length} ${plural(ids.length, 'папка', 'папки', 'папок')}`, submit: 'Переместить', xwide: true,
     fields: [{ id: 'shelf', label: 'Полка — одна на все', type: 'place', req: true, value: '' }, { id: 'rows', type: 'info', html: v => batchRows(ids, id => out(id, v)) }],
     submitLabel: v => `Переместить (${k(v)})`, blocked: v => k(v) ? '' : 'все отмеченные уже на этой полке или выбыли',
-    will: 'Запись о перемещении — у каждой папки; ярлыки перепечатывать не нужно',
+    will: 'Ярлыки перепечатывать не нужно',
     onSubmit: v => { const r = moveBatch(ids, v.shelf); if (r.ok) { S.sel.clear(); r.msg = `Перемещено ${cnt(r)} на ${placeShort(v.shelf)}${skippedTail(r, 'не перемещено')}`; } return r; } });
 }
 function uiRebind(fid, pre) {
@@ -2341,7 +2337,7 @@ function uiRebind(fid, pre) {
       { id: 'basis', label: 'Основание', req: true, wide: true, value: byInn ? 'заёмщик заведён в системе — совпал ИНН' : '', ph: 'реорганизация, перевод долга, ошибка при приёме' }],
     check: v => { if (!v.borrower) return null; if (f.borrower === v.borrower) return no('папка уже привязана к этому заёмщику', 'borrower');
       const dup = rebindDup(f, v.borrower); return dup ? no(`у заёмщика уже есть том ${f.vol || 1} — ${noStr(dup.no)}`, 'borrower') : null; },
-    will: v => v.borrower && borrower(v.borrower) && newTitle(v.borrower) !== titleOf(f) ? 'Название изменится — ярлык надо будет перепечатать; прежняя привязка останется в истории' : 'Прежняя привязка останется в истории',
+    will: v => v.borrower && borrower(v.borrower) && newTitle(v.borrower) !== titleOf(f) ? 'Название изменится — ярлык надо будет перепечатать' : '',
     onSubmit: v => { const r = rebind(fid, v); if (!r.ok) return r;
       /* Название изменилось — ярлык на корешке устарел: кнопка печати прямо в сообщении. */
       if (r.title !== r.wasTitle) { r.msg = `Привязка изменена: «${r.title}» — перепечатайте ярлык`; r.act = { label: 'Печать ярлыка', call: `AX.uiLabels(['${fid}'])` }; }
@@ -2368,7 +2364,7 @@ function uiWriteoffBatch(ids = selIds()) {
   return openForm({ title: `Списать · ${ids.length} ${plural(ids.length, 'папка', 'папки', 'папок')}`, submit: `Списать (${k})`, danger: true, xwide: true,
     fields: [reasonF, basisF, { id: 'rows', type: 'info', html: () => batchRows(ids, out) }],
     blocked: () => k ? '' : 'все отмеченные уже выбыли',
-    will: `<span class="warn" data-testid="wo-preview">Из отмеченных: на руках — ${p.out}, с очередью — ${p.queued}.</span> Причина и основание — одни на всех, запись — у каждой папки`,
+    will: `<span class="warn" data-testid="wo-preview">Из отмеченных: на руках — ${p.out}, с очередью — ${p.queued}.</span>`,
     onSubmit: v => { const r = writeOffBatch(ids, v); if (r.ok) { S.sel.clear(); r.msg = `Списано ${cnt(r)}: ${v.reason}${p.out ? `; закрыто выдач — ${p.out}` : ''}${p.queued ? `, очередей — ${p.queued}` : ''}${skippedTail(r, 'не списано')}`; } return r; } });
 }
 function uiRestore(fid) {
@@ -2376,9 +2372,8 @@ function uiRestore(fid) {
   const f = folder(fid);
   return openForm({ title: 'Восстановить · ' + noStr(f.no), sub: titleOf(f), submit: 'Восстановить',
     now: `Выбыла ${fmt(f.gone.d)}: ${esc(f.gone.reason)} — ${esc(f.gone.basis)}`,
-    fields: [{ id: 'shelf', label: 'Полка', type: 'place', req: true, value: shelfActive(f.shelf) ? f.shelf : '', hint: shelfActive(f.shelf) ? 'прежняя подставлена' : 'прежняя выведена из употребления — выберите другую' },
+    fields: [{ id: 'shelf', label: 'Полка', type: 'place', req: true, value: shelfActive(f.shelf) ? f.shelf : '', hint: shelfActive(f.shelf) ? '' : 'прежняя выведена из употребления — выберите другую' },
       { id: 'basis', label: 'Основание', req: true, wide: true, ph: 'служебная записка: найдена при сверке шкафа' }],
-    will: 'Папка нашлась — снова «в архиве» на этой полке',
     onSubmit: v => { const r = restore(fid, v); if (r.ok) r.msg = `Восстановлена ${noStr(f.no)} — в архиве: ${placeFull(v.shelf)}`; return r; } });
 }
 /* «Принять папку»: вид и том · заёмщик (или «нет в системе» — название и ИНН вручную) или название и подразделение ·
@@ -2404,8 +2399,8 @@ function uiAccept(pre = {}, title = 'Принять папку', series = null) 
       { id: 'uinn', label: 'ИНН (вручную)', req: true, value: v0.uinn || '', ph: '14 цифр', show: v => bindKind(v) && v.borrower === '_none' },
       { id: 'title', label: 'Название', req: true, value: v0.title || '', show: v => !bindKind(v), ph: 'Протоколы правления · 2025' },
       { id: 'dept', label: 'Подразделение (чьё дело)', type: 'select', value: v0.dept || '', show: v => !bindKind(v), options: DEPTS.map(d => [d, d]) },
-      { id: 'auto', type: 'info', show: bindKind, html: v => { const who = v.borrower === '_none' ? trim(v.uname) || '…' : v.borrower ? borrower(v.borrower).name : '…'; return `Название соберётся само: <b data-testid="auto-title">${esc(kindOf(v.kind).short)} · ${esc(who)} · том ${esc(v.vol || 1)}</b>`; } },
-      { id: 'vol', label: 'Том', value: v0.vol, hint: v => { const h = volsOf(v); return h.length ? 'в архиве уже: том ' + h.join(', ') : bindKind(v) ? '' : 'у вида без привязки — по желанию'; } },
+      { id: 'auto', type: 'info', show: bindKind, html: v => { const who = v.borrower === '_none' ? trim(v.uname) || '…' : v.borrower ? borrower(v.borrower).name : '…'; return `Название: <b data-testid="auto-title">${esc(kindOf(v.kind).short)} · ${esc(who)} · том ${esc(v.vol || 1)}</b>`; } },
+      { id: 'vol', label: 'Том', value: v0.vol, hint: v => { const h = volsOf(v); return h.length ? 'в архиве уже: том ' + h.join(', ') : ''; } },
       { id: 'shelf', label: 'Полка', type: 'place', req: true, value: v0.shelf || '' },
       { id: 'from', label: 'Сдал (если известно)', type: 'pick', src: 'emp', value: v0.from || '',
         suggest: v => bindKind(v) && v.borrower && borrower(v.borrower) ? [[borrower(v.borrower).cur, 'куратор заёмщика']] : [] },
@@ -2419,7 +2414,7 @@ function uiAccept(pre = {}, title = 'Принять папку', series = null) 
       const dup = FOLDERS.find(f => !f.gone && f.kind === v.kind && f.vol === vol && (v.borrower !== '_none' ? f.borrower === v.borrower : !!(f.unlinked && f.unlinked.inn === inn)));
       return dup ? no(`том ${vol} уже в архиве — ${noStr(dup.no)}`, 'vol') : null;
     },
-    will: v => `Номер выдаст система${v.from ? `; ${esc(emp(v.from).dat)} — уведомление «Папка принята в архив»` : ''}`,
+    will: v => v.from ? `${esc(emp(v.from).dat)} — уведомление «Папка принята в архив»` : '',
     onSubmit: (v, b) => { const r = accept(v); if (!r.ok) return r;
       const ids = (ser ? ser.ids : []).concat(r.id);
       if (b === 'more') { uiAccept({ kind: v.kind, shelf: v.shelf }, 'Принять папку', { ids, last: r }); r.msg = `Принята ${r.no}`; }
@@ -2429,7 +2424,7 @@ function uiAccept(pre = {}, title = 'Принять папку', series = null) 
 function uiNextVol(fid) { const g = gate('nextVol', fid); if (!g.ok) return say(g); const d = nextVolume(fid); return uiAccept(d, 'Принять следующий том'); }
 
 /* ------------------------------- печать ------------------------------- */
-/* Печать поверх открытого окна (серия приёма): окно ждёт под листом и возвращается после «Закрыть» или Esc (АХ-Д29). */
+/* Печать поверх открытого окна (серия приёма): окно ждёт под листом и возвращается после «Закрыть» или Esc. */
 function openPrint(title, html, sub, o = {}) { if (S.form) S.formBehind = S.form; S.form = null; S.menu = false; S.print = Object.assign({ title, html, sub, paper: 'Лист A4' }, o); renderModal(); return yes(); }
 /* Лист ярлыков: позиции до первой — заняты (серые), дальше ярлыки по порядку, остаток листа — пустой. */
 function labelsHtml(L, start) {
@@ -2453,7 +2448,7 @@ function uiLabels(ids = selIds()) {
 }
 function setLabelStart(v) {
   const P = S.print; if (!P || P.kind !== 'labels') return no('печать ярлыков не открыта');
-  /* Позиция вне листа: ошибка у поля сразу, «Печать» серая с той же причиной (АХ-Д31). */
+  /* Позиция вне листа: ошибка у поля сразу, «Печать» серая с той же причиной. */
   const n = Math.round(+v), bad = String(v).trim() === '' || !(n >= 1 && n <= LABELS_PER_SHEET) ? `позиция от 1 до ${LABELS_PER_SHEET}` : '';
   P.startErr = bad;
   if (typeof document !== 'undefined') { const er = $('#lerr'), go = $('#pgo'); if (er) er.textContent = bad; if (go) { go.disabled = !!bad; if (bad) { go.title = bad; go.dataset.why = bad; } else { go.removeAttribute('title'); delete go.dataset.why; } } }
@@ -2473,7 +2468,7 @@ function uiPrintShelf(sid) {
 function uiPrintRound() {
   const L = roundList();
   return openPrint('Печать обхода', `<table class="cgrid" data-testid="round-list"><thead><tr><th>Место</th><th>№</th><th>Название</th><th>Для кого</th><th>Бронь до</th><th>Снята</th></tr></thead><tbody>${L.map(x => `<tr><td class="mono nw">${x.place}</td><td class="mono nw">${x.no}</td><td>${esc(x.title)}</td><td>${esc(nm(x.who))}</td><td>${fmt(x.until)}</td><td class="box">☐</td></tr>`).join('')}</tbody></table>`,
-    `${fmt(S.today)} · по порядку мест — снять с полок за один проход`, { heading: 'Обход полок — к выдаче' });
+    `на ${fmt(S.today)}`, { heading: 'Обход полок — к выдаче' });
 }
 /* Строка отборов на листе: без неё напечатанный список через неделю не прочесть. */
 function listFilters(tid) {
@@ -2571,7 +2566,7 @@ function openCard(fid, kb) {
   const f = folder(fid); if (!f) return no('папка не найдена');
   /* Ссылка внутри карточки, нажатая с клавиатуры (другой том), — новая карточка тоже держит курсор. */
   const inCard = typeof document !== 'undefined' && S.card && $('#cardpanel').contains(document.activeElement);
-  /* № строки списка, нажатый с клавиатуры, — запомнить папку этой строки: Esc вернёт курсор на её № (АХ-Д28). */
+  /* № строки списка, нажатый с клавиатуры, — запомнить папку этой строки: Esc вернёт курсор на её №. */
   const back = kb && !inCard && typeof document !== 'undefined' && document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.open : '';
   S.cardBack = back ? back : inCard ? S.cardBack : null;
   S.card = fid; S.cardFromQ = false; S.cardKb = !!(inCard || kb); S.menu = false; if (!LIST_VIEWS.includes(S.view)) S.view = 'folders';
