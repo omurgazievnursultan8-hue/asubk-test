@@ -355,6 +355,7 @@ window.ZD = (function(){
 const IM_SECTOR = 'Сектор по работе с активами Департамента правового обеспечения';
 const IM_INSTR = '2026-12-07'; // выпуск по Инструкции о принятии имущества: новые сроки действуют с этой даты
 const REL_NOTICE = '2026-12-01'; // выпуск: работа со сроком и ответственным вместо сообщений
+const ARCH_REL = '2026-12-01';   // подключение модуля «Архив папок»: вид «Вернуть папку»
 const EMP = [
   {id:'E1', name:'Есенова А.Т.',      role:'специалист',              dept:'Сопровождение', chief:'E2'},
   {id:'E2', name:'Токтогулов Б.С.',   role:'заведующий отделом',      dept:'Сопровождение', chief:'E4'},
@@ -400,6 +401,13 @@ const EMP = [
   {id:'E42',name:'Мурзалиев Э.Б.',    role:'системный администратор',  dept:'Информационные технологии', chief:'E40'},
   {id:'E43',name:'Абдылдаев Т.С.',    role:'директор департамента администрирования кредитов', dept:'Департамент администрирования кредитов', chief:'E16'},
   {id:'E44',name:'Сатыбалдиев К.Ж.',  role:'представитель в Чуйской области', dept:'Чуйское региональное представительство', chief:'E43'},
+  // держатели папок архива и их руководители — те же люди, что в контрольном наборе модуля «Архив папок»
+  {id:'E45',name:'Асанов Б.',         role:'куратор',                 dept:'Департамент регионального развития', chief:'E46'},
+  {id:'E46',name:'Мамбетов К.',       role:'заведующий отделом',      dept:'Департамент регионального развития', chief:'E47'},
+  {id:'E47',name:'Жусупов А.',        role:'директор департамента регионального развития', dept:'Департамент регионального развития', chief:'E16'},
+  {id:'E48',name:'Кадыров Т.',        role:'куратор',                 dept:'Департамент администрирования кредитов', chief:'E49'},
+  {id:'E49',name:'Турдумамбетов Э.',  role:'заведующий отделом',      dept:'Департамент администрирования кредитов', chief:'E43'},
+  {id:'E50',name:'Бейшеналиева М.',   role:'руководитель Общего отдела', dept:'Общий отдел', chief:'E16'},
 ];
 function emp(id){ return EMP.find(e=>e.id===id); }
 function chiefOf(id){ const e=emp(id); return e && e.chief; }
@@ -435,6 +443,8 @@ const DEPTS = [ // подразделение → руководитель
   {id:'Департамент администрирования кредитов', head:'E43'},
   {id:'Чуйское региональное представительство', head:'E44'},
   {id:'Комитет по вопросам правового обеспечения и управления активами', head:'E16'},
+  {id:'Департамент регионального развития', head:'E47'},
+  {id:'Общий отдел',       head:'E50'}, // архив папок: архивариус и руководитель Общего отдела
 ];
 /* роли соседей: носители — очередь роли; подразделение роли — где сидят носители */
 const ROLES = [
@@ -578,6 +588,7 @@ const POSTS = [
   {id:'post-gf',     title:'Заведующий сектором подтверждения комплекта', unit:'Сектор подтверждения комплекта',                holders:[{emp:'E10', from:'2026-01-01'}]},
   {id:'post-rp-chui', title:'Представитель в Чуйской области',           unit:'Чуйское региональное представительство', holders:[{emp:'E44', from:'2026-01-01'}]},
   {id:'post-kpua',    title:'Председатель Комитета по вопросам правового обеспечения и управления активами', unit:'Комитет по вопросам правового обеспечения и управления активами', holders:[{emp:'E16', from:'2026-01-01'}]},
+  {id:'post-general', title:'Руководитель Общего отдела',               unit:'Общий отдел',                    holders:[{emp:'E50', from:'2026-01-01'}]},
 ];
 function postOf(id){ return POSTS.find(p=>p.id===id); }
 function postOfUnit(unit){ return POSTS.find(p=>p.unit===unit); }
@@ -975,6 +986,12 @@ function seedPovodKinds(){ return [
   ...CL_STEPS.map(x=>({id:x.id, title:x.title, objectType:'credit', traits:x.traits, sumAttr:'остаток основного долга',
     sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-11-30', activatedAt:'2026-11-30', ownerExec:true,
     addrForm:'очередь'})),
+  // Архив папок: выдача после срока возврата — держателю (при ждущей «Получил» передаче — передающему); держатель уволен —
+  // его руководителю с дня увольнения. Ключ «вид · папка · выдача · адресат»; срок — 2 р.д. от даты отсчёта, которую называет архив;
+  // после срока — сразу руководителю исполнителя; срок возврата продлевает архив, в заданиях продления нет
+  {id:'arch-return', title:'Вернуть папку', objectType:'folder', traits:['папка','держатель','срок_возврата','отсчёт'],
+   sensitive:false, ownerDept:'Общий отдел', createdAt:ARCH_REL, activatedAt:ARCH_REL, ownerExec:true, addrForm:'названный',
+   escalate:{to:'руководитель'}, dueInOwner:true},
 ].map(k=>Object.assign({
   sumAttr:null,       // реквизит суммы: какая величина объекта повода — «сумма по заданию»; пусто — денежного объекта нет
   periodic:false,     // опрос: событийный / периодический
@@ -984,7 +1001,8 @@ function seedPovodKinds(){ return [
   fourEyes:false,     // автор объекта, носитель роли, задания очереди по своему объекту не видит
   personal:false,     // лично: замещающий за адресата не действует и задания не видит
   escalate:null,      // адресат эскалации: пусто — общий (руководитель исполнителя; очередь — держатель «Кто поручил», затем его руководитель);
-                      // {to:'уведомление', who} — просрочка только уведомлением; {to:'очередь', role, action} — задание очереди
+                      // {to:'уведомление', who} — просрочка только уведомлением; {to:'очередь', role, action} — задание очереди;
+                      // {to:'руководитель'} — «Просрочено задание» руководителю исполнителя сразу после срока, без порога самоопроса
 }, k)).map(k=>Object.assign(k, {take: takeOfKind(k)})); }
 /* принятие в работу: через очередь — закрепляет исполнителя; работа в самом задании — нужно; работа в карточке дела — не нужно,
    задание сразу в работе */
@@ -1095,6 +1113,9 @@ function seedActions(){ return [
   ...RS_STEPS.map(x=>({id:vzActId(x.id), label:x.act, importance:'высокая', needsProof:false, where:x.where})),
   // Классификация: срока нормы нет — средняя важность, как у видов платежей и заёмщика
   ...CL_STEPS.map(x=>({id:'act-'+x.id.slice(3), label:x.act, importance:'средняя', needsProof:false, where:x.where})),
+  // Архив папок
+  {id:'act-arch-return', label:'Вернуть папку в архив', importance:'средняя', needsProof:false,
+   where:'архив папок: возврат у архивариуса; передача с «Получил», продление срока возврата или списание папки тоже снимают задание'},
 ]; }
 
 /* адресат — формула: участник задания-объекта · должность · роль кураторства по объекту повода */
@@ -1259,6 +1280,9 @@ function seedRules(){ return [
   // Классификация: срок нормой не задан — значение правила от выдачи, продление — общим порядком
   ...CL_STEPS.map(x=>({id:'rule-'+x.id, kind:x.id, action:'act-'+x.id.slice(3), addressee:{by:'очередь', role:'cl-inspector'},
     dueN:x.dueN, dueUnit:'workday', dueSource:PROJECT_SRC, editions:[ed('2026-11-30','подключение модуля «Классификация»')]})),
+  // Архив папок: адресата называет архив; срок — 2 р.д. от даты отсчёта (срок возврата, «Получил», увольнение держателя)
+  {id:'rule-arch-return', kind:'arch-return', action:'act-arch-return', addressee:N_DOC('держатель папки; держатель уволен — его руководитель'),
+   dueN:2, dueUnit:'workday', dueBase:'состояние', dueSource:PROJECT_SRC, editions:[ed(ARCH_REL,'подключение модуля «Архив папок»')]},
 ]; }
 function ed(from, basis){ return {n:1, from, by:'выпуск 1', basis, release:1}; } // начальные деловые значения ставит выпуск
 /* правило — деловая половина вида: поля прода меняются только новой редакцией с датой начала и основанием;
@@ -1413,6 +1437,7 @@ const KIND_BASIS = {
   'pk-im-topup-due':['проект Инструкции','Инструкция (проект) п. 46'],
   'pk-im-bankruptcy':['проект Инструкции','Инструкция (проект) п. 17'],
   'pk-im-pledge-term':['проект Инструкции','Инструкция (проект) п. 17'],
+  'arch-return':['угроза без документа','оригиналы кредитно-залогового дела вне архива; порядка выдачи дел в источниках нет'],
 };
 function kindBasis(k){
   if(KIND_BASIS[k.id]) return {group:KIND_BASIS[k.id][0], source:KIND_BASIS[k.id][1]};
@@ -1493,6 +1518,7 @@ const PL_KINDS = PL_STEPS.map(x=>x.id).concat(PL_HANDOFF.map(x=>x.id));
 const ZM_KINDS = ZM_STEPS.map(x=>x.id);
 const RS_KINDS = RS_STEPS.map(x=>x.id);
 const CL_KINDS = CL_STEPS.map(x=>x.id);
+const ARCH_KINDS = ['arch-return'];
 const AP_KINDS = ['ap-confirm','ap-conclusion','ap-prelim','ap-vote','ap-decide','ap-supplement','ap-form-credit','ap-bind','ap-register',
   'ap-stuck-new'];
 /* источник объявляет свои виды. У источника с шагами сохранение объекта запускает опрос сразу после сохранения;
@@ -1517,6 +1543,7 @@ const SOURCES = [
   {id:'borrower',   name:'Заёмщик',             all:ZM_KINDS},
   {id:'restructuring', name:'Реструктуризация', all:RS_KINDS},
   {id:'classification', name:'Классификация',   all:CL_KINDS},
+  {id:'archive',    name:'Архив папок',         all:ARCH_KINDS, onSave:true},
 ].map(x=>mkSource(x.id, x.name, x.all, x));
 function sourceOfKind(kindId){ return SOURCES.find(s=>s.all.indexOf(kindId)!==-1) || null; }
 /* чей повод: владелец-сосед вида (вид объявляет сам, если ответ даёт другой сосед), иначе источник */
@@ -2098,6 +2125,7 @@ function seedOwnerObjects(){ return {
   zm: seedBorrowers(),
   rs: seedRestructuring(),
   cl: seedClassification(),
+  arch: seedArchive(),
   /* заключения анализа по заёмщикам (для ответа «документы досье»): период — название из записи анализа, повод, дата утверждения
      (черновик — null), кто утвердил */
   anz: [
@@ -2433,6 +2461,38 @@ function RSA(id, borrower, credits, reg, debt, ev){ // заявка: обращ�
 }
 /* реестр фактов п. 11 по кредиту (ответ классификации): факт вносит кредитный инспектор — с реквизитами решения комитета или без
    них; решение вносится в заведённый факт позже, ошибочный факт аннулируется с причиной. Погашенный кредит — вне области */
+/* Архив папок (демо): выдачи папок из контрольного набора архива. Даты — на полосе стенда заданий: архив подключён 01.12.2026 */
+const ARCH_ISSUE = (to, t, due)=>({t, issue:{to, due}, by:'Токтосунова Г.', how:`папка выдана ${archName(to)} до ${fmt(due)}`});
+function seedArchive(){ return [
+  {id:'А-000230', title:'КЗД · Мамытов Э.С. · том 1', ev:[ARCH_ISSUE('E45', '2026-11-20', '2026-12-04'),
+    {t:'2026-12-10', returned:true, by:'Токтосунова Г.', how:'возврат принят архивариусом 10.12.2026'}]},
+  {id:'А-000203', title:'КЗД · Иманов К.Т. · том 2', ev:[ARCH_ISSUE('E49', '2026-11-20', '2026-12-04'),
+    {t:'2026-12-07', transfer:{to:'E48'}, by:'E49', how:'передаётся Кадырову Т., ждёт «Получил»'},
+    {t:'2026-12-08', got:true, by:'E48', how:'«Получил» Кадыров Т. 08.12.2026'},
+    {t:'2026-12-15', extend:{due:'2026-12-25'}, by:'Токтосунова Г.', how:'срок возврата продлён до 25.12.2026'},
+    {t:'2026-12-24', returned:true, by:'Токтосунова Г.', how:'возврат принят архивариусом 24.12.2026'}]},
+  {id:'А-000208', title:'КЗД · ОсОО «Бакай Агро» · том 1', ev:[ARCH_ISSUE('Орозов Т.', '2026-11-23', '2026-12-18'),
+    {t:'2026-12-04', dismissed:{chief:'E46'}, by:null, how:'держатель Орозов Т. уволен 04.12.2026'},
+    {t:'2026-12-11', writeoff:'утрачена', by:'Токтосунова Г.', how:'папка списана: утрачена, Акт об утрате № 15 от 11.12.2026'}]},
+]; }
+function archName(x){ return emp(x) ? emp(x).name : x; } // держатель вне штата стенда (уволенный) — именем из ответа архива
+/* выдача папки на дату: держатель, срок возврата, ждущая передача, «Получил», увольнение держателя; возврат или списание закрывают выдачу */
+function archAt(o, d){
+  if(!o || !o.ev.length || o.ev[0].t>d) return null;
+  const s = {id:o.id, title:o.title, holder:null, due:null, issued:null, transfer:null, gotAt:null, passedFrom:null, extendedAt:null,
+    dismissed:null, returned:null, writeoff:null, open:false, last:null};
+  byDate(o.ev).filter(e=>e.t<=d).forEach(e=>{
+    if(e.issue){ Object.assign(s, {holder:e.issue.to, due:e.issue.due, issued:e.t, open:true}); }
+    if(e.transfer) s.transfer = {to:e.transfer.to, since:e.t};
+    if(e.got && s.transfer){ s.passedFrom = s.holder; s.holder = s.transfer.to; s.gotAt = e.t; s.transfer = null; }
+    if(e.extend){ s.due = e.extend.due; s.extendedAt = e.t; }
+    if(e.dismissed) s.dismissed = {t:e.t, chief:e.dismissed.chief};
+    if(e.returned){ s.returned = e; s.open = false; }
+    if(e.writeoff){ s.writeoff = e; s.open = false; }
+    s.last = e;
+  });
+  return s;
+}
 function seedClassification(){ return [
   CLC('КД-2025/391', 'ОсОО «Талас Агро Трейд»', 24600000, '2025-04-14', [
     CLF('2026-11-12', 'E3', 'F-101', 'f-noAct', '2026-11-09')]),
@@ -3167,7 +3227,7 @@ function objAt(o, d){ // карточка на дату: события по д�
 }
 const STATE_AT = {rp:(o, d)=>obligationAt(o, d), doc:(o, d)=>docAt(o, d), imo:(o, d)=>offerAt(o, d), ima:(o, d)=>assetAt(o, d), imb:(o, d)=>bankruptcyAt(o, d), an:(o, d)=>reviewAt(o, d), ant:(o, d)=>templateAt(o, d),
   cr:(o, d)=>creditAt(o, d), vz:(o, d)=>vzAt(o, d), zl:(o, d)=>zlAt(o, d), pl:(o, d)=>plAt(o, d), zm:(o, d)=>zmAt(o, d),
-  rs:(o, d)=>rsAt(o, d), cl:(o, d)=>clAt(o, d)}; // как владелец читает карточку на дату
+  rs:(o, d)=>rsAt(o, d), cl:(o, d)=>clAt(o, d), arch:(o, d)=>archAt(o, d)}; // как владелец читает карточку на дату
 function stateAt(src, o, d){ return (STATE_AT[src] || objAt)(o, d); }
 function ownerAt(src, id, d){ return stateAt(src, ownerObj(src, id), d); }
 /* документ на дату: этап хранится, исполнение выводится — из резолюций, отправок и ознакомлений */
@@ -3752,6 +3812,28 @@ Object.assign(OWNER_CFG, {
       if(c && c.noted) return {by:c.noted.by, how:c.noted.how};
       return {cancel:s.closed ? s.closed.how : c && c.gone ? c.gone.how : s.last.how}; },
     cancel:(s,d,p)=>{ const c = s.conds[p.sub]; return s.closed ? s.closed.how : c && c.gone ? c.gone.how : s.last.how; }},
+});
+// Архив папок: повод — выдача после срока возврата; держатель уволен — с дня увольнения. Адресат и дату отсчёта называет архив:
+// срок возврата; у получившего просроченную папку передачей — день «Получил»; у уволенного держателя — день увольнения.
+// Возврат — «исполнено» у адресата; передача, продление и списание — «снято» с причиной архива
+Object.assign(OWNER_CFG, {
+  'arch-return': {src:'arch', objectType:'folder', cur:false, when:s=>s.open,
+    each:(s, d)=>{
+      if(s.dismissed) return [{key:`выдача ${s.issued}·${s.dismissed.chief}`, sub:s.dismissed.chief, named:s.dismissed.chief, since:s.dismissed.t, base:'увольнение'}];
+      if(d<=s.due) return [];
+      const late = s.gotAt && s.gotAt>s.due; // получил уже просроченную — отсчёт от «Получил»
+      return [{key:`выдача ${s.issued}·${s.holder}`, sub:s.holder, named:s.holder, since:late ? s.gotAt : s.due, base:late ? 'получил' : 'срок'}];
+    },
+    since:(s, d, x)=>x.since,
+    traits:(s, d, x)=>({папка:`${s.id} «${s.title}»`, держатель:archName(s.holder)+(s.dismissed ? ' (уволен '+fmt(s.dismissed.t)+')' : '')
+        +(s.transfer ? `, передаётся ${archName(s.transfer.to)} — ждёт «Получил»` : ''),
+      срок_возврата:s.due, отсчёт:x.base==='увольнение' ? `увольнение держателя ${fmt(x.since)}` : x.base==='получил' ? `«Получил» ${fmt(x.since)}` : `срок возврата ${fmt(x.since)}`}),
+    attrib:(s, p)=>{
+      if(s.returned) return {by:p.named || p.sub, how:s.returned.how};
+      if(s.writeoff) return {cancel:s.writeoff.how};
+      if(s.holder!==p.sub && !(s.dismissed && s.dismissed.chief===p.sub)) return {cancel:`папка передана: «Получил» ${archName(s.holder)} ${fmt(s.gotAt)}`};
+      if(s.extendedAt) return {cancel:`срок возврата продлён до ${fmt(s.due)}`};
+      return {cancel:s.last.how}; }},
 });
 // продление срока Инструкции (п. 5): факт «срок продлён» у объекта сдвигает порог этого вида — ещё не появившийся повод
 // считается по новому сроку, появившийся — «снято», после нового срока повод возвращается тем же ключом
@@ -4480,6 +4562,8 @@ function seedState(){
     seq: 1,
     seqOwn: OWN_SEQ_START, // отдельная серия: задания выпуска работ вместо сообщений
     noteOwn: 0,            // и сообщения о них
+    seqArch: ARCH_SEQ_START, // архив папок — своя серия после неё
+    noteArch: 0,
   };
   initRegistry();
   seedDemoTasks();
@@ -4489,10 +4573,16 @@ function nextId(pfx){ return pfx + (state.seq++); }
 /* Задания выпуска работ вместо сообщений и всё, что от них пошло (просрочка, отказ), — своя серия номеров: номера заданий стенда записаны
    в контрольном наборе, общий счётчик идёт как шёл */
 const OWN_SEQ_START = 9001, NOTE_OWN = 800000;
+const ARCH_SEQ_START = 9501, NOTE_ARCH = 850000; // архив подключён после своей серии: его задания и сообщения — отдельный ряд, прежние номера целы
 const OWN_KINDS = ['pk-cr-close','pk-zl-ban-repaid','pk-zl-surety-release','pk-vz-hearing','pk-vz-claim-undelivered','im-publish-or-return','im-fact-rework'];
+function archSeries(p){ // вид архива и всё, что от него пошло (просрочка)
+  if(p.originKind==='arch-return') return true;
+  const pv = p.povodKey ? povodByKey(p.povodKey) : null;
+  if(!pv || pv.objectType!=='task') return false;
+  const x = taskOf(pv.objectId); return !!x && !!x.archSeries; }
 const OWN_OBJECTS = ['КД-2026/901','КД-2026/902','З-901','З-902','ДП-901','ДП-902','ТР-2026/901','ТР-2026/902','П-901','П-902','П-903','П-904'];
 function ownSeries(p){
-  if(OWN_KINDS.indexOf(p.originKind)!==-1) return true;
+  if(OWN_KINDS.indexOf(p.originKind)!==-1 || archSeries(p)) return true; // архив — своя серия, отдельная от выпуска 01.12
   const pv = p.povodKey ? povodByKey(p.povodKey) : null;
   if(!pv) return false;
   if(pv.objectType==='task'){ const x = taskOf(pv.objectId); return !!x && !!x.ownSeries; }
@@ -4520,7 +4610,7 @@ function seedDemoTasks(){
 function mkTask(p){
   const own = ownSeries(p);
   const t = {
-    id: own ? 'T'+(state.seqOwn++) : nextId('T'), ...(own ? {ownSeries:true} : {}), kind:p.kind, povodKey:p.povodKey||null, originKind:p.originKind||null,
+    id: own ? (archSeries(p) ? 'T'+(state.seqArch++) : 'T'+(state.seqOwn++)) : nextId('T'), ...(own ? {ownSeries:true} : {}), ...(own && archSeries(p) ? {archSeries:true} : {}), kind:p.kind, povodKey:p.povodKey||null, originKind:p.originKind||null,
     action:p.action||null, label:p.label, assignee:p.assignee, controller:p.controller||null,
     author:p.author, dueDate:p.dueDate, ruleId:p.ruleId||null, ruleEdition:p.ruleEdition||null,
     importance:p.importance||'средняя', importanceReason:p.importanceReason||null,
@@ -4802,7 +4892,7 @@ const NOTE_EXTRA = 900000;
 /* за один прогон или одно пакетное действие — одна запись на человека и вид уведомления, внутри перечень заданий */
 function pushNotif(kind, taskId, to, due, originKind, opts){
   if(kind==='поручено' && !due && taskId) due = dueOf(taskOf(taskId)); // срок назван в «поручено», поэтому в день выдачи «срок близко» не нужен
-  const own = !!(taskId && (taskOf(taskId)||{}).ownSeries); // сообщение о задании своей серии общий счётчик не трогает
+  const own = !!(taskId && (taskOf(taskId)||{}).ownSeries), arch = !!(taskId && (taskOf(taskId)||{}).archSeries); // сообщение о задании своей серии общий счётчик не трогает
   const held = own || (opts && opts.noSeq) ? null : holdSeq(to, originKind, kind), dg = state.digest, key = dg ? [to, kind].join('|') : null;
   const item = Object.assign({taskId, due:due||null}, kind==='переадресовано' ? {newAssignee:taskOf(taskId).assignee} : {});
   if(key && dg[key]){
@@ -4814,7 +4904,7 @@ function pushNotif(kind, taskId, to, due, originKind, opts){
     return n;
   }
   const cfg = state.notifSettings[kind]; // текст и способ — из настройки на момент отправки
-  const n = messageOf({id:own ? 'N'+(NOTE_OWN+state.noteOwn++) : held===null ? 'N'+(NOTE_EXTRA+state.noteExtra++) : 'N'+held, t:state.today, kind, originKind, taskId, to, due:due||null, count:1, items:taskId ? [item] : [], text:cfg.text, channels:cfg.channels.slice()});
+  const n = messageOf({id:arch ? 'N'+(NOTE_ARCH+state.noteArch++) : own ? 'N'+(NOTE_OWN+state.noteOwn++) : held===null ? 'N'+(NOTE_EXTRA+state.noteExtra++) : 'N'+held, t:state.today, kind, originKind, taskId, to, due:due||null, count:1, items:taskId ? [item] : [], text:cfg.text, channels:cfg.channels.slice()});
   if(own) n.own = true;
   state.notifications.push(n);
   if(key) dg[key] = n;
@@ -5556,6 +5646,13 @@ function computeExpectedForKind(kindId, asOf, asIfActive){
       if(st!=='поручено' && st!=='принято' && st!=='возвращено') return;
       const due = dueOf(t), esc = escalateOf(t);
       if(esc && esc.to==='уведомление') return; // адресат эскалации — уведомлением при истечении срока, задания нет
+      if(esc && esc.to==='руководитель'){ // вид объявил подъём сразу после срока — руководителю исполнителя, без порога самоопроса
+        if(due >= asOf) return;
+        if(!delayChief(t.assignee, asOf)) return; // руководителя нет — задания нет, остаётся красная строка
+        out.set(`pk-overdue|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:due, approx:false,
+          traits:{давность_раб_дней:workdaysBetween(due, asOf)}});
+        return;
+      }
       if(esc && esc.to==='очередь'){ // сразу по истечении срока — задание очереди того, кто вправе решить
         if(due >= asOf) return;
         out.set(`pk-overdue|task:${t.id}|${esc.step}`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:due, approx:false,
@@ -5765,7 +5862,8 @@ function closeByOwner(t, p, asOf){
 function kindOf(id){ return state.povodKinds.find(k=>k.id===id); }
 function kindTake(t){ const k = t.originKind && kindOf(t.originKind); return k ? k.take : 'нужно'; }
 function ownerExecOf(t){ const k = t.originKind && kindOf(t.originKind); return !!(k && k.ownerExec) || !!t.esc; }
-function namedDue(t){ const r = t.ruleId && ruleAsIssued(t); return !!r && r.dueUnit==='named' && !r.extendBy && !t.esc; } // срок владельца продлевается здесь, только если правило назвало утверждающего
+function namedDue(t){ const r = t.ruleId && ruleAsIssued(t), k = t.originKind && kindOf(t.originKind); if(k && k.dueInOwner) return true; // срок возврата продлевает архив
+  return !!r && r.dueUnit==='named' && !r.extendBy && !t.esc; } // срок владельца продлевается здесь, только если правило назвало утверждающего
 function escalateOf(t){ const k = t.originKind && kindOf(t.originKind); return k ? k.escalate : null; }
 function actionOf(id){ return state.actions.find(a=>a.id===id); }
 function ruleForKind(kindId){ const rs = state.rules.filter(r=>r.kind===kindId); return rs.length===1 ? rs[0] : null; } // один вид — одно правило; иначе реестр не сходится и вид не поручает
@@ -6006,6 +6104,8 @@ function describePovod(p){
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='zm') return zmDescribe(p);
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='rs') return rsDescribe(p);
   if(OWNER_CFG[p.kind] && OWNER_CFG[p.kind].src==='cl') return clDescribe(p);
+  if(p.objectType==='folder'){ const o = ownerObj('arch', p.ownerId||p.objectId); // папка · кто держит
+    return o ? `папка ${o.id} «${o.title}» · ${archName(p.sub)}` : p.objectId; }
   if(p.kind==='im-publish-or-return' || p.kind==='im-fact-rework'){ const o = ownerObj(povSrc(p), p.ownerId||p.objectId);
     return `${p.objectType==='offer' ? 'предложение имущества' : 'объект имущества'} ${o.id} «${o.title}» · ${p.traits.факт}`; }
   if(p.objectType==='povodKind'){ return `вид «${kindOf(p.objectId).title}»`; }
@@ -6311,10 +6411,10 @@ function whatToDo(t){ return t.kind==='rule' && t.action ? actionOf(t.action).la
 const CASE_OPEN = {gosreshenie:'госрешение', program:'программу', application:'заявку', document:'документ', unit:'подразделение', territory:'территорию', employee:'сотрудника',
   resolution:'резолюцию', issue:'выдачу оригинала', offer:'предложение', asset:'объект имущества', contract:'договор', template:'шаблон', requirement:'требование', task:'задание',
   obligation:'отчёт', pledge:'предмет залога', credit:'кредит', surety:'договор поручительства', pledgeContract:'договор залога', payment:'платёж', receipt:'поступление',
-  borrower:'заёмщика', 'rs-application':'заявку на реструктуризацию', 'pl-act':'акт сверки', bankruptcy:'банкротство'};
+  borrower:'заёмщика', 'rs-application':'заявку на реструктуризацию', 'pl-act':'акт сверки', bankruptcy:'банкротство', folder:'папку'};
 const CASE_PAGE = {заёмщик:'borrower/borrower.html', заявка:'loan-application/loan-application.html', кредит:'loan-credit/credit.html', залог:'collateral/zalog.html', взыскание:'collection/collection.html'};
 const SRC_PAGE = {gd:'decision/decisions.html', lp:'loan-program/loan-program.html', ap:CASE_PAGE.заявка, doc:'docflow/docflow.html', imo:'assets/assets.html', ima:'assets/assets.html', imb:'assets/assets.html',
-  an:'analysis/analysis.html', ant:'analysis/analysis.html', rp:'reports/reports.html', cr:CASE_PAGE.кредит, vz:CASE_PAGE.взыскание, zl:CASE_PAGE.залог, pl:'payments/payments.html', zm:CASE_PAGE.заёмщик, rs:'restructuring/restructuring.html', cl:'classification/classification.html'};
+  an:'analysis/analysis.html', ant:'analysis/analysis.html', rp:'reports/reports.html', cr:CASE_PAGE.кредит, vz:CASE_PAGE.взыскание, zl:CASE_PAGE.залог, pl:'payments/payments.html', zm:CASE_PAGE.заёмщик, rs:'restructuring/restructuring.html', arch:'archive/archive.html', cl:'classification/classification.html'};
 const TYPE_PAGE = {unit:'org-structure/org-structure.html', territory:'org-structure/org-structure.html', employee:'employee/employee.html', obligation:SRC_PAGE.rp};
 /* подпись дела задания — одна для строки очереди, свёрнутой группы и строки уведомления.
    Задания идут от ближайшего срока: первое дело и «ещё N» (N — остальные разные дела: у задания о задании — разные задания; все — в подсказке).
@@ -6416,7 +6516,7 @@ function checkRegistry(){
     if(!k.ownerDept) errs.push(`«${k.title}»: не объявлено подразделение-владелец`);
     if(k.escalate && k.escalate.to==='очередь' && (!roleOf(k.escalate.role) || !actionOf(k.escalate.action)))
       errs.push(`«${k.title}»: адресат эскалации — незаведённая очередь или действие`);
-    if(k.escalate && ['уведомление','очередь'].indexOf(k.escalate.to)===-1) errs.push(`«${k.title}»: адресат эскалации не той формы`);
+    if(k.escalate && ['уведомление','очередь','руководитель'].indexOf(k.escalate.to)===-1) errs.push(`«${k.title}»: адресат эскалации не той формы`);
     if(k.periodic && k.periodAbsorb!=='да' && k.periodAbsorb!=='нет') errs.push(`«${k.title}»: периодический вид не объявил поглощение периодом`);
     if(!k.periodic && k.periodAbsorb!=null) errs.push(`«${k.title}»: поглощение периодом у событийного вида`);
     if(GENERA.indexOf(k.genus)===-1) errs.push(`«${k.title}»: не объявлен род — шаг, надзор или самоопрос`);
@@ -7461,8 +7561,21 @@ function renderAnCard(src, id){
 }
 /* карточка объекта у владельца — демо соседа: действия делаются там; у источника с шагами задания видят результат сразу после сохранения */
 function escText(x){
+  if(x.to==='руководитель') return 'срок истёк — на следующий день руководителю исполнителя задание «Просрочено задание»';
   return x.to==='уведомление' ? `срок истёк — исполнителю «срок истёк», уведомление: ${x.who}; эскалации руководителю и переназначения нет`
     : `срок истёк — сразу задание очереди «${roleTitle(x.role)}»: «${actionOf(x.action).label}»; эскалации руководителю нет`;
+}
+function renderArchCard(id){ // карточка папки в архиве — демо: возврат, передачу, продление и списание делают в архиве
+  const o = ownerObj('arch', id), s = archAt(o, state.today);
+  if(!s) return '';
+  const where = s.returned ? 'возвращена в архив' : s.writeoff ? 'выбыла' : s.transfer ? `передаётся ${esc(archName(s.transfer.to))}, ждёт «Получил»` : `на руках у ${esc(archName(s.holder))}`;
+  return `<div class="card"><h3>Папка ${esc(o.id)} <span class="small">в архиве, демо</span></h3>
+    <div class="kv">
+      <div class="k">Название</div><div class="v">${esc(o.title)}</div>
+      <div class="k">Где</div><div class="v">${where}${s.dismissed ? ' <span class="pill warn">держатель уволен</span>' : ''}</div>
+      <div class="k">Вернуть до</div><div class="v">${fmt(s.due)}</div>
+      <div class="k">Последнее действие</div><div class="v">${esc(s.last.how)} · ${fmt(s.last.t)}</div>
+    </div></div>`;
 }
 function renderOwnerCard(t, p){
   const cfg0 = OWNER_CFG[p.kind];
@@ -7480,6 +7593,7 @@ function renderOwnerCard(t, p){
   if(cfg.src==='zm') return renderZmCard(p.ownerId||p.objectId);
   if(cfg.src==='rs') return renderRsCard(p.ownerId||p.objectId);
   if(cfg.src==='cl') return renderClCard(p.ownerId||p.objectId);
+  if(cfg.src==='arch') return renderArchCard(p.ownerId||p.objectId);
   const o = ownerObj(cfg.src, p.objectId), s = objAt(o, state.today), src = cfg.src;
   if(!s) return '';
   const who = id=>id ? esc(emp(id)?.name) : '—';
@@ -8121,6 +8235,7 @@ function noAnswerText(k){
   if(k.id==='pk-overdue') return 'дальше не передаётся: просрочка этого задания нового задания не даёт';
   const n = thrOn('zd.overdueWd', state.today), wd = `${n} р.д.`;
   if(k.escalate && k.escalate.to==='уведомление') return `сразу после срока — уведомление: ${esc(k.escalate.who)}; задание не передаётся`;
+  if(k.escalate && k.escalate.to==='руководитель') return 'сразу после срока — руководителю исполнителя';
   if(k.escalate) return `сразу после срока — очередь «${esc(roleTitle(k.escalate.role))}»`;
   if(k.addrForm==='очередь') return `никто не взял до срока — сразу «Кто поручил», через ${wd} — его руководителю; взял — через ${wd} после срока руководителю исполнителя`;
   return `через ${wd} после срока — руководителю исполнителя`;
@@ -8846,7 +8961,7 @@ return {
   plStep:savedAt('payments', plStep), plAt, plNotices, PL_KINDS, deptHead,
   zmStep, zmAt, zmFhsOpen, analysisDocs, AN_SCHEDULE, anRow, ZM_KINDS,
   rsStep, rsAt, RS_KINDS, RS_NORM,
-  clStep, clAt, CL_KINDS,
+  clStep, clAt, CL_KINDS, archAt, ARCH_KINDS, ARCH_SEQ_START,
   tasksByBasis, reviewTaskDraft, anStep, AN_KINDS,
   crStep, creditAt, CR_KINDS,
   vzStep, vzFact, vzAt, vzOpen, VZ_KINDS, VZ_TPL, OWN_KINDS, imDrafts, imReturned, imDraftKey,
