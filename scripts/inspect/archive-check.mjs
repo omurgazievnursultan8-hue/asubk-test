@@ -24,6 +24,9 @@
 // «Сотрудник» с подразделением; печать любого списка листом с отборами, Excel файлом; ярлыки листом A4 с позиции, список полки
 // из трёх частей; в строке места одна кнопка и «Ещё ▾», число папок — ссылка, вывести только пустое, вернуть в употребление,
 // название без повтора, «что сейчас / что будет» в окнах; курсор: № строки с клавиатуры и после карточки.
+// Блок ЧТ-1…ЧТ-3 — чистка текста интерфейса для разработчиков (АХ-142…АХ-150): на страницах, в карточках и окнах нет
+// правил учёта и инструкций, в коде нет номеров решений; поиск сотрудника и заёмщика без строки «или наберите»; «что будет» —
+// последствие для людей и папки.
 // Запуск: node scripts/inspect/archive-check.mjs [--shots <папка>]   (playwright-core + системный Chrome)
 import { chromium } from 'playwright-core';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -2046,6 +2049,78 @@ await group('РВ-4 · АХ-141 — уволен ждавший в очеред�
     r.d.ok && r.d.closed.length === 1 && r.r206 === 'isaeva:closedFired,kadyrov:reserved' && r.res && r.res[0] === 'kadyrov' && r.res[1] === '2026-11-17' && r.note === 1 && r.live === 0, r);
   ck('АХ-141 · запрос в очереди (не бронь) тоже закрыт: у А-000205 ждёт только Асанов', r.d2.ok && r.abdyk === 'closedFired' && r.q205 === 'asanov', r);
   ck('АХ-141 · «К выдаче» — А-000206 для Кадырова; уволенная больше не запрашивает', r.give.includes('give-206:Кадыров') && !r.req.ok, r);
+});
+
+/* ===================== чистка текста интерфейса ===================== */
+/* Тексты-правила, снятые АХ-142…АХ-149: ни на одной странице, ни в одном окне их быть не должно. */
+const BANNED = ['это А-000231', 'выбывшие скрыты', 'Заёмщики с действующим кредитом', '#/folder/', 'куратора заёмщика', 'или наберите',
+  'станет сроком возврата', 'попадёт в историю', 'прежняя подставлена', 'по желанию', 'срок по умолчанию', 'своя выдача', 'забронируются за вами',
+  'своя запись', 'у каждой папки', 'останется в истории', 'одни на всех', 'Номер выдаст', 'Папка нашлась', 'соберётся само', 'подставится сама', 'за один проход'];
+const bannedIn = t => BANNED.filter(b => t.includes(b));
+
+await group('ЧТ-1 · АХ-142…АХ-144, АХ-150 — страницы и карточки без правил учёта, адреса и номеров решений', async (page, E) => {
+  const src = await page.content();
+  ck('АХ-150 · в коде макета нет номеров решений АХ-*', !/АХ-\d|АХ-Д\d/.test(src));
+  const found = await E(() => { const A = window.AX, out = [];
+    for (const u of A.USERS.map(x => x[0])) { A.setUser(u);
+      for (const v of [...document.querySelectorAll('.nav-item')].map(b => b.dataset.v).concat('borrower')) { A.go(v); out.push([u + ' · ' + v, document.querySelector('#panel').innerText]); } }
+    A.setUser('arch1');
+    for (const f of A.FOLDERS) { A.go('folders'); A.openCard(f.id); out.push(['карточка ' + f.no, document.querySelector('#cardpanel').innerText]); }
+    return out; });
+  const empty = found.filter(([w, t]) => !String(t).trim()).map(([w]) => w);
+  ck('ЧТ-1 · каждая страница и карточка отрисована (проверка не пустая)', empty.length === 0, empty);
+  const bad = found.map(([w, t]) => [w, bannedIn(t)]).filter(x => x[1].length);
+  ck(`АХ-143, АХ-144 · ${found.length} страниц и карточек — без снятых пояснений`, bad.length === 0, bad.slice(0, 5));
+  const card = await E(() => { const A = window.AX; A.go('folders'); A.openCard('f203'); const cp = document.querySelector('#cardpanel');
+    return { first: cp.querySelector('.cp-body').innerText.split('\n')[0], dept: (cp.innerText.match(/Подразделение\s*\n([^\n]*)/) || [])[1] }; });
+  ck('АХ-144 · карточка начинается с номера папки; подразделение — без пояснения', card.first === 'А-000203' && String(card.dept).trim() === 'ДАК', card);
+});
+
+await group('ЧТ-2 · АХ-145 — поиск сотрудника и заёмщика без строки-инструкции', async (page, E) => {
+  await E(() => window.AX.uiIssue('f202'));
+  await page.click('[data-testid=ff-to]');
+  ck('АХ-145 · «Выдать» без брони: пустое «Кому» не открывает список', await page.locator('[data-testid=pick-to]').count() === 0);
+  await page.fill('[data-testid=ff-to]', 'Иса');
+  ck('АХ-145 · набрал «Иса» — список с Исаевой', await page.locator('[data-testid=pi-to-isaeva]').count() === 1);
+  await page.fill('[data-testid=ff-to]', 'Щщщ');
+  ck('АХ-145 · ничего не нашлось — «ничего не найдено»', has(await page.locator('[data-testid=pick-to]').innerText(), 'ничего не найдено'));
+  await E(() => { window.AX.closeForm(); window.AX.setUser('asanov'); window.AX.uiTransfer('f225'); });
+  await page.click('[data-testid=ff-to]');
+  const t = await page.locator('[data-testid=pick-to]').innerText();
+  ck('АХ-145 · «Передать»: пустое поле — «Предложено» с руководителем, без «или наберите»', has(t, 'Предложено') && has(t, 'Мамбетов') && !has(t, 'наберите'), t);
+  await E(() => { window.AX.closeForm(); window.AX.setUser('arch1'); window.AX.uiAccept(); });
+  await page.click('[data-testid=ff-borrower]');
+  const b = await page.locator('[data-testid=pick-borrower]').innerText();
+  ck('АХ-145 · «Принять папку»: пустое «Заёмщик» — только «заёмщика нет в системе …»', has(b, 'заёмщика нет в системе') && !has(b, 'наберите'), b);
+});
+
+await group('ЧТ-3 · АХ-146…АХ-149 — окна: подсказки от данных, «что будет» — последствие', async (page, E) => {
+  const r = await E(() => { const A = window.AX, out = {}, txt = () => document.querySelector('#modal').innerText, will = () => (document.querySelector('[data-testid=form-will]') || {}).innerText || '';
+    const sel = (act, n) => A.FOLDERS.filter(f => A.gate(act, f.id).ok).slice(0, n).map(f => f.id);
+    const W = {
+      issue: () => A.uiIssue('f202'), issueBatch: () => A.uiIssueBatch(sel('issue', 3)), returnOne: () => A.uiReturn('f201'), returnSel: () => A.uiReturnSel(sel('return', 3)),
+      move: () => A.uiMove('f201'), moveBatch: () => A.uiMoveBatch(sel('move', 3)), rebind: () => A.uiRebind('f201'), writeoff: () => A.uiWriteoff('f202'),
+      writeoffBatch: () => A.uiWriteoffBatch(sel('writeoff', 3)), restore: () => A.uiRestore('f209'), accept: () => A.uiAccept(), nextVol: () => A.uiNextVol('f201'),
+      extend: () => A.uiExtend('f201'), refuse: () => A.uiRefuse(A.REQS.find(x => x.st === 'queue' || x.st === 'reserved').id), labels: () => A.uiLabels(['f201', 'f202']),
+      shelf: () => A.uiPrintShelf(A.SHELVES[0].id), round: () => A.uiPrintRound(), addKind: () => A.uiAddKind(), setting: () => A.uiSetting(Object.keys(A.SETTINGS)[0]),
+      request: () => { A.setUser('asanov'); A.uiRequest('f202'); }, requestBatch: () => { A.setUser('asanov'); A.uiRequestBatch(['f202', 'f203', 'f204']); },
+      askExt: () => { A.setUser('asanov'); A.uiAskExt('f201'); }, transfer: () => { A.setUser('asanov'); A.uiTransfer('f225'); } };
+    for (const [k, fn] of Object.entries(W)) { A.closeForm(); A.setUser('arch1'); fn(); out[k] = { t: txt(), w: will() }; }
+    A.closeForm(); A.setUser('arch1'); A.uiAccept(); A.fset('from', 'asanov'); out.acceptFrom = will(); out.acceptTitle = (document.querySelector('[data-testid=auto-title]') || {}).parentElement?.innerText;
+    A.closeForm(); A.uiPrintRound(); out.roundSub = document.querySelector('#psheet .sub').innerText;
+    return out; });
+  const shut = Object.entries(r).filter(([k, x]) => x && typeof x === 'object' && !x.t).map(([k]) => k);
+  ck('ЧТ-3 · все окна открылись (проверка не пустая)', shut.length === 0, shut);
+  const bad = Object.entries(r).filter(([k, x]) => x && x.t && bannedIn(x.t).length).map(([k, x]) => [k, bannedIn(x.t)]);
+  ck(`АХ-146, АХ-147 · ${Object.keys(r).length - 3} окон — без снятых пояснений`, bad.length === 0, bad);
+  ck('АХ-147 · «Выдать» пачкой: «что будет» — уведомление получателям', r.issueBatch.w === 'Получателям — уведомление «Вам выдана папка»', r.issueBatch.w);
+  ck('АХ-147 · «Переместить» пачкой: «Ярлыки перепечатывать не нужно»', r.moveBatch.w === 'Ярлыки перепечатывать не нужно', r.moveBatch.w);
+  ck('АХ-147 · «Запросить» пачкой, «Принять возврат» пачкой, «Восстановить»: строки «что будет» нет', !r.requestBatch.w && !r.returnSel.w && !r.restore.w, [r.requestBatch.w, r.returnSel.w, r.restore.w]);
+  ck('АХ-147 · последствие для людей осталось: возврат закрывает выдачу и передачу; «Выдать» — уведомление', has(r.returnOne.w, 'Выдача закроется') && has(r.returnOne.w, 'передача') && has(r.issue.w, 'уведомление'), [r.returnOne.w, r.issue.w]);
+  ck('АХ-147 · «Принять папку»: пусто без «Сдал»; со «Сдал» — уведомление сдавшему', !r.accept.w && has(r.acceptFrom, 'Асанову Б.') && has(r.acceptFrom, 'Папка принята в архив'), [r.accept.w, r.acceptFrom]);
+  ck('АХ-146 · подсказка от данных осталась: следующий том — «в архиве уже: том 1»', has(r.nextVol.t, 'в архиве уже: том 1'), r.nextVol.t);
+  ck('АХ-148 · «Принять папку»: «Название: КЗД · … · том 1»', /^Название: КЗД · … · том 1$/.test(String(r.acceptTitle).trim()), r.acceptTitle);
+  ck('АХ-149 · лист обхода: подзаголовок «на 13.11.2026»', r.roundSub === 'на 13.11.2026', r.roundSub);
 });
 
 await browser.close();
