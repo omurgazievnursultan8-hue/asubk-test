@@ -1512,3 +1512,14 @@ Esc и щелчок мимо; вывести только пустое, верн
 
 Смоук: тексты переведены на «ярус», добавлены 3 проверки переключателя (выключен по умолчанию — скрыто; включён — видно;
 снова выключен — скрыто); группы с эмуляцией включают его сами. Итого 759/759. Отрисовка 1920 проверена снимками.
+
+## Требования соседям · 17.11.2026
+
+Раздел «Входящее от модуля «Архив папок» (17.11.2026)» дописан в статус-файлы соседей:
+
+- уведомления (служба ведётся в `mockups/zadaniya/ASUBK-status-razrabotki.md`) — семь видов, `notify` (п. 9.1, 15.2);
+- `mockups/borrower/ASUBK-status-razrabotki.md` — врезка «Где бумага» (`foldersOfBorrower`), `borrowerLookup` (п. 14.18–14.20, 15.9, 15.10);
+- `mockups/employee/ASUBK-status-razrabotki.md` — `employeeDismissed`, предупреждение по `foldersOnHand`; `hrStatusAt`, `deptPostAt`, `resolveActor` уже в ТЗ 11 (п. 9.8–9.12, 15.3–15.7);
+- `mockups/kuratorstvo/ASUBK-status-razrabotki.md` — `leadCurator`, в ТЗ 16 его нет (п. 15.8).
+
+Не записано: навигация (`navItems`, п. 15.13) — статус-файла нет; `workCalendar` и `resolvePermission` уже потребляются другими ТЗ (25; 20, 22, 24).
