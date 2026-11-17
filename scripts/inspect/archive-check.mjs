@@ -8,7 +8,7 @@
 // у «уволенных», ярлык после привязки, подсветка открытой папки.
 // Блок ПК-1…ПК-4 — автогриллинг страницы «Папки» и карточки папки (АХ-82…АХ-95): поиск номера с клавиатуры и
 // «Вне отбора», плашки состояний и «из них», отборы одной строкой, полоса пачки на месте «Показано» с числом на
-// кнопках, отмечены только показанные, срок «Выдать» пачкой, список полки, карточка от первого лица, все тома,
+// кнопках, отмечены только показанные, срок «Выдать» пачкой, список яруса, карточка от первого лица, все тома,
 // запрос архивариуса из «Ещё ▾», реквизиты без повторов шапки, сообщение с кнопкой одной строкой.
 // Блок ОД-1…ОД-4 — автогриллинг «Окон действий» (АХ-96…АХ-108): одно устройство окна, клавиатура (курсор в первом
 // поле, Enter, Esc, Tab в окне), поиск сотрудника и заёмщика с «Предложено», место одним списком, причина кнопками,
@@ -21,7 +21,7 @@
 // врезка «Где бумага» от первого лица, без колонки «Том», с «ждут N», выбывшая КЗД (АХ-Д23).
 // Блок ЖС-1…ЖС-7 — автогриллинг «Журнала движения», «Справочников» и печати (АХ-123…АХ-137): поиск первым (номер — сразу
 // карточка, «Вне отбора»), период кнопками, плашки событий с числом, «Подразделение сотрудника» и своё руководителю, колонка
-// «Сотрудник» с подразделением; печать любого списка листом с отборами, Excel файлом; ярлыки листом A4 с позиции, список полки
+// «Сотрудник» с подразделением; печать любого списка листом с отборами, Excel файлом; ярлыки листом A4 с позиции, список яруса
 // из трёх частей; в строке места одна кнопка и «Ещё ▾», число папок — ссылка, вывести только пустое, вернуть в употребление,
 // название без повтора, «что сейчас / что будет» в окнах; курсор: № строки с клавиатуры и после карточки.
 // Блок ЧТ-1…ЧТ-3 — чистка текста интерфейса для разработчиков (АХ-142…АХ-150): на страницах, в карточках и окнах нет
@@ -97,7 +97,7 @@ await group('И-1 · раскладка на 1920: каждый раздел у 
       ck(`${u} · ${v}: отрисован, без прокрутки вбок`, L.filled && L.page && L.content && !L.wide, L);
     }
   }
-  await E(() => { window.AX.setUser('isaeva'); window.AX.go('borrower'); });
+  await E(() => { window.AX.setDemo(true); window.AX.setUser('isaeva'); window.AX.go('borrower'); });
   const L = await layout(E); ck('образец врезки «Где бумага»: отрисован, без прокрутки вбок', L.filled && L.page && L.content && !L.wide, L);
 });
 
@@ -187,7 +187,7 @@ await group('И-5 · реестр: восемь колонок, плашки, п
     return { hdept: n({ hdept: 'ДРР' }), dept: n({ dept: 'Бухгалтерия' }), shelf: n({ shelf: 'go3-4' }), holder: n({ holder: 'jeen' }), kind: n({ kind: 'vz' }), borrower: n({ q: 'Иманов' }), room: n({ room: 'dpo' }).length }; });
   ck('отбор «подразделение держателя» ДРР: у Асанова, Мамбетова и уволенного Орозова', f.hdept.join() === '201,208,216,225,230', f.hdept);
   ck('отбор «подразделение»: папки бухгалтерии без выбывших', f.dept.join() === '213,221', f.dept);
-  ck('отбор полки, держателя, вида, помещения; папки заёмщика — поиском (АХ-85)', f.shelf.join() === '219,220,221' && f.holder.join() === '205,214,227' && f.kind.join() === '205,226' && f.borrower.join() === '202,203' && f.room === 3, f);
+  ck('отбор яруса, держателя, вида, помещения; папки заёмщика — поиском (АХ-85)', f.shelf.join() === '219,220,221' && f.holder.join() === '205,214,227' && f.kind.join() === '205,226' && f.borrower.join() === '202,203' && f.room === 3, f);
   await shot(page, '02-folders');
 });
 
@@ -267,7 +267,7 @@ await group('С-5 · возврат стопкой через поле «Воз�
   ck('строки папок: 230, 205, 216 и 203 (ведущие нули не мешают)', pre.ok.join() === 'ret-row-230,ret-row-205,ret-row-216,ret-row-203', pre.ok);
   ck('разные держатели в одной стопке', new Set(pre.holders).size === 4, pre.holders);
   ck('папка не на руках — строка с причиной «в архиве — возвращать нечего»', pre.bad.length === 1 && has(pre.bad[0], 'в архиве — возвращать нечего'), pre.bad);
-  ck('подсказка «на полку: Архив ГО · шкаф 1 · полка 3»', pre.h230 === 'на полку: Архив ГО · шкаф 1 · полка 3', pre.h230);
+  ck('подсказка «на ярус: Архив ГО · шкаф 1 · ярус 3»', pre.h230 === 'на ярус: Архив ГО · шкаф 1 · ярус 3', pre.h230);
   ck('при очереди — «отложить: бронь — Асанов Б. до 17.11»', pre.h205 === 'отложить: бронь — Асанов Б. до 17.11', pre.h205);
   ck('кнопка «Принять возврат (4)» не считает строку с причиной', pre.btn === 'Принять возврат (4)', pre.btn);
   await page.click('[data-testid=ret-addnote-216]');
@@ -280,7 +280,7 @@ await group('С-5 · возврат стопкой через поле «Воз�
   ck('230, 216, 203 — в архиве; 205 — забронирована за первым в очереди (Асановым)', r.st.join() === 'archive,reserved,archive,archive,archive' && r.res === 'asanov', r);
   ck('примечание — в «Содержание» и в итог выдачи', has(r.content, 'без письма Минфина № 14') && has(r.h, 'вернул с примечанием'), r);
   ck('строка с причиной не принята', r.ev211 === 0);
-  ck('итог — под полем, без окна: четыре принятые папки с «куда» (АХ-76)', !r.modal && r.done.join('|') === '230:на полку: Архив ГО · шкаф 1 · полка 3|205:отложить: бронь — Асанов Б. до 17.11|216:на полку: Архив ГО · шкаф 2 · полка 3|203:на полку: Архив ГО · шкаф 1 · полка 1', r);
+  ck('итог — под полем, без окна: четыре принятые папки с «куда» (АХ-76)', !r.modal && r.done.join('|') === '230:на ярус: Архив ГО · шкаф 1 · ярус 3|205:отложить: бронь — Асанов Б. до 17.11|216:на ярус: Архив ГО · шкаф 2 · ярус 3|203:на ярус: Архив ГО · шкаф 1 · ярус 1', r);
 });
 
 await group('С-6 · просьба продлить при очереди → отказ «папку ждут»', async (page, E) => {
@@ -307,12 +307,12 @@ await group('С-7 · приём новой КЗД → ярлык → уведо�
   ck('сдавшему уведомление «Папка принята в архив, № А-000231»', r.note.length === 1 && has(r.note[0], 'Папка принята в архив, № А-000231'), r.note);
   await page.click('[data-testid=toast] button');
   const lab = await E(() => ({ txt: document.querySelector('[data-testid=labels]').innerText, n: document.querySelectorAll('[data-testid=labels] .label').length }));
-  ck('ярлык из уведомления о приёме: номер и название, без места', lab.n === 1 && has(lab.txt, 'А-000231') && has(lab.txt, 'КЗД · ОсОО «Кен-Сай» · том 1') && !has(lab.txt, 'полка') && !has(lab.txt, 'ГО ·'), lab);
+  ck('ярлык из уведомления о приёме: номер и название, без места', lab.n === 1 && has(lab.txt, 'А-000231') && has(lab.txt, 'КЗД · ОсОО «Кен-Сай» · том 1') && !has(lab.txt, 'ярус') && !has(lab.txt, 'ГО ·'), lab);
   await shot(page, '09-print-label');
   const nv = await E(() => { const A = window.AX; A.closeForm(); A.uiNextVol('f231'); const v = Object.assign({}, A.S.form.vals); const r = A.submitForm('main'); const f = A.byNo(232);
     A.openCard('f231'); return { v, r, title: f && A.titleOf(f), shelf: f && f.shelf, card: document.querySelector('#cardpanel .kv').innerText }; });
-  ck('«Принять следующий том» подставляет вид, заёмщика, том 2 и полку рядом', nv.v.kind === 'kzd' && nv.v.borrower === 'n1' && +nv.v.vol === 2 && nv.v.shelf === 'go3-3', nv.v);
-  ck('принят том 2: «КЗД · ОсОО «Кен-Сай» · том 2», на ту же полку', nv.r.ok && nv.title === 'КЗД · ОсОО «Кен-Сай» · том 2' && nv.shelf === 'go3-3', nv);
+  ck('«Принять следующий том» подставляет вид, заёмщика, том 2 и ярус рядом', nv.v.kind === 'kzd' && nv.v.borrower === 'n1' && +nv.v.vol === 2 && nv.v.shelf === 'go3-3', nv.v);
+  ck('принят том 2: «КЗД · ОсОО «Кен-Сай» · том 2», на тот же ярус', nv.r.ok && nv.title === 'КЗД · ОсОО «Кен-Сай» · том 2' && nv.shelf === 'go3-3', nv);
   ck('в карточке тома 1 — «1 из 2» со ссылкой на том 2', has(nv.card, '1 из 2') && has(nv.card, 'А-000232'), nv.card);
 });
 
@@ -322,7 +322,7 @@ await group('С-8 · ввод при запуске: «Принять и ещё�
     for (const t of ['Приказы по личному составу · 2023', 'Приказы по личному составу · 2024', 'Приказы по личному составу · 2025']) {
       A.submitForm('more', { kind: 'nom', title: t, dept: 'Общий отдел', shelf: 'go3-3' }); kept.push([A.S.form && A.S.form.vals.kind, A.S.form && A.S.form.vals.shelf, A.S.form && A.S.form.now]); }
     A.closeForm(); return { kept, nos: [231, 232, 233].map(n => A.byNo(n) && A.titleOf(A.byNo(n))) }; });
-  ck('после «Принять и ещё» форма снова открыта с тем же видом и полкой', r.kept.every(k => k[0] === 'nom' && k[1] === 'go3-3'), r.kept);
+  ck('после «Принять и ещё» форма снова открыта с тем же видом и ярусом', r.kept.every(k => k[0] === 'nom' && k[1] === 'go3-3'), r.kept);
   ck('в форме — «Принята А-… · подряд 3 · Печать ярлыков (3)»', has(r.kept[2][2], 'Принята <b>А-000233</b>') && has(r.kept[2][2], 'подряд 3') && has(r.kept[2][2], 'Печать ярлыков (3)'), r.kept[2][2]);
   ck('три папки приняты подряд: 231, 232, 233', r.nos.every(Boolean), r.nos);
   const u = await E(() => { const A = window.AX;
@@ -339,11 +339,11 @@ await group('С-8 · ввод при запуске: «Принять и ещё�
   ck('«Изменить привязку» → ушла из «Ждут привязки», заёмщик ушёл из «без КЗД», название пересобрано', u.rb.ok && !u.after.includes(u.ok.id) && !u.still && u.title === 'КЗД · Турдубаев А.Ж. · том 1', u);
 });
 
-await group('С-9 · печать полки; «Переместить» найденную на чужой полке', async (page, E) => {
+await group('С-9 · печать яруса; «Переместить» найденную на чужом ярусе', async (page, E) => {
   await E(() => { window.AX.go('dicts'); });
   await page.click('[data-testid=print-shelf-go1-5]');
   const pre = await E(() => [...document.querySelectorAll('[data-testid=shelf-list] tbody tr')].map(t => t.children[0].textContent));
-  ck('список полки ГО·1·5: А-000228, А-000229', pre.join() === 'А-000228,А-000229', pre);
+  ck('список яруса ГО·1·5: А-000228, А-000229', pre.join() === 'А-000228,А-000229', pre);
   await shot(page, '07b-print-shelf');
   const r = await E(() => { const A = window.AX; A.closeForm(); A.openCard('f229'); A.uiMove('f229'); A.fset('shelf', 'go1-4');
     const s = A.submitForm('main'); return { s, shelf: A.folder('f229').shelf, list: A.shelfList('go1-5').map(x => x.no), ev: A.EVENTS.filter(e => e.folder === 'f229' && e.kind === 'moved').map(e => [e.from, e.to]) }; });
@@ -364,7 +364,7 @@ await group('С-10 · папка у уволенного → «Списать: �
   ck('задание «Вернуть папку» закрыто; список «На руках у уволенных» пуст', !r.task && r.fired === 0, r);
   ck('первая строка истории — списание с последним держателем', r.top.type === 'event' && r.top.e.kind === 'writtenOff' && r.top.e.holder === 'orozov', r.top);
   const rs = await E(() => { const A = window.AX; A.openCard('f208'); A.uiRestore('f208'); const pre = A.S.form.vals.shelf; const s = A.submitForm('main', { basis: 'нашлась в кабинете ДАК, служебная записка № 31' }); return { pre, s, st: A.stateOf('f208') }; });
-  ck('«Восстановить»: прежняя полка подставлена; папка снова в архиве', rs.pre === 'go1-4' && rs.s.ok && rs.st === 'archive', rs);
+  ck('«Восстановить»: прежний ярус подставлен; папка снова в архиве', rs.pre === 'go1-4' && rs.s.ok && rs.st === 'archive', rs);
 });
 
 await group('С-20 · держатель у окна просит неделю → «Продлить» напрямую с причиной → уведомление', async (page, E) => {
@@ -381,10 +381,10 @@ await group('С-20 · держатель у окна просит неделю �
   ck('держателю «Решение по продлению: продлено до 27.11.2026»', r.note.some(t => has(t, 'продлено до 27.11.2026')), r.note);
 });
 
-await group('С-21 · акт уничтожения: отбор полки → отметить все → «Списать» пачкой; «Печать ярлыков» листом', async (page, E) => {
+await group('С-21 · акт уничтожения: отбор яруса → отметить все → «Списать» пачкой; «Печать ярлыков» листом', async (page, E) => {
   await E(() => { window.AX.go('folders'); window.AX.setF('room', 'go'); window.AX.setF('cab', 'go3'); window.AX.setF('shelf', 'go3-4'); });
   await page.click('[data-testid=sel-all]');
-  ck('отмечены все три папки полки', await E(() => document.querySelector('[data-testid=sel-count]').textContent === '3'));
+  ck('отмечены все три папки яруса', await E(() => document.querySelector('[data-testid=sel-count]').textContent === '3'));
   await page.click('[data-testid=b-writeoff]');
   ck('до списания — сколько на руках и с очередью', await E(() => document.querySelector('[data-testid=wo-preview]').textContent === 'Из отмеченных: на руках — 0, с очередью — 0.'));
   await page.click('[data-testid=ff-reason] [data-v="уничтожена"]');
@@ -398,7 +398,7 @@ await group('С-21 · акт уничтожения: отбор полки → �
     A.S.sel.clear(); [231, 232, 233].forEach(n => A.S.sel.add('f' + n)); A.render(); });
   await page.click('[data-testid=b-labels]');
   const lab = await E(() => ({ n: document.querySelectorAll('[data-testid=labels] .label').length, txt: document.querySelector('[data-testid=labels]').innerText }));
-  ck('после ввода при запуске — лист ярлыков по отмеченным (3), без места', lab.n === 3 && !has(lab.txt, 'полка') && !has(lab.txt, 'ГО ·'), lab);
+  ck('после ввода при запуске — лист ярлыков по отмеченным (3), без места', lab.n === 3 && !has(lab.txt, 'ярус') && !has(lab.txt, 'ГО ·'), lab);
 });
 
 await group('С-11 · куратор из врезки «Где бумага» запрашивает все тома пачкой', async (page, E) => {
@@ -523,7 +523,7 @@ await group('С-18 · бухгалтер: «Мои папки» пусты → �
 });
 
 await group('С-19 · руководитель: поднятое задание «Вернуть папку» → карточка → отбор «подразделение держателя»', async (page, E) => {
-  await E(() => window.AX.setUser('mambetov'));
+  await E(() => { window.AX.setDemo(true); window.AX.setUser('mambetov'); });
   const r = await E(() => ({ up: document.querySelector('[data-testid=task-up-230]')?.textContent || '', tasks: window.AX.tasksOf('mambetov').map(t => [t.folder, t.holder, t.up]) }));
   ck('у заведующего — задание по А-000230 Асанова, поднятое к нему', has(r.up, 'поднято к руководителю: Мамбетов К.') && r.tasks.some(t => t[0] === 'f230' && t[1] === 'asanov' && t[2]), r);
   await page.click('[data-testid=task-230]');
@@ -534,7 +534,7 @@ await group('С-19 · руководитель: поднятое задание 
 
 /* ======================= правила движка (§4) ======================= */
 
-await group('П-1 · Принять: привязка, действующая полка, сквозной номер, название само', async (page, E) => {
+await group('П-1 · Принять: привязка, действующий ярус, сквозной номер, название само', async (page, E) => {
   const r = await E(() => { const A = window.AX, o = {};
     o.nonArch = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-3' }, 'asanov');
     o.noBor = A.accept({ kind: 'kzd', shelf: 'go3-3' });
@@ -548,14 +548,14 @@ await group('П-1 · Принять: привязка, действующая п
     return o; });
   ck('не архивариус — нельзя', !r.nonArch.ok && has(r.nonArch.why, 'архивариус'), r.nonArch);
   ck('вид с привязкой без заёмщика — нельзя', !r.noBor.ok && r.noBor.field === 'borrower', r.noBor);
-  ck('выведенная полка — нельзя', !r.retShelf.ok && has(r.retShelf.why, 'выведена'), r.retShelf);
+  ck('выведенный ярус — нельзя', !r.retShelf.ok && has(r.retShelf.why, 'выведен'), r.retShelf);
   ck('выведенный вид — нельзя', !r.retKind.ok && has(r.retKind.why, 'выведен'), r.retKind);
   ck('без привязки — название обязательно', !r.noTitle.ok && r.noTitle.field === 'title', r.noTitle);
   ck('тот же том того же заёмщика дважды — нельзя', !r.dup.ok && has(r.dup.why, 'том 2 уже в архиве — А-000203'), r.dup);
   ck('сквозной номер: А-000231, затем А-000232', r.a.no === 'А-000231' && r.b.no === 'А-000232', [r.a, r.b]);
   ck('название с привязкой собирается само', r.t === 'КЗД · ОсОО «Ак-Жол Агро» · том 2', r.t);
   ck('событие «принята»', r.ev.join() === 'accepted', r.ev);
-  ck('в форме выведенная полка и выведенный вид не предлагаются', !r.opts.s.includes('go2-5') && !r.opts.k.includes('cards'), r.opts);
+  ck('в форме выведенный ярус и выведенный вид не предлагаются', !r.opts.s.includes('go2-5') && !r.opts.k.includes('cards'), r.opts);
 });
 
 await group('П-2 · Выдать: архивариус; свободная или своя бронь; срок и «зачем» обязательны; действующий получатель; пачкой', async (page, E) => {
@@ -704,7 +704,7 @@ await group('П-8 · Принять возврат: на постоянное м
     return o; });
   ck('не архивариус — нельзя', !r.nonArch.ok, r.nonArch);
   ck('папка в архиве — «возвращать нечего»', !r.archive.ok && has(r.archive.why, 'возвращать нечего'), r.archive);
-  ck('подсказка «на полку: Архив ГО · шкаф 1 · полка 1»; встала на постоянное место', r.hint === 'на полку: Архив ГО · шкаф 1 · полка 1' && r.st === 'archive' && r.shelf === 'go1-1', r);
+  ck('подсказка «на ярус: Архив ГО · шкаф 1 · ярус 1»; встала на постоянное место', r.hint === 'на ярус: Архив ГО · шкаф 1 · ярус 1' && r.st === 'archive' && r.shelf === 'go1-1', r);
   ck('поле «Возврат»: номер находится с буквой, с нулями и без; повтор схлопывается; неизвестный — с причиной', r.lk.length === 3 && r.lk[0][1] && r.lk[1][2] === 'папка не найдена' && r.lk[2][2] === 'не номер папки', r.lk);
   ck('есть очередь — бронь первому', r.hold.ok && r.held === 'asanov', r);
   ck('просьба продлить у вернувшейся папки закрыта', r.extClosed === 'closed', r.extClosed);
@@ -731,16 +731,16 @@ await group('П-9 · Просрочка: напоминание за N р.д.; �
   ck('закрывается продлением, возвратом, передачей (у нового держателя — своё), списанием', r.byExt && r.byRet && r.byTr.join() === 'isaeva' && r.byWo, r);
 });
 
-await group('П-10 · Переместить: кроме «выбыла»; полка действующая; пачкой — на одну полку', async (page, E) => {
+await group('П-10 · Переместить: кроме «выбыла»; ярус действующий; пачкой — на один ярус', async (page, E) => {
   const r = await E(() => { const A = window.AX, o = {};
     o.gone = A.move('f209', 'go1-1'); o.ret = A.move('f211', 'go2-5'); o.same = A.move('f211', 'go2-1');
     o.out = A.move('f230', 'go1-2'); o.hint = A.returnHint('f230').text;
     o.b = A.moveBatch(['f211', 'f212', 'f209'], 'go3-5'); o.shelves = ['f211', 'f212'].map(id => A.folder(id).shelf);
     o.nonArch = A.move('f213', 'go3-5', 'jeen');
     return o; });
-  ck('выбывшую — нельзя; на выведенную полку — нельзя; на ту же — нельзя', !r.gone.ok && !r.ret.ok && !r.same.ok, [r.gone, r.ret, r.same]);
-  ck('папка на руках — меняется полка, куда она вернётся', r.out.ok && r.hint === 'на полку: Архив ГО · шкаф 1 · полка 2', r);
-  ck('пачкой — все на одну полку, выбывшая с причиной', r.b.done.length === 2 && r.b.skipped.length === 1 && r.shelves.join() === 'go3-5,go3-5', r.b);
+  ck('выбывшую — нельзя; на выведенный ярус — нельзя; на ту же — нельзя', !r.gone.ok && !r.ret.ok && !r.same.ok, [r.gone, r.ret, r.same]);
+  ck('папка на руках — меняется ярус, куда она вернётся', r.out.ok && r.hint === 'на ярус: Архив ГО · шкаф 1 · ярус 2', r);
+  ck('пачкой — все на один ярус, выбывшая с причиной', r.b.done.length === 2 && r.b.skipped.length === 1 && r.shelves.join() === 'go3-5,go3-5', r.b);
   ck('не архивариус — нельзя', !r.nonArch.ok);
 });
 
@@ -781,28 +781,28 @@ await group('П-12 · Списать: причина и основание; за
 await group('П-13 · Справочники: на что ссылается папка — не удаляется, только выводится', async (page, E) => {
   const r = await E(() => { const A = window.AX, o = {};
     o.shelf = A.deletePlace('shelf', 'go1-4');
-    const hs = A.addPlace('shelf', 'go3', 'полка 7'), hf = A.accept({ kind: 'nom', title: 'Проверка ссылки', dept: 'ДРР', shelf: hs.id }); A.move(hf.id, 'go3-1');
+    const hs = A.addPlace('shelf', 'go3', 'ярус 7'), hf = A.accept({ kind: 'nom', title: 'Проверка ссылки', dept: 'ДРР', shelf: hs.id }); A.move(hf.id, 'go3-1');
     o.hist = A.placeRefs('shelf', hs.id); o.histDel = A.deletePlace('shelf', hs.id); o.histNow = A.FOLDERS.filter(f => f.shelf === hs.id).length;
     o.cab = A.deletePlace('cab', 'go1'); o.room = A.deletePlace('room', 'dpo');
     o.free = A.deletePlace('shelf', 'go2-5');
-    o.newS = A.addPlace('shelf', 'go3', 'полка 6'); o.delNew = A.deletePlace('shelf', o.newS.id);
+    o.newS = A.addPlace('shelf', 'go3', 'ярус 6'); o.delNew = A.deletePlace('shelf', o.newS.id);
     o.retFull = A.retirePlace('shelf', 'go3-3'); o.retFullCab = A.retirePlace('cab', 'dpo1');
     o.retire = A.retirePlace('shelf', 'dpo1-3'); o.acc = A.accept({ kind: 'nom', title: 'х', shelf: 'dpo1-3' }); o.mv = A.move('f211', 'dpo1-3');
     o.kind = A.deleteKind('cards'); o.newK = A.addKind({ name: 'Акты ревизии', bind: 'no' }); o.delK = A.deleteKind(o.newK.id);
     o.retK = A.retireKind('nom'); o.accK = A.accept({ kind: 'nom', title: 'х', shelf: 'go3-2' });
-    const nc = A.addPlace('cab', 'dpo', 'шкаф 9'), ns = A.addPlace('shelf', nc.id, 'полка 1');
+    const nc = A.addPlace('cab', 'dpo', 'шкаф 9'), ns = A.addPlace('shelf', nc.id, 'ярус 1');
     o.cabRetired = (A.retirePlace('cab', nc.id), A.shelfActive(ns.id));
     o.nonArch = A.retirePlace('shelf', 'go3-2', 'jeen');
     return o; });
-  ck('полку с папками удалить нельзя — только вывести', !r.shelf.ok && has(r.shelf.why, 'только вывести из употребления'), r.shelf);
-  ck('ссылка только через историю (папка переехала, полка пуста) тоже держит полку', r.histNow === 0 && r.hist >= 1 && !r.histDel.ok, r);
+  ck('ярус с папками удалить нельзя — только вывести', !r.shelf.ok && has(r.shelf.why, 'только вывести из употребления'), r.shelf);
+  ck('ссылка только через историю (папка переехала, ярус пуст) тоже держит ярус', r.histNow === 0 && r.hist >= 1 && !r.histDel.ok, r);
   ck('шкаф и помещение с папками — тоже нельзя', !r.cab.ok && !r.room.ok);
-  ck('пустую полку удалить можно', r.free.ok && r.newS.ok && r.delNew.ok, [r.free, r.delNew]);
-  ck('АХ-133 · полку и шкаф с папками вывести нельзя — «сначала переместите их»', !r.retFull.ok && has(r.retFull.why, 'на полке стоит 1 папка') && has(r.retFull.why, 'сначала переместите её') && !r.retFullCab.ok && has(r.retFullCab.why, 'в шкафу'), [r.retFull, r.retFullCab]);
-  ck('выведенная (пустая) полка не принимает и не перемещает', r.retire.ok && !r.acc.ok && !r.mv.ok, [r.retire, r.acc, r.mv]);
+  ck('пустой ярус удалить можно', r.free.ok && r.newS.ok && r.delNew.ok, [r.free, r.delNew]);
+  ck('АХ-133 · ярус и шкаф с папками вывести нельзя — «сначала переместите их»', !r.retFull.ok && has(r.retFull.why, 'на ярусе стоит 1 папка') && has(r.retFull.why, 'сначала переместите её') && !r.retFullCab.ok && has(r.retFullCab.why, 'в шкафу'), [r.retFull, r.retFullCab]);
+  ck('выведенный (пустой) ярус не принимает и не перемещает', r.retire.ok && !r.acc.ok && !r.mv.ok, [r.retire, r.acc, r.mv]);
   ck('вид с папками удалить нельзя; пустой — можно', !r.kind.ok && r.delK.ok, [r.kind, r.delK]);
   ck('выведенный вид в приёме не принимается', r.retK.ok && !r.accK.ok, r.accK);
-  ck('выведенный (пустой) шкаф выводит и свои полки', r.cabRetired === false, r.cabRetired);
+  ck('выведенный (пустой) шкаф выводит и свои ярусы', r.cabRetired === false, r.cabRetired);
   ck('не архивариус — нельзя', !r.nonArch.ok);
 });
 
@@ -875,7 +875,7 @@ await group('П-17 · Ярлык: номер и название, без мес�
   await page.click('[data-testid=sel-205]'); await page.click('[data-testid=sel-213]');
   await page.click('[data-testid=b-labels]');
   const s = await E(() => ({ n: document.querySelectorAll('[data-testid=labels] .label').length, txt: document.querySelector('[data-testid=labels]').innerText }));
-  ck('лист ярлыков по двум отмеченным, без места', s.n === 2 && !has(s.txt, 'ДПО · 1') && !has(s.txt, 'полка'), s);
+  ck('лист ярлыков по двум отмеченным, без места', s.n === 2 && !has(s.txt, 'ДПО · 1') && !has(s.txt, 'ярус'), s);
 });
 
 /* ============================ инварианты ============================ */
@@ -953,7 +953,7 @@ await group('Н-1 · демо-набор собран действиями дв�
       moved: A.EVENTS.filter(e => e.kind === 'moved').length, notes: new Set(A.NOTES.map(n => n.kind)).size }; });
   ck('сегодня — заморожено 13.11.2026', r.today === '2026-11-13');
   ck('30 папок, номера сквозные 201…230, каждая — событием «принята»', r.n === 30 && r.seq && r.accepted === 30, r);
-  ck('2 помещения, 4 шкафа, 20 полок, одна выведенная', r.rooms === 2 && r.cabs === 4 && r.shelves === 20 && r.retShelf === 1, r);
+  ck('2 помещения, 4 шкафа, 20 ярусов, один выведенный', r.rooms === 2 && r.cabs === 4 && r.shelves === 20 && r.retShelf === 1, r);
   ck('все пять состояний: в архиве · забронирована · на руках · передаётся · выбыла', ['archive', 'reserved', 'out', 'transfer', 'gone'].every(s => r.st[s] > 0), r.st);
   ck('просрочка с заданием, поднятым к руководителю; держатель уволен', r.over === 2 && r.up === 2 && r.fired === 1, r);
   ck('передаётся; отменённая передача в истории; очередь из двух; просьба продлить на решении', r.transfer === 1 && r.cancelled && r.q2 && r.ext === 1, r);
@@ -1014,6 +1014,19 @@ await group('Н-3 · «Мои папки»: три блока по срочно�
 const toasts = E => E(() => [...document.querySelectorAll('[data-testid=toast]')].map(t => ({ text: t.textContent, btn: (t.querySelector('button') || {}).textContent || '' })));
 
 await group('Р-1 · рамка: демо-стенд одной полосой в шапке; счётчики красные только при своей просрочке; поиск и «Принять папку» в рамку не вынесены (АХ-71, АХ-72, АХ-73)', async (page, E) => {
+  const off = await E(() => { const s = document.querySelector('[data-testid=stand]'), sw = document.querySelector('[data-testid=demo]'), lb = document.querySelector('[data-testid=demo-toggle]');
+    window.AX.setUser('asanov'); const emul = !!document.querySelector('[data-testid=emul]'); window.AX.setUser('arch1');
+    return { inTop: !!lb.closest('.topbar'), label: lb.textContent.trim(), on: sw.checked, state: window.AX.S.demo, standShown: !!s.offsetParent, user: window.AX.S.user, emul }; });
+  ck('Волна ТЗ 26 · переключатель «Демонстрация» в шапке, по умолчанию выключен: полосы стенда нет, макет под архивариусом Токтосуновой, эмуляции соседей нет',
+    off.inTop && off.label === 'Демонстрация' && !off.on && !off.state && !off.standShown && off.user === 'arch1' && !off.emul, off);
+  await page.click('[data-testid=demo-toggle]');
+  const on = await E(() => { const s = document.querySelector('[data-testid=stand]'); window.AX.setUser('asanov'); const emul = !!document.querySelector('[data-testid=emul]'); window.AX.setUser('arch1');
+    return { state: window.AX.S.demo, on: document.querySelector('[data-testid=demo]').checked, standShown: !!s.offsetParent, user: !!s.querySelector('[data-testid=user]').offsetParent, emul }; });
+  ck('Волна ТЗ 26 · включён — видны полоса стенда (дата, пользователь, образец врезки) и эмуляция «Заданий» и «Уведомлений» в «Моих папках»',
+    on.state && on.on && on.standShown && on.user && on.emul, on);
+  await page.click('[data-testid=demo-toggle]');
+  ck('Волна ТЗ 26 · выключен снова — полоса скрыта', await E(() => !window.AX.S.demo && !document.querySelector('[data-testid=stand]').offsetParent));
+  await E(() => window.AX.setDemo(true));
   const st = await E(() => { const s = document.querySelector('[data-testid=stand]'), foot = document.querySelector('.sidebar-foot');
     return { inTop: !!s.closest('.topbar'), today: s.querySelector('[data-testid=stand-today]').textContent, user: !!s.querySelector('[data-testid=user]'), link: !!s.querySelector('[data-testid=demo-paperbox]'),
       foot: foot.innerText.replace(/\s+/g, ' ').trim(), footDemo: !!foot.querySelector('.demo-tag') }; });
@@ -1034,7 +1047,7 @@ await group('Р-1 · рамка: демо-стенд одной полосой �
   ck('АХ-71 · дата стенда идёт вместе с часами', cnt.today === '18.11.2026', cnt.today);
   const fr = await E(() => { window.AX.setUser('arch1');
     return { topInputs: [...document.querySelectorAll('.topbar input, .topbar select')].map(e => e.id), acceptOnQueue: !!document.querySelector('#panel [data-testid=accept]') }; });
-  ck('АХ-73 · в шапке нет поля поиска (только переключатель стенда); в очереди нет «Принять папку»', fr.topInputs.join() === 'user' && !fr.acceptOnQueue, fr);
+  ck('АХ-73 · в шапке нет поля поиска (только переключатель стенда); в очереди нет «Принять папку»', fr.topInputs.join() === 'user,demoToggle' && !fr.acceptOnQueue, fr);
 });
 
 await group('Р-2 · поле «Возврат» с клавиатуры: курсор в поле, кнопка рядом, Enter; строки — № ссылкой, просрочка пометкой; итог под полем (АХ-74, АХ-75, АХ-76)', async (page, E) => {
@@ -1114,7 +1127,7 @@ await group('Р-3 · очередь: печать и Excel у «уволенны
     rows: [...document.querySelectorAll('#modal [data-testid^=ret-row-]')].map(t => t.dataset.testid.slice(8)), hints: [...document.querySelectorAll('#modal [data-testid^=ret-hint-]')].map(t => t.textContent),
     bad: [...document.querySelectorAll('#modal [data-testid=ret-bad]')].map(t => t.innerText), st: window.AX.stateOf('f230') }));
   ck('АХ-77 · «Принять возврат» пачкой — окно, ничего ещё не принято', w.title === 'Принять возврат · 3 папки' && w.st === 'out', w);
-  ck('АХ-77 · в окне те же строки, что в поле «Возврат»: «куда» до нажатия, не на руках — с причиной', w.rows.join() === '205,230' && w.hints.join('|') === 'отложить: бронь — Асанов Б. до 17.11|на полку: Архив ГО · шкаф 1 · полка 3' && w.bad.length === 1 && has(w.bad[0], 'в архиве — возвращать нечего'), w);
+  ck('АХ-77 · в окне те же строки, что в поле «Возврат»: «куда» до нажатия, не на руках — с причиной', w.rows.join() === '205,230' && w.hints.join('|') === 'отложить: бронь — Асанов Б. до 17.11|на ярус: Архив ГО · шкаф 1 · ярус 3' && w.bad.length === 1 && has(w.bad[0], 'в архиве — возвращать нечего'), w);
   ck('АХ-77 · кнопка «Принять возврат (2)» не считает строку с причиной', w.submit === 'Принять возврат (2)', w.submit);
   await page.click('#modal [data-testid=ret-addnote-230]');
   await page.fill('#modal [data-testid=ret-note-230]', 'без графика погашения');
@@ -1153,10 +1166,10 @@ await group('ПК-1 · поиск с клавиатуры: номер любой
   await E(() => window.AX.closeCard());
   await page.selectOption('[data-testid=f-place]', 's:go1-1');
   const o1 = { rows: await q('230'), out: await E(() => (document.querySelector('[data-testid=outside]') || {}).innerText || '') };
-  ck('АХ-83 · отбор полки ГО · 1 · 1 + номер с другой полки: строки нет, «Вне отбора найдено ещё 1: А-000230 (ГО · 1 · 3, на руках)»',
+  ck('АХ-83 · отбор яруса ГО · 1 · 1 + номер с другого яруса: строки нет, «Вне отбора найдено ещё 1: А-000230 (ГО · 1 · 3, на руках)»',
     o1.rows === '' && has(o1.out, 'Вне отбора найдено ещё 1') && has(o1.out, 'А-000230') && has(o1.out, 'ГО · 1 · 3'), o1);
   await page.click('[data-testid=out-230]');
-  ck('АХ-83 · номер — ссылка в карточку; отбор полки остаётся (С-9: «Переместить» чужую без сброса отбора)',
+  ck('АХ-83 · номер — ссылка в карточку; отбор яруса остаётся (С-9: «Переместить» чужую без сброса отбора)',
     await E(() => window.AX.S.card === 'f230' && window.AX.S.f.shelf === 'go1-1' && !!document.querySelector('[data-testid=mi-move]')));
   await E(() => window.AX.closeCard());
   const o2 = { rows: await q('209'), out: await E(() => (document.querySelector('[data-testid=outside]') || {}).innerText || '') };
@@ -1183,7 +1196,7 @@ await group('ПК-2 · плашки: состояния и «из них»; по
   ck('АХ-85 · таблица начинается выше 250 px (было 291)', L.tableTop < 250, L.tableTop);
   const pl = {};
   for (const v of ['r:dpo', 'c:go3', 's:go3-4']) { await page.selectOption('[data-testid=f-place]', v); pl[v] = await rowsOf(E); }
-  ck('АХ-85 · «Место» одним списком: помещение ДПО — 3 папки; шкаф ГО · 3 — 217…225; полка ГО · 3 · 4 — 219, 220, 221',
+  ck('АХ-85 · «Место» одним списком: помещение ДПО — 3 папки; шкаф ГО · 3 — 217…225; ярус ГО · 3 · 4 — 219, 220, 221',
     pl['r:dpo'].split(',').length === 3 && pl['c:go3'] === '217,218,219,220,221,222,223,224,225' && pl['s:go3-4'] === '219,220,221', pl);
   await page.selectOption('[data-testid=f-place]', '');
   const h = await E(() => { const tr = document.querySelector('[data-testid=row-216]'); return { txt: tr.children[6].innerText.replace(/\s+/g, ' ').trim(), h: Math.round(tr.getBoundingClientRect().height) }; });
@@ -1191,7 +1204,7 @@ await group('ПК-2 · плашки: состояния и «из них»; по
   await shot(page, '11-folders');
 });
 
-await group('ПК-3 · полоса пачки на месте «Показано», прилипает; число на кнопках; отмечены только показанные; «Выдать» пачкой — срок у каждой свой; печать списка полки (АХ-86…АХ-90, АХ-Д19)', async (page, E) => {
+await group('ПК-3 · полоса пачки на месте «Показано», прилипает; число на кнопках; отмечены только показанные; «Выдать» пачкой — срок у каждой свой; печать списка яруса (АХ-86…АХ-90, АХ-Д19)', async (page, E) => {
   await E(() => window.AX.go('folders'));
   const top = () => E(() => Math.round(document.querySelector('[data-testid=row-205]').getBoundingClientRect().top));
   const lb = () => E(() => Math.round(document.querySelector('[data-testid=listbar]').getBoundingClientRect().height));
@@ -1220,7 +1233,7 @@ await group('ПК-3 · полоса пачки на месте «Показан�
   await page.click('[data-testid=sel-all]');
   await page.click('[data-testid=b-writeoff]');
   const w = await E(() => ({ sel: window.AX.S.sel.size, title: document.querySelector('[data-testid=form-title]').textContent }));
-  ck('АХ-88 · смена отбора снимает отметки со скрытых строк (АХ-Д19): «Списать · 3 папки» — только полка ГО · 3 · 4', s0 === 0 && w.sel === 3 && w.title === 'Списать · 3 папки', { s0, ...w });
+  ck('АХ-88 · смена отбора снимает отметки со скрытых строк (АХ-Д19): «Списать · 3 папки» — только ярус ГО · 3 · 4', s0 === 0 && w.sel === 3 && w.title === 'Списать · 3 папки', { s0, ...w });
   await page.keyboard.press('Escape');
   const iss = await E(() => { const A = window.AX; A.setF('place', ''); A.request('f213', { why: 'сверка премирования', needBy: '2026-11-30' }, 'sydykova'); A.clearSel(); return (A.reservedReq('f213') || {}).who; });
   await page.click('[data-testid=sel-212]'); await page.click('[data-testid=sel-213]');
@@ -1242,11 +1255,11 @@ await group('ПК-3 · полоса пачки на месте «Показан�
   ck('АХ-87 · у сотрудника одна кнопка — «Запросить (1)»: своя папка на руках (205) не считается', j === 'Запросить (1)', j);
   const p = await E(() => { const A = window.AX, o = {}; A.setF('place', 's:go1-1'); o.jeen = !!document.querySelector('[data-testid=print-shelf]');
     A.setUser('arch1'); A.go('folders'); A.setF('place', 'c:go1'); o.cab = !!document.querySelector('[data-testid=print-shelf]'); A.setF('place', 's:go1-1'); o.arch = !!document.querySelector('[data-testid=print-shelf]'); return o; });
-  ck('АХ-90 · «Печать списка полки» — у архивариуса и только при отборе одной полки', p.arch && !p.cab && !p.jeen, p);
+  ck('АХ-90 · «Печать списка яруса» — у архивариуса и только при отборе одного яруса', p.arch && !p.cab && !p.jeen, p);
   await page.click('[data-testid=print-shelf]');
   const sh = await E(() => ({ h: document.querySelector('[data-testid=print-sheet] h2').textContent, th: [...document.querySelectorAll('[data-testid=shelf-list] th')].map(t => t.textContent).join('|'),
     n: document.querySelectorAll('[data-testid=shelf-list] tbody tr').length + document.querySelectorAll('[data-testid=shelf-out] tbody tr').length }));
-  ck('АХ-90 · лист сверки полки ГО · 1 · 1 — три папки и «На месте» (С-9: отбор → «Печать списка полки» → «Печать» = 3 клика)', sh.h === 'Архив ГО · шкаф 1 · полка 1' && sh.th.endsWith('На месте') && sh.n === 3, sh);
+  ck('АХ-90 · лист сверки яруса ГО · 1 · 1 — три папки и «На месте» (С-9: отбор → «Печать списка яруса» → «Печать» = 3 клика)', sh.h === 'Архив ГО · шкаф 1 · ярус 1' && sh.th.endsWith('На месте') && sh.n === 3, sh);
 });
 
 await group('ПК-4 · карточка: своя папка от первого лица; «Запросить все тома»; архивариус запрашивает из «Ещё ▾»; реквизиты без повторов шапки; сообщение с кнопкой в одну строку (АХ-91…АХ-94, АХ-Д20)', async (page, E) => {
@@ -1294,7 +1307,7 @@ await group('ПК-4 · карточка: своя папка от первого
   ck('АХ-94 · «сдал» — в строке «Принята», если известен', kv.acc230 === '21.09.2026, Бекова С. · сдал Асанов Б.', kv.acc230);
   ck('АХ-94 · «Том 1 из 2» — у тома из двух', kv.vol202.startsWith('1 из 2'), kv.vol202);
   ck('АХ-94 · место — только в шапке: «В АРХИВЕ · …», на руках «вернётся на: …», выбыла «стояла: …»',
-    kv.w211 === 'В АРХИВЕ · Архив ГО · шкаф 2 · полка 1' && kv.sub211 === '' && kv.sub230 === 'вернётся на: Архив ГО · шкаф 1 · полка 3' && kv.sub209 === 'стояла: Архив ГО · шкаф 1 · полка 4', kv);
+    kv.w211 === 'В АРХИВЕ · Архив ГО · шкаф 2 · ярус 1' && kv.sub211 === '' && kv.sub230 === 'вернётся на: Архив ГО · шкаф 1 · ярус 3' && kv.sub209 === 'стояла: Архив ГО · шкаф 1 · ярус 4', kv);
   ck('АХ-94 · блок «Просьба продлить» поднялся (был на 553 px) и виден без прокрутки', kv.extTop < 500, kv.extTop);
   await shot(page, '13-card-ext');
   await E(() => { window.AX.closeCard(); window.AX.uiRebind('f218'); });
@@ -1365,8 +1378,8 @@ await group('ОД-2 · выбор сотрудника и заёмщика по�
   ck('АХ-98 · «Выдать»: предложены запросившие — бронь и очередь', r.issue.join() === 'isaeva,kadyrov', r.issue);
   ck('АХ-98 · «Изменить привязку» непривязанной — предложен заёмщик с тем же ИНН', r.rebind.join() === 'n5', r.rebind);
   ck('АХ-98 · «Принять папку»: «Сдал» — предложен куратор заёмщика', r.from.join() === 'asanov' && r.fromNote === 'куратор заёмщика', r);
-  ck('АХ-99 · место — один список полок по помещениям и шкафам; текущая «сейчас здесь» не выбирается',
-    r.selects === 1 && r.groups >= 4 && r.cur && r.cur[0] && r.cur[1] === 'ГО · шкаф 2 · полка 1 — сейчас здесь', r);
+  ck('АХ-99 · место — один список ярусов по помещениям и шкафам; текущий «сейчас здесь» не выбирается',
+    r.selects === 1 && r.groups >= 4 && r.cur && r.cur[0] && r.cur[1] === 'ГО · шкаф 2 · ярус 1 — сейчас здесь', r);
   ck('АХ-99 · причина списания — четыре кнопки', r.seg.join('|') === 'утрачена|уничтожена|передана в госархив|передана другой организации', r.seg);
 });
 
@@ -1563,7 +1576,7 @@ await group('МП-3 · блоки: «Вам передают» с «Кто жд�
   ck('АХ-114 · срок «через N р.д.»: А-000223 у Исаевой — «через 2 р.д.» жёлтым (день напоминания), А-000216 у Мамбетова — «через 7 р.д.» серым',
     d.i223[0] === '17.11.2026 через 2 р.д.' && d.i223[1] === 'due-s soon' && d.m216[0] === '24.11.2026 через 7 р.д.' && d.m216[1] === 'due-s', d);
   ck('АХ-114 · после срока — «просрочена 3 р.д.» красным; в день срока — «срок сегодня»', d.a230[0] === '10.11.2026 просрочена 3 р.д.' && d.a230[1] === 'due-s over' && d.today[0] === '17.11.2026 срок сегодня', d);
-  ck('АХ-116 · бронь в «Моих запросах»: «ждёт вас в архиве до 17.11.2026» и помещение «Архив ГО», без шкафа и полки',
+  ck('АХ-116 · бронь в «Моих запросах»: «ждёт вас в архиве до 17.11.2026» и помещение «Архив ГО», без шкафа и яруса',
     has(d.req, 'ждёт вас в архиве до 17.11.2026') && has(d.req, 'Архив ГО') && !has(d.req, 'шкаф'), d.req);
 });
 
@@ -1715,7 +1728,7 @@ await group('ЖС-3 · печать любого списка — лист с о
   ck('АХ-128 · «На руках у уволенных» — лист из 1 строки', await E(() => document.querySelector('[data-testid=print-sheet] h2').textContent === 'На руках у уволенных' && document.querySelectorAll('[data-testid=print-table] tbody tr').length === 1));
 });
 
-await group('ЖС-4 · ярлыки листом A4 с позиции; список полки из трёх частей (АХ-129, АХ-130, АХ-131)', async (page, E) => {
+await group('ЖС-4 · ярлыки листом A4 с позиции; список яруса из трёх частей (АХ-129, АХ-130, АХ-131)', async (page, E) => {
   const l = await E(() => { const A = window.AX; A.uiLabels(['f201', 'f202', 'f203']);
     return { title: document.querySelector('[data-testid=print-title]').textContent, a4: document.querySelectorAll('[data-testid=a4]').length, cells: document.querySelector('[data-testid=a4]').children.length, n: document.querySelectorAll('[data-testid=labels] .label').length,
       start: document.querySelector('[data-testid=label-start]').value, info: document.querySelector('[data-testid=print-info]').textContent, l1: document.querySelector('[data-testid=labels] .label').innerText.replace(/\n/g, ' '),
@@ -1742,18 +1755,18 @@ await group('ЖС-4 · ярлыки листом A4 с позиции; спис�
   const sh = await E(() => { const A = window.AX; A.uiPrintShelf('go1-1'); const rows = t => [...document.querySelectorAll(`[data-testid=${t}] tbody tr`)].map(r => [...r.children].map(c => c.textContent.trim()).join(' | '));
     return { h: document.querySelector('[data-testid=print-sheet] h2').textContent, sub: document.querySelector('[data-testid=print-sheet] .sub').textContent, parts: [...document.querySelectorAll('[data-testid=print-sheet] h3')].map(x => x.textContent),
       on: rows('shelf-list'), out: rows('shelf-out'), found: document.querySelectorAll('[data-testid=shelf-found] tbody tr').length, outTh: [...document.querySelectorAll('[data-testid=shelf-out] th')].map(t => t.textContent).join('|') }; });
-  ck('АХ-131 · заголовок листа — полка, под ним «на дату · должны стоять 1 · на руках 2»', sh.h === 'Архив ГО · шкаф 1 · полка 1' && sh.sub === 'Список полки на 13.11.2026 · должны стоять 1 · на руках 2', sh);
-  ck('АХ-131 · три части: «Должны стоять» с ☐ (202), «На руках — на полке их нет» без ☐ (201 у Асанова, 203 у Кадырова), «Найдено на полке» — 5 пустых строк',
-    sh.parts.join('|') === 'Должны стоять на полке — 1|На руках — на полке их нет — 2|Найдено на полке, но нет в списке' && sh.on.join() === 'А-000202 | КЗД · Иманов К.Т. · том 1 | в архиве | ☐'
+  ck('АХ-131 · заголовок листа — ярус, под ним «на дату · должны стоять 1 · на руках 2»', sh.h === 'Архив ГО · шкаф 1 · ярус 1' && sh.sub === 'Список яруса на 13.11.2026 · должны стоять 1 · на руках 2', sh);
+  ck('АХ-131 · три части: «Должны стоять» с ☐ (202), «На руках — на ярусе их нет» без ☐ (201 у Асанова, 203 у Кадырова), «Найдено на ярусе» — 5 пустых строк',
+    sh.parts.join('|') === 'Должны стоять на ярусе — 1|На руках — на ярусе их нет — 2|Найдено на ярусе, но нет в списке' && sh.on.join() === 'А-000202 | КЗД · Иманов К.Т. · том 1 | в архиве | ☐'
     && sh.out.join() === 'А-000201 | КЗД · ОсОО «Ак-Жол Агро» · том 1 | Асанов Б. | 20.11.2026,А-000203 | КЗД · Иманов К.Т. · том 2 | Кадыров Т. | 10.11.2026' && sh.outTh === '№|Название|У кого|Вернуть до' && sh.found === 5, sh);
   await page.keyboard.press('Escape');
   const rs = await E(() => { const A = window.AX, r = A.REQS.find(x => x.st === 'reserved'), f = A.folder(r.folder); A.uiPrintShelf(f.shelf);
     const row = [...document.querySelectorAll('[data-testid=shelf-list] tbody tr')].find(t => t.children[0].textContent === A.noStr(f.no));
     return { row: row ? row.children[2].textContent : null, who: A.emp(r.who).ins, until: A.fmt(r.until).slice(0, 5) }; });
-  ck('АХ-131 · забронированная стоит на полке — в «Должны стоять» с «забронирована за … до …»', rs.row === `забронирована за ${rs.who} до ${rs.until}`, rs);
+  ck('АХ-131 · забронированная стоит на ярусе — в «Должны стоять» с «забронирована за … до …»', rs.row === `забронирована за ${rs.who} до ${rs.until}`, rs);
   await page.keyboard.press('Escape');
   const ro = await E(() => { window.AX.uiPrintRound(); return { t: document.querySelector('[data-testid=print-title]').textContent, h: document.querySelector('[data-testid=print-sheet] h2').textContent }; });
-  ck('АХ-129 · окно — что печатаем («Печать обхода»), на листе — свой заголовок («Обход полок — к выдаче»)', ro.t === 'Печать обхода' && ro.h === 'Обход полок — к выдаче', ro);
+  ck('АХ-129 · окно — что печатаем («Печать обхода»), на листе — свой заголовок («Обход ярусов — к выдаче»)', ro.t === 'Печать обхода' && ro.h === 'Обход ярусов — к выдаче', ro);
 });
 
 await group('ЖС-5 · места: одна кнопка и «Ещё ▾», число папок — ссылка, вывести только пустое, вернуть (АХ-132, АХ-133, АХ-Д24, АХ-Д26)', async (page, E) => {
@@ -1761,33 +1774,33 @@ await group('ЖС-5 · места: одна кнопка и «Ещё ▾», чи
   const t = await E(() => { const b = id => [...document.querySelector(`[data-testid=pl-${id}]`).lastElementChild.querySelectorAll(':scope > .btn-row > .btn, :scope > .btn-row > .menu > .btn')].map(x => x.textContent.trim());
     const hs = ['go', 'go1', 'go1-1'].map(id => Math.round(document.querySelector(`[data-testid=pl-${id}]`).getBoundingClientRect().height));
     return { room: b('go'), cab: b('go1'), shelf: b('go1-1'), retired: b('go2-5'), hs, banner: !!document.querySelector('#panel .banner'), th: [...document.querySelectorAll('[data-testid=tbl-places] th')].map(x => x.textContent).join('|') }; });
-  ck('АХ-132 · в строке одна кнопка + «Ещё»: помещение «＋ шкаф», шкаф «＋ полка», полка «Печать списка полки»; у выведенной — только «Ещё»; строки в одну высоту',
-    t.room.join() === '＋ шкаф,Ещё' && t.cab.join() === '＋ полка,Ещё' && t.shelf.join() === 'Печать списка полки,Ещё' && t.retired.join() === 'Ещё' && Math.max(...t.hs) - Math.min(...t.hs) <= 2 && t.th === 'Помещение · шкаф · полка|Папок|Состояние|', t);
+  ck('АХ-132 · в строке одна кнопка + «Ещё»: помещение «＋ шкаф», шкаф «＋ ярус», ярус «Печать списка яруса»; у выведенной — только «Ещё»; строки в одну высоту',
+    t.room.join() === '＋ шкаф,Ещё' && t.cab.join() === '＋ ярус,Ещё' && t.shelf.join() === 'Печать списка яруса,Ещё' && t.retired.join() === 'Ещё' && Math.max(...t.hs) - Math.min(...t.hs) <= 2 && t.th === 'Помещение · шкаф · ярус|Папок|Состояние|', t);
   await page.click('[data-testid=rm-go1-3]');
   const mn = await E(() => [...document.querySelectorAll('.menu.open .mi')].map(m => ({ t: m.firstChild.textContent, off: m.disabled, why: m.dataset.why || '' })));
-  ck('АХ-132, АХ-133 · «Ещё ▾» полки 3: «Переименовать»; «Вывести» серым — «на полке стоят 2 папки (из них на руках 1) — сначала переместите их»; «Удалить» серым',
-    mn.map(m => m.t).join('|') === 'Переименовать|Вывести из употребления|Удалить' && !mn[0].off && mn[1].off && mn[1].why === 'на полке стоят 2 папки (из них на руках 1) — сначала переместите их' && mn[2].off, mn);
+  ck('АХ-132, АХ-133 · «Ещё ▾» яруса 3: «Переименовать»; «Вывести» серым — «на ярусе стоят 2 папки (из них на руках 1) — сначала переместите их»; «Удалить» серым',
+    mn.map(m => m.t).join('|') === 'Переименовать|Вывести из употребления|Удалить' && !mn[0].off && mn[1].off && mn[1].why === 'на ярусе стоят 2 папки (из них на руках 1) — сначала переместите их' && mn[2].off, mn);
   await page.keyboard.press('Escape');
   ck('АХ-132 · Esc закрывает меню строки', await E(() => window.AX.S.rowMenu === null && !document.querySelector('.menu.open')));
   await page.click('[data-testid=rm-go1-3]'); await page.click('[data-testid=tbl-places] thead th >> nth=0');
   ck('АХ-132 · щелчок мимо закрывает меню строки', await E(() => window.AX.S.rowMenu === null && !document.querySelector('.menu.open')));
   const d24 = await E(() => { const A = window.AX, r = A.retirePlace('shelf', A.folder('f230').shelf); return { r, active: A.shelfActive(A.folder('f230').shelf), hint: A.returnHint('f230') }; });
-  ck('АХ-Д24 · полку с папкой на руках (230) не вывести — её возврату есть куда встать', !d24.r.ok && d24.active && has(d24.r.why, 'сначала переместите'), d24);
+  ck('АХ-Д24 · ярус с папкой на руках (230) не вывести — её возврату есть куда встать', !d24.r.ok && d24.active && has(d24.r.why, 'сначала переместите'), d24);
   await page.click('[data-testid=rm-go2-5]');
   const m25 = await E(() => [...document.querySelectorAll('.menu.open .mi')].map(m => m.firstChild.textContent + (m.disabled ? '×' : '')));
   await page.click('[data-testid=restore-go2-5]');
-  const r25 = await E(() => ({ ret: window.AX.SHELVES.find(s => s.id === 'go2-5').retired, row: document.querySelector('[data-testid=pl-go2-5]').innerText.replace(/\s+/g, ' ').trim(), dup: window.AX.addPlace('shelf', 'go2', 'полка 5') }));
-  ck('АХ-133, АХ-Д26 · выведенная полка 5 — «Вернуть в употребление»; вернулась «действует», с «Печать списка полки»; второй «полки 5» не завести',
-    m25.join() === 'Переименовать,Вернуть в употребление,Удалить' && r25.ret === null && r25.row === 'полка 5 0 действует Печать списка полки Ещё' && !r25.dup.ok && r25.dup.why === 'такая полка уже есть' && (await toasts(E)).some(x => x.text === 'Возвращено в употребление: снова в выборе места'), { m25, r25 });
-  const rc = await E(() => { const A = window.AX, c = A.addPlace('cab', 'go', 'шкаф 9'), s = A.addPlace('shelf', c.id, 'полка 1');
+  const r25 = await E(() => ({ ret: window.AX.SHELVES.find(s => s.id === 'go2-5').retired, row: document.querySelector('[data-testid=pl-go2-5]').innerText.replace(/\s+/g, ' ').trim(), dup: window.AX.addPlace('shelf', 'go2', 'ярус 5') }));
+  ck('АХ-133, АХ-Д26 · выведенный ярус 5 — «Вернуть в употребление»; вернулся «действует», с «Печать списка яруса»; второй «ярус 5» не завести',
+    m25.join() === 'Переименовать,Вернуть в употребление,Удалить' && r25.ret === null && r25.row === 'ярус 5 0 действует Печать списка яруса Ещё' && !r25.dup.ok && r25.dup.why === 'такой ярус уже есть' && (await toasts(E)).some(x => x.text === 'Возвращено в употребление: снова в выборе места'), { m25, r25 });
+  const rc = await E(() => { const A = window.AX, c = A.addPlace('cab', 'go', 'шкаф 9'), s = A.addPlace('shelf', c.id, 'ярус 1');
     const o = { rs: A.retirePlace('shelf', s.id).ok, rc: A.retirePlace('cab', c.id).ok }; o.early = A.restorePlace('shelf', s.id); o.cab = A.restorePlace('cab', c.id).ok; o.late = A.restorePlace('shelf', s.id).ok;
     o.kind = A.restoreKind('cards').ok; o.kindRow = A.KINDS.find(k => k.id === 'cards').retired; o.nonArch = A.restorePlace('shelf', 'go1-1', 'jeen'); return o; });
-  ck('АХ-133 · полку под выведенным шкафом не вернуть — «сначала верните в употребление шкаф «шкаф 9»»; после шкафа — можно; вид — тоже возвращается',
+  ck('АХ-133 · ярус под выведенным шкафом не вернуть — «сначала верните в употребление шкаф «шкаф 9»»; после шкафа — можно; вид — тоже возвращается',
     rc.rs && rc.rc && !rc.early.ok && rc.early.why === 'сначала верните в употребление шкаф «шкаф 9»' && rc.cab && rc.late && rc.kind && rc.kindRow === null && !rc.nonArch.ok, rc);
   await E(() => window.AX.go('dicts'));
   await page.click('[data-testid=plc-go1-3]');
   const lk = await E(() => ({ view: window.AX.S.view, shelf: window.AX.S.f.shelf, n: document.querySelectorAll('[data-testid=tbl-folders] tbody tr').length }));
-  ck('АХ-132 · число папок полки 3 — ссылка в «Папки» с отбором этой полки: 2 строки', lk.view === 'folders' && lk.shelf === 'go1-3' && lk.n === 2, lk);
+  ck('АХ-132 · число папок яруса 3 — ссылка в «Папки» с отбором этого яруса: 2 строки', lk.view === 'folders' && lk.shelf === 'go1-3' && lk.n === 2, lk);
   await E(() => { window.AX.go('dicts'); window.AX.setTab('kinds'); });
   const kc = await E(() => +document.querySelector('[data-testid=kc-kzd]').textContent);
   await page.click('[data-testid=kc-kzd]');
@@ -1800,20 +1813,20 @@ await group('ЖС-6 · окна справочников «что сейчас /
   await page.click('[data-testid=rm-go1-1]'); await page.click('[data-testid=rename-go1-1]');
   const a = await E(() => ({ t: document.querySelector('[data-testid=form-title]').textContent, sub: document.querySelector('[data-testid=form-sub]').textContent, now: document.querySelector('[data-testid=form-now]').innerText,
     dis: document.querySelector('[data-testid=form-submit]').disabled, focus: document.activeElement.id, sel: document.activeElement.selectionEnd === document.activeElement.value.length && document.activeElement.selectionStart === 0 }));
-  ck('АХ-134 · «Переименовать полку»: где она, «что сейчас» — «Здесь стоят 3 папки (с теми, что на руках).»; курсор в поле, название выделено, кнопка ждёт нового',
-    a.t === 'Переименовать полку' && a.sub === 'Архив ГО · шкаф 1 · полка 1' && a.now === 'Здесь стоят 3 папки (с теми, что на руках).' && a.dis && a.focus === 'ff_name' && a.sel, a);
-  await page.keyboard.type('полка 2');
+  ck('АХ-134 · «Переименовать ярус»: где он, «что сейчас» — «Здесь стоят 3 папки (с теми, что на руках).»; курсор в поле, название выделено, кнопка ждёт нового',
+    a.t === 'Переименовать ярус' && a.sub === 'Архив ГО · шкаф 1 · ярус 1' && a.now === 'Здесь стоят 3 папки (с теми, что на руках).' && a.dis && a.focus === 'ff_name' && a.sel, a);
+  await page.keyboard.type('ярус 2');
   const d = await E(() => ({ err: (document.querySelector('[data-testid=form-err]') || {}).textContent, will: document.querySelector('[data-testid=form-will]').innerText, dis: document.querySelector('[data-testid=form-submit]').disabled }));
-  ck('АХ-135 · «полка 2» — у поля «такая полка уже есть» до нажатия', d.err === 'такая полка уже есть' && d.dis && d.will === '', d);
-  await page.fill('#ff_name', 'полка 1а');
+  ck('АХ-135 · «ярус 2» — у поля «такой ярус уже есть» до нажатия', d.err === 'такой ярус уже есть' && d.dis && d.will === '', d);
+  await page.fill('#ff_name', 'ярус 1а');
   const w = await E(() => document.querySelector('[data-testid=form-will]').innerText);
-  ck('АХ-134 · «что будет» — «У 3 папок место станет «Архив ГО · шкаф 1 · полка 1а» …; ярлыки перепечатывать не нужно — места на них нет.»',
-    w === 'У 3 папок место станет «Архив ГО · шкаф 1 · полка 1а» — в карточках, списках и подсказке «куда»; ярлыки перепечатывать не нужно — места на них нет.', w);
+  ck('АХ-134 · «что будет» — «У 3 папок место станет «Архив ГО · шкаф 1 · ярус 1а» …; ярлыки перепечатывать не нужно — места на них нет.»',
+    w === 'У 3 папок место станет «Архив ГО · шкаф 1 · ярус 1а» — в карточках, списках и подсказке «куда»; ярлыки перепечатывать не нужно — места на них нет.', w);
   await page.keyboard.press('Enter');
-  ck('АХ-134 · Enter — переименовано, сообщение «было → стало», место папки 202 новое', (await toasts(E)).some(x => x.text === 'Переименовано: «Архив ГО · шкаф 1 · полка 1» → «Архив ГО · шкаф 1 · полка 1а»') && await E(() => window.AX.placeFull(window.AX.folder('f202').shelf) === 'Архив ГО · шкаф 1 · полка 1а'), await toasts(E));
-  const e = await E(() => { const A = window.AX; return { dup: A.renamePlace('shelf', 'go1-2', 'полка 1а'), same: A.renamePlace('shelf', 'go1-2', 'полка 2'), other: A.renamePlace('shelf', 'go2-2', 'полка 1а'), cab: A.renamePlace('cab', 'go2', 'шкаф 1') }; });
-  ck('АХ-135 · движок: повтор у соседей — «такая полка уже есть», «такой шкаф уже есть»; то же имя — «название не изменилось»; в другом шкафу — можно',
-    e.dup.why === 'такая полка уже есть' && e.same.why === 'название не изменилось' && e.other.ok && e.cab.why === 'такой шкаф уже есть', e);
+  ck('АХ-134 · Enter — переименовано, сообщение «было → стало», место папки 202 новое', (await toasts(E)).some(x => x.text === 'Переименовано: «Архив ГО · шкаф 1 · ярус 1» → «Архив ГО · шкаф 1 · ярус 1а»') && await E(() => window.AX.placeFull(window.AX.folder('f202').shelf) === 'Архив ГО · шкаф 1 · ярус 1а'), await toasts(E));
+  const e = await E(() => { const A = window.AX; return { dup: A.renamePlace('shelf', 'go1-2', 'ярус 1а'), same: A.renamePlace('shelf', 'go1-2', 'ярус 2'), other: A.renamePlace('shelf', 'go2-2', 'ярус 1а'), cab: A.renamePlace('cab', 'go2', 'шкаф 1') }; });
+  ck('АХ-135 · движок: повтор у соседей — «такой ярус уже есть», «такой шкаф уже есть»; то же имя — «название не изменилось»; в другом шкафу — можно',
+    e.dup.why === 'такой ярус уже есть' && e.same.why === 'название не изменилось' && e.other.ok && e.cab.why === 'такой шкаф уже есть', e);
   await E(() => window.AX.setTab('kinds'));
   const k = await E(() => ({ th: [...document.querySelectorAll('[data-testid=tbl-kinds] th')].map(x => x.textContent).join('|'), kzd: document.querySelector('[data-testid=kind-pattern-kzd]').textContent, nom: document.querySelector('[data-testid=kind-pattern-nom]').textContent,
     btn: [...document.querySelector('[data-testid=kind-kzd]').lastElementChild.querySelectorAll('.menu > .btn')].map(x => x.textContent.trim()).join() }));
@@ -1965,6 +1978,7 @@ await group('РВ-1 · АХ-138 — в «Ждут привязки» тольк�
 });
 
 await group('РВ-2 · АХ-139 — передача просроченной: новому держателю задание сразу, к руководителю — через 2 р.д. от передачи (АХ-Д17, часть А)', async (page, E) => {
+  await E(() => window.AX.setDemo(true));
   const d = await E(() => { const A = window.AX, t = id => A.tasks().find(x => x.folder === id);
     return { k: t('f203'), m: t('f230'), od: A.overDays('f203'), hs: A.holderSince(A.openIssue('f203')), mb: A.tasksOf('mambetov').map(x => x.folder).join() }; });
   ck('АХ-139 · демо: А-000203 просрочена с 10.11 (3 р.д.), 12.11 передана Кадырову — задание у него с 12.11, к руководителю — 17.11; А-000230 (те же 3 р.д., без передачи) уже поднята',
@@ -1992,6 +2006,7 @@ await group('РВ-2 · АХ-139 — передача просроченной: �
 });
 
 await group('РВ-3 · АХ-140 — держатель уволен до срока: задание сразу у его руководителя; закрывается возвратом; продлить нельзя (АХ-Д17, часть Б)', async (page, E) => {
+  await E(() => window.AX.setDemo(true));
   const d = await E(() => { const A = window.AX, t = A.tasks().find(x => x.folder === 'f208'), i = A.openIssue('f208');
     return { t, due: i.due, fired: A.emp('orozov').fired, q: A.archQueue().fired.map(x => x.folder).join() }; });
   ck('АХ-140 · демо: Орозов уволен 30.10, А-000208 вернуть до 20.11 — задание у руководителя (Мамбетов) с 30.10, срок не прошёл; папка в «На руках у уволенных»',
