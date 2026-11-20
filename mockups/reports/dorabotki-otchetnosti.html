@@ -247,6 +247,15 @@ table.xg tr.bad td{background:var(--err-bg);color:var(--err)}
 .dims .hd{color:var(--muted);user-select:none}
 .dims .no{min-width:18px;height:18px;border-radius:9px;background:var(--btn);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
 .dims li.off .no{background:transparent}
+.dims .kk{font-size:11.5px;color:var(--muted);margin-left:6px;white-space:nowrap}
+.lblf{display:flex;align-items:center;gap:4px}
+.frem{margin-left:auto;border:0;background:none;cursor:pointer;color:var(--muted);font-size:15px;line-height:1;padding:0 4px}
+.pop .cn{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.pop .psr{padding:4px 8px 6px}
+.pop .psr .txt{min-height:30px;padding:5px 8px}
+.addf{border:1px dashed #b9c3cb;background:#fff;border-radius:4px;padding:6px 10px;cursor:pointer;font:inherit;font-size:13px;color:#0b5cad;width:100%;text-align:left}
+.pop .popi{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 12px;cursor:pointer;font:inherit;font-size:13px}
+.pop .popi:hover{background:#f2f5f4}
 .dims .ar{margin-left:auto;display:flex}
 .dims .ar button{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 4px}
 .dnote{font-size:12.5px;color:var(--muted);margin-top:6px}
@@ -375,7 +384,7 @@ const NOTES = {
     ['add','Детализация: «строки и итоги разрезов» или «только итоги разрезов» — без строк кредитов (платежей).'],
     ['add','Колонки по времени — только у отчётов «за период»: без разбивки, по месяцам, по кварталам. Первый блок — «Итого» за период. Откройте ФО-04 и поставьте период с 01.07.2026. Других разрезов в колонках нет.'],
     ['add','Колонки: галочками скрыть и вернуть колонки из описания отчёта. Новых показателей здесь не добавить — это конструктор.'],
-    ['chg','Фильтры — поле на фильтр, несколько значений, выбранное — чипами (× убирает). Область и район — в одном поле, районы под областью. Подразделение: сотрудник видит своё и нижестоящие, поле закрыто; руководство и администратор выбирают любое.'],
+    ['chg','Фильтры: сразу видны основные — по разрезам по умолчанию и особые из описания отчёта (пороги, флажки); фильтр по любому другому разрезу — «＋ Фильтр», × убирает добавленный. В поле несколько значений, выбранное — чипами; в списке только значения из данных с числом («· 5»), больше 10 — поиск. Фильтры связаны: выбор в одном сужает списки и числа в других, выбранное и ставшее пустым остаётся «· 0». Внутри фильтра — любое из выбранных, между фильтрами — «и»; режима «кроме» нет. Область и район — одно поле. Подразделение сотрудника закрыто.'],
     ['keep','Дата и единица по умолчанию — по описанию отчёта: у ФО-01 сегодня и сегодня минус месяц, у отчётов за период — прошлый месяц; тыс. сом.'],
     ['add','Отчёт пересчитывается по «Сформировать». Изменили настройку после формирования — над таблицей плашка «Настройки изменены». «Сбросить» возвращает умолчания. Настройки не запоминаются: при следующем открытии — снова по умолчанию.'],
     ['add','Результат — таблица на экране; вкладка «PDF» — печатный вид того же результата.'],
@@ -396,29 +405,33 @@ const NOTES = {
     ['add','Второй лист «Параметры» — все параметры запуска: дата или период, подразделение, фильтры, единица, разрезы, детализация, колонки по времени, скрытые колонки, курсы, рассчитан, сформировал, округление. Как в образцах перечня.'],
     ['chg','В файле — то, что на экране: выбранные разрезы и их порядок, скрытые колонки, «только итоги», колонки по месяцам. Свёрнутые на экране группы в файле раскрыты.'],
     ['chg','Нужно (было «желательно»): закрепить строки 1–7 и колонку A; строки 5–7 печатать на каждой странице; A4 альбомная, вписать по ширине одной страницы.'],
-    ['later','Не нужно: уровни группировки Excel (+/−) — вложенность отступами, как в образцах; лист «Описание» из образцов в выгрузку не входит.'],
-    ['chg','Колонки, итоги, валюта, текст пустого отчёта — по описанию каждого отчёта (приложение к письму).']
+    ['later','Не нужно: уровни группировки Excel (+/−) — вложенность отступами, как в образцах; лист «Описание» из образцов; лист с плоским списком строк — в файле только форма (сортировка и сумма по колонке на ней неверны — принято); гиперссылки на карточки — номер договора и заёмщик простым текстом.'],
+    ['chg','Колонки, итоги, валюта, текст пустого отчёта — по описанию каждого отчёта (приложение к письму).'],
+    ['add','Имя файла: код_дата[_подразделение][_отбор] — «ФО-01_01.10.2026_ДАК_отбор.xlsx»: подразделение — если файл не по всему портфелю, «отбор» — если стоят фильтры; за период — «ФО-04_01.07.2026-30.09.2026»; у вида — номер вида «ФО-17-вид2_…». PDF — так же.']
   ],
   spiski: [
-    ['add','Новый пункт меню «Отчеты → Рабочие списки».'],
-    ['add','Список создаётся кнопкой «В рабочий список» на экране отчёта; в нём объекты результата — кредиты, заёмщики или предметы залога.'],
-    ['add','У списка: название, из какого отчёта и с какими параметрами, сколько объектов, кто и когда создал.'],
-    ['add','Открыть список; номер договора (заёмщик, предмет) открывает карточку объекта.'],
-    ['add','Выгрузить список в Excel; удалить список.'],
-    ['later','Не нужно: отметки «отработан», «отработано N из M», передача подразделению, закрытие списка.'],
+    ['add','Пункт меню «Отчеты → Рабочие списки».'],
+    ['add','Список создаётся кнопкой «В рабочий список» на экране отчёта. При сохранении выбрать, что сохранить: кредиты или заёмщики (у залоговых отчётов — ещё предметы залога), с числом. Платежи, меры, акты — их кредиты или заёмщики.'],
+    ['add','У списка: название (можно поправить), из какого отчёта и на какую дату, сколько объектов, когда создан. Список видит только его автор; хранится, пока автор не удалит.'],
+    ['add','Состав списка неизменен, числа — текущие на сегодня; в шапке «из ФО-01 на 01.10.2026: 6 кредитов». Погашенный или списанный кредит остаётся со своим текущим состоянием.'],
+    ['add','Колонки — постоянный набор по типу объекта: у кредита, у заёмщика, у предмета залога — свои, одинаковые во всех списках.'],
+    ['add','Строку можно убрать (×); в шапке — «убрано N». Добавлять нельзя: другой состав — новый список из отчёта.'],
+    ['add','Номер договора, заёмщик, предмет открывают карточку; «Выгрузить в Excel» — колонки набора, текущие значения, «Список_<название>_<дата>.xlsx»; «Удалить список».'],
+    ['later','Не нужно: отметки «отработан», «N из M», передача и общий доступ, добавление объектов.'],
     ['later','Позже: печать бланка пачкой по списку (уведомления о платеже, претензии).']
   ],
   konstruktor: [
     ['add','Пункт меню «Отчеты → Конструктор отчётов» — только роли «Составитель отчётов».'],
-    ['add','Название и краткое описание — их видно в каталоге.'],
-    ['add','Основной объект: кредит, залог, платёж, заёмщик, сотрудник, задание, документ и т. д.'],
-    ['add','Показатели статистики — из списка показателей (название, единица, объект). Такого списка на стенде нет — нужен. Порядок колонок — стрелками.'],
-    ['add','Поля основного объекта: номер договора, заёмщик, куратор, валюта и другие.'],
-    ['add','Параметры формирования (на дату или за период, единица) и фильтры.'],
-    ['add','Разрезы и порядок строк — тем же списком, что на экране отчёта: галочка, перетаскивание.'],
-    ['add','Каким подразделениям открыт отчёт.'],
+    ['add','Название и краткое описание — их видно в каталоге. Название уникально: совпадает с отчётом перечня или другим собранным — ошибка при сохранении.'],
+    ['add','Основной объект — один: кредит, залог, заёмщик, платёж, задание, документ и т. д.'],
+    ['add','Тип отчёта выбирается первым: на дату или за период. Показатели предлагаются под тип: на дату — остатки и состояния; за период — обороты, остатки — на начало и на конец.'],
+    ['add','Колонки — один список: поля объекта и показатели статистики вместе, галочка включает, перетаскивание или стрелки — порядок. Показатели — из списка показателей статистики (название, единица, объект, на дату или за период); на стенде такого списка нет — нужен.'],
+    ['add','Фильтры и единица; фильтры собранного отчёта работают как на экране отчёта.'],
+    ['add','Разрезы и порядок строк — тем же списком, что на экране отчёта; сортировка — одно поле и направление.'],
+    ['add','Каким подразделениям открыт. Пока не открыт никому — виден только составителям, в каталоге с пометкой «не открыт».'],
     ['add','Сохранённый отчёт стоит в каталоге в группе «Собранные отчёты» и открывается тем же экраном отчёта: панель настроек, таблица, PDF, Excel. Строки ограничены правами того, кто запускает.'],
-    ['later','Не нужно: свои формулы, версии, соавторы, архив, утверждение.']
+    ['add','Правит и удаляет любой «Составитель отчётов»; в строке — «собрал …, изменил … дата». Правка действует сразу у всех; версий нет.'],
+    ['later','Не нужно: несколько объектов и связи, свои формулы, версии, соавторы, архив, утверждение, копия отчёта перечня в конструктор (недостающая колонка — заявкой в описание отчёта, лишние — скрыть на экране).']
   ],
   shablony: [
     ['keep','Основа — нынешние «Шаблоны договоров»: загрузка файла Word и проверка кодов полей.'],
@@ -440,7 +453,6 @@ const NOTES = {
 
 const S = {r:'katalog', role:'sotr', marks:true, q:'', rep:'ФО-01', repName:'Просроченная задолженность по состоянию на дату', repVid:false,
   ran:true, empty:false, wl:false, toast:'', list:0, saved:[], blank:null, menu:false, sheet:'main', tpl:0, kItem:0, sideOpen:false,
-  kStats:['Остаток основного долга','Просроченная задолженность, всего','Дней просрочки'], kFields:['Номер договора','Заёмщик','Куратор'],
   kFilt:['Департамент','Куратор'], kAcc:['ДАК','ДРР','Руководство'], kMode:'на дату', fq:'',
   cfg:null, run:null, col:[], tab:'table', open:null, runAt:'', colsOpen:false,
   kDims:[{id:'kur',l:'Куратор',on:true},{id:'bw',l:'Заёмщик',on:true},{id:'cr',l:'Кредит',on:true},{id:'dep',l:'Департамент',on:false},{id:'obl',l:'Область',on:false},{id:'cur',l:'Валюта',on:false}]};
@@ -519,11 +531,13 @@ function catalogHTML(withMarks){
     });
     h += '</div>'; first = false;
   });
-  const b = BUILT.filter(r => hit({id:'', name:r.name, shows:r.shows}));
+  const accBy = S.kAccBy || KREP.map(r => r.acc);
+  const b = KREP.map((r, i) => ({name:r.name, shows:r.d, who:r.who+' · '+(accBy[i].length ? 'открыт: '+accBy[i].join(', ') : 'виден только составителям'), draft:!accBy[i].length}))
+    .filter(r => (!r.draft || S.role === 'sost' || isAdmin()) && hit({id:'', name:r.name, shows:r.shows}));
   if(b.length){ any = true;
     h += '<div class="grp"><div class="grp-h">Собранные отчёты'+m(8)+'<span class="cnt">'+b.length+'</span></div>'+
       b.map(r => '<div class="rrow">'+icDoc+'<div class="tx"><div class="ttl">'+esc(r.name)+'</div><div class="sub">'+esc(r.shows)+
-        '</div><div class="who">'+esc(r.who)+'</div></div><button class="btn sm" onclick="openRep(\'\',false,this.dataset.n)" data-n="'+esc(r.name)+'">Открыть</button></div>').join('')+'</div>'; }
+        '</div><div class="who">'+(r.draft ? '<span class="pl blue">не открыт</span> ' : '')+esc(r.who)+'</div></div><button class="btn sm" onclick="openRep(\'\',false,this.dataset.n)" data-n="'+esc(r.name)+'">Открыть</button></div>').join('')+'</div>'; }
   if(!any) h += '<div class="card box">По запросу «'+esc(S.q)+'» ничего не найдено.</div>';
   if(withMarks) h += '<p class="small muted">'+m(9)+' меню «Отчеты» слева зависит от роли. '+m(10)+' чего на этом экране делать не нужно.</p>';
   return h;
@@ -601,7 +615,7 @@ const RP = {
     cols:[{id:'name',h:'Наименование',lock:1},{id:'risk',h:'Риск'},{id:'grp',h:'Группа'},{id:'kred',h:'Кред.',t:'i'},{id:'ost',h:'Остаток осн. долга',t:'m'},
       {id:'pv',g:'Просрочено',h:'всего',t:'m'},{id:'po',g:'Просрочено',h:'осн. сумма',t:'m'},{id:'pp',g:'Просрочено',h:'проценты',t:'m'},{id:'ps',g:'Просрочено',h:'штрафы',t:'m'},{id:'days',g:'Просрочено',h:'дней',t:'i'},
       {id:'kur',h:'Куратор',w:1},{id:'mera',h:'Последняя мера',w:1},{id:'bez',h:'Без мер, дн.',t:'i'},{id:'lpd',g:'Последний платёж',h:'дата'},{id:'lps',g:'Последний платёж',h:'сумма',t:'m'},{id:'zal',h:'Залог',t:'m'},{id:'dec',h:'Решение комитета, реструктуризация',w:1}],
-    filters:[{id:'dep',l:'Департамент'},{id:'geo',l:'Область и район',geo:1},{id:'risk',l:'Категория риска'},{id:'grp',l:'Группа платёжеспособности'},{id:'kur',l:'Куратор'},{id:'bw',l:'Заёмщик'}],
+    filters:[{id:'dep',l:'Департамент',main:1},{id:'geo',l:'Область и район',geo:1,main:1},{id:'risk',l:'Категория риска',main:1},{id:'kur',l:'Куратор'},{id:'grp',l:'Группа платёжеспособности'},{id:'srok',l:'Срок просрочки'},{id:'bw',l:'Заёмщик'}],
     nums:[{id:'minDays',l:'Просрочка от, дней',def:1},{id:'minSum',l:'Просроченная сумма от',def:''}],
     dv:(d, r) => d === 'srok' ? srok(r.days) : d === 'otd' ? 'Отдел не указан в образце' : r[d],
     numFilter:(r, c) => (!c.minDays || r.days >= +c.minDays) && (c.minSum === '' || c.minSum == null || r.pv * 1 >= +c.minSum / (c.unit === 'сом' ? 1000 : 1)),
@@ -638,7 +652,7 @@ const RP = {
     defDims:['obl','ray','bw','cr'],
     cols:[{id:'name',h:'Наименование',lock:1},{id:'date',h:'Дата платежа'},{id:'vid',h:'Вид погашения'},{id:'nbw',h:'Заёмщиков',t:'i'},{id:'ncr',h:'Кредитов',t:'i'},{id:'npay',h:'Платежей',t:'i'},
       {id:'tot',h:'Всего погашено',ph:'всего погашено',t:'m',metric:1},{id:'osn',g:'в том числе',h:'по основной сумме',ph:'осн. сумма',t:'m',metric:1},{id:'proc',g:'в том числе',h:'по процентам',ph:'проценты',t:'m',metric:1},{id:'sht',g:'в том числе',h:'по штрафам',ph:'штрафы',t:'m',metric:1}],
-    filters:[{id:'geo',l:'Область и район',geo:1},{id:'bw',l:'Заёмщик'},{id:'vid',l:'Вид погашения'},{id:'cur',l:'Валюта кредита'}],
+    filters:[{id:'geo',l:'Область и район',geo:1,main:1},{id:'vid',l:'Вид погашения',main:1},{id:'bw',l:'Заёмщик'},{id:'cr',l:'Кредит'},{id:'cur',l:'Валюта кредита'},{id:'mon',l:'Месяц'}],
     nums:[],
     dv:(d, r) => d === 'mon' ? r.mon : r[d],
     numFilter:(r, c) => r.date >= c.from && r.date <= c.to,
@@ -666,7 +680,7 @@ function genericR(){ const name = S.repName || 'Отчёт', per = /за пер�
   return {id:S.rep, name, kind:per ? 'period' : 'date', detail:'кредит', rows:() => [], placeholder:true,
     shows:(D.cat.reduce((a, g) => a.concat(g.rows), []).find(r => r.id === S.rep && r.name === name) || {}).shows || 'Собранный отчёт из конструктора.',
     dims:[['dep','Департамент'],['kur','Куратор'],['bw','Заёмщик'],['cr','Кредит']], defDims:['dep','bw'],
-    cols:[{id:'name',h:'Наименование',lock:1}], filters:[{id:'dep',l:'Департамент'},{id:'kur',l:'Куратор'}], nums:[],
+    cols:[{id:'name',h:'Наименование',lock:1}], filters:[{id:'dep',l:'Департамент',main:1},{id:'kur',l:'Куратор'}], nums:[],
     dv:(d, r) => r[d], numFilter:() => true, order:{}, gv:() => ({}), dvals:() => ({}), gname:(d, k) => esc(k), dname:() => '', fx:() => null, sub:() => [], after:() => [],
     kpi:() => [], count:() => '', pills:() => null,
     def:() => per ? {from:'2026-10-01', to:'2026-10-31', unit:'тыс. сом'} : {date:'2026-11-20', unit:'тыс. сом'},
@@ -675,22 +689,26 @@ function genericR(){ const name = S.repName || 'Отчёт', per = /за пер�
 }
 const curR = () => (!S.repVid && RP[S.rep]) || genericR();
 const lockedDep = () => (S.role === 'adm') ? '' : 'Департамент администрирования кредитов';
-function defCfg(R){ const c = Object.assign({dims:R.dims.map(d => ({id:d[0], on:R.defDims.indexOf(d[0]) !== -1})), mode:'rows', pv:'none', hide:[], f:{}}, R.def());
+function defCfg(R){ const c = Object.assign({dims:R.dims.map(d => ({id:d[0], on:R.defDims.indexOf(d[0]) !== -1})), mode:'rows', pv:'none', hide:[], f:{}, addF:[]}, R.def());
   c.dims.sort((a, b) => (a.on ? R.defDims.indexOf(a.id) : 99) - (b.on ? R.defDims.indexOf(b.id) : 99));
   R.nums.forEach(n => { c[n.id] = n.def; }); return c; }
 const clone = o => JSON.parse(JSON.stringify(o));
 function initRep(){ const R = curR(); S.cfg = defCfg(R); S.run = clone(S.cfg); S.col = []; S.tab = 'table'; S.empty = false; S.wl = false; S.open = null; S.runAt = TODAY+' 10:40'; }
 
 /* ---------- расчёт строк результата ---------- */
+function fval(R, id, r){ return id === 'geo' ? r.obl+'|'+r.ray : R.dv(id, r); }
+function flab(R, id, v){ return id === 'mon' ? plabel(v, 'month') : (SHORT[v] || v); }
 function optsOf(R, id){ const rs = R.rows();
   if(id === 'geo'){ const m = new Map(); rs.forEach(r => { if(!m.has(r.obl)) m.set(r.obl, []); if(m.get(r.obl).indexOf(r.ray) === -1) m.get(r.obl).push(r.ray); }); return m; }
   if(id === 'dep' && R.placeholder) return ['Департамент администрирования кредитов','Департамент регионального развития'];
-  return uniq(rs.map(r => r[id]).filter(v => v != null && v !== '')); }
-function applyFilters(R, c){ let rs = S.empty ? [] : R.rows().slice();
+  const a = uniq(rs.map(r => fval(R, id, r)).filter(v => v != null && v !== '')); return id === 'mon' ? a.sort() : a; }
+function applyFilters(R, c, skip){ let rs = S.empty ? [] : R.rows().slice();
   const ld = lockedDep(); if(ld && R.filters.some(f => f.id === 'dep')) rs = rs.filter(r => r.dep === ld);
-  Object.keys(c.f).forEach(k => { const sel = c.f[k]; if(!sel || !sel.length) return;
-    rs = rs.filter(r => k === 'geo' ? sel.indexOf(r.obl+'|'+r.ray) !== -1 : sel.indexOf(r[k]) !== -1); });
+  Object.keys(c.f).forEach(k => { const sel = c.f[k]; if(k === skip || !sel || !sel.length) return;
+    rs = rs.filter(r => sel.indexOf(fval(R, k, r)) !== -1); });
   return rs.filter(r => R.numFilter(r, c)); }
+/* число объектов у каждого значения — с учётом остальных выбранных фильтров */
+function countsOf(R, id){ const base = applyFilters(R, S.cfg, id), m = {}; base.forEach(r => { const v = fval(R, id, r); m[v] = (m[v] || 0) + 1; }); return m; }
 function finalCols(R, c, rs){ const vis = R.cols.filter(x => x.lock || c.hide.indexOf(x.id) === -1);
   if(R.kind !== 'period' || c.pv === 'none') return vis.map(x => Object.assign({}, x, {key:x.id}));
   const base = vis.filter(x => !x.metric), met = vis.filter(x => x.metric), out = base.map(x => Object.assign({}, x, {key:x.id, g:null}));
@@ -732,21 +750,35 @@ function headRows(cols){ const anyG = cols.some(x => x.g); let a = '<tr>', b = '
 const lvlName = (R, id) => (R.dims.find(d => d[0] === id) || [id, id])[1];
 
 /* ---------- экран отчёта ---------- */
-function msHTML(R, fl){ const c = S.cfg, sel = c.f[fl.id] || [];
+function msHTML(R, fl, added){ const c = S.cfg, sel = c.f[fl.id] || [];
+  const rm = added ? '<button class="frem" data-a="frem" data-f="'+fl.id+'" aria-label="Убрать фильтр '+esc(fl.l)+'" title="Убрать фильтр">×</button>' : '';
   if(fl.id === 'dep' && lockedDep()) return '<div class="msw"><span class="lbl">'+esc(fl.l)+'</span><div class="ms lock" title="Сотрудник видит своё подразделение и нижестоящие"><span class="chip"><b>'+esc(lockedDep())+'</b></span></div></div>';
   let chips;
   if(fl.geo){ const m = optsOf(R, 'geo'); chips = [];
     m.forEach((rays, o) => { const s = rays.filter(r => sel.indexOf(o+'|'+r) !== -1); if(s.length === rays.length) chips.push([o, 'o:'+o]); else s.forEach(r => chips.push([r, 'r:'+o+'|'+r])); }); }
-  else chips = sel.map(v => [v, 'v:'+v]);
-  let h = '<div class="msw"><span class="lbl">'+esc(fl.l)+(fl.id === R.filters[0].id ? mk(6) : '')+'</span><div class="ms" role="button" tabindex="0" data-a="ms" data-f="'+fl.id+'" aria-expanded="'+(S.open === fl.id)+'">'+
-    (chips.length ? chips.map(x => '<span class="chip"><b>'+esc(SHORT[x[0]] || x[0])+'</b><button class="x" data-a="unchip" data-f="'+fl.id+'" data-v="'+esc(x[1])+'" aria-label="Убрать '+esc(x[0])+'">×</button></span>').join('') : '<span class="phd">Все</span>')+'</div>';
-  if(S.open === fl.id){ h += '<div class="pop"><div class="pa"><button data-a="msall" data-f="'+fl.id+'">Выбрать все</button><button data-a="msnone" data-f="'+fl.id+'">Сбросить</button></div>';
-    if(fl.geo){ optsOf(R, 'geo').forEach((rays, o) => { const n = rays.filter(r => sel.indexOf(o+'|'+r) !== -1).length;
-      h += '<label><input type="checkbox" data-a="geoo" data-v="'+esc(o)+'"'+(n === rays.length ? ' checked' : '')+(n && n < rays.length ? ' data-ind="1"' : '')+'> <b>'+esc(o)+'</b></label>';
-      if(!(rays.length === 1 && rays[0] === o)) rays.forEach(r => { h += '<label class="sub"><input type="checkbox" data-a="geor" data-v="'+esc(o+'|'+r)+'"'+(sel.indexOf(o+'|'+r) !== -1 ? ' checked' : '')+'> '+esc(r)+'</label>'; }); }); }
-    else optsOf(R, fl.id).forEach(v => { h += '<label><input type="checkbox" data-a="msv" data-f="'+fl.id+'" data-v="'+esc(v)+'"'+(sel.indexOf(v) !== -1 ? ' checked' : '')+'> '+esc(v)+'</label>'; });
+  else chips = sel.map(v => [flab(R, fl.id, v), 'v:'+v]);
+  let h = '<div class="msw"><span class="lbl lblf">'+esc(fl.l)+rm+'</span><div class="ms" role="button" tabindex="0" data-a="ms" data-f="'+fl.id+'" aria-expanded="'+(S.open === fl.id)+'">'+
+    (chips.length ? chips.map(x => '<span class="chip"><b>'+esc(x[0])+'</b><button class="x" data-a="unchip" data-f="'+fl.id+'" data-v="'+esc(x[1])+'" aria-label="Убрать '+esc(x[0])+'">×</button></span>').join('') : '<span class="phd">Все</span>')+'</div>';
+  if(S.open === fl.id){ const cnt = countsOf(R, fl.id), q = (S.fsq || '').trim().toLowerCase(), cn = v => '<span class="cn">· '+(cnt[v] || 0)+'</span>';
+    h += '<div class="pop"><div class="pa"><button data-a="msall" data-f="'+fl.id+'">Выбрать все</button><button data-a="msnone" data-f="'+fl.id+'">Сбросить</button></div>';
+    if(fl.geo){ optsOf(R, 'geo').forEach((rays, o) => { const live = rays.filter(r => cnt[o+'|'+r] || sel.indexOf(o+'|'+r) !== -1); if(!live.length) return;
+      const n = live.filter(r => sel.indexOf(o+'|'+r) !== -1).length, tot = live.reduce((a, r) => a + (cnt[o+'|'+r] || 0), 0);
+      h += '<label><input type="checkbox" data-a="geoo" data-v="'+esc(o)+'"'+(n === live.length ? ' checked' : '')+(n && n < live.length ? ' data-ind="1"' : '')+'> <b>'+esc(o)+'</b><span class="cn">· '+tot+'</span></label>';
+      if(!(rays.length === 1 && rays[0] === o)) live.forEach(r => { h += '<label class="sub"><input type="checkbox" data-a="geor" data-v="'+esc(o+'|'+r)+'"'+(sel.indexOf(o+'|'+r) !== -1 ? ' checked' : '')+'> '+esc(r)+cn(o+'|'+r)+'</label>'; }); }); }
+    else { const all = optsOf(R, fl.id).filter(v => cnt[v] || sel.indexOf(v) !== -1);
+      if(all.length > 10) h += '<div class="psr"><input id="fsq" class="txt" data-a="fsq" placeholder="Найти в списке" value="'+esc(S.fsq || '')+'"></div>';
+      all.filter(v => !q || String(flab(R, fl.id, v)).toLowerCase().indexOf(q) !== -1)
+        .forEach(v => { h += '<label><input type="checkbox" data-a="msv" data-f="'+fl.id+'" data-v="'+esc(v)+'"'+(sel.indexOf(v) !== -1 ? ' checked' : '')+'> '+esc(flab(R, fl.id, v))+cn(v)+'</label>'; }); }
     h += '</div>'; }
   return h+'</div>'; }
+function filtersHTML(R){ const c = S.cfg, main = R.filters.filter(f => f.main), extra = R.filters.filter(f => !f.main);
+  const added = (c.addF || []).map(id => extra.find(f => f.id === id)).filter(Boolean), rest = extra.filter(f => added.indexOf(f) === -1);
+  let h = main.map(fl => msHTML(R, fl, false)).join('')+added.map(fl => msHTML(R, fl, true)).join('');
+  h += R.nums.map(n => '<label class="msw" style="display:block"><span class="lbl">'+esc(n.l)+(n.id === 'minSum' ? ', '+esc(c.unit) : '')+'</span><input type="number" id="p-'+n.id+'" data-a="cfg" data-k="'+n.id+'" value="'+esc(c[n.id])+'" min="0"></label>').join('');
+  if(rest.length){ h += '<div class="msw"><button class="addf" data-a="addf" aria-expanded="'+(S.open === '__add')+'">＋ Фильтр</button>';
+    if(S.open === '__add') h += '<div class="pop">'+rest.map(f => '<button class="popi" data-a="addfv" data-f="'+f.id+'">'+esc(f.l)+'</button>').join('')+'</div>';
+    h += '</div>'; }
+  return h; }
 function dimsHTML(list, store, R){ let n = 0;
   return '<ol class="dims" data-s="'+store+'">'+list.map((x, i) => { const l = R ? lvlName(R, x.id) : x.l;
     return '<li draggable="true" data-i="'+i+'" class="'+(x.on ? '' : 'off')+'"><span class="hd" aria-hidden="true">≡</span><input type="checkbox" data-a="dimon" data-s="'+store+'" data-i="'+i+'"'+(x.on ? ' checked' : '')+' aria-label="'+esc(l)+'"><span class="no">'+(x.on ? ++n : '')+'</span><span>'+esc(l)+'</span>'+
@@ -767,8 +799,7 @@ function panelHTML(R){ const c = S.cfg;
   const opt = R.cols.filter(x => !x.lock);
   if(opt.length) h += '<div class="ps"><h4>Колонки'+mk(5)+'</h4><details class="cd"'+(S.colsOpen ? ' open' : '')+' data-a="colsdet"><summary>Показано '+(opt.length - c.hide.length)+' из '+opt.length+' колонок описания</summary><div class="colchk">'+
     opt.map(x => '<label><input type="checkbox" data-a="colon" data-v="'+x.id+'"'+(c.hide.indexOf(x.id) === -1 ? ' checked' : '')+'> '+esc((x.g ? x.g+': ' : '')+x.h)+'</label>').join('')+'</div></details></div>';
-  h += '<div class="ps"><h4>Фильтры'+mk(6)+'</h4>'+R.filters.map(fl => msHTML(R, fl)).join('')+
-    R.nums.map(n => '<label class="msw" style="display:block"><span class="lbl">'+esc(n.l)+(n.id === 'minSum' ? ', '+esc(c.unit) : '')+'</span><input type="number" id="p-'+n.id+'" data-a="cfg" data-k="'+n.id+'" value="'+esc(c[n.id])+'" min="0"></label>').join('')+'</div>';
+  h += '<div class="ps"><h4>Фильтры'+mk(6)+'</h4>'+filtersHTML(R)+'</div>';
   h += '</div><div class="pfoot"><button class="btn" data-a="run"'+(S.loading ? ' disabled' : '')+'>Сформировать</button><button class="btn sec" data-a="reset">Сбросить</button>'+mk(8)+mk(15)+'</div></div>';
   return h; }
 function chipsOf(R, c){ const out = [];
@@ -802,7 +833,12 @@ function reportHTML(){ const R = curR(), c = S.run, stale = JSON.stringify(S.cfg
   h += '<div class="rtool"><div class="tabs2" role="tablist"><button role="tab" class="'+(S.tab === 'table' ? 'on' : '')+'" data-a="tab" data-v="table">Таблица</button><button role="tab" class="'+(S.tab === 'pdf' ? 'on' : '')+'" data-a="tab" data-v="pdf">PDF</button></div>'+mk(9)+
     (R.placeholder ? '' : '<span class="seg" style="border-color:var(--line)"><button class="'+(S.empty ? '' : 'on')+'" data-a="empty" data-v="0" style="color:var(--fg)">с данными</button><button class="'+(S.empty ? 'on' : '')+'" data-a="empty" data-v="1" style="color:var(--fg)">пустой</button></span>'+mk(12))+
     '<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+mk(13)+'<button class="btn sec new" data-a="wl">В рабочий список</button><button class="btn sec" data-a="xl">Скачать Excel</button><button class="btn sec" data-a="pdfdl">Скачать PDF</button></span></div>';
-  if(S.wl) h += '<div class="wlform" style="margin:0"><label for="wln" class="small"><b>Новый рабочий список</b></label><input id="wln" class="txt" value="'+esc((R.id === 'ФО-01' ? 'Просрочка ДАК' : R.name)+' на '+TODAY)+'"><button class="btn sm" data-a="wlsave">Сохранить</button><button class="btn sec sm" data-a="wlcancel">Отмена</button><span class="small muted">Попадут '+(R.id === 'ФО-04' ? 'кредиты' : 'объекты')+' результата с учётом фильтров</span></div>';
+  if(S.wl){ const b0 = buildRows(R, S.run, true), crs = uniq(b0.data.map(r => R.id === 'ФО-04' ? r.cr : r.no)), bws = uniq(b0.data.map(r => r.bw)), t = S.wlType || 'cr';
+    h += '<div class="wlform" style="margin:0"><b class="small">Новый рабочий список:</b><span class="rad" style="flex-direction:row;gap:14px">'+
+      '<label><input type="radio" name="wlt" data-a="wltype" value="cr"'+(t === 'cr' ? ' checked' : '')+'> кредиты ('+crs.length+')</label>'+
+      '<label><input type="radio" name="wlt" data-a="wltype" value="bw"'+(t === 'bw' ? ' checked' : '')+'> заёмщики ('+bws.length+')</label></span>'+
+      '<input id="wln" class="txt" value="'+esc(R.name.replace(/ (по состоянию на дату|за период)$/, '')+' — '+(t === 'cr' ? 'кредиты' : 'заёмщики')+' '+(R.kind === 'period' ? 'за '+isoRu(S.run.from)+'–'+isoRu(S.run.to) : 'на '+isoRu(S.run.date)))+'">'+
+      '<button class="btn sm" data-a="wlsave">Сохранить</button><button class="btn sec sm" data-a="wlcancel">Отмена</button></div>'; }
   if(stale) h += '<div class="stale">Настройки изменены после формирования — таблица ниже ещё по прежним.<button class="btn sm" data-a="run">Сформировать</button></div>';
   if(R.placeholder){ h += '<div class="card rhead"><div class="org"><span>ОАО «Государственный финансовый холдинг»</span><b>'+esc(R.id || '')+'</b></div><h2>'+esc(R.name)+'</h2><div class="per">'+esc(R.period(c))+'</div><div class="sost">'+esc(sostav(R, c))+'</div><div class="fchips">'+chipsOf(R, c)+'</div></div>'+
     '<div class="card phold">Экран тот же для всех отчётов перечня и собранных в конструкторе. Колонки, разрезы, фильтры и текст пустого отчёта — по описанию отчёта в перечне.<br><br>Пример с данными: <button class="btn sm" data-a="open" data-v="ФО-01">ФО-01 — на дату</button> <button class="btn sm" data-a="open" data-v="ФО-04">ФО-04 — за период</button></div></section></div>';
@@ -820,8 +856,30 @@ function fixSticky(){ const t = document.querySelector('table.rpt'); if(!t) retu
   document.querySelectorAll('.pop input[data-ind]').forEach(i => { i.indeterminate = true; }); }
 
 /* ---------- действия на экране отчёта ---------- */
-function storeOf(s){ return s === 'k' ? S.kDims : S.cfg.dims; }
+function storeOf(s){ return s === 'k' ? S.kDims : s === 'kc' ? kcols() : S.cfg.dims; }
 const ACT = {
+  frem(t){ const f = t.dataset.f; S.cfg.addF = (S.cfg.addF || []).filter(x => x !== f); delete S.cfg.f[f]; S.open = null; renderScreen(); },
+  addf(){ S.open = S.open === '__add' ? null : '__add'; renderScreen(); },
+  addfv(t){ (S.cfg.addF = S.cfg.addF || []).push(t.dataset.f); S.open = t.dataset.f; S.fsq = ''; renderScreen(); },
+  wltype(t){ S.wlType = t.value; renderScreen(); },
+  lsel(t){ S.listName = t.dataset.v; S.lren = false; renderScreen(); },
+  lrem(t){ const l = S.lists.find(x => x.name === S.listName); l.removed.push(t.dataset.v); toast('Убрано из списка'); renderScreen(); },
+  lren(){ S.lren = true; renderScreen(); },
+  lrenx(){ S.lren = false; renderScreen(); },
+  lrensave(){ const v = (document.getElementById('lren') || {}).value || ''; const l = S.lists.find(x => x.name === S.listName); if(v.trim()){ l.name = v.trim(); S.listName = l.name; } S.lren = false; renderScreen(); },
+  lxl(){ toast('Скачан файл Список_'+S.listName+'_'+TODAY+'.xlsx'); },
+  ldel(){ S.lists = S.lists.filter(x => x.name !== S.listName); toast('Список «'+S.listName+'» удалён'); S.listName = null; renderScreen(); },
+  lcard(t, e){ e.preventDefault(); S.fromRep = false; go('kredit'); },
+  zlcard(t, e){ e.preventDefault(); toast('Откроется карточка предмета залога «'+t.textContent+'»'); },
+  ksel(t){ S.kSel = +t.dataset.v; S.kName = null; S.kErr = null; renderScreen(); },
+  kmode(t){ S.kMode = t.value; renderScreen(); },
+  kacc(t){ const a = S.kAccBy[S.kSel || 0], i = a.indexOf(t.dataset.v); if(t.checked && i === -1) a.push(t.dataset.v); if(!t.checked && i !== -1) a.splice(i, 1); renderScreen(); },
+  ksave(){ const v = ((document.getElementById('kn') || {}).value || '').trim(); S.kName = v; const cur = KREP[S.kSel || 0].name;
+    const dup = D.cat.reduce((a, g) => a.concat(g.rows), []).find(r => r.name.toLowerCase() === v.toLowerCase()) || KREP.find(r => r.name !== cur && r.name.toLowerCase() === v.toLowerCase());
+    S.kErr = !v ? 'Название не заполнено.' : dup ? 'Такое название уже есть в каталоге: «'+(dup.id ? dup.id+' ' : '')+dup.name+'». Назовите отчёт иначе.' : null;
+    if(!S.kErr) toast('Отчёт сохранён — каталог, группа «Собранные отчёты»'); renderScreen(); },
+  krun(){ openRep('', false, ((document.getElementById('kn') || {}).value || KREP[S.kSel || 0].name)); },
+  kdel(){ toast('Отчёт удалён — из каталога и у всех, кому был открыт'); },
   run(){ S.run = clone(S.cfg); S.col = []; S.open = null; S.runAt = TODAY+' '+(10 + Math.floor(Math.random() * 6))+':'+String(10 + Math.floor(Math.random() * 49)); S.loading = true; renderScreen();
     clearTimeout(ACT.run.t); ACT.run.t = setTimeout(() => { S.loading = false; if(S.r === 'otchet') renderScreen(); }, 700); },
   pcol(t){ S.pcol = t.dataset.v === '1'; S.open = null; renderScreen(); },
@@ -833,7 +891,7 @@ const ACT = {
   empty(t){ S.empty = t.dataset.v === '1'; renderScreen(); },
   tog(t){ const k = t.dataset.k, i = S.col.indexOf(k); if(i === -1) S.col.push(k); else S.col.splice(i, 1); renderScreen(); },
   lvl(t){ const n = +t.dataset.v, R = curR(), b = buildRows(R, S.run, true); S.col = n ? b.rows.filter(r => r.lvl === n && r.kids).map(r => r.key) : []; renderScreen(); },
-  ms(t){ S.open = S.open === t.dataset.f ? null : t.dataset.f; renderScreen(); },
+  ms(t){ S.open = S.open === t.dataset.f ? null : t.dataset.f; S.fsq = ''; renderScreen(); },
   msv(t){ const f = t.dataset.f, a = S.cfg.f[f] = S.cfg.f[f] || [], i = a.indexOf(t.dataset.v); if(t.checked && i === -1) a.push(t.dataset.v); if(!t.checked && i !== -1) a.splice(i, 1); renderScreen(); },
   msall(t){ const f = t.dataset.f, R = curR(); if(f === 'geo'){ const a = []; optsOf(R, 'geo').forEach((rays, o) => rays.forEach(r => a.push(o+'|'+r))); S.cfg.f.geo = a; } else S.cfg.f[f] = optsOf(R, f).slice(); renderScreen(); },
   msnone(t){ S.cfg.f[t.dataset.f] = []; renderScreen(); },
@@ -849,7 +907,7 @@ const ACT = {
   wlcancel(){ S.wl = false; renderScreen(); },
   wlsave(){ saveWl(); },
   xl(){ go('excel'); },
-  pdfdl(){ toast('PDF скачивается файлом '+(curR().id || 'Отчёт')+'_'+TODAY+'.pdf'); },
+  pdfdl(){ toast('Скачан файл '+fileName(curR(), S.run, 'pdf', S.repVid)); },
   card(t, e){ e.preventDefault(); const tt = document.getElementById('tt'); S.back = {tt:tt ? [tt.scrollTop, tt.scrollLeft] : null, y:window.scrollY}; S.fromRep = true; go('kredit'); },
   bwcard(t, e){ e.preventDefault(); toast('Откроется карточка заёмщика «'+t.textContent+'»'); },
   open(t){ const id = t.dataset.v; openRep(id, false, RP[id].name); },
@@ -858,11 +916,12 @@ const ACT = {
 function onAct(e){ const t = e.target.closest('[data-a]'); if(!t || !document.getElementById('scr').contains(t)) return; const a = t.dataset.a;
   if(e.type === 'click' && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || a === 'colsdet')) return;
   if(e.type === 'change' && !(t.tagName === 'INPUT' || t.tagName === 'SELECT')) return;
-  if(e.type === 'click' && t.tagName === 'A' && a !== 'card' && a !== 'bwcard') return;
+  if(e.type === 'click' && t.tagName === 'A' && ['card','bwcard','lcard','zlcard'].indexOf(a) === -1) return;
   if(ACT[a]){ if(e.type === 'click' && t.tagName === 'BUTTON') e.preventDefault(); ACT[a](t, e); } }
 document.addEventListener('click', e => { if(S.open && e.target.isConnected && !e.target.closest('.msw')){ S.open = null; if(S.r === 'otchet') renderScreen(); } });
 document.getElementById('scr').addEventListener('click', onAct);
 document.getElementById('scr').addEventListener('change', onAct);
+document.getElementById('scr').addEventListener('input', e => { if(e.target.id !== 'fsq') return; S.fsq = e.target.value; S.fsqFocus = true; renderScreen(); });
 document.getElementById('scr').addEventListener('keydown', e => { const t = e.target.closest('[data-a="ms"]'); if(t && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); ACT.ms(t); } });
 document.getElementById('scr').addEventListener('toggle', e => { if(e.target.matches && e.target.matches('details.cd')) S.colsOpen = e.target.open; }, true);
 let dragI = null, dragS = null;
@@ -872,11 +931,17 @@ document.getElementById('scr').addEventListener('drop', e => { const li = e.targ
   const a = storeOf(dragS), j = +li.dataset.i, x = a.splice(dragI, 1)[0]; a.splice(j, 0, x); dragI = null; renderScreen(); });
 document.getElementById('scr').addEventListener('dragend', () => { dragI = null; document.querySelectorAll('.dims li').forEach(x => x.classList.remove('drag', 'over')); });
 
-function saveWl(){ const n = (document.getElementById('wln') || {}).value || 'Список', R = curR(), b = buildRows(R, S.run, true);
-  const rows = R.id === 'ФО-04' ? uniq(b.data.map(p => p.cr)).map(cr => { const p = b.data.find(x => x.cr === cr); return {no:cr, cur:p.cur, bw:p.bw, dep:p.obl+', '+p.ray, ost:sum(b.data.filter(x => x.cr === cr), 'tot'), pr:''}; })
-    : b.data.map(r => ({no:r.no, cur:r.cur, bw:r.bw, dep:r.dep, ost:r.ost, pr:r.pv}));
-  S.saved.unshift({name:n, rep:(R.id ? R.id+' ' : '')+R.name, params:R.period(S.run)+'; '+sostav(R, S.run), obj:'Кредиты', who:ROLES[S.role].who, at:S.runAt, rows});
-  S.wl = false; S.list = 0; toast('Список «'+n+'» сохранён — «Отчеты → Рабочие списки»'); renderScreen(); }
+function saveWl(){ const R = curR(), b = buildRows(R, S.run, true), t = S.wlType || 'cr', n = ((document.getElementById('wln') || {}).value || 'Список').trim();
+  const ids = t === 'cr' ? uniq(b.data.map(r => R.id === 'ФО-04' ? r.cr : r.no)) : uniq(b.data.map(r => r.bw));
+  initLists(); S.lists.unshift({name:n, rep:(R.id ? R.id+' ' : '')+R.name.replace(/ (по состоянию на дату|за период)$/, ''), repAt:R.kind === 'period' ? 'за '+isoRu(S.run.from)+'–'+isoRu(S.run.to) : 'на '+isoRu(S.run.date),
+    obj:t, who:ROLES[S.role].who, at:TODAY, ids, removed:[]});
+  S.listName = n; S.wl = false; toast('Список «'+n+'» сохранён — «Отчеты → Рабочие списки»'); renderScreen(); }
+function fileName(R, c, ext, vid){ let id = R.id || 'Отчёт';
+  if(vid){ const vs = D.cat.reduce((a, g) => a.concat(g.rows), []).filter(r => r.id === S.rep && r.vid); id = S.rep+'-вид'+(vs.findIndex(r => r.name === S.repName) + 1); }
+  const per = R.kind === 'period' ? isoRu(c.from)+'-'+isoRu(c.to) : isoRu(c.date);
+  const dep = lockedDep() && R.filters.some(f => f.id === 'dep') ? '_'+SHORT[lockedDep()] : '';
+  const otb = Object.keys(c.f || {}).some(k => c.f[k] && c.f[k].length) || R.nums.some(n => String(c[n.id]) !== String(n.def)) ? '_отбор' : '';
+  return id+'_'+per+dep+otb+'.'+ext; }
 
 /* ---------- Excel ---------- */
 const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(x => 'A'+x));
@@ -891,8 +956,8 @@ function paramsList(R, c){ const P = [['Отчёт', (R.id ? R.id+' ' : '')+'«'
   return P.concat(R.extraParams, [['Рассчитан', S.runAt], ['Сформировал', ROLES[S.role].who], ['Округление', 'В ячейках — точные суммы, на экране и в печати — '+c.unit+' с двумя знаками.']]); }
 function excelHTML(){ const R0 = curR(), R = R0.placeholder ? RP['ФО-01'] : R0, c = R0.placeholder ? defCfg(R) : S.run, b = buildRows(R, c, true), n = b.cols.length, L = COLS[n - 1];
   let h = '<p class="muted" style="margin-top:0">Файл «Скачать Excel» — то, что сейчас на экране отчёта: разрезы, скрытые колонки, детализация, колонки по времени. Устройство файла — как у образцов в перечне отчётов.'+mk(4)+mk(6)+(R0.placeholder ? ' Показан ФО-01 с настройками по умолчанию.' : '')+'</p>';
-  const fname = R.id+'_'+(R.kind === 'period' ? isoRu(c.from)+'-'+isoRu(c.to) : isoRu(c.date))+'.xlsx';
-  h += '<div class="xl"><div class="xl-top"><b>'+esc(fname)+'</b><span>Лист: '+(S.sheet === 'par' ? 'Параметры' : R.id)+'</span><span style="margin-left:auto">закреплено: строки 1–7, колонка A</span></div>'+
+  const fname = fileName(R, c, 'xlsx', false);
+  h += '<div class="xl"><div class="xl-top"><b>'+esc(fname)+'</b>'+mk(8)+'<span>Лист: '+(S.sheet === 'par' ? 'Параметры' : R.id)+'</span><span style="margin-left:auto">закреплено: строки 1–7, колонка A</span></div>'+
     '<div class="xl-fx"><b>fx</b><span>'+(S.sheet === 'par' ? 'Параметры отчёта' : 'ИТОГО')+'</span></div><div class="xl-wrap">';
   if(S.sheet !== 'par'){
     const anyG = b.cols.some(x => x.g), cell = (v, cls) => '<td'+(cls ? ' class="'+cls+'"' : '')+'>'+v+'</td>';
@@ -929,63 +994,110 @@ function excelHTML(){ const R0 = curR(), R = R0.placeholder ? RP['ФО-01'] : R0
   return h; }
 
 /* ---------- рабочие списки ---------- */
-function lists(){
-  const cr = credRows();
-  return S.saved.concat([
-    {name:'Просрочка ДАК на 01.10.2026', rep:'ФО-01 Просроченная задолженность по состоянию на дату', params:'на 01.10.2026; Департамент администрирования кредитов; просрочка от 1 дн.', obj:'Кредиты', who:'Асанов А. К.', at:'01.10.2026 09:12', rows:cr.filter(r => /администрирования/.test(r.dep))},
-    {name:'Просрочка свыше 180 дней — ДРР', rep:'ФО-01 Просроченная задолженность по состоянию на дату', params:'на 01.10.2026; Департамент регионального развития; просрочка от 181 дн.', obj:'Кредиты', who:'Осмонов Б. Т.', at:'02.10.2026 14:30', rows:cr.filter(r => /регионального/.test(r.dep) && r.days >= 181)},
-    {name:'Залоги без страхования', rep:'Собранный отчёт «Залоги без страхования на дату»', params:'на 15.11.2026; ДАК', obj:'Предметы залога', who:'Тентимишев К.', at:'15.11.2026 11:05', rows:[]}
-  ]);
-}
-function spiskiHTML(){
-  const L = lists(), cur = L[Math.min(S.list, L.length - 1)];
-  let h = '<div class="card"><div class="tblwrap"><table class="g"><thead><tr><th>Название'+mk(3)+'</th><th>Из отчёта</th><th>Объекты</th><th class="n">Строк</th><th>Создал</th><th>Когда</th></tr></thead><tbody>'+
-    L.map((l, i) => '<tr class="click'+(l === cur ? ' sel' : '')+'" onclick="S.list='+i+';renderScreen()"><td><b>'+esc(l.name)+'</b>'+(i === 0 ? mk(2) : '')+'<div class="small muted">'+esc(l.params)+'</div></td><td class="small">'+esc(l.rep)+'</td><td>'+esc(l.obj)+'</td><td class="n">'+(l.rows.length || 4)+'</td><td>'+esc(l.who)+'</td><td class="n">'+esc(l.at)+'</td></tr>').join('')+
+/* состояние объектов «на сегодня»: у двух кредитов образца оно с 01.10 изменилось — список показывает текущее */
+const NOW = {'№ 24-3/105 от 02.12.2024':{pv:0, days:0, st:'Действует, просрочки нет'}, '№ 20-6/027 от 12.05.2020':{ost:0, pv:0, days:0, st:'Погашен 12.11.2026'}};
+function crNow(no){ const r = FO1.cr.find(x => x.no === no);
+  if(r) return Object.assign({no:r.no, cur:r.cur, bw:r.bw, dep:r.dep, kur:r.kur, ost:r.ost, pv:r.pv, days:r.days, st:'Действует'}, NOW[no] || {});
+  const p = P04.find(x => x.cr === no) || {};
+  return {no, cur:p.cur || '', bw:p.bw || '', dep:'—', kur:'—', ost:null, pv:null, days:null, st:'Действует'}; }
+function bwNow(name){ const m = FO1.meta[name];
+  if(m){ const cs = FO1.cr.filter(r => r.bw === name).map(r => crNow(r.no));
+    return {nm:name, reg:m.reg, kur:cs[0].kur, kred:cs.length, ost:sum(cs, 'ost'), pv:sum(cs, 'pv'), grp:m.grp}; }
+  const p = P04.find(x => x.bw === name) || {};
+  return {nm:name, reg:(p.obl || '')+(p.ray && p.ray !== p.obl ? ', '+p.ray : ''), kur:'—', kred:uniq(P04.filter(x => x.bw === name).map(x => x.cr)).length, ost:null, pv:null, grp:'—'}; }
+const ZL = [{nm:'Склад, г. Бишкек', dog:'ЗД-2024/031', bw:'ОсОО «Ак-Дан»', zal:6500, st:'в наличии', next:'12.12.2026'},
+  {nm:'Трактор МТЗ-82', dog:'ЗД-2023/112', bw:'КФХ «Жайыл»', zal:800, st:'в наличии', next:'03.12.2026'},
+  {nm:'Нежилое помещение', dog:'ЗД-2022/087', bw:'ОсОО «Кемин-Курулуш»', zal:10500, st:'в наличии', next:'20.01.2027'},
+  {nm:'Оборудование цеха', dog:'ЗД-2021/019', bw:'ОсОО «Тянь-Шань Строй»', zal:1900, st:'частично утрачено', next:'просрочено 05.11.2026'}];
+const OBJ = {cr:['Кредиты',['кредит','кредита','кредитов']], bw:['Заёмщики',['заёмщик','заёмщика','заёмщиков']], zl:['Предметы залога',['предмет','предмета','предметов']]};
+const plur = (n, f) => { const a = n % 100, b = n % 10; return f[a > 10 && a < 20 ? 2 : b === 1 ? 0 : b >= 2 && b <= 4 ? 1 : 2]; };
+const LCOLS = {
+  cr:[['Номер договора'],['Заёмщик'],['Департамент'],['Куратор'],['Остаток осн. долга, тыс. сом','n'],['Просрочено, тыс. сом','n'],['Дней просрочки','n'],['Состояние']],
+  bw:[['Заёмщик'],['Область и район'],['Куратор'],['Кредитов','n'],['Остаток осн. долга, тыс. сом','n'],['Просрочено, тыс. сом','n'],['Группа']],
+  zl:[['Предмет залога'],['Договор залога'],['Заёмщик'],['Залоговая стоимость, тыс. сом','n'],['Состояние'],['Следующее обследование']]};
+function initLists(){ if(S.lists) return; const dak = FO1.cr.filter(r => /администрирования/.test(r.dep));
+  S.lists = [
+    {name:'Просрочка ДАК на 01.10.2026', rep:'ФО-01 Просроченная задолженность', repAt:'на 01.10.2026', obj:'cr', who:'Асанов А. К.', at:'01.10.2026', ids:dak.map(r => r.no), removed:[]},
+    {name:'Заёмщики ДАК с просрочкой', rep:'ФО-01 Просроченная задолженность', repAt:'на 01.10.2026', obj:'bw', who:'Асанов А. К.', at:'02.10.2026', ids:uniq(dak.map(r => r.bw)), removed:['ОсОО «Тянь-Шань Строй»']},
+    {name:'Просрочка свыше 180 дней — ДРР', rep:'ФО-01 Просроченная задолженность', repAt:'на 01.10.2026', obj:'cr', who:'Осмонов Б. Т.', at:'02.10.2026', ids:FO1.cr.filter(r => /регионального/.test(r.dep) && r.days >= 181).map(r => r.no), removed:[]},
+    {name:'Залоги без страхования', rep:'собранного отчёта «Залоги без страхования на дату»', repAt:'на 15.11.2026', obj:'zl', who:'Тентимишев К.', at:'15.11.2026', ids:ZL.map(z => z.nm), removed:[]}]; }
+const nf2 = v => v == null ? '—' : fmt(Math.round(v * 100) / 100);
+function lrow(obj, id){
+  if(obj === 'cr'){ const r = crNow(id); return ['<a href="#kredit" data-a="lcard">'+esc(r.no)+'</a> '+esc(r.cur), esc(r.bw), '<span class="small">'+esc(r.dep)+'</span>', esc(r.kur), nf2(r.ost), nf2(r.pv), r.days == null ? '—' : r.days, /Погашен/.test(r.st) ? '<span class="pl blue">'+esc(r.st)+'</span>' : esc(r.st)]; }
+  if(obj === 'bw'){ const b = bwNow(id); return ['<a href="#" data-a="bwcard">'+esc(b.nm)+'</a>', '<span class="small">'+esc(b.reg)+'</span>', esc(b.kur), b.kred, nf2(b.ost), nf2(b.pv), esc(b.grp)]; }
+  const z = ZL.find(x => x.nm === id); return ['<a href="#" data-a="zlcard">'+esc(z.nm)+'</a>', esc(z.dog), esc(z.bw), nf2(z.zal), esc(z.st), esc(z.next)]; }
+function spiskiHTML(){ initLists();
+  const me = ROLES[S.role].who, L = S.lists.filter(l => l.who === me);
+  if(!L.length) return '<div class="card box">У вас пока нет рабочих списков. Список создаётся кнопкой «В рабочий список» на экране отчёта.'+mk(2)+mk(3)+
+    '<p class="small muted" style="margin:8px 0 0">Списки видит только их автор — переключите роль сверху на «Сотрудник ДАК» или «Составитель отчётов», чтобы увидеть примеры.</p></div>';
+  const cur = L.find(l => l.name === S.listName) || L[0]; S.listName = cur.name;
+  const shown = cur.ids.filter(id => cur.removed.indexOf(id) === -1);
+  let h = '<div class="card"><div class="tblwrap"><table class="g"><thead><tr><th>Название'+mk(3)+'</th><th>Из отчёта</th><th>Объекты</th><th class="n">Число</th><th>Создан</th></tr></thead><tbody>'+
+    L.map(l => '<tr class="click'+(l === cur ? ' sel' : '')+'" data-a="lsel" data-v="'+esc(l.name)+'"><td><b>'+esc(l.name)+'</b></td><td class="small">'+esc(l.rep)+' '+esc(l.repAt)+'</td><td>'+OBJ[l.obj][0]+'</td>'+
+      '<td class="n">'+(l.ids.length - l.removed.length)+(l.removed.length ? ' <span class="small muted">(убрано '+l.removed.length+')</span>' : '')+'</td><td class="n">'+esc(l.at)+'</td></tr>').join('')+
     '</tbody></table></div></div>';
-  const rows = cur.rows.length ? cur.rows : [{no:'ЗД-2024/031 · Склад, г. Бишкек', bw:'ОсОО «Ак-Дан»', dep:'Департамент администрирования кредитов', ost:6500, pr:0, days:''},
-    {no:'ЗД-2023/112 · Трактор МТЗ-82', bw:'КФХ «Жайыл»', dep:'Департамент администрирования кредитов', ost:800, pr:0, days:''},
-    {no:'ЗД-2022/087 · Нежилое помещение', bw:'ОсОО «Кемин-Курулуш»', dep:'Департамент администрирования кредитов', ost:10500, pr:0, days:''},
-    {no:'ЗД-2021/019 · Оборудование цеха', bw:'ОсОО «Тянь-Шань Строй»', dep:'Департамент администрирования кредитов', ost:1900, pr:0, days:''}];
-  h += '<div class="card" style="margin-top:16px"><div class="box" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><h3 style="margin:0">'+esc(cur.name)+mk(4)+'</h3>'+
-    '<span class="small muted">'+esc(cur.obj)+' · '+(cur.rows.length || 4)+'</span><span style="margin-left:auto;display:flex;gap:8px">'+
-    '<button class="btn sec sm" onclick="toast(\'Список выгружен в Excel\')">Выгрузить в Excel</button><button class="btn sec sm" onclick="toast(\'Список удалён\')">Удалить список</button>'+mk(5)+'</span></div>'+
-    '<div class="tblwrap"><table class="g"><thead><tr><th>'+(cur.obj === 'Предметы залога' ? 'Предмет залога' : 'Номер договора')+'</th><th>Заёмщик</th><th>Департамент</th><th class="n">Остаток осн. долга, тыс. сом</th><th class="n">Просрочено, тыс. сом</th></tr></thead><tbody>'+
-    rows.map(r => '<tr><td><a href="#kredit" onclick="go(\'kredit\');return false">'+esc(r.no)+'</a> '+esc(r.cur || '')+'</td><td>'+esc(r.bw)+'</td><td class="small">'+esc(r.dep)+'</td><td class="n">'+fmt(r.ost)+'</td><td class="n">'+fmt(r.pr)+'</td></tr>').join('')+
-    '</tbody></table></div><p class="small muted box" style="margin:0">'+mk(1)+' пункт меню · '+mk(6)+mk(7)+' чего не делать</p></div>';
-  return h;
-}
+  h += '<div class="card" style="margin-top:16px"><div class="box" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">'+
+    (S.lren ? '<input id="lren" class="txt" style="max-width:420px" value="'+esc(cur.name)+'"><button class="btn sm" data-a="lrensave">Сохранить</button><button class="btn sec sm" data-a="lrenx">Отмена</button>'
+      : '<h3 style="margin:0">'+esc(cur.name)+'</h3><button class="btn sec sm" data-a="lren">Переименовать</button>')+
+    '<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">'+mk(7)+'<button class="btn sec sm" data-a="lxl">Выгрузить в Excel</button><button class="btn sec sm" data-a="ldel">Удалить список</button></span></div>'+
+    '<div class="box" style="padding-top:0"><span class="small">Из '+esc(cur.rep)+' '+esc(cur.repAt)+': '+cur.ids.length+' '+plur(cur.ids.length, OBJ[cur.obj][1])+(cur.removed.length ? ', убрано '+cur.removed.length : '')+
+      '.</span>'+mk(4)+' <span class="small muted">Числа — на сегодня, '+TODAY+'.</span></div>'+
+    '<div class="tblwrap"><table class="g"><thead><tr>'+LCOLS[cur.obj].map((c, i) => '<th class="'+(c[1] || '')+'">'+esc(c[0])+(i === 0 ? mk(5) : '')+'</th>').join('')+'<th>'+mk(6)+'</th></tr></thead><tbody>'+
+    shown.map(id => '<tr>'+lrow(cur.obj, id).map((v, i) => '<td class="'+(LCOLS[cur.obj][i][1] || '')+'">'+v+'</td>').join('')+
+      '<td><button class="tg2" data-a="lrem" data-v="'+esc(id)+'" title="Убрать из списка" aria-label="Убрать из списка">×</button></td></tr>').join('')+
+    '</tbody></table></div><p class="small muted box" style="margin:0">'+mk(1)+' пункт меню · '+mk(2)+' как создаётся список · '+mk(8)+mk(9)+' чего не делать</p></div>';
+  return h; }
 
 /* ---------- конструктор ---------- */
-const STATS = [['Остаток основного долга','сом'],['Просроченная задолженность, всего','сом'],['Просроченный основной долг','сом'],['Просроченные проценты','сом'],
-  ['Штрафы','сом'],['Дней просрочки','дн.'],['Начислено процентов за период','сом'],['Погашено за период','сом'],['Сумма договора','сом'],['Освоено','сом'],
-  ['Группа платёжеспособности',''],['Категория риска','']];
-const OFIELDS = ['Номер договора','Заёмщик','Куратор','Департамент','Валюта','Дата выдачи','Кредитная программа','Область'];
+const KF = (l, on) => ({id:'f:'+l, l, k:'поле', u:'', on:!!on});
+const KS = (l, u, on) => ({id:'s:'+l, l, k:'показатель', u, on:!!on});
+const KFIELDS = () => [KF('Номер договора', 1), KF('Заёмщик', 1), KF('Куратор', 1), KF('Департамент'), KF('Валюта'), KF('Дата выдачи'), KF('Кредитная программа'), KF('Область')];
+const KCOLS = {
+  'на дату':() => { const f = KFIELDS(); return [f[0], f[1], f[2], KS('Остаток основного долга', 'сом', 1), KS('Просроченная задолженность, всего', 'сом', 1), KS('Дней просрочки', 'дн.', 1),
+    f[3], f[4], f[5], f[6], f[7], KS('Просроченный основной долг', 'сом'), KS('Просроченные проценты', 'сом'), KS('Штрафы', 'сом'), KS('Сумма договора', 'сом'), KS('Освоено', 'сом'),
+    KS('Группа платёжеспособности', ''), KS('Категория риска', '')]; },
+  'за период':() => { const f = KFIELDS(); return [f[0], f[1], f[2], KS('Остаток основного долга на начало', 'сом', 1), KS('Погашено за период', 'сом', 1), KS('Остаток основного долга на конец', 'сом', 1),
+    f[3], f[4], f[5], f[6], f[7], KS('Выдано за период', 'сом'), KS('Начислено процентов за период', 'сом'), KS('Списано за период', 'сом'),
+    KS('Просроченная задолженность на начало', 'сом'), KS('Просроченная задолженность на конец', 'сом')]; }
+};
 const FILT = ['Департамент','Куратор','Валюта','Кредитная программа','Область','Категория риска'];
 const DEPS = ['ДАК','ДРР','ДПО','Бухгалтерия','Руководство'];
+const KREP = [
+  {name:'Просрочка по кураторам — к планёрке', d:'Просроченная задолженность по каждому куратору: сколько кредитов, сумма, самый старый день просрочки.', obj:'Кредит', acc:['ДАК','ДРР','Руководство'], who:'собрал Тентимишев К. 12.11.2026 · изменил Бекова Н. С. 18.11.2026'},
+  {name:'Залоги без страхования на дату', d:'Предметы залога, у которых нет действующего договора страхования, с залоговой стоимостью и кредитом.', obj:'Предмет залога', acc:['ДАК'], who:'собрал Тентимишев К. 15.11.2026'},
+  {name:'Освоение по программам', d:'Сколько выдано и сколько осталось выдать по каждой кредитной программе.', obj:'Кредит', acc:[], who:'собрал Бекова Н. С. 19.11.2026'}];
 function tog(key, v){ const a = S[key], i = a.indexOf(v); if(i === -1) a.push(v); else a.splice(i, 1); renderScreen(); }
-function mv(key, i, d){ const a = S[key], j = i + d; if(j < 0 || j >= a.length) return; const t = a[i]; a[i] = a[j]; a[j] = t; renderScreen(); }
-const unit = s => (STATS.find(x => x[0] === s) || ['', ''])[1];
+function kcols(){ S.kCols = S.kCols || {}; if(!S.kCols[S.kMode]) S.kCols[S.kMode] = KCOLS[S.kMode](); return S.kCols[S.kMode]; }
+function colsHTML(list, store){ let n = 0;
+  return '<ol class="dims" data-s="'+store+'">'+list.map((x, i) => '<li draggable="true" data-i="'+i+'" class="'+(x.on ? '' : 'off')+'"><span class="hd" aria-hidden="true">≡</span><input type="checkbox" data-a="dimon" data-s="'+store+'" data-i="'+i+'"'+(x.on ? ' checked' : '')+' aria-label="'+esc(x.l)+'">'+
+    '<span class="no">'+(x.on ? ++n : '')+'</span><span>'+esc(x.l)+'</span><span class="kk">'+esc(x.k+(x.u ? ', '+x.u : ''))+'</span>'+
+    '<span class="ar"><button data-a="dimmv" data-s="'+store+'" data-i="'+i+'" data-d="-1" aria-label="Выше">↑</button><button data-a="dimmv" data-s="'+store+'" data-i="'+i+'" data-d="1" aria-label="Ниже">↓</button></span></li>').join('')+'</ol>'; }
 function konstruktorHTML(){
-  const can = S.role === 'sost' || isAdmin();
+  const can = S.role === 'sost' || isAdmin(), k = KREP[S.kSel || 0];
+  if(!S.kAccBy) S.kAccBy = KREP.map(r => r.acc.slice());
+  const acc = S.kAccBy[S.kSel || 0];
   let h = can ? '' : '<div class="banner info">Этот пункт меню виден только роли «Составитель отчётов». Здесь он показан для просмотра. <button class="btn sm" onclick="S.role=\'sost\';render()">Смотреть как составитель</button></div>';
-  h += '<div class="split"><div class="card lst"><button class="on"><b>Просрочка по кураторам — к планёрке</b><div class="small muted">Кредит · ДАК, ДРР, Руководство</div></button>'+
-    '<button onclick="toast(\'Откроется второй собранный отчёт\')"><b>Залоги без страхования на дату</b><div class="small muted">Предмет залога · ДАК</div></button>'+
-    '<button onclick="toast(\'Новый пустой отчёт\')">＋ Новый отчёт</button></div>'+
-    '<div class="card ed">'+
-    '<div class="sec">Отчёт'+mk(2)+'</div><div class="fgrid two"><div><label class="lbl" for="kn">Название</label><input id="kn" class="txt" value="Просрочка по кураторам — к планёрке"></div>'+
-    '<div><label class="lbl" for="kd">Краткое описание</label><input id="kd" class="txt" value="Просроченная задолженность по каждому куратору: сколько кредитов, сумма, самый старый день просрочки."></div></div>'+
-    '<div class="sec">Основной объект'+mk(3)+'</div><div class="in" style="max-width:320px">Кредит<span class="muted">⌄</span></div>'+
-    '<div class="sec">Показатели статистики'+mk(4)+'</div><div class="chips">'+STATS.map(s => '<label class="chk"><input type="checkbox"'+(S.kStats.indexOf(s[0]) !== -1 ? ' checked' : '')+' onchange="tog(\'kStats\',\''+s[0]+'\')"> '+esc(s[0])+(s[1] ? ' <span class="muted small">'+s[1]+'</span>' : '')+'</label>').join('')+'</div>'+
-    '<div class="ord">'+S.kStats.map((s, i) => '<div><b>'+(i + 1)+'</b> '+esc(s)+' <span class="u">'+unit(s)+'</span><span class="ctl"><button onclick="mv(\'kStats\','+i+',-1)" aria-label="выше">↑</button><button onclick="mv(\'kStats\','+i+',1)" aria-label="ниже">↓</button><button onclick="tog(\'kStats\',\''+s+'\')" aria-label="убрать">✕</button></span></div>').join('')+'</div>'+
-    '<div class="sec">Поля объекта'+mk(5)+'</div><div class="chips">'+OFIELDS.map(s => '<label class="chk"><input type="checkbox"'+(S.kFields.indexOf(s) !== -1 ? ' checked' : '')+' onchange="tog(\'kFields\',\''+s+'\')"> '+esc(s)+'</label>').join('')+'</div>'+
-    '<div class="sec">Параметры и фильтры'+mk(6)+'</div><div class="chips" style="margin-bottom:8px">'+['на дату','за период'].map(m => '<label class="chk"><input type="radio" name="km"'+(S.kMode === m ? ' checked' : '')+' onchange="S.kMode=\''+m+'\';renderScreen()"> Отчёт '+m+'</label>').join('')+
-    '<label class="chk">Единица: тыс. сом ⌄</label></div><div class="chips">'+FILT.map(s => '<label class="chk"><input type="checkbox"'+(S.kFilt.indexOf(s) !== -1 ? ' checked' : '')+' onchange="tog(\'kFilt\',\''+s+'\')"> Фильтр: '+esc(s)+'</label>').join('')+'</div>'+
-    '<div class="sec">Разрезы и порядок строк'+mk(7)+'</div><div class="fgrid two"><div>'+dimsHTML(S.kDims, 'k')+'</div><div>'+fld({l:'Сортировка строк', v:'Просроченная задолженность — по убыванию'})+'<p class="small muted">Тот же список, что на экране отчёта: галочка, перетаскивание, стрелки.</p></div></div>'+
-    '<div class="sec">Кому открыт'+mk(8)+'</div><div class="chips">'+DEPS.map(s => '<label class="chk"><input type="checkbox"'+(S.kAcc.indexOf(s) !== -1 ? ' checked' : '')+' onchange="tog(\'kAcc\',\''+s+'\')"> '+esc(s)+'</label>').join('')+'</div>'+
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center"><button class="btn"'+(can ? '' : ' disabled')+' onclick="toast(\'Отчёт сохранён — в каталоге, группа «Собранные отчёты»\')">Сохранить</button>'+
-    '<button class="btn sec" onclick="openRep(\'\',false,\'Просрочка по кураторам — к планёрке\')">Запустить пробно</button><button class="btn sec"'+(can ? '' : ' disabled')+'>Удалить</button>'+mk(9)+mk(10)+mk(1)+'</div></div></div>';
-  return h;
-}
+  h += '<div class="split"><div class="card lst">'+KREP.map((r, i) => '<button class="'+(i === (S.kSel || 0) ? 'on' : '')+'" data-a="ksel" data-v="'+i+'"><b>'+esc(r.name)+'</b><div class="small muted">'+esc(r.obj)+' · '+
+      (S.kAccBy[i].length ? 'открыт: '+esc(S.kAccBy[i].join(', ')) : '<span class="pl blue">не открыт</span>')+'</div></button>').join('')+
+    '<button onclick="toast(\'Новый пустой отчёт\')">＋ Новый отчёт</button></div><div class="card ed">';
+  if(S.kErr) h += '<div class="banner err" style="margin-top:10px">'+esc(S.kErr)+'</div>';
+  h += '<div class="sec">Отчёт'+mk(2)+'</div><div class="fgrid two"><div><label class="lbl" for="kn">Название</label><input id="kn" class="txt" value="'+esc(S.kName != null ? S.kName : k.name)+'"></div>'+
+    '<div><label class="lbl" for="kd">Краткое описание</label><input id="kd" class="txt" value="'+esc(k.d)+'"></div></div>'+
+    '<div class="sec">Основной объект'+mk(3)+'</div><div class="in" style="max-width:320px">'+esc(k.obj)+'<span class="muted">⌄</span></div>'+
+    '<div class="sec">Тип отчёта'+mk(4)+'</div><div class="chips">'+['на дату','за период'].map(m => '<label class="chk"><input type="radio" name="km" data-a="kmode" value="'+m+'"'+(S.kMode === m ? ' checked' : '')+'> Отчёт '+m+'</label>').join('')+'</div>'+
+    '<p class="small muted" style="margin:6px 0 0">'+(S.kMode === 'на дату' ? 'Показатели — остатки и состояния на дату.' : 'Показатели — обороты за период; остатки — на начало и на конец периода.')+'</p>'+
+    '<div class="sec">Колонки'+mk(5)+'</div>'+colsHTML(kcols(), 'kc')+
+    '<p class="small muted">Поля объекта и показатели статистики — одним списком: галочка включает колонку, перетаскивание или стрелки — порядок.</p>'+
+    '<div class="sec">Фильтры и единица'+mk(6)+'</div><div class="chips" style="margin-bottom:8px"><label class="chk">Единица: тыс. сом ⌄</label></div><div class="chips">'+
+      FILT.map(s => '<label class="chk"><input type="checkbox"'+(S.kFilt.indexOf(s) !== -1 ? ' checked' : '')+' onchange="tog(\'kFilt\',\''+s+'\')"> Фильтр: '+esc(s)+'</label>').join('')+'</div>'+
+    '<div class="sec">Разрезы и порядок строк'+mk(7)+'</div><div class="fgrid two"><div>'+dimsHTML(S.kDims, 'k')+'</div><div>'+fld({l:'Сортировка строк', v:'Просроченная задолженность — по убыванию'})+'</div></div>'+
+    '<div class="sec">Кому открыт'+mk(8)+'</div><div class="chips">'+DEPS.map(s => '<label class="chk"><input type="checkbox" data-a="kacc" data-v="'+s+'"'+(acc.indexOf(s) !== -1 ? ' checked' : '')+'> '+esc(s)+'</label>').join('')+'</div>'+
+    (acc.length ? '' : '<p class="small" style="margin:6px 0 0"><span class="pl blue">не открыт</span> виден только составителям отчётов</p>')+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center"><button class="btn" data-a="ksave"'+(can ? '' : ' disabled')+'>Сохранить</button>'+
+    '<button class="btn sec" data-a="krun">Запустить пробно</button>'+mk(9)+'<button class="btn sec" data-a="kdel"'+(can ? '' : ' disabled')+'>Удалить</button>'+mk(1)+'</div>'+
+    '<p class="small muted" style="margin:10px 0 0">'+esc(k.who)+' · правка действует сразу у всех, кому открыт'+mk(10)+'</p>'+
+    '<p class="small muted" style="margin:4px 0 0">'+mk(11)+' чего в конструкторе нет</p></div></div>';
+  return h; }
 
 /* ---------- шаблоны печати ---------- */
 const TPLS = [
@@ -1083,6 +1195,7 @@ function renderScreen0(keepFocus){
   el.innerHTML = h;
   const ps2 = document.getElementById('pscroll'); if(ps2) ps2.scrollTop = pst; const tt2 = document.getElementById('tt'); if(tt2 && tts){ tt2.scrollTop = tts[0]; tt2.scrollLeft = tts[1]; }
   fixSticky();
+  const fq2 = document.getElementById('fsq'); if(fq2 && S.fsqFocus){ fq2.focus(); fq2.setSelectionRange(fq2.value.length, fq2.value.length); S.fsqFocus = false; }
   if(S.r === 'otchet' && S.back){ const b = S.back; S.back = null; S.fromRep = false; const t3 = document.getElementById('tt'); if(t3 && b.tt){ t3.scrollTop = b.tt[0]; t3.scrollLeft = b.tt[1]; } S.keepY = b.y || 0; }
   if(keepFocus === true){ const q = document.getElementById('q'); if(q){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
 }
