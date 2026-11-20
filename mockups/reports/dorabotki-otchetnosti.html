@@ -209,7 +209,7 @@ table.xg tr.bad td{background:var(--err-bg);color:var(--err)}
 .ktabs span{padding:8px 10px;color:var(--muted);font-size:13.5px}
 .ktabs span.on{color:var(--fg);border-bottom:2px solid var(--btn);font-weight:600}
 .dd{position:relative;display:inline-block}
-.dd .menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:320px;z-index:4;padding:4px 0}
+.dd .menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:min(400px,calc(100vw - 32px));z-index:4;padding:4px 0}
 .dd .menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:7px 14px;cursor:pointer;font-size:13.5px}
 .dd .menu button:hover{background:#f2f5f4}
 .dd .menu .off{padding:7px 14px;color:var(--muted);font-size:13px;text-decoration:line-through}
@@ -221,6 +221,48 @@ table.xg tr.bad td{background:var(--err-bg);color:var(--err)}
 .doc .sign{display:flex;justify-content:space-between;margin-top:28px}
 .prevbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
 .prevbar > span{align-items:center}
+.dd .menu .mh{padding:7px 14px 3px;font-size:13.5px;color:var(--muted)}
+.dd .menu button.mv{padding-left:30px}
+.pp{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end;margin:0 0 12px}
+.pp label{display:flex;flex-direction:column;min-width:120px}
+.pp .lbl{margin-bottom:2px;font-size:12px}
+.pp input.txt{min-height:32px;padding:5px 8px;max-width:200px}
+.pp select{min-height:32px;padding:5px 8px;max-width:100%}
+.pp select{background:var(--field);border:0;border-radius:4px;font:inherit;color:var(--fg)}
+.seg3,.seg2{display:inline-flex;flex-wrap:wrap;background:var(--field);border-radius:6px;padding:3px;gap:2px}
+.seg3 button,.seg2 button{border:0;background:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted)}
+.seg3 button.on,.seg2 button.on{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.pbtn{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.banner.ok{background:var(--keep-bg);color:#1d5233}
+.banner.warn{background:var(--chg-bg);color:#6b3f04}
+.banner.warn a{color:inherit;font-weight:600}
+.pl.gray{background:var(--later-bg);color:var(--later)}
+.pl.green{background:var(--keep-bg);color:var(--keep)}
+.pl.amber{background:var(--chg-bg);color:var(--chg)}
+.tbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.tbar .tcnt{margin-left:auto;font-size:13.5px;display:flex;align-items:center;gap:4px}
+.tlist{max-height:360px;overflow:auto}
+.tlist th{position:sticky;top:0;z-index:1}
+.tlist td.vidr{padding-left:28px}
+.vidp{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px;vertical-align:1px}
+.lgx{display:inline-block;font-size:11.5px;border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-right:3px;color:var(--muted)}
+.lgx.on{background:var(--keep-bg);color:var(--keep);border-color:transparent;font-weight:600}
+.frow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.frow .fl{flex-basis:100%;font-size:12.5px;color:var(--muted);margin-bottom:-4px}
+.frow .in .pl{margin-left:auto}
+.prm{display:flex;flex-direction:column;gap:2px}
+.prm .chk{background:none;padding:2px 0}
+.tprev{margin-top:10px;background:var(--page);border:1px solid var(--line);border-radius:6px;padding:12px}
+.tprev .doc{padding:20px 24px;font-size:12.5px}
+table.wt{border-collapse:collapse;width:100%;font-size:12px;margin-top:4px;table-layout:fixed}
+table.wt th,table.wt td{border:1px solid #9aa3aa;padding:4px 6px;text-align:left;overflow-wrap:anywhere}
+table.wt th{background:#f3f5f7;font-weight:600}
+table.wt tr.cd td{font-family:var(--mono);font-size:11px;background:var(--add-bg);color:#123a73}
+table.wt tr.ft td{font-weight:600}
+.noacc{padding:22px 24px;max-width:640px}
+.noacc h3{margin:0 0 6px;font-size:17px}
+.noacc p{margin:0}
+body.nomarks .mnote{display:none}
 
 /* экран отчёта: настройки слева, результат справа */
 .rp.collapsed{grid-template-columns:44px minmax(0,1fr)}
@@ -435,19 +477,30 @@ const NOTES = {
   ],
   shablony: [
     ['keep','Основа — нынешние «Шаблоны договоров»: загрузка файла Word и проверка кодов полей.'],
-    ['add','У шаблона: название, описание, основной объект, параметры печати (например, дата), каким подразделениям доступен.'],
-    ['chg','Поля — все поля кредита, графика, платежей, залога, поручителя, дела взыскания, имущества, по-русски. Сейчас 11 кодов и только по заявке. Нужно столько, чтобы по ним сверстать все бланки перечня.'],
-    ['add','Проверка при загрузке: неизвестное поле — ошибка с его названием.'],
-    ['add','Загружает и меняет шаблоны только ответственный (роль); остальные печатают.'],
-    ['add','Образцы от разработчиков: ФО-44 «Кредитный договор», ФО-45 «Договор залога», ФО-46 «Договор поручительства». Остальные бланки перечня загрузит наш ответственный.'],
+    ['chg','Список — весь перечень бланков: 53 номера, с видами 64 строки (ФО-82 нет). Номер, название и основной объект — из перечня, строки заводят разработчики, в системе они не правятся. Новый бланк — сначала в перечень, потом строкой.'],
+    ['add','У строки состояние: нет файла · загружен · ошибка · нет кыргызского. Над списком — поиск по номеру и названию, фильтр по состоянию и «загружено N из 64».'],
+    ['add','Экран видят только ответственный за шаблоны печати и администратор. У остальных пункта меню нет, прямая ссылка — «Нет доступа»: бланки печатают из карточки.'],
+    ['add','Внешний бланк (заёмщику, суду, госоргану, банку) — два файла: русский и кыргызский. Внутренний — только русский. Кыргызского нет — печатается русский.'],
+    ['chg','Проверка при загрузке: неизвестное поле — ошибка с его названием. Файл с ошибкой не сохраняется и не заменяет действующий.'],
+    ['add','Пробная печать: выбрать объект, посмотреть бланк с его данными, скачать docx и PDF. Новый файл действует после «Сохранить»; до того сотрудники печатают по прежнему.'],
+    ['add','Параметры печати — галочками из готового набора: на дату, период с — по, подписант (справочник должностных лиц), исполнитель, номер и дата исходящего. У каждого — код в списке полей. Цифры бланка — только из данных.'],
+    ['add','Кто печатает: по умолчанию все, кто видит карточку объекта; для особых бланков — только выбранные подразделения.'],
+    ['chg','Поля — все поля объектов по-русски, вида {Объект.Поле}: кредит, заёмщик, график, платежи, залог, поручитель, дело взыскания, имущество, параметры печати. Сейчас 11 кодов и только по заявке; нужно столько, чтобы сверстать все бланки перечня.'],
+    ['add','Таблица — строкой-образцом: в Word рисуется таблица, во второй строке — коды строки (группы «— строка таблицы»), при печати строка повторяется на каждую запись; итоги — кодами под таблицей. Колонки и вид таблицы — у делопроизводителя.'],
+    ['add','Образцы от разработчиков: ФО-44 «Кредитный договор», ФО-45 «Договор залога», ФО-46 «Договор поручительства», а также ФО-60 «Опись предметов залога» и ФО-61 «Справка об обеспеченности» — из имеющихся справок. Остальные бланки загрузит наш ответственный.'],
+    ['add','Действующий файл можно скачать, чтобы править в Word. «Снять файл» возвращает строку в «нет файла» — бланк пропадает из «Печать ▾».'],
     ['later','Позже: история загрузок шаблона (кто, когда, прежний файл).']
   ],
   kredit: [
-    ['add','Кнопка «Печать ▾» в карточке объекта: кредит, заёмщик, залоговый договор, предмет залога, дело взыскания, объект и предложение имущества, заявка, документ.'],
-    ['add','В списке — бланки этого объекта из перечня (у кредита — те, что ниже).'],
-    ['add','Просмотр перед выгрузкой, данные объекта подставлены; «Скачать docx», «Скачать PDF».'],
-    ['chg','Уже есть в залоговом договоре: «Печать описи» должна давать опись предметов залога (описание, стоимость), а не документов; «Справка об обеспеченности» — номер договора вместо «Loan-81 [detached]», справка по кредиту (все его залоги). Обе — docx и pdf вместо HTML-страницы.'],
-    ['later','ФО-82 «Соглашение о переводе долга» не делать: перевода долга в системе нет.']
+    ['add','Кнопка «Печать ▾» в карточке объекта: кредит, заёмщик, залоговый договор, предмет залога, договор поручительства, дело взыскания, предложение и объект имущества, заявка, документ. В списке — только бланки с загруженным шаблоном, доступные сотруднику; готовых нет — кнопки нет.'],
+    ['add','Бланк — только в карточке своего основного объекта. В кредите — бланки кредита, его графика и платежей; претензия — в деле взыскания, договор залога — в залоговом договоре; связанная карточка — вкладкой.'],
+    ['add','Вид бланка — пунктом под своим бланком, с отступом. ФО-82 в списке нет.'],
+    ['add','Над просмотром — параметры этого шаблона и язык «Русский / Кыргызский», если загружены оба (по умолчанию русский). Просмотр обновляется сразу.'],
+    ['add','Не заполнено в карточке поле, которое нужно бланку, — предупреждение со ссылкой на поле; в документе на его месте «______». Печать не блокируется.'],
+    ['add','«Скачать docx», «Скачать PDF». Имя файла: код, номер объекта, дата (кыргызский — с «_ky»): «ФО-40_22-1-045_20.11.2026.docx». Правка текста — в скачанном docx. Система печать не запоминает: регистрация и отправка — в документообороте.'],
+    ['add','Бланк адресован одной из нескольких записей (поручитель у ФО-32, предмет у ФО-43, получатель у видов ФО-90) — в параметрах печати выбор записи из связанных с объектом.'],
+    ['chg','Залоговый договор: отдельные кнопки «Печать описи» и «Справка об обеспеченности» убрать — это бланки ФО-60 (опись предметов залога: описание, стоимость) и ФО-61 (справка по кредиту, все его залоги; печатается из кредита) в «Печать ▾», docx и pdf вместо HTML-страницы, номер договора вместо «Loan-81 [detached]».'],
+    ['later','Позже: печать бланка пачкой по рабочему списку, черновик исходящего из бланка. ФО-82 «Соглашение о переводе долга» не делать.']
   ]
 };
 
@@ -1100,70 +1153,219 @@ function konstruktorHTML(){
   return h; }
 
 /* ---------- шаблоны печати ---------- */
-const TPLS = [
-  {id:'ФО-44', name:'Кредитный договор', obj:'Кредит', file:'kreditnyy-dogovor.docx', who:'разработчики — образец', at:'—', acc:'ДАК, ДРР'},
-  {id:'ФО-45', name:'Договор залога', obj:'Залоговый договор', file:'dogovor-zaloga.docx', who:'разработчики — образец', at:'—', acc:'ДАК, ДРР'},
-  {id:'ФО-46', name:'Договор поручительства', obj:'Договор поручительства', file:'dogovor-poruchitelstva.docx', who:'разработчики — образец', at:'—', acc:'ДАК, ДРР'},
-  {id:'ФО-40', name:'Справка о задолженности', obj:'Кредит', file:'spravka-o-zadolzhennosti.docx', who:'Абдырахманова С.', at:'18.11.2026', acc:'ДАК, ДРР, Бухгалтерия', err:true},
-  {id:'ФО-30', name:'Первичная претензия', obj:'Дело взыскания', file:'pervichnaya-pretenziya.docx', who:'Абдырахманова С.', at:'19.11.2026', acc:'ДАК, ДРР, ДПО'}
-];
+/* строки — бланки перечня: [код, название, вид, основной объект, внешний]; ФО-82 нет */
+const BL = [["ФО-29","Уведомление о наступающем платеже",0,"Кредит",1],["ФО-30","Первичная претензия",0,"Дело взыскания",1],["ФО-31","Повторная претензия",0,"Дело взыскания",1],["ФО-32","Требование поручителю, гаранту, госоргану",0,"Дело взыскания",1],["ФО-33","Извещение о начале обращения взыскания на предмет залога",0,"Дело взыскания",1],["ФО-34","Акт сверки задолженности на 1 января",0,"Кредит",1],["ФО-34","Акт сверки о полном погашении задолженности",1,"Кредит",1],["ФО-35","Расчёт задолженности, подписанный отраслевым отделом",0,"Дело взыскания",0],["ФО-36","Служебная записка об инициировании принудительного взыскания",0,"Дело взыскания",0],["ФО-37","Служебная записка о судебном взыскании",0,"Дело взыскания",0],["ФО-38","Исковое заявление",0,"Дело взыскания",1],["ФО-39","Служебная записка о возврате материалов на доработку",0,"Дело взыскания",0],["ФО-40","Справка о задолженности",0,"Кредит",1],["ФО-41","Реестр погашений",0,"Кредит",1],["ФО-41","Выписка по кредиту",1,"Кредит",1],["ФО-42","График погашения",0,"Кредит",1],["ФО-43","Акт обследования залога",0,"Предмет залога",0],["ФО-44","Кредитный договор",0,"Кредит",1],["ФО-45","Договор залога",0,"Залоговый договор",1],["ФО-46","Договор поручительства",0,"Договор поручительства",1],["ФО-48","Ответ источнику предложения",0,"Предложение имущества",1],["ФО-49","Промежуточное письмо по предложению",0,"Предложение имущества",1],["ФО-50","Уведомление о доплате",0,"Предложение имущества",1],["ФО-51","Претензия покупателю",0,"Объект имущества",1],["ФО-52","Справка по заёмщику",0,"Заёмщик",0],["ФО-60","Опись предметов залога по договору",0,"Залоговый договор",1],["ФО-61","Справка об обеспеченности кредита",0,"Кредит",0],["ФО-62","Извещение о восполнении (восстановлении, замене) предмета залога",0,"Залоговый договор",1],["ФО-63","Протокол заседания комиссии по заявкам",0,"Заседание комиссии",0],["ФО-64","Бланки заявки (пустые, для заполнения заявителем)",0,"Заявка",1],["ФО-65","Карточка организации",0,"Организация",0],["ФО-66","Журнал регистрации документов за период",0,"Документооборот",0],["ФО-67","Лист ознакомления",0,"Документ",0],["ФО-68","Опись дела",0,"Документ",0],["ФО-69","Регистрационно-контрольная карточка документа",0,"Документ",0],["ФО-70","Служебная записка об исполнении судебного акта (полное погашение)",0,"Дело взыскания",0],["ФО-71","Служебная записка о внесудебном обращении взыскания на залог",0,"Дело взыскания",0],["ФО-72","Служебная записка об установлении правопреемника",0,"Дело взыскания",0],["ФО-73","Служебная записка об инициировании банкротства",0,"Дело взыскания",0],["ФО-74","Служебная записка об отказе в дополнительном залоге",0,"Залоговый договор",0],["ФО-75","Отчёт документального мониторинга целевого использования",0,"Мониторинг целевого использования",0],["ФО-76","Отчёт фактического мониторинга целевого использования (выезд)",0,"Мониторинг целевого использования",0],["ФО-77","Форма отчётности целевого использования кредитов АПК",0,"Мониторинг целевого использования",0],["ФО-78","Акт о нецелевом использовании средств бюджетного кредита",0,"Мониторинг целевого использования",0],["ФО-79","Внутренний акт сверки платежей",0,"Кредит",0],["ФО-80","Расчёт реструктуризации: условия и график до и после",0,"Обращение о реструктуризации",1],["ФО-81","Дополнительное соглашение к кредитному договору",0,"Кредит",1],["ФО-83","Соглашение о добровольном исполнении судебного акта",0,"Дело взыскания",1],["ФО-84","Соглашение о расторжении кредитного договора",0,"Кредит",1],["ФО-85","Расчёт распределения выручки от реализации залога",0,"Дело взыскания",1],["ФО-86","Платёжное требование в банк заёмщика",0,"Дело взыскания",1],["ФО-87","Заявка на перечисление средств кредита заёмщику",0,"Кредит",1],["ФО-88","Паспорт предмета залога",0,"Предмет залога",0],["ФО-89","Дополнительное соглашение к договору залога",0,"Залоговый договор",1],["ФО-90","Письмо по кредиту",0,"Кредит",1],["ФО-90","По реструктуризации — уполномоченному органу",1,"Обращение о реструктуризации",1],["ФО-90","Родственникам умершего заёмщика — о добровольном принятии задолженности",1,"Дело взыскания",1],["ФО-90","Запросы по умершему заёмщику — нотариату, ЦОН, органу регистрации имущества",1,"Дело взыскания",1],["ФО-90","О намерении инициировать банкротство — заёмщику",1,"Дело взыскания",1],["ФО-90","По целевому использованию — запрос документов, предписание об устранении нарушений",1,"Мониторинг целевого использования",1],["ФО-90","О снятии запрета на отчуждение — нотариусу, регистрирующему органу",1,"Залоговый договор",1],["ФО-90","Согласие на действия с заложенным имуществом без снятия запрета",1,"Залоговый договор",1],["ФО-90","Запрос финансового пакета — заёмщику",1,"Кредит",1],["ФО-90","Возврат проекта на доработку — заявителю",1,"Заявка",1]];
+const tkey = r => r[2] ? r[0]+'|'+r[1] : r[0];
+/* загруженное в примере: ru/ky — файлы, err — последняя загрузка с ошибкой, params — параметры печати, acc — только эти подразделения */
+const TF = {
+  'ФО-44':{ru:'kreditnyy-dogovor.docx', who:'разработчики — образец', params:['sign']},
+  'ФО-45':{ru:'dogovor-zaloga.docx', who:'разработчики — образец', params:['sign']},
+  'ФО-46':{ru:'dogovor-poruchitelstva.docx', who:'разработчики — образец', params:['sign']},
+  'ФО-60':{ru:'opis-predmetov-zaloga.docx', who:'разработчики — образец', params:['date']},
+  'ФО-61':{ru:'spravka-ob-obespechennosti.docx', who:'разработчики — образец', params:['date','exec']},
+  'ФО-40':{ru:'spravka-o-zadolzhennosti.docx', ky:'spravka-o-zadolzhennosti-ky.docx', who:'Абдырахманова С.', at:'18.11.2026', params:['date','sign','exec','out'], desc:'Заёмщику по его запросу: задолженность по кредиту на дату'},
+  'ФО-30':{ru:'pervichnaya-pretenziya.docx', ky:'pervichnaya-pretenziya-ky.docx', who:'Абдырахманова С.', at:'19.11.2026', params:['date','sign','exec','out']},
+  'ФО-37':{ru:'sz-o-sudebnom-vzyskanii.docx', who:'Абдырахманова С.', at:'17.11.2026', params:['sign','exec'], acc:['ДПО','Руководство']},
+  'ФО-41':{ru:'reestr-pogasheniy.docx', who:'Абдырахманова С.', at:'19.11.2026', params:['period','exec']},
+  'ФО-41|Выписка по кредиту':{err:'{Платежи.Дата платжа}', who:'Абдырахманова С.', at:'20.11.2026', params:['period']},
+  'ФО-42':{ru:'grafik-pogasheniya.docx', ky:'grafik-pogasheniya-ky.docx', who:'Абдырахманова С.', at:'19.11.2026', params:[]},
+  'ФО-81':{ru:'dop-soglashenie.docx', ky:'dop-soglashenie-ky.docx', who:'Абдырахманова С.', at:'20.11.2026', params:['sign']},
+  'ФО-87':{ru:'zayavka-na-perechislenie.docx', who:'Абдырахманова С.', at:'20.11.2026', params:['sign','exec','out']},
+  'ФО-90|Запрос финансового пакета — заёмщику':{ru:'zapros-finpaketa.docx', who:'Абдырахманова С.', at:'20.11.2026', params:['sign','exec','out']}
+};
+const PRM = [['date','На дату','по умолчанию сегодня'],['period','Период с — по','для бланков за период'],['sign','Подписант','из справочника должностных лиц'],
+  ['exec','Исполнитель','по умолчанию тот, кто печатает'],['out','Номер и дата исходящего','вписать или оставить «____»']];
+const SIGN = ['Директор департамента — Жумабеков Т. А.','Заместитель Председателя Правления — Осмонова Г. К.','Председатель Правления — Мамытов Б. С.'];
+const OBJX = {'Кредит':'Кредит № 22-1/045 · ОсОО «Тянь-Шань Строй»', 'Дело взыскания':'Дело взыскания № 14 · ОсОО «Тянь-Шань Строй»',
+  'Залоговый договор':'Договор залога № З-22/031 · ОсОО «Тянь-Шань Строй»', 'Договор поручительства':'Договор поручительства № П-22/007',
+  'Предмет залога':'Склад, г. Бишкек · договор залога № З-22/031', 'Заёмщик':'ОсОО «Тянь-Шань Строй»'};
+const STL = {none:['gray','нет файла'], ok:['green','загружен'], noky:['amber','нет кыргызского'], err:['red','ошибка']};
+function tfs(){ if(!S.tf) S.tf = JSON.parse(JSON.stringify(TF)); return S.tf; }
+function tfo(r){ return tfs()[tkey(r)] || {}; }
+function tfw(i){ const k = tkey(BL[i]); return tfs()[k] || (tfs()[k] = {}); }
+function tst(r){ const f = tfo(r); if(f.err) return 'err'; if(!f.ru) return 'none'; return r[4] && !f.ky ? 'noky' : 'ok'; }
+function pvs(){ if(!S.pv) S.pv = {date:TODAY, from:'01.10.2026', to:'31.10.2026', sign:0, exec:'', out:''}; return S.pv; }
+const spl = s => '<span class="pl '+STL[s][0]+'">'+STL[s][1]+'</span>';
+const langs = (r, f) => '<span class="lgx'+(f.ru ? ' on' : '')+'">рус</span>'+(r[4] ? '<span class="lgx'+(f.ky ? ' on' : '')+'">кыр</span>' : '');
+const vidN = i => { let n = 0; for(let j = 0; j <= i; j++) if(BL[j][0] === BL[i][0] && BL[j][2]) n++; return n; };
+const bname = r => r[0]+' '+(r[2] ? '<span class="vidp">вид</span> ' : '')+esc(r[1]);
+
+function tlistHTML(){
+  const q = (S.tq || '').trim().toLowerCase(), fl = S.tfl || 'all';
+  const rows = BL.map((r, i) => [r, i]).filter(([r]) => (!q || (r[0]+' '+r[1]).toLowerCase().indexOf(q) !== -1) &&
+    (fl === 'all' || (fl === 'ok' ? !!tfo(r).ru : tst(r) === fl)));
+  return '<table class="g"><thead><tr><th>Бланк'+mk(2)+'</th><th>Основной объект</th><th>Языки</th><th>Состояние</th><th>Кто печатает'+mk(9)+'</th><th>Загрузил</th></tr></thead><tbody>'+
+    (rows.length ? rows.map(([r, i]) => { const f = tfo(r);
+      return '<tr class="click'+(i === S.tplI ? ' sel' : '')+'" onclick="S.tplI='+i+';S.tTry=false;renderScreen()"><td'+(r[2] ? ' class="vidr"' : '')+'>'+
+        '<b>'+r[0]+'</b> '+(r[2] ? '<span class="vidp">вид</span> ' : '')+esc(r[1])+(r[0] === 'ФО-44' ? mk(12) : '')+'</td><td>'+esc(r[3])+'</td><td style="white-space:nowrap">'+langs(r, f)+'</td><td style="white-space:nowrap">'+spl(tst(r))+'</td>'+
+        '<td class="small">'+(f.acc ? esc(f.acc.join(', ') || 'никому') : 'все, кто видит карточку')+'</td>'+
+        '<td class="small">'+(f.who ? esc(f.who)+(f.at ? ', '+f.at : '') : '<span class="muted">—</span>')+'</td></tr>'; }).join('')
+    : '<tr><td colspan="6" class="muted">Ничего не найдено</td></tr>')+'</tbody></table>';
+}
+function renderTList(){ const el = document.getElementById('tlist'); if(el) el.innerHTML = tlistHTML(); }
+function tUpload(i, lang){ const f = tfw(i), k = tkey(BL[i]), r = BL[i];
+  delete f.err; f['new_'+lang] = r[0].replace('ФО', 'fo')+(r[2] ? '-vid'+vidN(i) : '')+(lang === 'ky' ? '-ky' : '')+'.docx';
+  S.tStage = S.tStage || {}; S.tStage[k] = {tried:false}; S.tTry = false; toast('Файл загружен, все поля найдены'); renderScreen(); }
+function tTry(i){ const k = tkey(BL[i]); pvs(); S.tTry = true; if(S.tStage && S.tStage[k]) S.tStage[k].tried = true; renderScreen(); }
+function tSave(i){ const f = tfw(i), k = tkey(BL[i]); ['ru','ky'].forEach(l => { if(f['new_'+l]){ f[l] = f['new_'+l]; delete f['new_'+l]; } });
+  f.who = ROLES[S.role].who; f.at = TODAY; if(!f.params) f.params = ['date']; delete S.tStage[k]; S.tTry = false;
+  toast('Сохранено: сотрудники печатают по новому файлу'); renderScreen(); }
+function tRemove(i, lang){ const f = tfw(i); toast('Файл снят: '+f[lang]); delete f[lang]; renderScreen(); }
+function tParam(i, p, on){ const f = tfw(i), ps = f.params || (f.params = []); const j = ps.indexOf(p); if(on && j === -1) ps.push(p); if(!on && j !== -1) ps.splice(j, 1); }
+function tAcc(i, narrow){ const f = tfw(i); if(narrow) f.acc = ['ДАК']; else delete f.acc; renderScreen(); }
+function tDep(i, d, on){ const f = tfw(i), a = f.acc || (f.acc = []); const j = a.indexOf(d); if(on && j === -1) a.push(d); if(!on && j !== -1) a.splice(j, 1); renderTList(); }
+
+function shablonyHTML(){
+  const can = S.role === 'otv' || isAdmin();
+  if(!can) return '<div class="card noacc"><h3>Нет доступа</h3><p>Экран «Шаблоны печати» открыт ответственному за шаблоны печати и администратору. '+
+    'Бланки печатаются из карточки объекта — кнопка «Печать ▾».</p></div>'+
+    '<p class="small muted mnote" style="margin-top:12px">В макете: <button class="btn sec sm" onclick="S.role=\'otv\';render()">Смотреть как ответственный</button>'+mk(4)+'</p>';
+  if(S.tplI == null) S.tplI = BL.findIndex(r => r[0] === 'ФО-40');
+  const cnt = {none:0, err:0, noky:0, ok:0}; BL.forEach(r => cnt[tst(r)]++);
+  const loaded = BL.filter(r => tfo(r).ru).length, fl = S.tfl || 'all';
+  const segs = [['all','Все',BL.length],['none','Нет файла',cnt.none],['err','Ошибка',cnt.err],['noky','Нет кыргызского',cnt.noky],['ok','Загружено',loaded]];
+  let h = '<div class="tbar"><input class="txt" id="tq" placeholder="Номер или название" value="'+esc(S.tq || '')+'" oninput="S.tq=this.value;renderTList()" style="max-width:280px">'+
+    '<span class="seg2">'+segs.map(s => '<button class="'+(fl === s[0] ? 'on' : '')+'" onclick="S.tfl=\''+s[0]+'\';renderScreen()">'+s[1]+' · '+s[2]+'</button>').join('')+'</span>'+mk(3)+
+    '<span class="tcnt">Загружено <b>'+loaded+'</b> из '+BL.length+mk(4)+'</span></div>'+
+    '<div class="card"><div class="tblwrap tlist" id="tlist">'+tlistHTML()+'</div></div>';
+  if(!S.tScrolled) setTimeout(() => { const t = document.getElementById('tlist'), x = t && t.querySelector('tr.sel'); if(t && x){ t.scrollTop = x.offsetTop - 44; S.tScrolled = true; } });
+  const i = S.tplI, r = BL[i], k = tkey(r), f = tfo(r), stg = (S.tStage || {})[k], ps = f.params || [];
+  const fileRow = (lang, lab) => { const fn = f[lang], nf = f['new_'+lang];
+    return '<div class="frow"><span class="fl">'+lab+'</span><span class="in'+(fn ? '' : ' ph')+'" style="flex:1;min-width:180px">'+esc(fn || 'нет файла')+
+      (nf ? '<span class="pl blue">новый: '+esc(nf)+'</span>' : '')+'</span>'+
+      '<button class="btn sm" onclick="tUpload('+i+',\''+lang+'\')">Загрузить Word</button>'+
+      (fn ? '<button class="btn sec sm" onclick="toast(\'Скачан '+fn+'\')">Скачать</button><button class="btn sec sm" onclick="tRemove('+i+',\''+lang+'\')">Снять файл</button>' : '')+'</div>'; };
+  let chk;
+  if(f.err) chk = '<div class="banner err">Ошибка: поле '+esc(f.err)+' не найдено. Файл не сохранён — исправьте в Word и загрузите снова. '+
+    (f.ru ? 'Сотрудники печатают по прежнему файлу.' : 'Бланк пока не печатается.')+'</div>';
+  else if(stg) chk = '<div class="banner info">Новый файл: все поля найдены — 24. Ещё не действует: проверьте пробной печатью и сохраните.</div>';
+  else if(f.ru) chk = '<div class="banner ok">Действующий файл: все поля найдены — 24.</div>';
+  else chk = '<p class="small muted" style="margin:0 0 6px">Загрузите файл — коды полей проверятся сразу.</p>';
+  const canTry = !!(f.ru || stg);
+  let tr = '<div class="frow"><span class="in" style="flex:1;min-width:220px">'+esc(OBJX[r[3]] || r[3]+' — выбрать запись')+'<span class="muted">⌄</span></span>'+
+    '<button class="btn sec sm"'+(canTry ? '' : ' disabled')+' onclick="tTry('+i+')">Показать</button>'+
+    (stg ? '<button class="btn sm"'+(stg.tried ? '' : ' disabled')+' onclick="tSave('+i+')">Сохранить</button>' : '')+'</div>';
+  if(stg) tr += '<p class="small muted" style="margin:0">До «Сохранить» сотрудники печатают по '+(f.ru ? 'прежнему файлу' : 'прежнему: этот бланк пока не печатается')+'.</p>';
+  if(S.tTry && canTry) tr += '<div class="tprev"><div class="frow" style="margin-bottom:10px"><span class="small muted">Пробная печать на выбранном объекте</span>'+
+    '<span style="margin-left:auto;display:flex;gap:8px"><button class="btn sec sm" onclick="toast(\'Скачан пробный docx\')">Скачать docx</button><button class="btn sec sm" onclick="toast(\'Скачан пробный PDF\')">Скачать PDF</button></span></div>'+docHTML(i, 'ru')+'</div>';
+  h += '<div class="cols2"><div class="card ed"><div class="sec">'+bname(r)+mk(1)+'</div><div class="fgrid two">'+
+    fld({l:'Основной объект', v:r[3]+' — печатается из его карточки', lock:true})+fld({l:'Языки', v:r[4] ? 'внешний бланк: русский и кыргызский' : 'внутренний бланк: русский', lock:true})+'</div>'+
+    '<label class="lbl" for="tdesc" style="margin-top:10px">Краткое описание</label><input class="txt" id="tdesc" placeholder="Когда и кому печатается" value="'+esc(f.desc || '')+'">'+
+    '<div class="sec">Файлы Word'+mk(5)+mk(13)+'</div>'+fileRow('ru', 'Русский')+(r[4] ? fileRow('ky', 'Кыргызский') : '')+
+    '<div class="sec">Проверка полей'+mk(6)+'</div>'+chk+
+    '<div class="sec">Пробная печать'+mk(7)+'</div>'+tr+
+    '<div class="sec">Параметры печати'+mk(8)+'</div><div class="prm">'+PRM.map(p => '<label class="chk"><input type="checkbox"'+(ps.indexOf(p[0]) !== -1 ? ' checked' : '')+
+      ' onchange="tParam('+i+',\''+p[0]+'\',this.checked)"> '+p[1]+' <span class="muted small">· '+p[2]+'</span></label>').join('')+'</div>'+
+    '<div class="sec">Кто печатает'+mk(9)+'</div><div class="rad"><label><input type="radio" name="tacc"'+(f.acc ? '' : ' checked')+' onchange="tAcc('+i+',false)"> Все, кто видит карточку «'+esc(r[3])+'»</label>'+
+      '<label><input type="radio" name="tacc"'+(f.acc ? ' checked' : '')+' onchange="tAcc('+i+',true)"> Только выбранные подразделения</label></div>'+
+    (f.acc ? '<div class="chips" style="margin-top:8px">'+DEPS.map(s => '<label class="chk"><input type="checkbox"'+(f.acc.indexOf(s) !== -1 ? ' checked' : '')+' onchange="tDep('+i+',\''+s+'\',this.checked)"> '+s+'</label>').join('')+'</div>' : '')+
+    '<p class="small muted" style="margin:14px 0 0">'+mk(14)+' история загрузок — позже.</p></div>';
+  const q = S.fq.trim().toLowerCase();
+  h += '<div class="card ed"><div class="sec">Поля для шаблона'+mk(10)+'</div><input class="txt" id="fq" placeholder="Найти поле" value="'+esc(S.fq)+'" oninput="S.fq=this.value;renderFields()" style="margin-bottom:8px">'+
+    '<div class="fields" id="fields">'+fieldsHTML(q)+'</div><p class="small muted">Код вставляется в Word как есть: фигурные скобки, объект, точка, поле.</p>'+
+    '<div class="sec">Таблица в Word'+mk(11)+'</div><table class="wt"><tr><th>Дата</th><th>Основной долг</th><th>Проценты</th><th>Итого к уплате</th></tr>'+
+    '<tr class="cd"><td>{График.Дата}</td><td>{График.Основной долг}</td><td>{График.Проценты}</td><td>{График.Итого к уплате}</td></tr>'+
+    '<tr class="ft"><td colspan="3">Итого</td><td>{График.Итого по графику}</td></tr></table>'+
+    '<p class="small muted">Вторая строка повторится на каждый платёж графика; строка «Итого» печатается один раз.</p></div></div>';
+  return h;
+}
 const FIELDS = {
   'Кредит':['Номер договора','Дата договора','Сумма договора','Валюта','Ставка, %','Срок погашения','Остаток основного долга на дату','Просроченная задолженность на дату','Начисленные проценты на дату','Штрафы на дату','Куратор','Департамент'],
   'Заёмщик':['Наименование','ИНН','Адрес','Руководитель','Телефон','Банковские реквизиты'],
-  'График':['Ближайший платёж — дата','Ближайший платёж — сумма','Таблица графика'],
-  'Платежи':['Последний платёж — дата','Последний платёж — сумма','Таблица платежей за период'],
-  'Залог':['Номер договора залога','Дата договора залога','Предмет залога','Залоговая стоимость','Залогодатель'],
+  'График':['Ближайший платёж — дата','Ближайший платёж — сумма','Итого по графику'],
+  'График — строка таблицы':['Дата','Основной долг','Проценты','Итого к уплате','Остаток после платежа'],
+  'Платежи':['Последний платёж — дата','Последний платёж — сумма','Итого за период'],
+  'Платежи — строка таблицы':['Дата платежа','Сумма','В основной долг','В проценты','В штрафы'],
+  'Залог':['Номер договора залога','Дата договора залога','Залоговая стоимость','Залогодатель'],
+  'Предметы залога — строка таблицы':['Наименование','Описание','Оценочная стоимость','Залоговая стоимость'],
   'Поручитель':['Наименование','Номер договора поручительства','Сумма поручительства'],
   'Дело взыскания':['Номер дела','Сумма требования','Стадия','Суд'],
   'Имущество':['Объект','Адрес','Оценочная стоимость'],
-  'Параметры печати':['Дата печати','Исполнитель','Номер исходящего']
+  'Печать':['На дату','Период с','Период по','Подписант — должность','Подписант — ФИО','Исполнитель','Исходящий — номер','Исходящий — дата']
 };
+const fpfx = g => g.split(' — ')[0];
 function copyCode(c){ try{ navigator.clipboard.writeText(c).then(() => toast('Скопировано: '+c), () => toast(c)); }catch(e){ toast(c); } }
-function shablonyHTML(){
-  const can = S.role === 'otv' || isAdmin(), t = TPLS[S.tpl];
-  let h = can ? '' : '<div class="banner info">Загружает и меняет шаблоны только ответственный. Остальные печатают из карточек. <button class="btn sm" onclick="S.role=\'otv\';render()">Смотреть как ответственный</button></div>';
-  h += '<div class="card"><div class="tblwrap"><table class="g"><thead><tr><th>Бланк</th><th>Основной объект</th><th>Файл</th><th>Загрузил</th><th>Когда</th><th>Доступ</th></tr></thead><tbody>'+
-    TPLS.map((x, i) => '<tr class="click'+(i === S.tpl ? ' sel' : '')+'" onclick="S.tpl='+i+';renderScreen()"><td><b>'+x.id+'</b> '+esc(x.name)+(i === 0 ? mk(6) : '')+'</td><td>'+esc(x.obj)+'</td><td class="small">'+esc(x.file)+'</td><td>'+esc(x.who)+'</td><td>'+x.at+'</td><td class="small">'+esc(x.acc)+'</td></tr>').join('')+
-    '</tbody></table></div></div>';
-  const q = S.fq.trim().toLowerCase();
-  h += '<div class="cols2"><div class="card ed"><div class="sec">Шаблон'+mk(2)+mk(1)+'</div><div class="fgrid two">'+
-    fld({l:'Название', v:t.id+' '+t.name})+fld({l:'Основной объект', v:t.obj})+fld({l:'Краткое описание', v:'Печатается из карточки «'+t.obj+'», меню «Печать»'})+fld({l:'Параметры печати', v:'Дата печати (по умолчанию сегодня)'})+'</div>'+
-    '<div class="sec">Файл Word'+mk(5)+'</div><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="in" style="flex:1;min-width:200px">'+esc(t.file)+'</span><button class="btn"'+(can ? '' : ' disabled')+' onclick="toast(\'Файл загружен и проверен\')">Загрузить Word</button></div>'+
-    '<div class="sec">Проверка полей'+mk(4)+'</div>'+(t.err ? '<div class="banner err">Ошибка: поле {Кредит.Номер договра} не найдено. Исправьте в файле и загрузите снова. Найдено полей: 13.</div>'
-      : '<div class="banner info">Все поля найдены: 24.</div>')+
-    '<div class="sec">Кому доступен</div><div class="chips">'+DEPS.map(s => '<label class="chk"><input type="checkbox"'+(t.acc.indexOf(s) !== -1 ? ' checked' : '')+(can ? '' : ' disabled')+'> '+s+'</label>').join('')+'</div>'+
-    '<p class="small muted">'+mk(7)+' история загрузок — позже.</p></div>'+
-    '<div class="card ed"><div class="sec">Поля для шаблона'+mk(3)+'</div><input class="txt" id="fq" placeholder="Найти поле" value="'+esc(S.fq)+'" oninput="S.fq=this.value;renderFields()" style="margin-bottom:8px"><div class="fields" id="fields">'+fieldsHTML(q)+'</div>'+
-    '<p class="small muted">Код вставляется в Word как есть — фигурные скобки, объект, точка, поле.</p></div></div>';
-  return h;
-}
 function fieldsHTML(q){ let h = '';
   Object.keys(FIELDS).forEach(g => { const f = FIELDS[g].filter(x => !q || (g+' '+x).toLowerCase().indexOf(q) !== -1); if(!f.length) return;
-    h += '<div class="fg">'+g+'</div>'+f.map(x => { const c = '{'+g+'.'+x+'}'; return '<div class="fr"><span>'+esc(x)+'</span><code>'+esc(c)+'</code><button class="btn sec sm" onclick="copyCode(\''+c.replace(/'/g, "\\'")+'\')">Копировать</button></div>'; }).join(''); });
+    h += '<div class="fg">'+g+'</div>'+f.map(x => { const c = '{'+fpfx(g)+'.'+x+'}'; return '<div class="fr"><span>'+esc(x)+'</span><code>'+esc(c)+'</code><button class="btn sec sm" onclick="copyCode(\''+c.replace(/'/g, "\\'")+'\')">Копировать</button></div>'; }).join(''); });
   return h || '<div class="fr muted">Поле не найдено</div>'; }
 function renderFields(){ const el = document.getElementById('fields'); if(el) el.innerHTML = fieldsHTML(S.fq.trim().toLowerCase()); }
 
-/* ---------- карточка кредита ---------- */
+/* ---------- печать из карточки кредита ---------- */
+const WARN = {'ФО-40':['руководитель заёмщика'], 'ФО-44':['банковские реквизиты заёмщика','руководитель заёмщика']};
+function kMenu(){
+  const ok = r => tfo(r).ru && !(tfo(r).acc && tfo(r).acc.indexOf('ДАК') === -1 && !isAdmin()), out = [];
+  BL.forEach((r, i) => { if(r[3] !== 'Кредит' || r[2]) return;
+    const vids = []; BL.forEach((v, j) => { if(v[2] && v[0] === r[0] && v[3] === 'Кредит' && ok(v)) vids.push(j); });
+    if(ok(r)) out.push({i}); else if(vids.length) out.push({i, hdr:true});
+    vids.forEach(j => out.push({i:j, vid:true})); });
+  return out; }
+function kOpen(i){ S.blank = i; S.menu = false; S.lang = 'ru'; pvs(); renderScreen(); }
+function kFile(i, ext){ const r = BL[i], f = tfo(r), pv = pvs(), d = (f.params || []).indexOf('period') !== -1 ? pv.from+'-'+pv.to : pv.date;
+  return r[0]+(r[2] ? '-вид'+vidN(i) : '')+'_22-1-045_'+d+(S.lang === 'ky' && f.ky ? '_ky' : '')+'.'+ext; }
+function kDoc(){ const b = document.getElementById('docbox'); if(b && S.blank != null){ b.innerHTML = docHTML(S.blank, S.lang); document.getElementById('fname').textContent = kFile(S.blank, 'docx'); } }
+function pInput(p){ const pv = pvs();
+  if(p === 'date') return '<label><span class="lbl">На дату</span><input class="txt" inputmode="numeric" value="'+esc(pv.date)+'" oninput="S.pv.date=this.value;kDoc()"></label>';
+  if(p === 'period') return '<label><span class="lbl">Период с</span><input class="txt" inputmode="numeric" value="'+esc(pv.from)+'" oninput="S.pv.from=this.value;kDoc()"></label>'+
+    '<label><span class="lbl">по</span><input class="txt" inputmode="numeric" value="'+esc(pv.to)+'" oninput="S.pv.to=this.value;kDoc()"></label>';
+  if(p === 'sign') return '<label><span class="lbl">Подписант</span><select onchange="S.pv.sign=+this.value;kDoc()">'+SIGN.map((s, j) => '<option value="'+j+'"'+(pv.sign === j ? ' selected' : '')+'>'+esc(s)+'</option>').join('')+'</select></label>';
+  if(p === 'exec') return '<label><span class="lbl">Исполнитель</span><input class="txt" value="'+esc(pv.exec || ROLES[S.role].who)+'" oninput="S.pv.exec=this.value;kDoc()"></label>';
+  if(p === 'out') return '<label><span class="lbl">Исходящий №</span><input class="txt" placeholder="____" value="'+esc(pv.out)+'" oninput="S.pv.out=this.value;kDoc()"></label>';
+  return ''; }
+function docHTML(i, lang){
+  const r = BL[i], f = tfo(r), pv = pvs(), ps = f.params || [], ky = lang === 'ky' && !!f.ky;
+  const dt = pv.date || '____', sg = SIGN[pv.sign || 0].split(' — '), ex = pv.exec || ROLES[S.role].who, out = pv.out || '______', bl = '______________';
+  const row = x => '<tr><td>'+x[0]+'</td>'+x.slice(1).map(v => '<td class="n">'+v+'</td>').join('')+'</tr>';
+  let h = '<div class="doc"><div style="display:flex;justify-content:space-between;gap:12px;font-size:12px"><span>'+(ky ? '«Мамлекеттик финансылык холдинг» ААК' : 'ОАО «Государственный финансовый холдинг»')+'</span>'+
+    '<span>'+(ps.indexOf('out') !== -1 ? (ky ? 'Чыг. № '+esc(out)+' '+esc(dt)+'-ж.' : 'Исх. № '+esc(out)+' от '+esc(dt)) : '')+'</span></div>';
+  if(r[0] === 'ФО-40' && !r[2]){
+    h += '<div style="text-align:right;margin-top:14px">'+(ky ? 'ОсОО «Тянь-Шань Строй»<br>жетекчисине<br>'+bl+'<br>Бишкек ш.' : 'Руководителю<br>ОсОО «Тянь-Шань Строй»<br>'+bl+'<br>г. Бишкек')+'</div>'+
+      '<h3>'+(ky ? 'Карыз жөнүндө маалымкат' : 'Справка о задолженности')+'</h3><p style="text-align:center;margin:0">'+
+      (ky ? esc(dt)+'-ж. карата абалы боюнча, 03.02.2022-ж. № 22-1/045 кредиттик келишим боюнча' : 'по кредитному договору № 22-1/045 от 03.02.2022 по состоянию на '+esc(dt))+'</p><table>'+
+      (ky ? [['Негизги карыздын калдыгы','1 900 000,00'],['Мөөнөтү өткөн негизги карыз','150 000,00'],['Мөөнөтү өткөн пайыздар','28 500,00'],['Айыптар','2 350,00']]
+          : [['Остаток основного долга','1 900 000,00'],['Просроченный основной долг','150 000,00'],['Просроченные проценты','28 500,00'],['Штрафы','2 350,00']]).map(row).join('')+
+      '<tr><td><b>'+(ky ? 'Бардыгы төлөөгө' : 'Итого к погашению')+'</b></td><td class="n"><b>2 080 850,00</b></td></tr></table><p style="font-size:12px;color:#555">'+(ky ? 'Сумма сом менен.' : 'Сумма в сомах.')+'</p>';
+  } else if(r[0] === 'ФО-42' && !r[2]){
+    h += '<h3>'+(ky ? 'Төлөө графиги' : 'График погашения')+'</h3><p style="text-align:center;margin:0">'+(ky ? '03.02.2022-ж. № 22-1/045 кредиттик келишим боюнча' : 'по кредитному договору № 22-1/045 от 03.02.2022')+'</p>'+
+      '<table><tr>'+(ky ? ['Күнү','Негизги карыз','Пайыздар','Бардыгы'] : ['Дата','Основной долг','Проценты','Итого к уплате']).map(x => '<td><b>'+x+'</b></td>').join('')+'</tr>'+
+      [['03.12.2026','190 000,00','14 250,00','204 250,00'],['03.03.2027','190 000,00','12 825,00','202 825,00'],['03.06.2027','190 000,00','11 400,00','201 400,00']].map(row).join('')+
+      '<tr><td colspan="4" style="text-align:center;color:#666">… '+(ky ? '03.02.2029-ж. чейин дагы 7 төлөм' : 'ещё 7 платежей до 03.02.2029')+' …</td></tr>'+
+      '<tr><td><b>'+(ky ? 'Бардыгы' : 'Итого')+'</b></td><td class="n"><b>1 900 000,00</b></td><td class="n"><b>78 375,00</b></td><td class="n"><b>1 978 375,00</b></td></tr></table>';
+  } else if(r[0] === 'ФО-41' && !r[2]){
+    h += '<h3>Реестр погашений</h3><p style="text-align:center;margin:0">по кредитному договору № 22-1/045 от 03.02.2022 за период с '+esc(pv.from)+' по '+esc(pv.to)+'</p>'+
+      '<table><tr>'+['Дата платежа','Сумма','В основной долг','В проценты','В штрафы'].map(x => '<td><b>'+x+'</b></td>').join('')+'</tr>'+
+      [['05.10.2026','50 000,00','40 000,00','10 000,00','0,00'],['28.10.2026','30 000,00','20 000,00','9 500,00','500,00']].map(row).join('')+
+      '<tr><td><b>Итого</b></td><td class="n"><b>80 000,00</b></td><td class="n"><b>60 000,00</b></td><td class="n"><b>19 500,00</b></td><td class="n"><b>500,00</b></td></tr></table>';
+  } else {
+    h += '<h3>'+esc(r[1])+'</h3><p style="text-align:center;margin:0">по кредитному договору № 22-1/045 от 03.02.2022</p>'+
+      '<p style="margin:18px 0 0;color:#666;font-style:italic">[текст бланка из '+(ky ? 'кыргызского ' : '')+'файла шаблона; данные кредита и заёмщика подставлены]</p>';
+  }
+  h += '<div class="sign"><span>Куратор ____________ Асанов А. К.</span>'+(ps.indexOf('sign') !== -1 ? '<span>'+esc(sg[0])+' ____________ '+esc(sg[1] || '')+'</span>' : '')+'</div>'+
+    (ps.indexOf('exec') !== -1 ? '<p style="font-size:11px;color:#555;margin:18px 0 0">'+(ky ? 'Аткаруучу: ' : 'Исп.: ')+esc(ex)+'</p>' : '')+'</div>';
+  return h;
+}
 function kreditHTML(){
-  const bl = D.blanks.filter(b => ['Кредит','Платежи','График'].indexOf(b.module) !== -1);
-  let h = (S.fromRep ? '<p style="margin:0 0 10px"><a href="#otchet" onclick="history.back();return false">← К отчёту</a> <span class="small muted">«Назад» вернёт отчёт таким, каким он был</span></p>' : '')+'<div class="kh"><h2>Кредит № 22-1/045 от 03.02.2022, KGS</h2><span class="st">Действует</span><span class="muted">ОсОО «Тянь-Шань Строй»</span>'+
+  const items = kMenu(); let firstVid = true;
+  let h = (S.fromRep ? '<p style="margin:0 0 10px"><a href="#otchet" onclick="history.back();return false">← К отчёту</a> <span class="small muted">«Назад» вернёт отчёт таким, каким он был</span></p>' : '')+
+    '<div class="kh"><h2>Кредит № 22-1/045 от 03.02.2022, KGS</h2><span class="st">Действует</span><span class="muted">ОсОО «Тянь-Шань Строй»</span>'+
     '<span style="margin-left:auto;display:flex;gap:8px;align-items:center"><button class="btn sec">Изменить</button>'+
-    '<span class="dd"><button class="btn new" onclick="S.menu=!S.menu;renderScreen()" aria-expanded="'+S.menu+'">Печать ▾</button>'+(S.menu ? '<div class="menu">'+
-      bl.map(b => b.id === 'ФО-82' ? '<div class="off">'+b.id+' '+esc(b.name)+'</div>' : '<button onclick="S.blank=\''+b.id+'\';S.menu=false;renderScreen()">'+b.id+' '+esc(b.name)+'</button>').join('')+'</div>' : '')+'</span>'+mk(1)+mk(2)+'</span></div>';
+    (items.length ? '<span class="dd"><button class="btn new" onclick="S.menu=!S.menu;renderScreen()" aria-expanded="'+S.menu+'">Печать ▾</button>'+(S.menu ? '<div class="menu">'+
+      items.map(x => { const r = BL[x.i]; if(x.hdr) return '<div class="mh">'+r[0]+' '+esc(r[1])+'</div>';
+        if(x.vid){ const m = firstVid ? mk(3) : ''; firstVid = false; return '<button class="mv" onclick="kOpen('+x.i+')"><span class="vidp">вид</span> '+esc(r[1])+m+'</button>'; }
+        return '<button onclick="kOpen('+x.i+')">'+r[0]+' '+esc(r[1])+'</button>'; }).join('')+'</div>' : '')+'</span>' : '')+mk(1)+mk(2)+'</span></div>';
   h += '<div class="card"><div class="ktabs"><span class="on">Основное</span><span>График</span><span>Платежи</span><span>Залог</span><span>Поручительство</span><span>Взыскание</span><span>Документы</span></div>'+
     '<div class="kgrid">'+[['Сумма договора','2 500 000,00 сом'],['Остаток основного долга','1 900 000,00 сом'],['Просрочено','180 850,00 сом'],['Дней просрочки','20'],
       ['Куратор','Асанов А. К.'],['Департамент','Департамент администрирования кредитов'],['Ставка','3 %'],['Срок погашения','03.02.2029']].map(x => '<div><div class="lbl">'+x[0]+'</div><div class="v">'+x[1]+'</div></div>').join('')+'</div></div>';
-  if(S.blank){ const b = D.blanks.find(x => x.id === S.blank);
-    h += '<div class="prevbar"><b>Просмотр: '+b.id+' '+esc(b.name)+'</b>'+mk(3)+'<span class="in" style="min-width:200px">На дату: '+TODAY+' 📅</span>'+
-      '<span style="margin-left:auto;display:flex;gap:8px"><button class="btn" onclick="toast(\'Скачан '+b.id+'.docx\')">Скачать docx</button><button class="btn sec" onclick="toast(\'Скачан '+b.id+'.pdf\')">Скачать PDF</button><button class="btn sec" onclick="S.blank=null;renderScreen()">Закрыть</button></span></div>'+
-      '<div class="doc"><div style="display:flex;justify-content:space-between;font-size:12px"><span>ОАО «Государственный финансовый холдинг»</span><span>Исх. № ______ от '+TODAY+'</span></div>'+
-      '<div style="text-align:right;margin-top:14px">Руководителю<br>ОсОО «Тянь-Шань Строй»<br>г. Бишкек</div>'+
-      '<h3>'+esc(b.name)+'</h3><p style="text-align:center;margin:0">по кредитному договору № 22-1/045 от 03.02.2022 по состоянию на '+TODAY+'</p>'+
-      '<table><tr><td>Остаток основного долга</td><td class="n">1 900 000,00</td></tr><tr><td>Просроченный основной долг</td><td class="n">150 000,00</td></tr>'+
-      '<tr><td>Просроченные проценты</td><td class="n">28 500,00</td></tr><tr><td>Штрафы</td><td class="n">2 350,00</td></tr><tr><td><b>Итого к погашению</b></td><td class="n"><b>2 080 850,00</b></td></tr></table>'+
-      '<p style="font-size:12px;color:#555">Сумма в сомах. Данные подставлены из кредита на дату печати.</p><div class="sign"><span>Куратор ____________ Асанов А. К.</span><span>Директор департамента ____________</span></div></div>';
+  if(S.blank != null){ const i = S.blank, r = BL[i], f = tfo(r), ps = f.params || [], w = !r[2] && WARN[r[0]];
+    h += '<div class="prevbar"><b>Просмотр: '+bname(r)+'</b>'+mk(4)+'<span class="pbtn">'+mk(6)+
+      '<button class="btn" onclick="toast(\'Скачан \'+kFile('+i+',\'docx\'))">Скачать docx</button><button class="btn sec" onclick="toast(\'Скачан \'+kFile('+i+',\'pdf\'))">Скачать PDF</button>'+
+      '<button class="btn sec" onclick="S.blank=null;renderScreen()">Закрыть</button></span></div>';
+    if(ps.length || f.ky) h += '<div class="pp">'+ps.map(pInput).join('')+(f.ky ? '<span class="seg3" role="group" aria-label="Язык"><button class="'+(S.lang !== 'ky' ? 'on' : '')+'" onclick="S.lang=\'ru\';renderScreen()">Русский</button>'+
+      '<button class="'+(S.lang === 'ky' ? 'on' : '')+'" onclick="S.lang=\'ky\';renderScreen()">Кыргызский</button></span>' : '')+'</div>';
+    if(w) h += '<div class="banner warn">'+mk(5)+'<span>Не заполнено в карточке: '+w.map(x => '<a href="#" onclick="toast(\'Откроется карточка заёмщика: '+x+'\');return false">'+x+'</a>').join(', ')+'. В документе на этом месте «______».</span></div>';
+    h += '<div id="docbox">'+docHTML(i, S.lang)+'</div><p class="small muted" id="fname" style="text-align:center;margin:8px 0 0">'+esc(kFile(i, 'docx'))+'</p>';
   } else h += '<div class="banner info" style="margin-top:14px">Нажмите «Печать ▾» — откроется список бланков кредита; выберите бланк, чтобы увидеть просмотр.</div>';
-  h += '<p class="small muted" style="margin-top:14px">'+mk(4)+'залоговый договор: «Печать описи» и «Справка об обеспеченности» уже есть — поправить. '+mk(5)+'ФО-82 в списке зачёркнут — не делать.</p>';
+  h += '<p class="small muted mnote" style="margin-top:14px">'+mk(7)+'бланк одной из нескольких записей — выбор записи в параметрах. '+mk(8)+'залоговый договор: «Печать описи» и «Справка об обеспеченности» — бланки ФО-60 и ФО-61. '+mk(9)+'позже — печать пачкой и черновик исходящего.</p>';
   return h;
 }
 
